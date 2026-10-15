@@ -9,6 +9,8 @@ import { LoginPage } from './pages/LoginPage'
 import { AccountPage } from './pages/AccountPage'
 import { PermissionPage } from './pages/PermissionPage'
 import { SchoolSettingsPage } from './pages/SchoolSettingsPage'
+import { UsersPage } from './pages/UsersPage'
+import { DashboardPage } from './pages/DashboardPage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -83,6 +85,14 @@ function SchoolGate({ permissions, loading, error }: { permissions: string[] | u
   if (error) return <p role="alert">{t('loadPermissionsError')}</p>
   if (!permissions?.includes('school_settings:read')) return <p role="alert">{t('permissionDenied')}</p>
   return <SchoolSettingsPage permissions={permissions} />
+}
+
+function UsersGate({ permissions, role, loading, error }: { permissions: string[] | undefined; role: string | undefined; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('loadingPermissions')}</p>
+  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (role !== 'admin' || !permissions?.includes('users:read')) return <p role="alert">{t('permissionDenied')}</p>
+  return <UsersPage permissions={permissions} />
 }
 
 function applyBranding(branding: SchoolBranding | undefined) {
@@ -160,6 +170,8 @@ export default function App() {
                 <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('home')}</Link>
                 {ready && (user
                   ? <><Link to="/account" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('account')}</Link>
+                    <Link to="/dashboard" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('dashboardHeading')}</Link>
+                    {user.role === 'admin' && myPermissions.data?.includes('users:read') && moduleEnabled('permissions') && <Link to="/admin/users" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_users')}</Link>}
                     {myPermissions.data?.includes('permissions:read') && moduleEnabled('permissions') && <Link to="/admin/permissions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('permissionEditor')}</Link>}
                     {myPermissions.data?.includes('school_settings:read') && moduleEnabled('school_settings') && <Link to="/admin/school-settings" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('schoolSettings')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
@@ -179,6 +191,9 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<LoginPage branding={branding.data} />} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard/:role" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute><UsersGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/permissions" element={<ProtectedRoute><PermissionGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/school-settings" element={<ProtectedRoute><SchoolGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />

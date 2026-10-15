@@ -15,7 +15,7 @@ export function LoginPage({ branding }: { branding?: SchoolBranding }) {
   const [error, setError] = useState('')
 
   if (!ready) return <p role="status" className="text-slate-600">{t('restoringSession')}</p>
-  if (user) return <Navigate to="/account" replace />
+  if (user) return <Navigate to="/dashboard" replace />
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -28,7 +28,7 @@ export function LoginPage({ branding }: { branding?: SchoolBranding }) {
     try {
       await signIn(email.trim(), password)
       const requested = location.state?.from
-      const destination = typeof requested === 'string' && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/account'
+      const destination = typeof requested === 'string' && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/dashboard'
       navigate(destination, { replace: true })
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 401) setError(t('invalidCredentials'))
