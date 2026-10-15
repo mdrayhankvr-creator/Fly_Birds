@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: Fly_Birds API
+  version: 0.1.0
+  description: M0 API surface. Additional endpoints will be documented as milestones are implemented.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Check API liveness
+      description: Returns the API process status. It does not check database readiness.
+      security: []
+      responses:
+        '200':
+          description: API process is responding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [status]
+          properties:
+            status:
+              type: string
+              enum: [ok]

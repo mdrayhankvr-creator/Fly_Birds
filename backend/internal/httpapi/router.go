@@ -14,9 +14,7 @@ func NewRouter() *gin.Engine {
 	}))
 	router.HandleMethodNotAllowed = true
 
-	router.GET("/healthz", func(c *gin.Context) {
-		success(c, http.StatusOK, gin.H{"status": "ok"})
-	})
+	router.GET("/healthz", healthz)
 	router.NoRoute(func(c *gin.Context) {
 		failure(c, http.StatusNotFound, "not_found", "route not found")
 	})
