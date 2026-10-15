@@ -1,6 +1,6 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase will support school-specific branding, language, grading, permissions, and module settings. M0 is merged. M1 checkpoint 1 adds the authentication foundation; school settings, runtime RBAC, module toggles, and role dashboards remain pending.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase will support school-specific branding, language, grading, permissions, and module settings. M0 is merged. M1 checkpoints 1 and 2 add authentication and runtime role permissions; school settings, module toggles, and role dashboards remain pending.
 
 The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
 
@@ -26,7 +26,15 @@ The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Mil
 - A responsive English/Bangla login page, in-memory access token, session restoration, and a protected account page
 - Interactive `create-user` command for the first account; no default credentials or public registration endpoint
 
-Checkpoint-one authentication has passed PostgreSQL-backed service and HTTP tests, plus an isolated browser login/logout against the running Compose stack. The full M1 milestone remains in progress; see [verified progress](docs/PROGRESS.md).
+## M1 Checkpoint 2 — Role Permissions
+
+- Migration 2 adds normalized `roles`, `permissions`, and `role_permissions` tables and links the existing single `users.role` value to the six supported roles with a foreign key. Existing users and sessions are preserved.
+- All six roles can read their own account by default. Administrators receive the ten currently defined permissions. Role grants are read from PostgreSQL on each protected request, so changes affect active sessions immediately.
+- `GET /auth/permissions` returns the signed-in user's current grants. `GET /roles`, `GET /permissions`, `GET /roles/:id/permissions`, and `GET /users/:id/roles` provide read access based on `roles:read` or `permissions:read`.
+- Administrators with `permissions:manage` can atomically replace a role's grants with `PUT /roles/:id/permissions` or a user's single role with `PUT /users/:id/roles`. The admin role must retain management and self-read access; the last active administrator cannot be demoted.
+- `/admin/permissions` is a responsive English/Bangla permission matrix. The backend remains the authority for every update.
+
+Both checkpoints have passed local PostgreSQL-backed tests and browser checks. The full M1 milestone remains in progress; see [verified progress](docs/PROGRESS.md).
 
 ## Repository Layout
 
@@ -78,6 +86,7 @@ Use `docker compose down` to stop the stack. The default endpoints are:
 | Health through frontend proxy | http://localhost:5173/api/healthz |
 | Login page | http://localhost:5173/login |
 | Protected account page | http://localhost:5173/account |
+| Permission editor | http://localhost:5173/admin/permissions |
 
 The database is exposed on `localhost:5432` by default. Change the values in `.env` if those ports are occupied. The sample PostgreSQL password is for local development only.
 
@@ -126,7 +135,7 @@ go run ./cmd/create-user -email you@example.com -role admin
 go run ./cmd/api
 ```
 
-Keep the same environment variables in that backend terminal. The `create-user` command asks for a password without echo. The backend checks the database connection and applies the versioned migration at startup. `GET /healthz` is a liveness check and does not test database readiness. The authentication API routes are `/auth/login`, `/auth/refresh`, `/auth/logout`, and `/auth/me`; the browser uses them through `/api/auth/*`.
+Keep the same environment variables in that backend terminal. The `create-user` command asks for a password without echo. The backend checks the database connection and applies versioned migrations at startup. `GET /healthz` is a liveness check and does not test database readiness. The browser uses the API through `/api/*`. Authentication and authorization routes are documented in [OpenAPI](docs/openapi.yaml).
 
 ## Environment Variables
 

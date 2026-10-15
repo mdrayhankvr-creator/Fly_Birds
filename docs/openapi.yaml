@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.2.0
-  description: M0 health and M1 checkpoint-one authentication API. Authentication endpoints require a configured PostgreSQL database.
+  version: 0.3.0
+  description: M0 health and M1 authentication and role permission APIs. Authentication and authorization require PostgreSQL.
 servers:
   - url: http://localhost:8080
 paths:
@@ -78,7 +78,7 @@ paths:
     get:
       operationId: getCurrentUser
       summary: Get the authenticated user's own account
-      description: Requires a valid access JWT, an active server-side session, and the checkpoint-one auth:read_self permission.
+      description: Requires a valid access JWT, an active server-side session, and the current auth:read_self role permission.
       tags: [authentication]
       security:
         - bearerAuth: []
@@ -92,6 +92,99 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/permissions:
+    get:
+      operationId: getMyPermissions
+      summary: Get the current user's effective permissions
+      description: Reads current role grants from PostgreSQL. Requires auth:read_self.
+      tags: [authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /roles:
+    get:
+      operationId: listRoles
+      summary: List supported roles
+      description: Requires roles:read. Results are ordered by ID.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Paginated roles, content: { application/json: { schema: { $ref: '#/components/schemas/RolePageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /permissions:
+    get:
+      operationId: listPermissions
+      summary: List defined permission identifiers
+      description: Requires permissions:read. Results are ordered by ID.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Paginated permissions, content: { application/json: { schema: { $ref: '#/components/schemas/PermissionPageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /roles/{id}/permissions:
+    parameters: [{ $ref: '#/components/parameters/RoleId' }]
+    get:
+      operationId: getRolePermissions
+      summary: Read a role's current grants
+      description: Requires permissions:read.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: replaceRolePermissions
+      summary: Replace all grants for one role
+      description: Requires permissions:manage and an administrator account. Valid IDs are unique. The admin role must retain auth:read_self and permissions:manage. Changes are atomic and effective for active sessions.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IDListRequest' } } } }
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/LastAdmin' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /users/{id}/roles:
+    parameters: [{ $ref: '#/components/parameters/UserId' }]
+    get:
+      operationId: getUserRoles
+      summary: Read a user's assigned role
+      description: Requires roles:read. The current user model supports one role per user, returned as a one-item array.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: replaceUserRole
+      summary: Replace a user's assigned role
+      description: Requires permissions:manage and an administrator account. The ids array must contain exactly one supported role. The final active administrator cannot be demoted.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SingleRoleRequest' } } } }
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/LastAdmin' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
 components:
   securitySchemes:
     bearerAuth:
@@ -99,6 +192,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    Search: { name: search, in: query, schema: { type: string, maxLength: 100 }, description: Case-insensitive ID or label search }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    PageSize: { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+    RoleId: { name: id, in: path, required: true, schema: { type: string }, description: One of the six role identifiers }
+    UserId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     CSRFToken:
       name: X-CSRF-Token
       in: header
@@ -106,6 +204,21 @@ components:
       schema:
         type: string
   responses:
+    IDList:
+      description: Current identifiers
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/IDListResponse' }
+    NotFound:
+      description: Role or user does not exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    LastAdmin:
+      description: Change would remove the last authorized administrator
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
     InvalidRequest:
       description: Invalid JSON or credentials format
       content:
@@ -142,6 +255,56 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    IDListRequest:
+      type: object
+      required: [ids]
+      additionalProperties: false
+      properties:
+        ids: { type: array, uniqueItems: true, items: { type: string } }
+    SingleRoleRequest:
+      allOf: [{ $ref: '#/components/schemas/IDListRequest' }]
+      description: The ids array must contain exactly one role identifier.
+    IDListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { type: string } }
+    RolePageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Role' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    PermissionPageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Permission' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    Role:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    Permission:
+      type: object
+      required: [id, description]
+      properties:
+        id: { type: string }
+        description: { type: string }
     LoginRequest:
       type: object
       required: [email, password]
