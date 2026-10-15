@@ -4,6 +4,7 @@ export type AuthUser = {
   id: string
   email: string
   role: string
+  display_name?: string
 }
 
 export type AuthSession = {
@@ -132,6 +133,32 @@ export const putSchoolModule = (token: string, key: string, enabled: boolean) =>
   `/school/modules/${encodeURIComponent(key)}`, token,
   { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) },
 )
+
+export type ManagedUser = { id: string; email: string; display_name: string; role: string; is_active: boolean }
+export type NewUser = { email: string; display_name: string; role: string; password: string }
+export type DashboardNavigation = { key: string; name: string; path: string; coming_soon: boolean }
+export type DashboardSummary = {
+  total_users: number; active_users: number; inactive_users: number
+  by_role: { role: string; count: number }[]; enabled_modules: number
+  school_fields_complete: number; school_fields_total: number
+}
+export type DashboardData = { user: AuthUser; branding: SchoolBranding; navigation: DashboardNavigation[]; summary?: DashboardSummary }
+
+export const getUsers = (token: string, params: URLSearchParams) => bearerRequest<Page<ManagedUser>>(`/users?${params}`, token)
+export const getUser = (token: string, id: string) => bearerRequest<ManagedUser>(`/users/${encodeURIComponent(id)}`, token)
+export const createUser = (token: string, input: NewUser) => bearerRequest<ManagedUser>('/users', token, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const updateUser = (token: string, id: string, input: { email: string; display_name: string }) => bearerRequest<ManagedUser>(`/users/${encodeURIComponent(id)}`, token, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const setUserStatus = (token: string, id: string, is_active: boolean) => bearerRequest<ManagedUser>(`/users/${encodeURIComponent(id)}/status`, token, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active }),
+})
+export const setUserRole = (token: string, id: string, role: string) => bearerRequest<string[]>(`/users/${encodeURIComponent(id)}/roles`, token, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [role] }),
+})
+export const getDashboard = (token: string) => bearerRequest<DashboardData>('/dashboard', token)
 
 type HealthResponse = {
   data: {
