@@ -1,0 +1,11 @@
+# Local configuration and generated files
+.env
+**/.env.local
+**/.cache/
+**/node_modules/
+**/dist/
+coverage/
+
+# Editor and operating system files
+.DS_Store
+.vscode/
