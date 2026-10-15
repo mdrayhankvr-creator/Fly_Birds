@@ -1,7 +1,12 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Route, Routes } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { getHealth } from './api/client'
+import { useAuth } from './auth/AuthProvider'
+import { ProtectedRoute } from './auth/ProtectedRoute'
+import { LoginPage } from './pages/LoginPage'
+import { AccountPage } from './pages/AccountPage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -64,11 +69,18 @@ function NotFound() {
 
 export default function App() {
   const { t, i18n } = useTranslation()
+  const { user, ready, signOut } = useAuth()
+  const [logoutError, setLogoutError] = useState(false)
 
   async function setLanguage(language: 'en' | 'bn') {
     await i18n.changeLanguage(language)
     localStorage.setItem('flybirds.language', language)
     document.documentElement.lang = language
+  }
+
+  async function handleLogout() {
+    setLogoutError(false)
+    try { await signOut() } catch { setLogoutError(true) }
   }
 
   return (
@@ -78,7 +90,13 @@ export default function App() {
           <Link to="/" className="text-xl font-extrabold tracking-tight text-teal-800">{t('appName')}</Link>
           <div className="flex items-center gap-5">
             <nav aria-label="Main navigation">
-              <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('home')}</Link>
+              <div className="flex items-center gap-4">
+                <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('home')}</Link>
+                {ready && (user
+                  ? <><Link to="/account" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('account')}</Link>
+                    <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
+                  : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
+              </div>
             </nav>
             <div className="flex items-center gap-2 text-sm" aria-label={t('language')}>
               <button type="button" onClick={() => void setLanguage('en')} aria-pressed={i18n.language === 'en'} className="rounded px-2 py-1 font-medium text-slate-700 hover:bg-slate-100 aria-pressed:bg-teal-100">EN</button>
@@ -87,9 +105,12 @@ export default function App() {
           </div>
         </div>
       </header>
+      {logoutError && <p role="alert" className="mx-auto max-w-6xl px-5 pt-4 text-sm text-rose-700 sm:px-8">{t('logoutError')}</p>}
       <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
