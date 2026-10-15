@@ -4,30 +4,30 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 6 verified criteria ÷ 83 total criteria × 100 = **7.2%** (rounded to one decimal place).
-- **Current milestone completion:** 2 verified M1 criteria ÷ 12 M1 criteria × 100 = **16.7%**.
+- **Overall completion:** 8 verified criteria ÷ 83 total criteria × 100 = **9.6%** (rounded to one decimal place).
+- **Current milestone completion:** 4 verified M1 criteria ÷ 12 M1 criteria × 100 = **33.3%**.
 
-The six counted criteria are all four M0 criteria plus M1 JWT access/refresh tokens and the Bangla/English switch. JWT signing, expiry, refresh rotation, and revocation passed unit and HTTP tests; PostgreSQL persistence remains unverified. Other checkpoint-one features are implemented but not counted complete until database-backed testing or later M1 work meets their full criteria. Remote M1 GitHub Actions execution and Docker runtime remain unverified.
+The eight counted criteria are all four M0 criteria plus M1 login/authentication, JWT access/refresh tokens, login lockout, and the Bangla/English switch. PostgreSQL-backed service and HTTP tests, an isolated account in the running application, and browser login/logout verified the checkpoint-one authentication flow. User management and per-school login branding remain partial. Remote M1 GitHub Actions execution remains unverified because this branch has not been pushed.
 
 ## Current Status
 
 | Item | Status |
 |---|---|
-| Current development phase | M1 checkpoint 1 authentication foundation implemented locally; awaiting database-backed verification and review |
+| Current development phase | M1 checkpoint 1 authentication verified locally; awaiting approval for the next M1 checkpoint |
 | Current milestone | M1 — Authentication and School Configuration |
-| Completed acceptance criteria | Four M0 criteria; two M1 criteria (JWT access/refresh tokens, Bangla/English switch) |
-| Remaining acceptance criteria | Ten M1 criteria and 67 criteria in M2–M13 |
+| Completed acceptance criteria | Four M0 criteria; four M1 criteria (login/authentication, JWT access/refresh tokens, login lockout, Bangla/English switch) |
+| Remaining acceptance criteria | Eight M1 criteria and 67 criteria in M2–M13 |
 | Features implemented | M0 foundation plus user/session schema, bcrypt passwords, login/refresh/logout/me API, account lockout, revocable sessions, CSRF protection, bootstrap command, bilingual login and protected account page |
-| Tests passed | M1 local Go vet, Go unit/HTTP tests, frontend production build; see verification details |
+| Tests passed | Go vet, fresh Go suite with PostgreSQL integration tests, frontend production build, Compose validation, browser login/logout and language checks; see verification details |
 | Tests failed | None in completed local checks |
-| Application runnability | Health-only backend and frontend can run without PostgreSQL; authentication requires PostgreSQL and has not been exercised end-to-end here |
+| Application runnability | PostgreSQL, backend, and frontend are running through Compose; database-backed browser login/logout was verified with an isolated account |
 | Next planned milestone | Remaining M1 checkpoints only after developer approval; no M2 work |
 
 ## M0 Acceptance Criteria and Evidence
 
 | Criterion | Status | Evidence |
 |---|---|---|
-| Project foundation | Complete | Go and React projects, PostgreSQL Compose service, Dockerfiles, environment examples, and local integrated HTTP smoke check |
+| Project foundation | Complete | Go and React projects, PostgreSQL Compose service, Dockerfiles, environment examples, and a running local Compose stack |
 | Health endpoint | Complete | `GET /healthz` returned `{"data":{"status":"ok"}}`; backend health and error response tests passed |
 | CI | Complete (configured) | `.github/workflows/ci.yml` runs Go vet, Go tests, and frontend build; M0 is merged into main. M1 branch CI is pending a developer push |
 | Initial documentation | Complete | README, roadmap, progress record, project brief, and M0 OpenAPI document |
@@ -36,27 +36,27 @@ The six counted criteria are all four M0 criteria plus M1 JWT access/refresh tok
 
 | Criterion | Status | Checkpoint-one evidence or remaining work |
 |---|---|---|
-| Login and authentication | Partial | API and UI implemented; database-backed login has not run in this workspace |
+| Login and authentication | Complete locally | PostgreSQL-backed HTTP lifecycle and isolated browser login/logout passed; protected `/auth/me` rejects anonymous and invalid access |
 | Users | Partial | User model, schema, and interactive first-user command; user management remains |
 | Roles and permissions matrix | Not started | Six role values exist on users; runtime matrix remains |
-| JWT access and refresh tokens | Complete locally | 15-minute signed JWTs, seven-day hashed refresh tokens, rotation, session revocation, and lifecycle tests; PostgreSQL persistence unverified |
+| JWT access and refresh tokens | Complete locally | 15-minute signed JWTs, seven-day hashed refresh tokens, rotation, expiration rejection, and revocation passed PostgreSQL-backed HTTP tests |
 | School settings and white-label configuration | Not started | Later M1 checkpoint |
 | Bangladesh grading configuration | Not started | Later M1 checkpoint |
 | Runtime module toggles | Not started | Later M1 checkpoint |
 | Audit logging | Not started | Later M1 checkpoint |
-| Login lockout | Partial | Five-failure, 15-minute logic and unit tests; PostgreSQL integration unverified |
+| Login lockout | Complete locally | Five failures caused a persisted 15-minute lockout; the correct password was rejected while locked in PostgreSQL-backed tests |
 | Themed login page | Partial | Responsive page uses the existing theme; per-school branding configuration remains |
 | Bangla/English language switch | Complete locally | Existing switch covers the new login/account text; frontend TypeScript and production build pass |
 | Role-based dashboards | Not started | Later M1 checkpoint |
 
 ## M1 Checkpoint-one Verification
 
-- `go test ./...` passed, including password, JWT, login/lockout, refresh, CSRF, logout, and HTTP response tests.
-- `go vet ./...` passed.
-- `npm.cmd run build` passed, including TypeScript checking.
-- Headless Chrome rendered the login page in English and Bangla, confirmed Inter and Noto Sans Bengali font stacks, and found no horizontal overflow at a 390-pixel mobile viewport.
-- `TestPostgresAuthenticationLifecycle` skipped because `AUTH_TEST_DATABASE_URL` is unset. It covers migration, lockout, refresh rotation, and logout against a dedicated PostgreSQL database when available.
-- Docker daemon and PostgreSQL are unavailable here. Container startup, SQL migration execution, account creation, and browser login end-to-end remain unverified.
+- Docker Desktop 29.7.2 and Compose 5.4.0 ran the PostgreSQL, backend, and frontend services. PostgreSQL reported healthy; the application database migration ledger contained version 1 and the `users`, `auth_sessions`, and `schema_migrations` tables.
+- `go vet ./...` and `go test ./... -count=1` passed with `AUTH_TEST_DATABASE_URL` pointing to an isolated database. `TestPostgresAuthenticationLifecycle` and `TestPostgresAuthHTTPLifecycle` passed against PostgreSQL. The HTTP test covered invalid passwords, persisted lockout, authorized and unauthorized `/auth/me`, expired access, CSRF, refresh rotation/reuse, logout, and persisted revocation.
+- An isolated teacher account passed login and logout in headless Chrome against the running frontend and backend. The browser reached `/account`, kept the refresh cookie HttpOnly and the access token out of localStorage, redirected to `/login` after logout, and left no active database session. The temporary account was removed. The developer also reported a successful login with their development administrator account.
+- Headless Chrome rendered English and Bangla login pages using Inter and Noto Sans Bengali. Desktop and 390-pixel mobile layouts had no horizontal overflow or JavaScript runtime errors.
+- The live backend returned 401 for anonymous and invalid-token `/auth/me` requests and for an unknown-account login. Direct and proxied `/healthz` returned HTTP 200 with healthy JSON.
+- `npm.cmd run build` passed, including TypeScript checking, and `docker compose config --quiet` passed. The database query logger now suppresses expected missing-record events and SQL parameter values.
 
 ## M0 Verification History
 
@@ -68,7 +68,7 @@ The six counted criteria are all four M0 criteria plus M1 JWT access/refresh tok
 
 ## Known Limitations and Blockers
 
-- The Docker daemon is not running in this environment. Container builds, PostgreSQL connectivity, SQL migration execution, and full Compose startup remain unverified.
 - GitHub Actions has not run on the M1 feature branch because no push was performed.
 - No demo credentials are stored or shipped. Create the first account interactively after connecting PostgreSQL.
+- The local HTTP stack uses `AUTH_COOKIE_SECURE=false`; HTTPS deployment with secure cookies remains unverified. Login lockout is per account; an independent IP or edge rate limit is not yet configured.
 - Full runtime RBAC, permission editing, school settings, module toggles, audit logging, and role dashboards remain for later M1 checkpoints.

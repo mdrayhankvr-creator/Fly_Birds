@@ -26,7 +26,7 @@ The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Mil
 - A responsive English/Bangla login page, in-memory access token, session restoration, and a protected account page
 - Interactive `create-user` command for the first account; no default credentials or public registration endpoint
 
-The login flow is unit-tested, but database-backed login and Docker startup have not been verified in this environment because PostgreSQL and the Docker daemon are unavailable.
+Checkpoint-one authentication has passed PostgreSQL-backed service and HTTP tests, plus an isolated browser login/logout against the running Compose stack. The full M1 milestone remains in progress; see [verified progress](docs/PROGRESS.md).
 
 ## Repository Layout
 
@@ -61,7 +61,7 @@ $env:JWT_SIGNING_KEY_B64 = [Convert]::ToBase64String($keyBytes)
 docker compose up --build
 ```
 
-Keep that environment variable available when restarting the backend. Use `AUTH_COOKIE_SECURE=true` behind HTTPS; the Compose sample uses `false` solely for local HTTP. Create the first user in another terminal while the stack runs (the command prompts for a password without echo):
+Reuse the same signing key when restarting the backend so existing access tokens remain valid. Keep it in a secure local environment source or the ignored root `.env`; do not commit it. Use `AUTH_COOKIE_SECURE=true` behind HTTPS; the Compose sample uses `false` solely for local HTTP. Create the first user in another terminal while the stack runs (the command prompts for a password without echo):
 
 ```powershell
 docker compose exec backend /app/create-user -email you@example.com -role admin
@@ -160,7 +160,7 @@ cd ..
 docker compose config --quiet
 ```
 
-For the database lifecycle test, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./internal/auth -run TestPostgresAuthenticationLifecycle -v` from `backend/`. The test creates a user and removes it afterward; the versioned schema remains. Without that variable, the integration test skips explicitly. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. M1 branch CI remains unverified until a developer push.
+For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The service and HTTP lifecycle tests create isolated users and remove them afterward; the versioned schema remains. They skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. M1 branch CI remains unverified until a developer push.
 
 ## Future Work
 

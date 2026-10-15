@@ -4,8 +4,8 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 
 | Milestone | Scope | Status |
 |---|---|---|
-| M0 | Foundation, health endpoint, CI, initial documentation | Merged into main; Docker runtime remains unverified in this workspace |
-| M1 | Authentication and school configuration | Checkpoint 1 implemented locally; PostgreSQL integration unverified; remaining checkpoints require approval |
+| M0 | Foundation, health endpoint, CI, initial documentation | Merged into main; local Compose runtime verified |
+| M1 | Authentication and school configuration | Checkpoint 1 authentication verified with PostgreSQL and browser login/logout; remaining checkpoints require approval |
 | M2 | Academic structure | Not started |
 | M3 | Students and guardians | Not started |
 | M4 | Teachers and staff | Not started |
