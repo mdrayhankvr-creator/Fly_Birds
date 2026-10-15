@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Route, Routes } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { getHealth } from './api/client'
+import { ApiError, getHealth, getMyPermissions } from './api/client'
 import { useAuth } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { LoginPage } from './pages/LoginPage'
 import { AccountPage } from './pages/AccountPage'
+import { PermissionPage } from './pages/PermissionPage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -67,10 +68,35 @@ function NotFound() {
   )
 }
 
+function PermissionGate({ permissions, role, loading, error }: { permissions: string[] | undefined; role: string | undefined; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status" className="text-slate-600">{t('loadingPermissions')}</p>
+  if (error) return <p role="alert" className="text-rose-700">{t('loadPermissionsError')}</p>
+  if (!permissions?.includes('permissions:read')) return <p role="alert" className="text-rose-700">{t('permissionDenied')}</p>
+  return <PermissionPage canManage={role === 'admin' && permissions.includes('permissions:manage')} />
+}
+
 export default function App() {
   const { t, i18n } = useTranslation()
-  const { user, ready, signOut } = useAuth()
+  const { user, accessToken, ready, signOut, renew, expire } = useAuth()
   const [logoutError, setLogoutError] = useState(false)
+  const myPermissions = useQuery({
+    queryKey: ['my-permissions', user?.id],
+    enabled: !!accessToken,
+    retry: false,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      if (!accessToken) return []
+      try { return await getMyPermissions(accessToken) }
+      catch (cause) {
+        if (cause instanceof ApiError && cause.status === 401) {
+          try { return await getMyPermissions(await renew()) }
+          catch (retryCause) { if (retryCause instanceof ApiError && retryCause.status === 401) expire(); throw retryCause }
+        }
+        throw cause
+      }
+    },
+  })
 
   async function setLanguage(language: 'en' | 'bn') {
     await i18n.changeLanguage(language)
@@ -94,6 +120,7 @@ export default function App() {
                 <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('home')}</Link>
                 {ready && (user
                   ? <><Link to="/account" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('account')}</Link>
+                    {myPermissions.data?.includes('permissions:read') && <Link to="/admin/permissions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('permissionEditor')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
               </div>
@@ -111,6 +138,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+          <Route path="/admin/permissions" element={<ProtectedRoute><PermissionGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

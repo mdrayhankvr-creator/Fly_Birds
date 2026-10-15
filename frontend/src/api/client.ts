@@ -82,6 +82,28 @@ export async function getCurrentUser(accessToken: string): Promise<AuthUser> {
   return body.data as AuthUser
 }
 
+export type Role = { id: string; name: string }
+export type Permission = { id: string; description: string }
+export type Page<T> = { items: T[]; total: number; page: number; page_size: number }
+
+async function bearerRequest<T>(path: string, accessToken: string, options: RequestInit = {}): Promise<T> {
+  const response = await authRequest(path, {
+    ...options,
+    headers: { Authorization: `Bearer ${accessToken}`, ...options.headers },
+  })
+  const body = await response.json()
+  return body.data as T
+}
+
+export const getMyPermissions = (token: string) => bearerRequest<string[]>('/auth/permissions', token)
+export const getRoles = (token: string) => bearerRequest<Page<Role>>('/roles?page_size=100', token)
+export const getPermissions = (token: string) => bearerRequest<Page<Permission>>('/permissions?page_size=100', token)
+export const getRolePermissions = (token: string, role: string) => bearerRequest<string[]>(`/roles/${encodeURIComponent(role)}/permissions`, token)
+export const putRolePermissions = (token: string, role: string, ids: string[]) => bearerRequest<string[]>(
+  `/roles/${encodeURIComponent(role)}/permissions`, token,
+  { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) },
+)
+
 type HealthResponse = {
   data: {
     status: string
