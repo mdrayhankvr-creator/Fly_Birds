@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.3.0
-  description: M0 health and M1 authentication and role permission APIs. Authentication and authorization require PostgreSQL.
+  version: 0.4.0
+  description: M0 health and M1 authentication, role permissions, school configuration, grading, and module APIs. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
 servers:
   - url: http://localhost:8080
 paths:
@@ -78,7 +78,7 @@ paths:
     get:
       operationId: getCurrentUser
       summary: Get the authenticated user's own account
-      description: Requires a valid access JWT, an active server-side session, and the current auth:read_self role permission.
+      description: Requires a valid access JWT, an active server-side session, the current auth:read_self role permission, and the core authentication module.
       tags: [authentication]
       security:
         - bearerAuth: []
@@ -96,7 +96,7 @@ paths:
     get:
       operationId: getMyPermissions
       summary: Get the current user's effective permissions
-      description: Reads current role grants from PostgreSQL. Requires auth:read_self.
+      description: Reads current role grants from PostgreSQL. Requires auth:read_self and the core permissions module.
       tags: [authentication]
       security: [{ bearerAuth: [] }]
       responses:
@@ -185,6 +185,92 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/LastAdmin' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /school/branding:
+    get:
+      operationId: getPublicSchoolBranding
+      summary: Read public school name and theme
+      description: Omits address, phone, email, and administrative settings. Uses neutral defaults until configured.
+      tags: [school]
+      security: []
+      responses:
+        '200': { description: Public branding, content: { application/json: { schema: { $ref: '#/components/schemas/BrandingResponse' } } } }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /school/settings:
+    get:
+      operationId: getSchoolSettings
+      summary: Read school profile and theme
+      description: Requires school_settings:read and the core school_settings module.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: School settings, content: { application/json: { schema: { $ref: '#/components/schemas/SchoolSettingsResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      operationId: updateSchoolSettings
+      summary: Replace school profile and theme
+      description: Requires an active administrator with school_settings:update. Logo is a validated public HTTPS image URL, not an upload. Colors must meet 4.5-to-1 contrast with white.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SchoolSettingsInput' } } } }
+      responses:
+        '200': { description: Updated settings, content: { application/json: { schema: { $ref: '#/components/schemas/SchoolSettingsResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /school/grading:
+    get:
+      operationId: getSchoolGrading
+      summary: Read active school grading bands
+      description: Requires grading:read and the core school_settings module.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Active bands, content: { application/json: { schema: { $ref: '#/components/schemas/GradingResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      operationId: replaceSchoolGrading
+      summary: Replace grading bands atomically
+      description: Requires an active administrator with grading:update. Bands must cover every integer mark from 0 to 100 without gaps or overlaps. GPA is from 0 to 5 with at most two decimals.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GradingInput' } } } }
+      responses:
+        '200': { description: Updated bands, content: { application/json: { schema: { $ref: '#/components/schemas/GradingResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /school/modules:
+    get:
+      operationId: listSchoolModules
+      summary: List module definitions and current enablement
+      description: Requires modules:read and the core school_settings module. Optional module definitions do not provide feature APIs yet.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Paginated modules, content: { application/json: { schema: { $ref: '#/components/schemas/ModulePageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /school/modules/{key}:
+    parameters: [{ name: key, in: path, required: true, schema: { type: string }, description: Stable module key }]
+    put:
+      operationId: setSchoolModule
+      summary: Enable or disable an optional module
+      description: Requires an active administrator with modules:manage. Core modules cannot be disabled. Status is read from PostgreSQL on each module-protected request.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], additionalProperties: false, properties: { enabled: { type: boolean } } } } } }
+      responses:
+        '200': { description: Updated module, content: { application/json: { schema: { $ref: '#/components/schemas/ModuleResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Core module cannot be disabled, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 components:
   securitySchemes:
     bearerAuth:
@@ -255,6 +341,85 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    Branding:
+      type: object
+      required: [name_en, name_bn, logo_url, preferred_language, primary_color, secondary_color, dashboard_theme]
+      properties:
+        name_en: { type: string }
+        name_bn: { type: string }
+        logo_url: { type: string, description: Optional HTTPS PNG, JPEG, or WebP URL }
+        preferred_language: { type: string, enum: [en, bn] }
+        primary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+        secondary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+        dashboard_theme: { type: string, enum: [light, dark] }
+    BrandingResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Branding' }
+    SchoolSettingsInput:
+      allOf: [{ $ref: '#/components/schemas/Branding' }]
+      type: object
+      required: [address, phone, email, grading_scheme_id]
+      properties:
+        address: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+        grading_scheme_id: { type: string, example: bd_default }
+    SchoolSettings:
+      allOf: [{ $ref: '#/components/schemas/SchoolSettingsInput' }]
+      type: object
+      properties:
+        updated_at: { type: string, format: date-time }
+    SchoolSettingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SchoolSettings' }
+    GradeBand:
+      type: object
+      required: [grade, min_marks, max_marks, gpa]
+      properties:
+        grade: { type: string }
+        min_marks: { type: integer, minimum: 0, maximum: 100 }
+        max_marks: { type: integer, minimum: 0, maximum: 100 }
+        gpa: { type: number, minimum: 0, maximum: 5, multipleOf: 0.01 }
+    GradingInput:
+      type: object
+      required: [bands]
+      additionalProperties: false
+      properties:
+        bands: { type: array, minItems: 1, maxItems: 30, items: { $ref: '#/components/schemas/GradeBand' } }
+    GradingResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/GradeBand' } }
+    SchoolModule:
+      type: object
+      required: [key, name, is_core, enabled]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        is_core: { type: boolean }
+        enabled: { type: boolean }
+    ModuleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SchoolModule' }
+    ModulePageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/SchoolModule' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
     IDListRequest:
       type: object
       required: [ids]

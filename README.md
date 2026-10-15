@@ -1,6 +1,6 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase will support school-specific branding, language, grading, permissions, and module settings. M0 is merged. M1 checkpoints 1 and 2 add authentication and runtime role permissions; school settings, module toggles, and role dashboards remain pending.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 is merged. M1 checkpoints 1–3 provide authentication, runtime role permissions, and school configuration. Full user management, audit logging, and role dashboards remain pending.
 
 The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
 
@@ -36,6 +36,19 @@ The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Mil
 
 Both checkpoints have passed local PostgreSQL-backed tests and browser checks. The full M1 milestone remains in progress; see [verified progress](docs/PROGRESS.md).
 
+## M1 Checkpoint 3 — School Configuration
+
+- Migration 3 creates one school profile, a default Bangladesh grading scheme, and twelve stable module definitions. Defaults use the neutral name “School”; no actual school identity or credentials are seeded. Existing users and sessions are preserved.
+- Public `GET /school/branding` supplies only names, logo URL, language, colors, and theme. Contact details remain behind `school_settings:read`. Administrators with explicit update permissions can edit the profile, grade bands, and optional module states from `/admin/school-settings`.
+- Grade bands cover every integer mark from 0–100 without gaps or overlaps; GPA must be 0–5 with at most two decimal places. Changes are transactional. Grade calculations and examination features remain M7 work.
+- The frontend applies validated CSS color tokens and a light or dark theme after loading public branding. The login page and navigation show the configured school identity. Users can preview colors and logo before saving, reset unsaved edits, and switch between English and Bangla. A saved personal language choice takes precedence over the school default.
+- Core `authentication`, `permissions`, and `school_settings` modules cannot be disabled through the API. Optional module definitions start disabled; enabling one does not create its future screens or endpoints.
+- Protected module routes evaluate checks in this order: active session (`RequireAuth`), current PostgreSQL grant (`RequirePermission`), current PostgreSQL module state (`RequireModule`), then the handler. A missing/invalid session returns 401; missing permission or disabled module returns 403. Changes affect active sessions on the next request. Administrator-only writes also check the account and grant in the database transaction.
+
+**Logo handling:** This checkpoint accepts a public HTTPS URL ending in `.png`, `.jpg`, `.jpeg`, or `.webp`, with no credentials, custom port, query, or fragment. No upload endpoint or local file storage is provided. The server validates the URL shape but does not fetch or inspect remote image bytes; administrators should use a trusted image host. An external logo host can observe browser image requests. The URL may be left empty.
+
+This is a single-school deployment configuration, not tenant-isolated multi-tenancy. The repository and service interfaces leave room for later tenant scoping.
+
 ## Repository Layout
 
 ```text
@@ -46,7 +59,7 @@ compose.yaml              Development services
 docs/                     Project brief, roadmap, and progress
 ```
 
-M1 authentication follows Handler → Service → Repository → Database. M0's health endpoint remains a simple liveness handler.
+M1 authentication, RBAC, and school configuration follow Handler → Service → Repository → Database. M0's health endpoint remains a simple liveness handler.
 
 ## Prerequisites
 
@@ -87,6 +100,7 @@ Use `docker compose down` to stop the stack. The default endpoints are:
 | Login page | http://localhost:5173/login |
 | Protected account page | http://localhost:5173/account |
 | Permission editor | http://localhost:5173/admin/permissions |
+| School settings | http://localhost:5173/admin/school-settings |
 
 The database is exposed on `localhost:5432` by default. Change the values in `.env` if those ports are occupied. The sample PostgreSQL password is for local development only.
 
@@ -147,7 +161,7 @@ See `.env.example`, `backend/.env.example`, and `frontend/.env.example` for exam
 | `DATABASE_URL` | PostgreSQL DSN; required for authentication, optional for the health-only server | Unset |
 | `JWT_SIGNING_KEY_B64` | Base64 encoding of at least 32 random signing-key bytes; required when the database is configured | Unset |
 | `AUTH_COOKIE_SECURE` | Set `false` only for local HTTP; keep `true` behind HTTPS | `true` in the backend, `false` in local Compose |
-| `AUTH_TEST_DATABASE_URL` | Dedicated PostgreSQL database for the opt-in authentication integration test | Unset |
+| `AUTH_TEST_DATABASE_URL` | Dedicated PostgreSQL database for the opt-in authentication, RBAC, and school configuration integration tests | Unset |
 | `GIN_MODE` | Gin log mode; Compose sets `release` | Gin default |
 | `VITE_API_BASE_URL` | Browser API path | `/api` |
 | `VITE_API_PROXY_TARGET` | Vite development proxy target | `http://localhost:8080` |
@@ -169,7 +183,7 @@ cd ..
 docker compose config --quiet
 ```
 
-For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The service and HTTP lifecycle tests create isolated users and remove them afterward; the versioned schema remains. They skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. M1 branch CI remains unverified until a developer push.
+For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. M1 branch CI remains unverified until a developer push.
 
 ## Future Work
 

@@ -4,24 +4,24 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 9 verified criteria ÷ 83 total criteria × 100 = **10.8%** (rounded to one decimal place).
-- **Current milestone completion:** 5 verified M1 criteria ÷ 12 M1 criteria × 100 = **41.7%**.
+- **Overall completion:** 13 verified criteria ÷ 83 total criteria × 100 = **15.7%** (rounded to one decimal place).
+- **Current milestone completion:** 9 verified M1 criteria ÷ 12 M1 criteria × 100 = **75.0%**.
 
-The nine counted criteria are all four M0 criteria plus M1 login/authentication, JWT access/refresh tokens, login lockout, the Bangla/English switch, and the roles and permissions matrix. PostgreSQL-backed service and HTTP tests, a live migration, and browser checks verify checkpoint-two authorization locally. User management and per-school login branding remain partial. Remote M1 GitHub Actions execution remains unverified because this branch has not been pushed.
+The thirteen counted criteria are all four M0 criteria plus M1 login/authentication, JWT access/refresh tokens, login lockout, Bangla/English switch, roles and permissions matrix, school settings and white-label configuration, Bangladesh grading configuration, runtime module toggles, and a themed login page. Checkpoint-three PostgreSQL integration tests, live migration, and browser checks verify these locally. Full user management, audit logging, and role dashboards remain. Remote M1 GitHub Actions execution remains unverified because this branch has not been pushed.
 
 ## Current Status
 
 | Item | Status |
 |---|---|
-| Current development phase | M1 checkpoint 2 RBAC and permission editor verified locally; awaiting approval for checkpoint 3 |
+| Current development phase | M1 checkpoint 3 school configuration verified locally; awaiting approval for a later checkpoint |
 | Current milestone | M1 — Authentication and School Configuration |
-| Completed acceptance criteria | Four M0 criteria; five M1 criteria (login/authentication, JWT access/refresh tokens, login lockout, Bangla/English switch, roles and permissions matrix) |
-| Remaining acceptance criteria | Seven M1 criteria and 67 criteria in M2–M13 |
-| Features implemented | M0 and checkpoint-one authentication; six normalized roles, ten permission IDs, live role grants, guarded role assignments, admin permission editor, bilingual authorization UI |
-| Tests passed | Go vet; fresh Go suite including isolated PostgreSQL RBAC and authentication integration tests; frontend production build; Compose validation; live migration and health; headless Chrome desktop/mobile editor and language checks |
+| Completed acceptance criteria | Four M0 criteria; nine M1 criteria (authentication, tokens, lockout, language switch, role permissions, school settings, grading, module toggles, themed login) |
+| Remaining acceptance criteria | Three M1 criteria and 67 criteria in M2–M13 |
+| Features implemented | M0 and checkpoints 1–3: authentication, six roles and runtime grants, persisted school profile, branding, grading bands, optional module toggles and middleware, bilingual admin configuration UI |
+| Tests passed | Go vet; fresh Go suite including isolated PostgreSQL auth, RBAC, and school tests on repeat runs; frontend production build; Compose and OpenAPI validation; live migration and health; headless Chrome desktop/mobile, login, language, preview, and theme checks |
 | Tests failed | None in completed local checks |
-| Application runnability | PostgreSQL, backend, and frontend run through Compose. Migration 2 applied to the existing database without changing its user or active-session counts. Disposable browser test accounts were removed. |
-| Next planned milestone | M1 checkpoint 3 only after developer approval; no M2 work |
+| Application runnability | PostgreSQL, backend, and frontend run through Compose. Migration 3 applied to the existing database; the original one user and one session remained after disposable browser test cleanup. |
+| Next planned milestone | Remaining M1 work only after developer approval; no M2 work |
 
 ## M0 Acceptance Criteria and Evidence
 
@@ -38,16 +38,24 @@ The nine counted criteria are all four M0 criteria plus M1 login/authentication,
 |---|---|---|
 | Login and authentication | Complete locally | PostgreSQL-backed HTTP lifecycle and isolated browser login/logout passed; protected `/auth/me` rejects anonymous and invalid access |
 | Users | Partial | User model, schema, interactive first-user command, and protected role assignment API; full user CRUD remains |
-| Roles and permissions matrix | Complete locally | Six seeded roles, ten stable permissions, live PostgreSQL grants, guarded APIs, responsive bilingual matrix; integration and browser checks passed |
+| Roles and permissions matrix | Complete locally | Six seeded roles, fourteen stable permissions after migration 3, live PostgreSQL grants, guarded APIs, responsive bilingual matrix; integration and browser checks passed |
 | JWT access and refresh tokens | Complete locally | 15-minute signed JWTs, seven-day hashed refresh tokens, rotation, expiration rejection, and revocation passed PostgreSQL-backed HTTP tests |
-| School settings and white-label configuration | Not started | Later M1 checkpoint |
-| Bangladesh grading configuration | Not started | Later M1 checkpoint |
-| Runtime module toggles | Not started | Later M1 checkpoint |
+| School settings and white-label configuration | Complete locally | Migration 3, validated profile and public branding APIs, transactionally guarded updates, bilingual responsive editor, and neutral defaults; PostgreSQL and browser checks passed |
+| Bangladesh grading configuration | Complete locally | Default A+–F bands stored in PostgreSQL; all specified boundaries, edits, gaps, overlaps, GPA range, and transactional replacement tested |
+| Runtime module toggles | Complete locally | Twelve stable definitions, current database checks per request, active-session enforcement, core locks, permission checks, and admin controls tested |
 | Audit logging | Not started | Later M1 checkpoint |
 | Login lockout | Complete locally | Five failures caused a persisted 15-minute lockout; the correct password was rejected while locked in PostgreSQL-backed tests |
-| Themed login page | Partial | Responsive page uses the existing theme; per-school branding configuration remains |
+| Themed login page | Complete locally | Login loads public school identity and CSS colors; a browser check with mocked configured branding rendered the dark theme and Bangla school name without changing live school data |
 | Bangla/English language switch | Complete locally | Existing switch covers the new login/account text; frontend TypeScript and production build pass |
 | Role-based dashboards | Not started | Later M1 checkpoint |
+
+## M1 Checkpoint-three Verification
+
+- Docker Desktop and PostgreSQL were healthy. Migration 3 applied to the live application database. Before and after the service rebuild and disposable browser-account cleanup, the original one user and one active session remained. The migration ledger has three versions, seven default grading bands, and twelve seeded module states. Direct and proxied health/branding endpoints returned HTTP 200.
+- `go vet ./...` and `go test ./... -count=1` passed in `backend/` with `AUTH_TEST_DATABASE_URL` set to a separate disposable PostgreSQL database. The full suite passed on consecutive runs. The school HTTP test ran migrations twice, verified anonymous and read-only access, validated persisted profile and public-field filtering, tested all requested mark boundaries and transactional grade edits, rejected gaps/overlaps and unsafe settings, protected core modules, and confirmed optional module changes affected active sessions. The test restores original school settings, grading, module state, and its temporary users.
+- `npm.cmd run build`, `docker compose config --quiet`, and OpenAPI YAML parsing with 116 resolved references passed. No new frontend unit test runner exists. M1 branch GitHub Actions remains unverified until a developer push.
+- Headless Chrome at 1280 px and 390 px logged in with a disposable administrator, loaded the settings editor with seven grade rows and twelve module toggles, previewed and reset an unsaved color, switched English/Bangla, and redirected the protected route to login after logout. The 390 px viewport had no document overflow. A network-intercepted public branding response rendered a different school name, primary color, preferred Bangla language, and dark login theme without writing to the application database. Fonts were Inter and Noto Sans Bengali respectively. Stylesheets and API requests returned 200/304; browser navigation caused expected `ERR_ABORTED` fetch cancellations, with no console exceptions. The temporary administrator and its sessions were removed.
+- This is one school's deployment configuration. The logo uses a constrained external URL, whose image contents are not fetched or verified by the API. Optional modules have definitions and enforcement middleware but their feature pages/APIs are later milestones. The browser did not save settings against the live database; PostgreSQL HTTP tests verified writes and persistence in isolation.
 
 ## M1 Checkpoint-two Verification
 
@@ -80,5 +88,6 @@ The nine counted criteria are all four M0 criteria plus M1 login/authentication,
 - No demo credentials are stored or shipped. Create the first account interactively after connecting PostgreSQL.
 - The local HTTP stack uses `AUTH_COOKIE_SECURE=false`; HTTPS deployment with secure cookies remains unverified. Login lockout is per account; an independent IP or edge rate limit is not yet configured.
 - Each user currently has exactly one role; the `GET/PUT /users/:id/roles` API uses a one-item array to preserve the existing authentication model. Multi-role users are not part of this checkpoint.
-- Full user CRUD, school settings, grading configuration, module toggles, audit logging, and role dashboards remain for later M1 checkpoints. `RequireModule` is not active yet because there are no module-specific routes in this checkpoint.
+- Full user CRUD, audit logging, and role dashboards remain for later M1 checkpoints. Optional module feature routes do not exist yet; `RequireModule` now guards implemented protected module routes and is ready for those future routes.
+- The external logo URL is shape-validated but remote image bytes are not inspected. Uploaded files are not supported. External image hosts may observe browser requests.
 - Browser submission of an edited permission matrix was not exercised against the live application database. Saving, atomicity, and immediate enforcement passed in isolated PostgreSQL-backed HTTP tests.

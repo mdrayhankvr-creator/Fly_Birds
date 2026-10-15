@@ -5,7 +5,7 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | Foundation, health endpoint, CI, initial documentation | Merged into main; local Compose runtime verified |
-| M1 | Authentication and school configuration | Checkpoints 1 and 2 verified locally with PostgreSQL and browser checks; school settings, modules, audit logging, dashboards, and full user management remain |
+| M1 | Authentication and school configuration | Checkpoints 1–3 verified locally with PostgreSQL and browser checks; audit logging, role dashboards, and full user management remain |
 | M2 | Academic structure | Not started |
 | M3 | Students and guardians | Not started |
 | M4 | Teachers and staff | Not started |
