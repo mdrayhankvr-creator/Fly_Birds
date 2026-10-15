@@ -180,6 +180,20 @@ func (h *authHandler) me(c *gin.Context) {
 	success(c, http.StatusOK, user)
 }
 
+// permissions godoc
+// @Summary Get current server-side grants for the signed-in user
+// @Tags authentication
+// @Router /auth/permissions [get]
+func (h *authHandler) permissions(c *gin.Context) {
+	user := c.MustGet("auth_user").(auth.User)
+	ids, err := h.service.PermissionsForUser(c.Request.Context(), user.ID)
+	if err != nil {
+		failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
+		return
+	}
+	success(c, http.StatusOK, ids)
+}
+
 func RequireAuth(service *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if service == nil {
@@ -210,11 +224,29 @@ func RequireAuth(service *auth.Service) gin.HandlerFunc {
 	}
 }
 
-// RequirePermission is the checkpoint-one self-read permission. The runtime
-// permission matrix belongs to a later M1 checkpoint; all other values deny.
-func RequirePermission(permission string) gin.HandlerFunc {
+// RequirePermission reads the current role grant on every request. RequireAuth
+// must precede it in the route chain; it never trusts token role claims.
+func RequirePermission(service *auth.Service, permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if _, exists := c.Get("auth_user"); !exists || permission != "auth:read_self" {
+		value, exists := c.Get("auth_user")
+		if !exists || service == nil {
+			failure(c, http.StatusUnauthorized, "unauthorized", "authentication required")
+			c.Abort()
+			return
+		}
+		user, valid := value.(auth.User)
+		if !valid {
+			failure(c, http.StatusUnauthorized, "unauthorized", "authentication required")
+			c.Abort()
+			return
+		}
+		allowed, err := service.HasPermission(c.Request.Context(), user.ID, permission)
+		if err != nil {
+			failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
+			c.Abort()
+			return
+		}
+		if !allowed {
 			failure(c, http.StatusForbidden, "forbidden", "permission denied")
 			c.Abort()
 			return

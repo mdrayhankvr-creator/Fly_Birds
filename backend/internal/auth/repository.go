@@ -19,6 +19,8 @@ type Repository interface {
 	RevokeSession(context.Context, []byte, []byte, time.Time) error
 	ActiveUserBySession(context.Context, string, time.Time) (User, error)
 	CreateUser(context.Context, *User) error
+	HasPermission(context.Context, string, string) (bool, error)
+	PermissionsForUser(context.Context, string) ([]string, error)
 }
 
 type GormRepository struct{ db *gorm.DB }
@@ -127,4 +129,18 @@ func (r *GormRepository) ActiveUserBySession(ctx context.Context, sessionID stri
 
 func (r *GormRepository) CreateUser(ctx context.Context, user *User) error {
 	return r.db.WithContext(ctx).Create(user).Error
+}
+
+func (r *GormRepository) HasPermission(ctx context.Context, userID, permission string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("users AS u").Joins("JOIN role_permissions AS rp ON rp.role_id = u.role").
+		Where("u.id = ? AND u.is_active = true AND rp.permission_id = ?", userID, permission).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *GormRepository) PermissionsForUser(ctx context.Context, userID string) ([]string, error) {
+	ids := []string{}
+	err := r.db.WithContext(ctx).Table("users AS u").Joins("JOIN role_permissions AS rp ON rp.role_id = u.role").
+		Where("u.id = ? AND u.is_active = true", userID).Order("rp.permission_id").Pluck("rp.permission_id", &ids).Error
+	return ids, err
 }

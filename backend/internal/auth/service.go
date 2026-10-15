@@ -172,6 +172,13 @@ func (s *Service) Authenticate(ctx context.Context, rawAccess string) (User, err
 	return user, nil
 }
 
+func (s *Service) HasPermission(ctx context.Context, userID, permission string) (bool, error) {
+	return s.repo.HasPermission(ctx, userID, permission)
+}
+func (s *Service) PermissionsForUser(ctx context.Context, userID string) ([]string, error) {
+	return s.repo.PermissionsForUser(ctx, userID)
+}
+
 func (s *Service) BootstrapUser(ctx context.Context, rawEmail, password, role string) (User, error) {
 	email, err := NormalizeEmail(rawEmail)
 	if err != nil {

@@ -55,6 +55,12 @@ func (r *handlerRepository) ActiveUserBySession(_ context.Context, id string, no
 func (r *handlerRepository) CreateUser(context.Context, *auth.User) error {
 	return errors.New("unexpected create")
 }
+func (r *handlerRepository) HasPermission(_ context.Context, _ string, permission string) (bool, error) {
+	return permission == "auth:read_self", nil
+}
+func (r *handlerRepository) PermissionsForUser(context.Context, string) ([]string, error) {
+	return []string{"auth:read_self"}, nil
+}
 
 func authTestRouter(t *testing.T) *httpRouterFixture {
 	t.Helper()
@@ -195,9 +201,9 @@ func TestLoginErrorsDoNotRevealAccountStatus(t *testing.T) {
 
 func TestRequirePermissionDeniesUnknownPermission(t *testing.T) {
 	router := gin.New()
-	router.GET("/denied", func(c *gin.Context) { c.Set("auth_user", auth.User{ID: "test"}) }, RequirePermission("unknown:action"), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.GET("/denied", RequirePermission(nil, "unknown:action"), func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	response := perform(router, http.MethodGet, "/denied", "", nil, nil)
-	if response.Code != http.StatusForbidden {
+	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("unknown permission status %d", response.Code)
 	}
 }

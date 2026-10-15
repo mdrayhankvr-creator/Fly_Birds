@@ -93,6 +93,12 @@ func (r *memoryRepository) CreateUser(_ context.Context, user *User) error {
 	r.user = *user
 	return nil
 }
+func (r *memoryRepository) HasPermission(context.Context, string, string) (bool, error) {
+	return true, nil
+}
+func (r *memoryRepository) PermissionsForUser(context.Context, string) ([]string, error) {
+	return []string{"auth:read_self"}, nil
+}
 
 func TestPasswordHashAndLoginLifecycle(t *testing.T) {
 	const password = "A-long-example-password-123!"
