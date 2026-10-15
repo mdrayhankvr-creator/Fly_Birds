@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useNavigate } from 'react-router'
-import { ApiError } from '../api/client'
+import { ApiError, type SchoolBranding } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 
-export function LoginPage() {
-  const { t } = useTranslation()
+export function LoginPage({ branding }: { branding?: SchoolBranding }) {
+  const { t, i18n } = useTranslation()
   const { user, ready, expired, signIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -43,6 +43,7 @@ export function LoginPage() {
     <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:items-center">
       <section className="max-w-xl">
         <p className="text-sm font-bold uppercase tracking-[0.2em] text-teal-700">{t('welcomeBack')}</p>
+        {branding && <p className="brand-text mt-3 text-lg font-semibold">{i18n.language === 'bn' ? branding.name_bn : branding.name_en}</p>}
         <h1 className="mt-4 text-4xl font-bold leading-[1.25] tracking-tight text-slate-900 sm:text-5xl">{t('loginHeading')}</h1>
         <p className="mt-5 text-lg leading-8 text-slate-600">{t('loginDescription')}</p>
       </section>

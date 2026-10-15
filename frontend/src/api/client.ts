@@ -104,6 +104,35 @@ export const putRolePermissions = (token: string, role: string, ids: string[]) =
   { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) },
 )
 
+export type SchoolBranding = {
+  name_en: string; name_bn: string; logo_url: string; preferred_language: 'en' | 'bn'
+  primary_color: string; secondary_color: string; dashboard_theme: 'light' | 'dark'
+}
+export type SchoolSettings = SchoolBranding & {
+  address: string; phone: string; email: string; grading_scheme_id: string; updated_at: string
+}
+export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at'>
+export type GradeBand = { grade: string; min_marks: number; max_marks: number; gpa: number }
+export type SchoolModule = { key: string; name: string; is_core: boolean; enabled: boolean }
+
+export async function getSchoolBranding(signal?: AbortSignal): Promise<SchoolBranding> {
+  const response = await authRequest('/school/branding', { signal })
+  return (await response.json()).data as SchoolBranding
+}
+export const getSchoolSettings = (token: string) => bearerRequest<SchoolSettings>('/school/settings', token)
+export const putSchoolSettings = (token: string, data: SchoolSettingsInput) => bearerRequest<SchoolSettings>('/school/settings', token, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+})
+export const getSchoolGrading = (token: string) => bearerRequest<GradeBand[]>('/school/grading', token)
+export const putSchoolGrading = (token: string, bands: GradeBand[]) => bearerRequest<GradeBand[]>('/school/grading', token, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bands }),
+})
+export const getSchoolModules = (token: string) => bearerRequest<Page<SchoolModule>>('/school/modules?page_size=100', token)
+export const putSchoolModule = (token: string, key: string, enabled: boolean) => bearerRequest<SchoolModule>(
+  `/school/modules/${encodeURIComponent(key)}`, token,
+  { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) },
+)
+
 type HealthResponse = {
   data: {
     status: string

@@ -1,5 +1,6 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import { schoolTranslations } from './schoolTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -120,5 +121,8 @@ void i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 })
+
+i18n.addResourceBundle('en', 'translation', schoolTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', schoolTranslations.bn, true, true)
 
 export default i18n

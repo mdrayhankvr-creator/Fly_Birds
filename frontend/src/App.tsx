@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Route, Routes } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, getHealth, getMyPermissions } from './api/client'
+import { ApiError, getHealth, getMyPermissions, getSchoolBranding, getSchoolModules, type SchoolBranding } from './api/client'
 import { useAuth } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { LoginPage } from './pages/LoginPage'
 import { AccountPage } from './pages/AccountPage'
 import { PermissionPage } from './pages/PermissionPage'
+import { SchoolSettingsPage } from './pages/SchoolSettingsPage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -76,10 +77,27 @@ function PermissionGate({ permissions, role, loading, error }: { permissions: st
   return <PermissionPage canManage={role === 'admin' && permissions.includes('permissions:manage')} />
 }
 
+function SchoolGate({ permissions, loading, error }: { permissions: string[] | undefined; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('loadingPermissions')}</p>
+  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (!permissions?.includes('school_settings:read')) return <p role="alert">{t('permissionDenied')}</p>
+  return <SchoolSettingsPage permissions={permissions} />
+}
+
+function applyBranding(branding: SchoolBranding | undefined) {
+  const root = document.documentElement
+  const validColor = (value: string | undefined) => value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null
+  root.style.setProperty('--brand-primary', validColor(branding?.primary_color) || '#0F766E')
+  root.style.setProperty('--brand-secondary', validColor(branding?.secondary_color) || '#334155')
+  root.dataset.theme = branding?.dashboard_theme === 'dark' ? 'dark' : 'light'
+}
+
 export default function App() {
   const { t, i18n } = useTranslation()
   const { user, accessToken, ready, signOut, renew, expire } = useAuth()
   const [logoutError, setLogoutError] = useState(false)
+  const branding = useQuery({ queryKey: ['school', 'branding'], queryFn: ({ signal }) => getSchoolBranding(signal), retry: false, staleTime: 60_000 })
   const myPermissions = useQuery({
     queryKey: ['my-permissions', user?.id],
     enabled: !!accessToken,
@@ -97,11 +115,30 @@ export default function App() {
       }
     },
   })
+  const myModules = useQuery({
+    queryKey: ['school', 'modules', 'navigation', user?.id], enabled: !!accessToken && !!myPermissions.data?.includes('modules:read'), retry: false,
+    queryFn: async () => {
+      if (!accessToken) return null
+      try { return await getSchoolModules(accessToken) }
+      catch (cause) {
+        if (cause instanceof ApiError && cause.status === 401) return getSchoolModules(await renew())
+        throw cause
+      }
+    },
+  })
+  useEffect(() => {
+    applyBranding(branding.data)
+    if (branding.data?.preferred_language && !localStorage.getItem('flybirds.language')) {
+      void i18n.changeLanguage(branding.data.preferred_language)
+      document.documentElement.lang = branding.data.preferred_language
+    }
+  }, [branding.data, i18n])
+  const moduleEnabled = (key: string) => myModules.data?.items.find((item) => item.key === key)?.enabled ?? true
 
   async function setLanguage(language: 'en' | 'bn') {
-    await i18n.changeLanguage(language)
     localStorage.setItem('flybirds.language', language)
     document.documentElement.lang = language
+    await i18n.changeLanguage(language)
   }
 
   async function handleLogout() {
@@ -113,14 +150,18 @@ export default function App() {
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
-          <Link to="/" className="text-xl font-extrabold tracking-tight text-teal-800">{t('appName')}</Link>
-          <div className="flex items-center gap-5">
-            <nav aria-label="Main navigation">
-              <div className="flex items-center gap-4">
+          <Link to="/" className="brand-text flex min-w-0 items-center gap-3 text-xl font-extrabold tracking-tight">
+            {branding.data?.logo_url && <img src={branding.data.logo_url} alt="" referrerPolicy="no-referrer" className="h-10 w-10 rounded object-contain" />}
+            <span className="truncate">{branding.data ? (i18n.language === 'bn' ? branding.data.name_bn : branding.data.name_en) : branding.isPending ? t('loadingBranding') : t('appName')}</span>
+          </Link>
+          <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:w-auto sm:gap-5">
+            <nav aria-label="Main navigation" className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <Link to="/" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('home')}</Link>
                 {ready && (user
                   ? <><Link to="/account" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('account')}</Link>
-                    {myPermissions.data?.includes('permissions:read') && <Link to="/admin/permissions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('permissionEditor')}</Link>}
+                    {myPermissions.data?.includes('permissions:read') && moduleEnabled('permissions') && <Link to="/admin/permissions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('permissionEditor')}</Link>}
+                    {myPermissions.data?.includes('school_settings:read') && moduleEnabled('school_settings') && <Link to="/admin/school-settings" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('schoolSettings')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
               </div>
@@ -136,9 +177,10 @@ export default function App() {
       <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<LoginPage branding={branding.data} />} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="/admin/permissions" element={<ProtectedRoute><PermissionGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
+          <Route path="/admin/school-settings" element={<ProtectedRoute><SchoolGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
