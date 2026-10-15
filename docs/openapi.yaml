@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.4.0
-  description: M0 health and M1 authentication, role permissions, school configuration, grading, and module APIs. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
+  version: 0.5.0
+  description: M0 health and M1 authentication, role permissions, school configuration, user administration, audit, and dashboard APIs. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
 servers:
   - url: http://localhost:8080
 paths:
@@ -271,6 +271,118 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: Core module cannot be disabled, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users with search, role, status and pagination
+      description: Requires active admin, users:read, and the permissions module.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: role, in: query, schema: { type: string, enum: [admin, head_teacher, teacher, student, guardian, accountant] } }
+        - { name: status, in: query, schema: { type: string, enum: [active, inactive] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Users, content: { application/json: { schema: { $ref: '#/components/schemas/UserPageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create an account with a privately delivered initial password
+      description: Requires active admin, users:create, permissions:manage, and the permissions module. The password is accepted only in the request body, immediately hashed, and never returned. Password delivery and later reset are outside this checkpoint.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateUserInput' } } }
+      responses:
+        '201': { description: Created user, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Email already registered }
+  /users/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Read one user
+      description: Requires active admin, users:read, and the permissions module.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: User, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: User not found }
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update email and display name
+      description: Requires active admin, users:update, and the permissions module. Role and status have separate guarded operations.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateUserInput' } } }
+      responses:
+        '200': { description: Updated user, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: User not found }
+        '409': { description: Email already registered }
+  /users/{id}/status:
+    patch:
+      operationId: setUserStatus
+      tags: [users]
+      summary: Activate or deactivate a user
+      description: Requires active admin, users:update, and the permissions module. Deactivation revokes all sessions in the same transaction. The last active authorized administrator is protected.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StatusInput' } } }
+      responses:
+        '200': { description: Updated user, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: User not found }
+        '409': { description: Last authorized administrator cannot be deactivated }
+  /audit/events:
+    get:
+      operationId: listAuditEvents
+      tags: [audit]
+      summary: Read audit events
+      description: Requires active admin, audit:read, and the permissions module. Sort is newest or oldest by timestamp and event ID. There are no audit mutation endpoints.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: actor, in: query, schema: { type: string, format: uuid } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: target_type, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [newest, oldest], default: newest } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Audit events, content: { application/json: { schema: { $ref: '#/components/schemas/AuditPageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Read current role dashboard and allowed navigation
+      description: Requires auth:read_self and the authentication module. Administrator statistics require the current admin role and users:read grant; other roles receive no statistics.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Dashboard, content: { application/json: { schema: { $ref: '#/components/schemas/DashboardResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 components:
   securitySchemes:
     bearerAuth:
@@ -341,6 +453,108 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    ManagedUser:
+      type: object
+      required: [id, email, display_name, role, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string }
+        role: { type: string, enum: [admin, head_teacher, teacher, student, guardian, accountant] }
+        is_active: { type: boolean }
+    ManagedUserResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ManagedUser' }
+    UserPageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/ManagedUser' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    CreateUserInput:
+      type: object
+      required: [email, display_name, role, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        display_name: { type: string, minLength: 1, maxLength: 160 }
+        role: { type: string, enum: [admin, head_teacher, teacher, student, guardian, accountant] }
+        password: { type: string, format: password, description: 12 to 72 UTF-8 bytes }
+    UpdateUserInput:
+      type: object
+      required: [email, display_name]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        display_name: { type: string, minLength: 1, maxLength: 160 }
+    StatusInput:
+      type: object
+      required: [is_active]
+      additionalProperties: false
+      properties:
+        is_active: { type: boolean }
+    AuditEvent:
+      type: object
+      required: [id, created_at, action, target_type, target_id, outcome, metadata]
+      properties:
+        id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        actor_user_id: { type: string, format: uuid, nullable: true }
+        action: { type: string }
+        target_type: { type: string }
+        target_id: { type: string }
+        outcome: { type: string, enum: [success, denied] }
+        metadata: { type: object, description: Explicit safe metadata only; no credentials or token material }
+    AuditPageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    DashboardNavigation:
+      type: object
+      required: [key, name, path, coming_soon]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        path: { type: string }
+        coming_soon: { type: boolean }
+    DashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [user, branding, navigation]
+          properties:
+            user: { $ref: '#/components/schemas/AuthUser' }
+            branding: { $ref: '#/components/schemas/Branding' }
+            navigation: { type: array, items: { $ref: '#/components/schemas/DashboardNavigation' } }
+            summary:
+              type: object
+              description: Present only for administrators with users:read.
+              properties:
+                total_users: { type: integer }
+                active_users: { type: integer }
+                inactive_users: { type: integer }
+                by_role: { type: array, items: { type: object, properties: { role: { type: string }, count: { type: integer } } } }
+                enabled_modules: { type: integer }
+                school_fields_complete: { type: integer }
+                school_fields_total: { type: integer }
     Branding:
       type: object
       required: [name_en, name_bn, logo_url, preferred_language, primary_color, secondary_color, dashboard_theme]
@@ -483,6 +697,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
+        display_name: { type: string }
         role:
           type: string
           enum: [admin, head_teacher, teacher, student, guardian, accountant]
