@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestHealthz(t *testing.T) {
@@ -47,5 +49,27 @@ func TestUnknownRouteUsesStandardError(t *testing.T) {
 	}
 	if body.Error.Code != "not_found" {
 		t.Fatalf("error code = %q, want not_found", body.Error.Code)
+	}
+}
+
+func TestPanicUsesStandardError(t *testing.T) {
+	router := NewRouter()
+	router.GET("/panic", func(c *gin.Context) { panic("test panic") })
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/panic", nil))
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusInternalServerError)
+	}
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Error.Code != "internal_error" {
+		t.Fatalf("error code = %q, want internal_error", body.Error.Code)
 	}
 }
