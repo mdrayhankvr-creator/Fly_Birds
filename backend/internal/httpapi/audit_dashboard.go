@@ -10,14 +10,14 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 )
 
-type auditHandler struct{ repo *audit.Repository }
+type auditHandler struct{ service *audit.Service }
 
 // events godoc
 // @Summary Read filtered audit events; requires audit:read
 // @Tags audit
 // @Router /audit/events [get]
 func (h *auditHandler) events(c *gin.Context) {
-	if h.repo == nil {
+	if h.service == nil {
 		failure(c, 503, "audit_unavailable", "audit log requires a database")
 		return
 	}
@@ -31,7 +31,7 @@ func (h *auditHandler) events(c *gin.Context) {
 		failure(c, 400, "invalid_request", "invalid sort order")
 		return
 	}
-	value, err := h.repo.List(c.Request.Context(), audit.Query{Actor: c.Query("actor"), Action: c.Query("action"), TargetType: c.Query("target_type"), Page: page, PageSize: size, Newest: sort == "newest"})
+	value, err := h.service.List(c.Request.Context(), audit.Query{Actor: c.Query("actor"), Action: c.Query("action"), TargetType: c.Query("target_type"), Page: page, PageSize: size, Newest: sort == "newest"})
 	if errors.Is(err, audit.ErrInvalid) {
 		failure(c, 400, "invalid_request", "invalid audit filter")
 		return
@@ -43,19 +43,23 @@ func (h *auditHandler) events(c *gin.Context) {
 	success(c, http.StatusOK, value)
 }
 
-type dashboardHandler struct{ repo *dashboard.Repository }
+type dashboardHandler struct{ service *dashboard.Service }
 
 // dashboard godoc
 // @Summary Get current role dashboard data
 // @Tags dashboard
 // @Router /dashboard [get]
 func (h *dashboardHandler) get(c *gin.Context) {
-	if h.repo == nil {
+	if h.service == nil {
 		failure(c, 503, "dashboard_unavailable", "dashboard requires a database")
 		return
 	}
 	user := c.MustGet("auth_user").(auth.User)
-	value, err := h.repo.Get(c.Request.Context(), user)
+	value, err := h.service.Get(c.Request.Context(), user)
+	if errors.Is(err, dashboard.ErrForbidden) {
+		failure(c, 403, "forbidden", "permission denied")
+		return
+	}
 	if err != nil {
 		failure(c, 500, "internal_error", "internal server error")
 		return

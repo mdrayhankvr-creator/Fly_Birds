@@ -57,7 +57,7 @@ func TestPostgresCheckpointFourLifecycle(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Exec("DELETE FROM users WHERE email LIKE ?", "%"+suffix+"@example.test").Error })
 	userService := users.NewService(users.NewRepository(db))
-	router := NewRouterWithAll(authService, true, rbac.NewService(rbac.NewRepository(db)), school.NewService(school.NewRepository(db)), userService, audit.NewRepository(db), dashboard.NewRepository(db))
+	router := NewRouterWithAll(authService, true, rbac.NewService(rbac.NewRepository(db)), school.NewService(school.NewRepository(db)), userService, audit.NewService(audit.NewRepository(db)), dashboard.NewService(dashboard.NewRepository(db)))
 	adminCredentials, err := authService.Login(ctx, admin.Email, password)
 	if err != nil {
 		t.Fatal(err)

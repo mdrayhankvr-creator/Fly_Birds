@@ -40,8 +40,8 @@ func run(logger *slog.Logger) error {
 	var authorization *rbac.Service
 	var schoolService *school.Service
 	var userService *users.Service
-	var auditRepo *audit.Repository
-	var dashboardRepo *dashboard.Repository
+	var auditService *audit.Service
+	var dashboardService *dashboard.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -64,8 +64,8 @@ func run(logger *slog.Logger) error {
 		authorization = rbac.NewService(rbac.NewRepository(db))
 		schoolService = school.NewService(school.NewRepository(db))
 		userService = users.NewService(users.NewRepository(db))
-		auditRepo = audit.NewRepository(db)
-		dashboardRepo = dashboard.NewRepository(db)
+		auditService = audit.NewService(audit.NewRepository(db))
+		dashboardService = dashboard.NewService(dashboard.NewRepository(db))
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -73,7 +73,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithAll(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditRepo, dashboardRepo),
+		Handler:           httpapi.NewRouterWithAll(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

@@ -61,12 +61,6 @@ type Repository struct{ db *gorm.DB }
 func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 
 func (r *Repository) List(ctx context.Context, query Query) (Page, error) {
-	if query.Page < 1 || query.Page > 100000 || query.PageSize < 1 || query.PageSize > 100 ||
-		(query.Action != "" && !safeFilter.MatchString(query.Action)) ||
-		(query.TargetType != "" && !safeFilter.MatchString(query.TargetType)) ||
-		(query.Actor != "" && !uuid.MatchString(query.Actor)) {
-		return Page{}, ErrInvalid
-	}
 	base := r.db.WithContext(ctx).Model(&Event{})
 	if query.Action != "" {
 		base = base.Where("action = ?", query.Action)
