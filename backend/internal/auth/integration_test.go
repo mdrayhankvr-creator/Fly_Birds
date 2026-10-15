@@ -26,7 +26,7 @@ func TestPostgresAuthenticationLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sqlDB.Close()
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	if err := database.Migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,11 @@ func TestPostgresAuthenticationLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Where("id = ?", user.ID).Delete(&User{}) })
+	t.Cleanup(func() {
+		if err := db.Where("id = ?", user.ID).Delete(&User{}).Error; err != nil {
+			t.Errorf("remove isolated user: %v", err)
+		}
+	})
 	for i := 0; i < MaxLoginFailure; i++ {
 		if _, err := service.Login(ctx, email, "wrong"); !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("failed login %d: %v", i, err)
