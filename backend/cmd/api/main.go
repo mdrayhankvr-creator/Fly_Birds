@@ -11,12 +11,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/config"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/httpapi"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/users"
 )
 
 func main() {
@@ -36,6 +39,9 @@ func run(logger *slog.Logger) error {
 	var authService *auth.Service
 	var authorization *rbac.Service
 	var schoolService *school.Service
+	var userService *users.Service
+	var auditRepo *audit.Repository
+	var dashboardRepo *dashboard.Repository
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -57,6 +63,9 @@ func run(logger *slog.Logger) error {
 		}
 		authorization = rbac.NewService(rbac.NewRepository(db))
 		schoolService = school.NewService(school.NewRepository(db))
+		userService = users.NewService(users.NewRepository(db))
+		auditRepo = audit.NewRepository(db)
+		dashboardRepo = dashboard.NewRepository(db)
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -64,7 +73,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithServices(authService, cfg.AuthCookieSecure, authorization, schoolService),
+		Handler:           httpapi.NewRouterWithAll(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditRepo, dashboardRepo),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

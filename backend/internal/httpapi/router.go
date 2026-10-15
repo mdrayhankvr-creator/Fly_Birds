@@ -4,9 +4,12 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/users"
 )
 
 func NewRouter() *gin.Engine {
@@ -25,6 +28,10 @@ func firstRBAC(services []*rbac.Service) *rbac.Service {
 }
 
 func NewRouterWithServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service) *gin.Engine {
+	return NewRouterWithAll(service, secureCookies, grants, schoolService, nil, nil, nil)
+}
+
+func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditRepo *audit.Repository, dashboardRepo *dashboard.Repository) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -57,6 +64,14 @@ func NewRouterWithServices(service *auth.Service, secureCookies bool, grants *rb
 	management.PUT("/roles/:id/permissions", RequirePermission(service, "permissions:manage"), moduleGuard("permissions"), RequireAdministrator(), rbacHandler.setRolePermissions)
 	management.GET("/users/:id/roles", RequirePermission(service, "roles:read"), moduleGuard("permissions"), rbacHandler.userRoles)
 	management.PUT("/users/:id/roles", RequirePermission(service, "permissions:manage"), moduleGuard("permissions"), RequireAdministrator(), rbacHandler.setUserRoles)
+	usersHandler := &usersHandler{service: userService}
+	management.GET("/users", RequirePermission(service, "users:read"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.list)
+	management.POST("/users", RequirePermission(service, "users:create"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.create)
+	management.GET("/users/:id", RequirePermission(service, "users:read"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.get)
+	management.PATCH("/users/:id", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.update)
+	management.PATCH("/users/:id/status", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.status)
+	management.GET("/audit/events", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{repo: auditRepo}).events)
+	management.GET("/dashboard", RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), (&dashboardHandler{repo: dashboardRepo}).get)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")
