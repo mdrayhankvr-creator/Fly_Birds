@@ -1,6 +1,6 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 is merged. M1 checkpoints 1–3 provide authentication, runtime role permissions, and school configuration. Full user management, audit logging, and role dashboards remain pending.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 is merged. M1 checkpoints 1–4 provide authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M1 is locally complete; remote CI has not run on this unpushed branch.
 
 The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
 
@@ -34,7 +34,7 @@ The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Mil
 - Administrators with `permissions:manage` can atomically replace a role's grants with `PUT /roles/:id/permissions` or a user's single role with `PUT /users/:id/roles`. The admin role must retain management and self-read access; the last active administrator cannot be demoted.
 - `/admin/permissions` is a responsive English/Bangla permission matrix. The backend remains the authority for every update.
 
-Both checkpoints have passed local PostgreSQL-backed tests and browser checks. The full M1 milestone remains in progress; see [verified progress](docs/PROGRESS.md).
+Both checkpoints passed local PostgreSQL-backed tests and browser checks. The later checkpoint results are recorded in [verified progress](docs/PROGRESS.md).
 
 ## M1 Checkpoint 3 — School Configuration
 
@@ -49,6 +49,15 @@ Both checkpoints have passed local PostgreSQL-backed tests and browser checks. T
 
 This is a single-school deployment configuration, not tenant-isolated multi-tenancy. The repository and service interfaces leave room for later tenant scoping.
 
+## M1 Checkpoint 4 — User Administration, Audit, and Dashboards
+
+- Migration 4 adds user display names and a persistent audit event table with indexes. Successful user, role-permission, role-assignment, school settings, grading, and module changes insert audit events in the same transaction. Login, failed known-account login, and logout are also audited. Events contain explicit safe metadata, not passwords, hashes, tokens, cookies, or request bodies. Earlier actions are not backfilled.
+- Active administrators with the required grants can create, search, filter, page, read, and update users at `/admin/users`. The existing `PUT /users/:id/roles` endpoint assigns one of six roles. Deactivation atomically revokes all active sessions and protects the last active authorized administrator. Changes to the role permission matrix take effect on active sessions.
+- New accounts use a 12–72 byte administrator-supplied initial password. The API hashes it and never returns it. The administrator must deliver it privately. **The administrator continues to know this password; self-service password change, reset, and invitation delivery are not implemented yet.** Do not reuse personal passwords for this workflow. Use HTTPS outside local development.
+- `GET /audit/events` is a read-only, paginated, filtered, sorted API for administrators with `audit:read`. The advanced viewer and export belong to M10.
+- `GET /dashboard` supplies current database role, school branding, granted navigation, enabled module placeholders, and actual administrator counts. The shared frontend dashboard renders `/dashboard/admin`, `/dashboard/head_teacher`, `/dashboard/teacher`, `/dashboard/student`, `/dashboard/guardian`, and `/dashboard/accountant`. A role mismatch redirects to the current server-reported role. Later milestone modules appear only as Coming Soon when enabled; no academic or financial data is invented.
+- Local PostgreSQL integration tests, Go vet, the frontend production build, Compose validation, OpenAPI reference parsing, and headless Chrome checks passed. The browser reported one missing `/favicon.ico` request; no CSS asset failures, JavaScript exceptions, or viewport overflow were observed. The disposable browser accounts and their test audit records were removed; the original development account remained.
+
 ## Repository Layout
 
 ```text
@@ -59,7 +68,7 @@ compose.yaml              Development services
 docs/                     Project brief, roadmap, and progress
 ```
 
-M1 authentication, RBAC, and school configuration follow Handler → Service → Repository → Database. M0's health endpoint remains a simple liveness handler.
+M1 authentication, RBAC, school configuration, user management, audit retrieval, and dashboards follow Handler → Service → Repository → Database. M0's health endpoint remains a simple liveness handler.
 
 ## Prerequisites
 
@@ -101,6 +110,8 @@ Use `docker compose down` to stop the stack. The default endpoints are:
 | Protected account page | http://localhost:5173/account |
 | Permission editor | http://localhost:5173/admin/permissions |
 | School settings | http://localhost:5173/admin/school-settings |
+| User administration | http://localhost:5173/admin/users |
+| Role dashboard | http://localhost:5173/dashboard |
 
 The database is exposed on `localhost:5432` by default. Change the values in `.env` if those ports are occupied. The sample PostgreSQL password is for local development only.
 
@@ -161,7 +172,7 @@ See `.env.example`, `backend/.env.example`, and `frontend/.env.example` for exam
 | `DATABASE_URL` | PostgreSQL DSN; required for authentication, optional for the health-only server | Unset |
 | `JWT_SIGNING_KEY_B64` | Base64 encoding of at least 32 random signing-key bytes; required when the database is configured | Unset |
 | `AUTH_COOKIE_SECURE` | Set `false` only for local HTTP; keep `true` behind HTTPS | `true` in the backend, `false` in local Compose |
-| `AUTH_TEST_DATABASE_URL` | Dedicated PostgreSQL database for the opt-in authentication, RBAC, and school configuration integration tests | Unset |
+| `AUTH_TEST_DATABASE_URL` | Dedicated PostgreSQL database for the opt-in authentication, RBAC, school configuration, and user/audit/dashboard integration tests | Unset |
 | `GIN_MODE` | Gin log mode; Compose sets `release` | Gin default |
 | `VITE_API_BASE_URL` | Browser API path | `/api` |
 | `VITE_API_PROXY_TARGET` | Vite development proxy target | `http://localhost:8080` |
@@ -183,7 +194,7 @@ cd ..
 docker compose config --quiet
 ```
 
-For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. M1 branch CI remains unverified until a developer push.
+For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The audit rollback test temporarily adds a rejecting constraint inside a transaction and rolls it back. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. M1 branch CI remains unverified until a developer push.
 
 ## Future Work
 
