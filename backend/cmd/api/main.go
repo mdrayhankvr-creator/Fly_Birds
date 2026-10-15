@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/config"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/httpapi"
@@ -30,6 +31,7 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
+	var authService *auth.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -42,6 +44,13 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		defer sqlDB.Close()
+		if err := database.Migrate(connectCtx, db); err != nil {
+			return err
+		}
+		authService, err = auth.NewService(auth.NewRepository(db), cfg.JWTSigningKey)
+		if err != nil {
+			return err
+		}
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -49,7 +58,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouter(),
+		Handler:           httpapi.NewRouterWithAuth(authService, cfg.AuthCookieSecure),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
