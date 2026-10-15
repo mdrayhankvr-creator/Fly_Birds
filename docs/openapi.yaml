@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.1.0
-  description: M0 API surface. Additional endpoints will be documented as milestones are implemented.
+  version: 0.2.0
+  description: M0 health and M1 checkpoint-one authentication API. Authentication endpoints require a configured PostgreSQL database.
 servers:
   - url: http://localhost:8080
 paths:
@@ -19,8 +19,170 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /auth/login:
+    post:
+      operationId: login
+      summary: Sign in with email and password
+      description: Returns a 15-minute JWT access token. Sets a seven-day HttpOnly refresh cookie and a session-bound CSRF cookie. Invalid, unknown, locked, and disabled accounts receive the same credentials error.
+      tags: [authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/InvalidCredentials' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/refresh:
+    post:
+      operationId: refreshSession
+      summary: Rotate refresh token and issue a new access token
+      description: Requires flybirds_refresh and flybirds_csrf cookies. The X-CSRF-Token header must match the CSRF cookie and its server-side session hash. Refresh secrets are rotated and stored only as hashes.
+      tags: [authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CSRFToken'
+      responses:
+        '200':
+          description: Session refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401': { $ref: '#/components/responses/InvalidSession' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the current session
+      description: Requires the refresh and CSRF cookies and X-CSRF-Token header. Revocation also invalidates access tokens tied to the session.
+      tags: [authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CSRFToken'
+      responses:
+        '204': { description: Session revoked and cookies cleared }
+        '401': { $ref: '#/components/responses/InvalidSession' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get the authenticated user's own account
+      description: Requires a valid access JWT, an active server-side session, and the checkpoint-one auth:read_self permission.
+      tags: [authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CSRFToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+  responses:
+    InvalidRequest:
+      description: Invalid JSON or credentials format
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InvalidCredentials:
+      description: Generic incorrect credentials response
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InvalidSession:
+      description: Session is missing, expired, or revoked
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Access token is missing or invalid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnsupportedMediaType:
+      description: Login requires application/json
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    AuthUnavailable:
+      description: Authentication requires a configured database
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, format: password, minLength: 1, maxLength: 72 }
+    AuthUser:
+      type: object
+      required: [id, email, role]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role:
+          type: string
+          enum: [admin, head_teacher, teacher, student, guardian, accountant]
+    AuthResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [user, access_token]
+          properties:
+            user: { $ref: '#/components/schemas/AuthUser' }
+            access_token: { type: string, description: JWT access token; expires in 15 minutes }
+    UserResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AuthUser' }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
     HealthResponse:
       type: object
       required: [data]
