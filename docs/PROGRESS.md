@@ -7,21 +7,21 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 - **Overall completion:** 16 verified criteria / 83 total criteria x 100 = **19.3%** (rounded to one decimal place).
 - **Current milestone completion:** 12 verified M1 criteria / 12 M1 criteria x 100 = **100.0% locally**.
 
-The sixteen counted criteria are all four M0 criteria and all twelve M1 criteria from the project brief. Checkpoint-four PostgreSQL tests, live migration, and browser checks verify user management, audit logging, and six role dashboards locally. Remote M1 GitHub Actions execution remains unverified because this branch has not been pushed.
+The sixteen counted criteria are all four M0 criteria and all twelve M1 criteria from the project brief. The final audit repeated backend and PostgreSQL tests, checked a rebuilt frontend in an isolated browser stack, and reviewed the security limitations. Remote M1 GitHub Actions execution remains unverified because this branch has not been pushed.
 
 ## Current Status
 
 | Item | Status |
 |---|---|
-| Current development phase | M1 checkpoint 4 verified locally; awaiting developer review and explicit next instruction |
+| Current development phase | M1 final local audit complete; ready for Pull Request review, awaiting developer push and remote CI |
 | Current milestone | M1 — Authentication and School Configuration |
 | Completed acceptance criteria | Four M0 criteria and all twelve M1 criteria verified locally |
 | Remaining acceptance criteria | No M1 brief criteria; 67 criteria in M2-M13 remain |
 | Features implemented | M0 and M1 checkpoints 1-4: authentication, six roles and runtime grants, persisted school profile, branding, grading, module toggles, user administration, audit logging, and six role dashboards |
-| Tests passed | Go vet; fresh Go suite including isolated PostgreSQL auth, RBAC, school, user, audit, and dashboard tests; frontend production build; Compose and OpenAPI validation; live migration and health; headless Chrome desktop/mobile, six roles, user creation/deactivation, language, navigation and logout |
-| Tests failed | None in completed local checks; Chrome reported a missing /favicon.ico request |
-| Application runnability | PostgreSQL, backend, and frontend run through Compose. Migration 4 applied to the existing database; the original one user remained after disposable browser test cleanup. |
-| Next planned milestone | No further work without explicit approval; checkpoint 5 scope is not defined in the project brief |
+| Tests passed | Go vet, Go unit and PostgreSQL suites, Go race suite without PostgreSQL, fresh container npm install and frontend production build, Compose/OpenAPI checks, npm audit, isolated headless Chrome workflows at desktop/mobile widths |
+| Tests failed | Windows host `npm ci` was blocked by a locked native binary; the fresh isolated-container install and build passed. No application test failed in the final run. |
+| Application runnability | Existing PostgreSQL, backend, and frontend continue through Compose on 5432/8080/5173. The final browser audit used and removed a separate database and services; migration 4 remains applied to the existing database. |
+| Next planned milestone | No M2 work until the developer explicitly says `next`; first publish M1 and review remote CI |
 
 ## M0 Acceptance Criteria and Evidence
 
@@ -48,6 +48,17 @@ The sixteen counted criteria are all four M0 criteria and all twelve M1 criteria
 | Themed login page | Complete locally | Login loads public school identity and CSS colors; a browser check with mocked configured branding rendered the dark theme and Bangla school name without changing live school data |
 | Bangla/English language switch | Complete locally | Existing switch covers the new login/account text; frontend TypeScript and production build pass |
 | Role-based dashboards | Complete locally | Server-authoritative role routing, six shared role shells, actual admin counts, allowed navigation and school branding; five nonadmin dashboards isolate admin statistics |
+
+## M1 Final Audit and Completion Report — 2026-10-16
+
+- **Scope and progress:** 12/12 M1 criteria = 100.0% locally; (4 M0 + 12 M1)/83 roadmap criteria = 19.3% overall. M2 is not started. The feature branch contains remote `main` as an ancestor and was clean before this audit. Its commits remain local.
+- **Backend and frontend:** Handler → Service → Repository → PostgreSQL for authentication, RBAC, school configuration, users, audit, and dashboards. The frontend has `/`, `/login`, `/account`, `/admin/permissions`, `/admin/school-settings`, `/admin/users`, `/dashboard`, and `/dashboard/:role`. The audit viewer remains M10 scope; M1 supplies a guarded read-only audit API. API methods, permissions, and module checks are listed in [OpenAPI](openapi.yaml). The development stack and interactive bootstrap command are documented in the [README](../README.md).
+- **Schema:** Migration 1 creates users and revocable sessions; 2 seeds six roles and role grants; 3 adds one configurable school profile, seven Bangladesh grade bands, and twelve module definitions; 4 adds display names, audit events, and `audit:read`. The existing application database reports versions 1–4, with no reset.
+- **Automated gates:** `go vet ./...` passed. `go test ./... -count=1` passed both without a database URL and against the separate `flybirds_cp4_test` PostgreSQL database. `go test -race ./... -count=1` passed without the database URL. A fresh `npm ci` and `npm run build` passed inside the isolated frontend container; Windows host `npm ci` hit `EPERM` on a locked native binary. No frontend unit-test script exists. `docker compose config --quiet`, PostgreSQL readiness, direct/proxied health HTTP 200, and OpenAPI parse (20 paths, 26 operations, 151 resolved references) passed. All 26 registered method/path pairs match OpenAPI operations. `npm audit` reported zero vulnerabilities among current installed dependencies. A Go dependency advisory scanner was unavailable, so that check is unverified. Remote GitHub Actions is pending the developer's push.
+- **Final browser and API regression:** A separate `flybirds_cp5_audit` database, backend on 8081, and rebuilt frontend on 5174 protected the existing application data. Headless Chrome passed English/Bangla login and font checks, styled page and favicon loading, invalid/valid login, protected route redirects, browser user creation, permission editor save, active-session grant change and restoration, last-admin denial, school profile edit and persistence after reload, grading overlap/gap/GPA rejection and valid replacement, module state and Coming Soon navigation, audit events, six role dashboards and role isolation, logout, and 1280 px/390 px layout checks with no horizontal overflow. API checks verified refresh rotation/reuse rejection, logout revocation, deactivation revocation, and current-user denial after revocation. The browser logged one expected HTTP 401 resource message from a deliberate denial; no unexpected JavaScript exceptions appeared. The test-only configuration was restored before the temporary stack and database were removed.
+- **Module-route verification limit:** No optional academic, attendance, or financial feature route exists in M1. `RequireModule` returned 403 for a disabled optional module on an isolated PostgreSQL-backed test route; a real optional feature route must be checked when its milestone implements one. The final browser audit verified module toggle persistence and navigation, not an unavailable future route.
+- **Security findings:** No confirmed Critical or High M1 defect in this audit. **Medium:** the administrator knows each initial password until a future credential-change workflow; deliver unique passwords privately. **Medium:** lockout is per account, with no independent IP/edge rate limit; add one before public exposure. **Medium, unverified deployment control:** HTTPS and Secure-cookie behavior were not exercised; require both outside local HTTP development. **Low:** the server validates the external logo URL shape but does not inspect image bytes; use a trusted image host. SQL values use bound parameters, protected routes use current database grants and module states, React renders text without unsafe HTML, and login/session tests cover CSRF and token replay. Continue dependency and deployment review when publishing.
+- **Release decision:** Locally ready for Pull Request review. Merge after developer push, green GitHub Actions, and review of the documented limits. Do not push or start M2 automatically.
 
 ## M1 Checkpoint-four Verification
 
