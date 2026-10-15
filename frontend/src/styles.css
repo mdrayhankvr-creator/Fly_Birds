@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  font-family: Inter, "Noto Sans Bengali", system-ui, sans-serif;
+  font-family: Inter, Arial, sans-serif;
   font-synthesis: none;
+}
+
+:root:lang(bn) {
+  font-family: "Noto Sans Bengali", sans-serif;
 }
