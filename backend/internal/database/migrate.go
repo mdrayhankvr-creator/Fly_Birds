@@ -30,30 +30,34 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 	if _, err := tx.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
 		return fmt.Errorf("create migration ledger: %w", err)
 	}
-	var version int
-	err = tx.QueryRowContext(ctx, "SELECT version FROM schema_migrations WHERE version = 1").Scan(&version)
-	if err != nil && err != sql.ErrNoRows {
-		return fmt.Errorf("read migration ledger: %w", err)
-	}
-	if err == sql.ErrNoRows {
-		body, readErr := migrationFiles.ReadFile("migrations/0001_auth.sql")
+	for version, name := range []string{"0001_auth.sql", "0002_rbac.sql"} {
+		migrationVersion := version + 1
+		var recorded int
+		err = tx.QueryRowContext(ctx, "SELECT version FROM schema_migrations WHERE version = $1", migrationVersion).Scan(&recorded)
+		if err != nil && err != sql.ErrNoRows {
+			return fmt.Errorf("read migration ledger: %w", err)
+		}
+		if err == nil {
+			continue
+		}
+		body, readErr := migrationFiles.ReadFile("migrations/" + name)
 		if readErr != nil {
-			return fmt.Errorf("read auth migration: %w", readErr)
+			return fmt.Errorf("read migration %d: %w", migrationVersion, readErr)
 		}
 		for _, statement := range strings.Split(string(body), ";") {
 			if strings.TrimSpace(statement) == "" {
 				continue
 			}
 			if _, execErr := tx.ExecContext(ctx, statement); execErr != nil {
-				return fmt.Errorf("apply auth migration: %w", execErr)
+				return fmt.Errorf("apply migration %d: %w", migrationVersion, execErr)
 			}
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO schema_migrations (version) VALUES (1)"); err != nil {
-			return fmt.Errorf("record auth migration: %w", err)
+		if _, err := tx.ExecContext(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", migrationVersion); err != nil {
+			return fmt.Errorf("record migration %d: %w", migrationVersion, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit auth migration: %w", err)
+		return fmt.Errorf("commit migrations: %w", err)
 	}
 	return nil
 }
