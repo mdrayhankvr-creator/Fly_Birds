@@ -39,7 +39,7 @@ func TestPostgresRBACLifecycle(t *testing.T) {
 		}
 	}
 	var versions int64
-	if err := db.Table("schema_migrations").Count(&versions).Error; err != nil || versions != 2 {
+	if err := db.Table("schema_migrations").Count(&versions).Error; err != nil || versions != 3 {
 		t.Fatalf("migration versions=%d, error=%v", versions, err)
 	}
 	var roleCount int64
@@ -53,7 +53,7 @@ func TestPostgresRBACLifecycle(t *testing.T) {
 		}
 	}
 	var adminGrants int64
-	if err := db.Table("role_permissions").Where("role_id = ?", "admin").Count(&adminGrants).Error; err != nil || adminGrants != 10 {
+	if err := db.Table("role_permissions").Where("role_id = ?", "admin").Count(&adminGrants).Error; err != nil || adminGrants != 14 {
 		t.Fatalf("admin grants=%d, error=%v", adminGrants, err)
 	}
 
