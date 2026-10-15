@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"gorm.io/gorm"
 )
 
@@ -130,7 +131,7 @@ func (r *GormRepository) ReplaceRolePermissions(ctx context.Context, actor, role
 		}
 		change.After = append([]string{}, ids...)
 		sort.Strings(change.After)
-		return nil
+		return audit.Record(tx, &actor, "permissions.replace", "role", role, map[string]any{"before": before, "after": change.After})
 	})
 	return change, err
 }
@@ -174,7 +175,10 @@ func (r *GormRepository) ReplaceUserRole(ctx context.Context, actor, user, role 
 		if existing.Role == role {
 			return nil
 		}
-		return tx.Table("users").Where("id = ?", user).Updates(map[string]any{"role": role, "updated_at": gorm.Expr("now()")}).Error
+		if err := tx.Table("users").Where("id = ?", user).Updates(map[string]any{"role": role, "updated_at": gorm.Expr("now()")}).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, &actor, "user.role_changed", "user", user, map[string]any{"before_role": existing.Role, "after_role": role})
 	})
 	return change, err
 }

@@ -30,7 +30,7 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 	if _, err := tx.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
 		return fmt.Errorf("create migration ledger: %w", err)
 	}
-	for version, name := range []string{"0001_auth.sql", "0002_rbac.sql", "0003_school_configuration.sql"} {
+	for version, name := range []string{"0001_auth.sql", "0002_rbac.sql", "0003_school_configuration.sql", "0004_users_audit.sql"} {
 		migrationVersion := version + 1
 		var recorded int
 		err = tx.QueryRowContext(ctx, "SELECT version FROM schema_migrations WHERE version = $1", migrationVersion).Scan(&recorded)

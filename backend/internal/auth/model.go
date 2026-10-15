@@ -29,6 +29,7 @@ func ValidRole(role string) bool { return roles[role] }
 type User struct {
 	ID                  string     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	Email               string     `gorm:"not null;uniqueIndex" json:"email"`
+	DisplayName         string     `gorm:"not null" json:"display_name"`
 	PasswordHash        string     `gorm:"not null" json:"-"`
 	Role                string     `gorm:"not null" json:"role"`
 	IsActive            bool       `gorm:"not null" json:"-"`

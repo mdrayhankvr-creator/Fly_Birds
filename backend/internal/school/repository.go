@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"gorm.io/gorm"
 )
 
@@ -66,7 +67,10 @@ func (r *GormRepository) UpdateSettings(ctx context.Context, actor string, input
 		if result.RowsAffected != 1 {
 			return ErrNotFound
 		}
-		return tx.First(&settings, "id = ?", SingleSchoolID).Error
+		if err := tx.First(&settings, "id = ?", SingleSchoolID).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, &actor, "school.settings_updated", "school", "1", map[string]any{"fields": []string{"name_en", "name_bn", "logo_url", "address", "phone", "email", "preferred_language", "primary_color", "secondary_color", "dashboard_theme", "grading_scheme_id"}})
 	})
 	return settings, err
 }
@@ -112,7 +116,10 @@ func (r *GormRepository) ReplaceGrading(ctx context.Context, actor string, bands
 		}
 		var err error
 		updated, err = gradingIn(tx)
-		return err
+		if err != nil {
+			return err
+		}
+		return audit.Record(tx, &actor, "school.grading_updated", "grading_scheme", schemeID, map[string]any{"band_count": len(updated)})
 	})
 	return updated, err
 }
@@ -163,7 +170,7 @@ func (r *GormRepository) UpdateModule(ctx context.Context, actor, key string, en
 		}
 		updated = module
 		updated.Enabled = enabled
-		return nil
+		return audit.Record(tx, &actor, "school.module_updated", "module", key, map[string]any{"before_enabled": module.Enabled, "after_enabled": enabled})
 	})
 	return updated, err
 }

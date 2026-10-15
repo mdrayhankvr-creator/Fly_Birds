@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -37,11 +38,16 @@ func (r *GormRepository) FindUserByEmail(ctx context.Context, email string) (Use
 }
 
 func (r *GormRepository) RecordLoginFailure(ctx context.Context, userID string, now time.Time) error {
-	return r.db.WithContext(ctx).Model(&User{}).Where("id = ?", userID).Updates(map[string]any{
-		"failed_login_attempts": gorm.Expr("failed_login_attempts + 1"),
-		"locked_until":          gorm.Expr("CASE WHEN failed_login_attempts + 1 >= ? THEN ? ELSE locked_until END", MaxLoginFailure, now.Add(LockoutDuration)),
-		"updated_at":            now,
-	}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&User{}).Where("id = ?", userID).Updates(map[string]any{
+			"failed_login_attempts": gorm.Expr("failed_login_attempts + 1"),
+			"locked_until":          gorm.Expr("CASE WHEN failed_login_attempts + 1 >= ? THEN ? ELSE locked_until END", MaxLoginFailure, now.Add(LockoutDuration)),
+			"updated_at":            now,
+		}).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, &userID, "auth.login_failed", "user", userID, nil)
+	})
 }
 
 func (r *GormRepository) ClearLoginFailures(ctx context.Context, userID string, now time.Time) error {
@@ -60,7 +66,12 @@ func (r *GormRepository) ClearLoginFailures(ctx context.Context, userID string, 
 }
 
 func (r *GormRepository) CreateSession(ctx context.Context, session *Session) error {
-	return r.db.WithContext(ctx).Create(session).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(session).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, &session.UserID, "auth.login", "user", session.UserID, nil)
+	})
 }
 
 func (r *GormRepository) RotateSession(ctx context.Context, oldHash, csrfHash, newHash, newCSRFHash []byte, expiresAt, now time.Time) (Session, User, error) {
@@ -105,7 +116,10 @@ func (r *GormRepository) RevokeSession(ctx context.Context, refreshHash, csrfHas
 		if session.RevokedAt != nil || !session.ExpiresAt.After(now) || subtle.ConstantTimeCompare(session.CSRFHash, csrfHash) != 1 {
 			return ErrInvalidSession
 		}
-		return tx.Model(&Session{}).Where("id = ?", session.ID).Updates(map[string]any{"revoked_at": now, "updated_at": now}).Error
+		if err := tx.Model(&Session{}).Where("id = ?", session.ID).Updates(map[string]any{"revoked_at": now, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, &session.UserID, "auth.logout", "user", session.UserID, nil)
 	})
 }
 
