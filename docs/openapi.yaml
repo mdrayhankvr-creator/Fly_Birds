@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.6.0
-  description: M0/M1 APIs and M2 academic sessions, classes, subjects, and class-subject assignments. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
+  version: 0.7.0
+  description: M0/M1 APIs, M2 academic structure, and M4 staff management. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
 servers:
   - url: http://localhost:8080
 paths:
@@ -572,6 +572,142 @@ paths:
       description: Requires academics:manage, an administrator account, and the academics module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Assignment removed }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/employees:
+    get:
+      operationId: listEmployees
+      tags: [staff]
+      summary: Search and paginate employee profiles
+      description: Requires staff:read and the enabled staff module. Optional search, kind, status, page, and page_size filters.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Employee page }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createEmployee
+      tags: [staff]
+      summary: Create an employee profile
+      description: Requires staff:manage, an administrator account, and the enabled staff module. A linked user must have a compatible active role.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EmployeeInput' } } } }
+      responses: { '201': { description: Created employee }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Duplicate employee code or user association } }
+  /staff/employees/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getEmployee
+      tags: [staff]
+      summary: Read an employee profile
+      description: Requires staff:read and the staff module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Employee profile }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      operationId: updateEmployee
+      tags: [staff]
+      summary: Update an employee profile
+      description: Requires staff:manage, an administrator account, and the staff module. Supply all editable fields.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EmployeeInput' } } } }
+      responses: { '200': { description: Updated employee }, '409': { description: Duplicate or incompatible record } }
+  /staff/me:
+    get:
+      operationId: getOwnEmployee
+      tags: [staff]
+      summary: Read the signed-in employee profile
+      description: Requires staff:read_self and the staff module. Resolves the profile by authenticated user ID.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Own employee profile }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/me/assignments:
+    get:
+      operationId: getOwnAssignments
+      tags: [staff]
+      summary: Read own teaching assignments
+      description: Requires staff:read_self and the staff module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Own assignments } }
+  /staff/me/leaves:
+    get:
+      operationId: getOwnLeaves
+      tags: [staff]
+      summary: Read own leave requests
+      description: Requires staff_leaves:request_self and the staff module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Own leave history } }
+    post:
+      operationId: requestOwnLeave
+      tags: [staff]
+      summary: Request own leave
+      description: Requires staff_leaves:request_self and the staff module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveInput' } } } }
+      responses: { '201': { description: Pending leave request }, '400': { $ref: '#/components/responses/InvalidRequest' } }
+  /staff/employees/{id}/assignments:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: listTeacherAssignments
+      tags: [staff]
+      summary: Read an employee's teaching assignments
+      description: Requires staff:read and the staff module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Teacher assignments } }
+    post:
+      operationId: addTeacherAssignment
+      tags: [staff]
+      summary: Assign a teacher to a session, class, and subject
+      description: Requires staff:manage, an administrator account, and the staff module. The class-subject pair must exist.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AssignmentInput' } } } }
+      responses: { '201': { description: Created assignment }, '409': { description: Duplicate or incompatible assignment } }
+  /staff/employees/{id}/assignments/{assignmentId}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }, { name: assignmentId, in: path, required: true, schema: { type: string, format: uuid } }]
+    delete:
+      operationId: deleteTeacherAssignment
+      tags: [staff]
+      summary: Remove a teacher assignment
+      description: Requires staff:manage, an administrator account, and the staff module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Assignment removed }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/employees/{id}/leaves:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: listEmployeeLeaves
+      tags: [staff]
+      summary: Read employee leave history
+      description: Requires staff_leaves:read and the staff module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Leave history } }
+    post:
+      operationId: requestEmployeeLeave
+      tags: [staff]
+      summary: Request leave for an employee
+      description: Requires staff_leaves:manage, an administrator account, and the staff module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveInput' } } } }
+      responses: { '201': { description: Pending leave request } }
+  /staff/leaves/{id}/decision:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    patch:
+      operationId: decideEmployeeLeave
+      tags: [staff]
+      summary: Approve or reject a pending leave
+      description: Requires staff_leaves:manage, an administrator account, and the staff module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [approved, rejected] } } } } } }
+      responses: { '200': { description: Leave decision }, '409': { description: Leave is not pending } }
+  /staff/employees/{id}/salaries:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: listEmployeeSalaries
+      tags: [staff]
+      summary: Read private salary history
+      description: Requires staff_salary:read, an administrator account, and the staff module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Salary records } }
+    post:
+      operationId: addEmployeeSalary
+      tags: [staff]
+      summary: Add a private salary record
+      description: Requires staff_salary:manage, an administrator account, and the staff module. Amounts are nonnegative BDT with at most two decimal places.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SalaryInput' } } } }
+      responses: { '201': { description: Salary record }, '409': { description: Record for this effective date already exists } }
 components:
   securitySchemes:
     bearerAuth:
@@ -645,6 +781,44 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    EmployeeInput:
+      type: object
+      required: [employee_code, kind, name_en, designation, joined_on]
+      properties:
+        employee_code: { type: string, pattern: '^[A-Z0-9][A-Z0-9_-]{1,31}$' }
+        user_id: { type: string, format: uuid, nullable: true }
+        kind: { type: string, enum: [teacher, non_teaching] }
+        name_en: { type: string, maxLength: 160 }
+        name_bn: { type: string, maxLength: 160 }
+        designation: { type: string, maxLength: 120 }
+        phone: { type: string, maxLength: 32 }
+        joined_on: { type: string, format: date }
+        left_on: { type: string, format: date, nullable: true }
+        is_active: { type: boolean }
+    AssignmentInput:
+      type: object
+      required: [session_id, class_id, subject_id]
+      properties:
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        subject_id: { type: string, format: uuid }
+    LeaveInput:
+      type: object
+      required: [starts_on, ends_on, leave_type]
+      properties:
+        starts_on: { type: string, format: date }
+        ends_on: { type: string, format: date }
+        leave_type: { type: string, enum: [casual, sick, annual, other] }
+        reason: { type: string, maxLength: 1000 }
+    SalaryInput:
+      type: object
+      required: [effective_on, basic_bdt]
+      properties:
+        effective_on: { type: string, format: date }
+        basic_bdt: { type: string, pattern: '^[0-9]+(\.[0-9]{1,2})?$' }
+        allowance_bdt: { type: string, pattern: '^[0-9]+(\.[0-9]{1,2})?$' }
+        deduction_bdt: { type: string, pattern: '^[0-9]+(\.[0-9]{1,2})?$' }
+        note: { type: string, maxLength: 500 }
     ClassInput:
       type: object
       required: [name, display_order, is_active]

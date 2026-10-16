@@ -97,6 +97,10 @@ Deactivation may leave no current session; in that state the current lookup retu
 
 Run this branch with the existing [Docker Compose instructions](#run-with-docker-compose) or the [local backend and frontend instructions](#run-backend-and-frontend-locally). The backend applies migrations 101 and 102 at startup. Existing Compose ports remain 5432/8080/5173. No demo credentials are provided; use an administrator account created through the documented interactive command. For PostgreSQL integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable database, then run `go test ./... -count=1` from `backend/`. The tests must not run against the application database.
 
+## Teachers and Staff (M4)
+
+The staff module adds employee profiles, existing-account links, session/class/subject assignments, leave management, and private salary records. Administrators use `/admin/staff`; linked teachers use `/staff/me`. Enable the optional **Staff** module in school settings. Migration `0401` runs at backend startup after M2 academic migrations. See the [M4 handoff](docs/M4_TEACHERS_STAFF.md) for the API, permissions, schema, test evidence, and integration notes. No employee or school-specific data is seeded.
+
 ## Repository Layout
 
 ```text

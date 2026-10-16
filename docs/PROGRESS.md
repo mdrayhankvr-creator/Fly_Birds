@@ -4,10 +4,24 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 21 verified criteria / 83 total criteria x 100 = **25.3%** (rounded to one decimal place).
-- **Current milestone completion:** 5 verified M2 criteria / 6 M2 criteria x 100 = **83.3% locally**.
+- **Overall completion:** 25 verified criteria / 83 total criteria x 100 = **30.1%** (rounded to one decimal place).
+- **Current milestone completion:** 4 verified M4 criteria / 4 M4 criteria x 100 = **100% locally**.
 
-The counted criteria are all four M0 criteria, all twelve M1 criteria, and Academic Sessions, Classes, Subjects, Class-subject mapping, and Fourth/optional subject flag in M2. Sections remains pending. M1 audit details below are historical evidence. Remote M2 CI remains unverified until the developer pushes the branch.
+The counted criteria are all four M0 criteria, all twelve M1 criteria, five M2 criteria (Sections pending), and all four M4 criteria: teacher/staff profiles, subject assignment, leave management, and salary records. M3 has not been integrated. The older M2 and M1 sections below are historical evidence.
+
+## Current Status — Batch B, M4 (2026-10-16)
+
+| Item | Status |
+|---|---|
+| Branch | `feature/m4-teachers-staff`, based on fetched `origin/main` at `9c06617` |
+| Schema | `0401_staff.sql`; no duplicate users, students, guardians, or sections tables |
+| Backend | Staff profiles, secure existing-account links, class/subject/session assignments, leave requests and decisions, private salary records, audit logs |
+| Frontend | Bilingual admin directory/editor and own profile page at `/admin/staff` and `/staff/me` |
+| Verification | Full PostgreSQL Go suite, Go vet, frontend build, OpenAPI route/reference check, isolated Edge desktop/mobile creation and language switch |
+| M4 criterion count | 4/4 locally verified |
+| Pending external checks | Remote CI, review, production migration/deployment |
+
+See [M4 handoff](M4_TEACHERS_STAFF.md) for schema, permissions, APIs, verification, and run instructions. M5 begins from this branch; the other developer's Sections and Students/Guardians schema remains an integration dependency.
 
 ## Current Status — M2 Task 002 (2026-10-16)
 
