@@ -281,3 +281,19 @@ export async function getHealth(signal?: AbortSignal): Promise<string> {
   }
   return body.data.status
 }
+export type StudentAttendanceRecord = { id: string; student_id: string; session_id: string; class_id: string; section_id: string; attendance_date: string; status: 'present' | 'absent' | 'late'; source: 'manual' | 'qr'; note: string; name_en: string; name_bn: string; admission_no: string }
+export type StudentAttendanceRosterItem = { student_id: string; admission_no: string; name_en: string; name_bn: string; roll_no: number | null; record_id: string | null; status: StudentAttendanceRecord['status'] | null; source: StudentAttendanceRecord['source'] | null; note: string | null }
+export type StudentAttendanceSummary = { student_id: string; admission_no: string; name_en: string; name_bn: string; present: number; absent: number; late: number; total: number }
+export type StudentAttendanceReport = { student: StudentAttendanceSummary; items: StudentAttendanceRecord[] }
+export type AbsenceEvent = { id: string; student_id: string; attendance_date: string; state: 'pending' | 'cancelled'; name_en: string; guardian_count: number }
+export const getStudentAttendanceRoster = (token: string, params: URLSearchParams) => bearerRequest<Page<StudentAttendanceRosterItem>>(`/attendance/students/roster?${params}`, token)
+export const recordStudentAttendance = (token: string, input: { student_id: string; attendance_date: string; status: StudentAttendanceRecord['status']; note: string }) => bearerRequest<StudentAttendanceRecord>('/attendance/students', token, json('POST', input))
+export const scanStudentAttendance = (token: string, input: { payload: string; attendance_date: string }) => bearerRequest<StudentAttendanceRecord>('/attendance/students/qr', token, json('POST', input))
+export const correctStudentAttendance = (token: string, id: string, input: { status: StudentAttendanceRecord['status']; note: string }) => bearerRequest<StudentAttendanceRecord>(`/attendance/students/${encodeURIComponent(id)}`, token, json('PATCH', input))
+export const getStudentAttendanceMonthly = (token: string, params: URLSearchParams) => bearerRequest<Page<StudentAttendanceSummary>>(`/attendance/students/monthly?${params}`, token)
+export const getOwnStudentAttendanceReport = (token: string, month: string) => bearerRequest<StudentAttendanceReport>(`/attendance/students/me/report?month=${encodeURIComponent(month)}`, token)
+export const getGuardianStudentAttendanceReport = (token: string, id: string, month: string) => bearerRequest<StudentAttendanceReport>(`/attendance/guardians/children/${encodeURIComponent(id)}/report?month=${encodeURIComponent(month)}`, token)
+export const getAbsenceEvents = (token: string, params: URLSearchParams) => bearerRequest<Page<AbsenceEvent>>(`/attendance/alerts?${params}`, token)
+
+export type AttendanceSection = { id: string; name: string; class_name: string; session_id: string }
+export const getAttendanceSections = (token: string, sessionId: string) => bearerRequest<AttendanceSection[]>(`/attendance/students/sections?session_id=${encodeURIComponent(sessionId)}`, token)
