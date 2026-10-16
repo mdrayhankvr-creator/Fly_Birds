@@ -23,6 +23,12 @@ The counted criteria are all four M0 criteria, all twelve M1 criteria, all six M
 
 See [M4 handoff](M4_TEACHERS_STAFF.md) for schema, permissions, APIs, verification, and run instructions. M2 Sections and M3 Students/Guardians are present in main. M4 remains in local review.
 
+## PR #7 integration verification (2026-10-17)
+
+The normal merge of origin/main into feature/m4-teachers-staff includes M2 Sections and M3 Students/Guardians alongside M4 Teachers and Staff. The merged backend registers all three service groups, and the frontend registers their routes and English/Bangla resources. The disposable PostgreSQL test database applied migrations 1, 2, 3, 4, 101, 102, 103, 201, and 401; the corresponding academic, student, guardian, and staff tables were present.
+
+The merged branch passed go vet ./..., go test ./... -count=1 both without PostgreSQL and with AUTH_TEST_DATABASE_URL pointing to the disposable database, the explicit OpenAPI route/reference test, frontend TypeScript and production build, and docker compose config --quiet. The non-PostgreSQL run skipped the environment-gated integration tests; the PostgreSQL run executed them. Browser interaction, remote CI, PR review, and deployment were not rerun or verified for this merge.
+
 ## Current Status — M3 Students and Guardians (2026-10-17)
 
 M3 is complete and merged into main after M2 Sections.

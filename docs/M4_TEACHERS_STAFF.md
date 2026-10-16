@@ -1,6 +1,6 @@
 # M4 Teachers and Staff
 
-M4 uses 0401_staff.sql, after the merged M2 migrations 0101-0103 and M3 migration 0201_students_guardians.sql. The migration creates `employees`, `teacher_assignments`, `employee_leaves`, and `employee_salary_records`; it does not create users or duplicate authentication records. No employees or school names are seeded. Migration execution is transactional and the permission inserts use `ON CONFLICT DO NOTHING`.
+M4 uses `0401_staff.sql`, after the merged M2 migrations `0101`-`0103` and M3 migration `0201_students_guardians.sql`. The migration creates `employees`, `teacher_assignments`, `employee_leaves`, and `employee_salary_records`; it does not create users or duplicate authentication records. No employees or school names are seeded. Migration execution is transactional and the permission inserts use `ON CONFLICT DO NOTHING`.
 
 `employees.id` is a stable UUID. Employee codes are normalized to uppercase and unique. One existing user can link to at most one employee. A teacher employee can link only to an active teacher or head teacher account; a non-teaching employee can link only to an active administrator or accountant account. Link validation occurs in the same transaction as the profile write, and self routes resolve the authenticated user against the current role and active user state. An account is optional so a school can record employees before issuing sign-in access.
 
