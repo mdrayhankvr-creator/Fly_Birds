@@ -101,6 +101,10 @@ Run this branch with the existing [Docker Compose instructions](#run-with-docker
 
 The staff module adds employee profiles, existing-account links, session/class/subject assignments, leave management, and private salary records. Administrators use `/admin/staff`; linked teachers use `/staff/me`. Enable the optional **Staff** module in school settings. Migration `0401` runs at backend startup after M2 academic migrations. See the [M4 handoff](docs/M4_TEACHERS_STAFF.md) for the API, permissions, schema, test evidence, and integration notes. No employee or school-specific data is seeded.
 
+## Attendance (M5, teacher slice)
+
+The Attendance module adds daily teacher entry and correction, a roster, teacher self-view, and monthly teacher reports at `/admin/attendance/teachers` and `/attendance/me`. Enable the optional **Attendance** module in school settings. Migration `0501` follows M4's `0401`. Student attendance, guardian access, QR scanning, student monthly reports, and absence alerts await the shared Sections and Students/Guardians schema. See the [M5 handoff](docs/M5_ATTENDANCE_HANDOFF.md) for the exact dependency contract, API, verification, and integration order. No attendance data is seeded.
+
 ## Repository Layout
 
 ```text

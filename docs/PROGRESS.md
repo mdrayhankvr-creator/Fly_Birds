@@ -4,10 +4,24 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 25 verified criteria / 83 total criteria x 100 = **30.1%** (rounded to one decimal place).
-- **Current milestone completion:** 4 verified M4 criteria / 4 M4 criteria x 100 = **100% locally**.
+- **Overall completion:** 26 verified criteria / 83 total criteria x 100 = **31.3%** (rounded to one decimal place).
+- **Current milestone completion:** 1 verified M5 criterion / 5 M5 criteria x 100 = **20.0% locally**.
 
-The counted criteria are all four M0 criteria, all twelve M1 criteria, five M2 criteria (Sections pending), and all four M4 criteria: teacher/staff profiles, subject assignment, leave management, and salary records. M3 has not been integrated. The older M2 and M1 sections below are historical evidence.
+The counted criteria are all four M0 criteria, all twelve M1 criteria, five M2 criteria (Sections pending), all four M4 criteria, and daily teacher attendance in M5. M3 has not been integrated. M5 student attendance, QR scanning, and absence alerts remain blocked on the shared schema; monthly reporting is verified for teachers only. The older M2 and M1 sections below are historical evidence.
+
+## Current Status — Batch B, M5 (2026-10-16)
+
+| Item | Status |
+|---|---|
+| Branch | `feature/m5-attendance`, based on completed M4 branch |
+| Schema | `0501_teacher_attendance.sql`; references merged academic sessions and M4 employees; no competing student/guardian/section tables |
+| Completed criterion | Daily teacher attendance, including guarded entry/correction, self history, roster, approved leave relationship, and duplicate prevention |
+| Partial criterion | Monthly teacher reports work; student monthly reports await M2/M3 integration |
+| Blocked criteria | Daily student attendance, QR attendance scanning, and absence alert triggers |
+| Verification | Fresh PostgreSQL Go suite, Go vet, frontend build, OpenAPI route/reference test, isolated Edge admin/teacher English/Bangla desktop/mobile flows |
+| Overall progress | 26/83 = 31.3% locally; M5 1/5 = 20.0% |
+
+See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for schema dependencies and recommended integration order. M5 is **not** ready to claim full milestone completion until the shared M2/M3 tables and contracts are merged and the student workflows are tested.
 
 ## Current Status — Batch B, M4 (2026-10-16)
 

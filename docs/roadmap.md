@@ -9,7 +9,7 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | M2 | Academic structure | 5/6 merged into main: sessions, classes, subjects, mapping, and fourth/optional designation; Sections are being implemented separately |
 | M3 | Students and guardians | Concurrent implementation by another developer; not integrated here |
 | M4 | Teachers and staff | 4/4 locally verified on `feature/m4-teachers-staff`; review and merge pending |
-| M5 | Attendance | Not started |
+| M5 | Attendance | 1/5 locally verified on `feature/m5-attendance` (daily teacher attendance); monthly teacher reports partial; student, QR, and alerts require shared M2/M3 schema |
 | M6 | Routine | Not started |
 | M7 | Examinations and results | Not started |
 | M8 | Fees and accounts | Not started |
