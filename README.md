@@ -1,6 +1,12 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 is merged. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M1 passed its local final audit; remote CI has not run on this unpushed branch.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 and M1 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. The M2 classes and subjects branch contains session-independent application code; its database migration is awaiting coordination with Joy's academic sessions branch.
+
+## M2 Task 001 — Classes and Subjects
+
+The `feature/m2-classes-subjects` branch adds validated class definitions, bilingual subjects with canonical subject codes, and class-subject assignments with exactly one required or fourth/optional designation. The backend follows Handler → Service → Repository and guards academic routes with current authentication, `academics:read` or `academics:manage`, administrator status for writes, and the `academics` module. The frontend adds `/admin/academic/classes` and `/admin/academic/subjects`, English/Bangla text, paginated search, responsive forms, and mapping controls. Admin navigation appears only when the required grant and module are available.
+
+**Integration dependency:** Joy's session migration number has not been confirmed. This branch has no academic SQL migration or runner registration, so the academic tables and permissions do not yet exist. Academic APIs are not usable against an M1-only database. See [the schema and integration handoff](docs/M2_CLASSES_SUBJECTS_HANDOFF.md). No academic session or section implementation is included.
 
 The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
 

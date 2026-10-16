@@ -5,11 +5,34 @@
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
 - **Overall completion:** 16 verified criteria / 83 total criteria x 100 = **19.3%** (rounded to one decimal place).
-- **Current milestone completion:** 12 verified M1 criteria / 12 M1 criteria x 100 = **100.0% locally**.
+- **Current milestone completion:** 0 verified M2 criteria / 6 M2 criteria x 100 = **0.0%**. Application code for four criteria awaits a coordinated migration and database verification.
 
 The sixteen counted criteria are all four M0 criteria and all twelve M1 criteria from the project brief. The final audit repeated backend and PostgreSQL tests, checked a rebuilt frontend in an isolated browser stack, and reviewed the security limitations. Remote M1 GitHub Actions execution remains unverified because this branch has not been pushed.
 
-## Current Status
+## Current Status — M2 Task 001
+
+| Item | Status |
+|---|---|
+| Development phase | Session-independent classes and subjects code and UI prepared; migration coordination pending |
+| Current milestone | M2 — Academic Structure |
+| Verified criteria | M0: 4/4; M1: 12/12; M2: 0/6 |
+| Remaining criteria | Six M2 criteria and 61 criteria in M3–M13 |
+| Backend and frontend | Class, subject, and class-subject code and bilingual admin pages added; academic tables and permissions are not installed |
+| Tests passed | Go vet, Go unit and M1 PostgreSQL suites, frontend production build in Docker, OpenAPI route/reference test, Compose validation |
+| Unverified | M2 PostgreSQL integrity and HTTP lifecycle, browser responsive behavior, remote CI |
+| Application runnability | Existing M1 Compose stack remains running. Academic APIs require the coordinated schema and permission seeds. |
+| Next step | Confirm Joy's migration number, add this branch's subsequent migration, then run M2 integration and browser tests. No other M2 step is in this checkpoint. |
+
+## M2 Task 001 checkpoint — 2026-10-16
+
+- Started from clean updated `main` at merge commit `49a03c08` and created `feature/m2-classes-subjects`. Joy's branch was not published at the time of the check, so no migration version or runner registration was guessed. [The handoff](M2_CLASSES_SUBJECTS_HANDOFF.md) specifies the session-independent schema and merge sequence.
+- Added class definitions (configurable name, order, active state), bilingual subjects (English/Bangla names, normalized code, active state), and class-subject mapping with exactly one required or fourth/optional designation. The service validates inputs; repositories are prepared for UUID keys, unique indexes, foreign keys, transactional authorization, and audit records once the migration exists.
+- Added academic APIs guarded by authentication, `academics:read`/`academics:manage`, the `academics` module, and administrator status for writes. Class, subject, and mapping lists support search and pagination. OpenAPI covers all registered routes and references.
+- Added bilingual `/admin/academic/classes` and `/admin/academic/subjects` views with responsive cards, filters, editors, and mapping controls. Navigation requires current permission and module state. The production frontend build passed, but the pages could not be exercised in a browser without the academic migration and grants; responsive behavior remains unverified.
+- `go vet ./...` passed with a workspace-local Go cache. `go test ./... -count=1` passed against a dedicated PostgreSQL database; `TestPostgresAcademicLifecycle` skipped explicitly because the coordinated tables do not exist. The M1 PostgreSQL tests passed. The OpenAPI route/reference test passed. `docker compose config --quiet` passed. The host `npm ci` hit the same locked `lightningcss` binary as M1; a Docker production build passed.
+- **Integration dependency:** the migration filename, runner entry, permission seeds, and database constraints must be added after Joy's version is confirmed. Subject-code uniqueness, duplicate mapping prevention, foreign-key integrity, module-enabled HTTP behavior, and responsive browser behavior are prepared in tests/UI but not yet verified end to end. No sessions, sections, or later milestone data was added.
+
+## M1 Historical Status
 
 | Item | Status |
 |---|---|
