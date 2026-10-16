@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"path"
+	"sort"
+	"strconv"
 	"strings"
 
 	"gorm.io/gorm"
@@ -30,8 +33,25 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 	if _, err := tx.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
 		return fmt.Errorf("create migration ledger: %w", err)
 	}
-	for version, name := range []string{"0001_auth.sql", "0002_rbac.sql", "0003_school_configuration.sql", "0004_users_audit.sql"} {
-		migrationVersion := version + 1
+	entries, err := migrationFiles.ReadDir("migrations")
+	if err != nil {
+		return fmt.Errorf("list migrations: %w", err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	seen := map[int]bool{}
+	for _, name := range names {
+		prefix, _, ok := strings.Cut(name, "_")
+		migrationVersion, parseErr := strconv.Atoi(prefix)
+		if !ok || parseErr != nil || migrationVersion < 1 || seen[migrationVersion] {
+			return fmt.Errorf("invalid or duplicate migration version in %q", name)
+		}
+		seen[migrationVersion] = true
 		var recorded int
 		err = tx.QueryRowContext(ctx, "SELECT version FROM schema_migrations WHERE version = $1", migrationVersion).Scan(&recorded)
 		if err != nil && err != sql.ErrNoRows {
@@ -40,7 +60,7 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 		if err == nil {
 			continue
 		}
-		body, readErr := migrationFiles.ReadFile("migrations/" + name)
+		body, readErr := migrationFiles.ReadFile(path.Join("migrations", name))
 		if readErr != nil {
 			return fmt.Errorf("read migration %d: %w", migrationVersion, readErr)
 		}

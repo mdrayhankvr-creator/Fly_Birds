@@ -174,6 +174,24 @@ export const addClassSubject = (token: string, classId: string, subjectId: strin
 export const updateClassSubject = (token: string, classId: string, subjectId: string, fourth: boolean) => bearerRequest<ClassSubject>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_required: !fourth, is_fourth_subject: fourth }) })
 export const removeClassSubject = (token: string, classId: string, subjectId: string) => bearerRequest<{ deleted: boolean }>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'DELETE' })
 
+export type AcademicSession = {
+  id: string; name: string; start_date: string; end_date: string
+  is_active: boolean; created_at: string; updated_at: string
+}
+export type AcademicSessionInput = Pick<AcademicSession, 'name' | 'start_date' | 'end_date'>
+export const getAcademicSessions = (token: string, params: URLSearchParams) => bearerRequest<Page<AcademicSession>>(`/academic/sessions?${params}`, token)
+export const getAcademicSession = (token: string, id: string) => bearerRequest<AcademicSession>(`/academic/sessions/${encodeURIComponent(id)}`, token)
+export const getCurrentAcademicSession = (token: string) => bearerRequest<AcademicSession>('/academic/sessions/current', token)
+export const createAcademicSession = (token: string, input: AcademicSessionInput) => bearerRequest<AcademicSession>('/academic/sessions', token, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const updateAcademicSession = (token: string, id: string, input: AcademicSessionInput) => bearerRequest<AcademicSession>(`/academic/sessions/${encodeURIComponent(id)}`, token, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const setAcademicSessionActive = (token: string, id: string, is_active: boolean) => bearerRequest<AcademicSession>(`/academic/sessions/${encodeURIComponent(id)}/activation`, token, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active }),
+})
+
 type HealthResponse = {
   data: {
     status: string

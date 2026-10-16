@@ -74,7 +74,7 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 	t.Cleanup(func() {
 		_ = db.Table("school_modules").Where("school_id=? AND module_key='academics'", school.SingleSchoolID).Update("enabled", oldEnabled).Error
 	})
-	router := NewRouterWithAll(authService, true, nil, school.NewService(school.NewRepository(db)), nil, nil, nil, academic.NewService(academic.NewRepository(db)))
+	router := NewRouterWithAcademicServices(authService, true, nil, school.NewService(school.NewRepository(db)), nil, nil, nil, nil, academic.NewService(academic.NewRepository(db)))
 	adminLogin, err := authService.Login(ctx, admin.Email, password)
 	if err != nil {
 		t.Fatal(err)

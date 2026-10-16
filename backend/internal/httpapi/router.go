@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
@@ -32,7 +33,15 @@ func NewRouterWithServices(service *auth.Service, secureCookies bool, grants *rb
 	return NewRouterWithAll(service, secureCookies, grants, schoolService, nil, nil, nil)
 }
 
-func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, academics ...*academic.Service) *gin.Engine {
+func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionServices ...*academicsessions.Service) *gin.Engine {
+	var sessionService *academicsessions.Service
+	if len(sessionServices) > 0 {
+		sessionService = sessionServices[0]
+	}
+	return NewRouterWithAcademicServices(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, nil)
+}
+
+func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -73,6 +82,13 @@ func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Se
 	management.PATCH("/users/:id/status", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.status)
 	management.GET("/audit/events", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{service: auditService}).events)
 	management.GET("/dashboard", RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), (&dashboardHandler{service: dashboardService}).get)
+	sessionsHandler := &academicSessionsHandler{service: sessionService}
+	management.GET("/academic/sessions", RequirePermission(service, "academic_sessions:read"), moduleGuard("academics"), sessionsHandler.list)
+	management.GET("/academic/sessions/current", RequirePermission(service, "academic_sessions:read"), moduleGuard("academics"), sessionsHandler.current)
+	management.GET("/academic/sessions/:id", RequirePermission(service, "academic_sessions:read"), moduleGuard("academics"), sessionsHandler.get)
+	management.POST("/academic/sessions", RequirePermission(service, "academic_sessions:create"), moduleGuard("academics"), RequireAdministrator(), sessionsHandler.create)
+	management.PATCH("/academic/sessions/:id", RequirePermission(service, "academic_sessions:update"), moduleGuard("academics"), RequireAdministrator(), sessionsHandler.update)
+	management.PATCH("/academic/sessions/:id/activation", RequirePermission(service, "academic_sessions:activate"), moduleGuard("academics"), RequireAdministrator(), sessionsHandler.activation)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")
@@ -83,10 +99,6 @@ func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Se
 	schoolRoutes.PUT("/grading", RequirePermission(service, "grading:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveGrading)
 	schoolRoutes.GET("/modules", RequirePermission(service, "modules:read"), RequireModule(schoolService, "school_settings"), schoolHandler.modules)
 	schoolRoutes.PUT("/modules/:key", RequirePermission(service, "modules:manage"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveModule)
-	var academicService *academic.Service
-	if len(academics) > 0 {
-		academicService = academics[0]
-	}
 	academicHandler := &academicHandler{service: academicService}
 	academicRoutes := router.Group("/academic")
 	academicRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service))

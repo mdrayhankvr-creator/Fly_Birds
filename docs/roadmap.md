@@ -6,7 +6,7 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 |---|---|---|
 | M0 | Foundation, health endpoint, CI, initial documentation | Merged into main; local Compose runtime verified |
 | M1 | Authentication and school configuration | Merged into main; 12/12 brief criteria locally verified |
-| M2 | Academic structure | Task 001 code and UI drafted on `feature/m2-classes-subjects`; migration and database verification await coordination with Joy's sessions branch |
+| M2 | Academic structure | Academic Sessions merged into main; classes, subjects, and mappings integration in progress on `feature/m2-classes-subjects` |
 | M3 | Students and guardians | Not started |
 | M4 | Teachers and staff | Not started |
 | M5 | Attendance | Not started |

@@ -12,6 +12,7 @@ import { SchoolSettingsPage } from './pages/SchoolSettingsPage'
 import { UsersPage } from './pages/UsersPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { AcademicPage } from './pages/AcademicPage'
+import { AcademicSessionsPage } from './pages/AcademicSessionsPage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -105,6 +106,14 @@ function AcademicGate({ kind, permissions, role, enabled, loading, error }: { ki
   return <AcademicPage kind={kind} canManage={permissions.includes('academics:manage')} />
 }
 
+function AcademicSessionsGate({ permissions, loading, error }: { permissions: string[] | undefined; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('loadingPermissions')}</p>
+  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (!permissions?.includes('academic_sessions:read')) return <p role="alert">{t('permissionDenied')}</p>
+  return <AcademicSessionsPage permissions={permissions} />
+}
+
 function applyBranding(branding: SchoolBranding | undefined) {
   const root = document.documentElement
   const validColor = (value: string | undefined) => value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null
@@ -185,6 +194,7 @@ export default function App() {
                     {myPermissions.data?.includes('permissions:read') && moduleEnabled('permissions') && <Link to="/admin/permissions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('permissionEditor')}</Link>}
                     {myPermissions.data?.includes('school_settings:read') && moduleEnabled('school_settings') && <Link to="/admin/school-settings" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('schoolSettings')}</Link>}
                     {user.role === 'admin' && myPermissions.data?.includes('academics:read') && myModules.data && moduleEnabled('academics') && <><Link to="/admin/academic/classes" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('classesHeading')}</Link><Link to="/admin/academic/subjects" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('subjectsHeading')}</Link></>}
+                    {myPermissions.data?.includes('academic_sessions:read') && myModules.data?.items.some((item) => item.key === 'academics' && item.enabled) && <Link to="/admin/academic/sessions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('academicSessions')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
               </div>
@@ -209,6 +219,7 @@ export default function App() {
           <Route path="/admin/school-settings" element={<ProtectedRoute><SchoolGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/academic/classes" element={<ProtectedRoute><AcademicGate kind="classes" permissions={myPermissions.data} role={user?.role} enabled={!!myModules.data && moduleEnabled('academics')} loading={myPermissions.isPending || (!!myPermissions.data?.includes('modules:read') && myModules.isPending)} error={myPermissions.isError || myModules.isError} /></ProtectedRoute>} />
           <Route path="/admin/academic/subjects" element={<ProtectedRoute><AcademicGate kind="subjects" permissions={myPermissions.data} role={user?.role} enabled={!!myModules.data && moduleEnabled('academics')} loading={myPermissions.isPending || (!!myPermissions.data?.includes('modules:read') && myModules.isPending)} error={myPermissions.isError || myModules.isError} /></ProtectedRoute>} />
+          <Route path="/admin/academic/sessions" element={<ProtectedRoute><AcademicSessionsGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
