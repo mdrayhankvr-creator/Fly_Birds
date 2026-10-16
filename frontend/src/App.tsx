@@ -14,6 +14,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { AcademicPage } from './pages/AcademicPage'
 import { AcademicSessionsPage } from './pages/AcademicSessionsPage'
 import { StaffPage } from './pages/StaffPage'
+import { TeacherAttendancePage } from './pages/TeacherAttendancePage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -124,6 +125,15 @@ function StaffGate({ permissions, own, enabled, loading, error }: { permissions:
   return <StaffPage permissions={permissions} own={own} />
 }
 
+function AttendanceGate({ permissions, own, enabled, loading, error }: { permissions: string[] | undefined; own: boolean; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('loadingPermissions')}</p>
+  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (!permissions?.includes(own ? 'attendance:teachers_read_self' : 'attendance:teachers_read')) return <p role="alert">{t('permissionDenied')}</p>
+  if (!enabled) return <p role="alert">{t('attendanceModuleDisabled')}</p>
+  return <TeacherAttendancePage permissions={permissions} own={own} />
+}
+
 function applyBranding(branding: SchoolBranding | undefined) {
   const root = document.documentElement
   const validColor = (value: string | undefined) => value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null
@@ -167,7 +177,7 @@ export default function App() {
   })
   const academicNavigation = useQuery({
     queryKey: ['dashboard', user?.id],
-    enabled: !!accessToken && !!myPermissions.data?.some((permission) => permission === 'academics:read' || permission === 'academic_sessions:read' || permission === 'staff:read' || permission === 'staff:read_self') && !myPermissions.data?.includes('modules:read'),
+    enabled: !!accessToken && !!myPermissions.data?.some((permission) => permission === 'academics:read' || permission === 'academic_sessions:read' || permission === 'staff:read' || permission === 'staff:read_self' || permission === 'attendance:teachers_read' || permission === 'attendance:teachers_read_self') && !myPermissions.data?.includes('modules:read'),
     retry: false,
     refetchInterval: 15_000,
     queryFn: async () => {
@@ -200,6 +210,10 @@ export default function App() {
   const hasStaffRead = !!myPermissions.data?.some((permission) => permission === 'staff:read' || permission === 'staff:read_self')
   const staffLoading = myPermissions.isPending || (hasStaffRead && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
   const staffError = myPermissions.isError || myModules.isError || academicNavigation.isError
+  const attendanceEnabled = myModules.data ? moduleEnabled('attendance') : !!academicNavigation.data?.navigation.some((item) => item.path === '/admin/attendance/teachers' || item.path === '/attendance/me')
+  const hasAttendanceRead = !!myPermissions.data?.some((permission) => permission === 'attendance:teachers_read' || permission === 'attendance:teachers_read_self')
+  const attendanceLoading = myPermissions.isPending || (hasAttendanceRead && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
+  const attendanceError = myPermissions.isError || myModules.isError || academicNavigation.isError
 
   async function setLanguage(language: 'en' | 'bn') {
     localStorage.setItem('flybirds.language', language)
@@ -234,6 +248,8 @@ export default function App() {
                     {myPermissions.data?.includes('academic_sessions:read') && academicEnabled && <Link to="/admin/academic/sessions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('academicSessions')}</Link>}
                     {myPermissions.data?.includes('staff:read') && staffEnabled && <Link to="/admin/staff" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('staffHeading')}</Link>}
                     {myPermissions.data?.includes('staff:read_self') && staffEnabled && <Link to="/staff/me" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('staffMyProfile')}</Link>}
+                    {myPermissions.data?.includes('attendance:teachers_read') && attendanceEnabled && <Link to="/admin/attendance/teachers" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('attendanceHeading')}</Link>}
+                    {user.role !== 'admin' && myPermissions.data?.includes('attendance:teachers_read_self') && attendanceEnabled && <Link to="/attendance/me" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('attendanceMyHeading')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
               </div>
@@ -261,6 +277,8 @@ export default function App() {
           <Route path="/admin/academic/sessions" element={<ProtectedRoute><AcademicSessionsGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/staff" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own={false} enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
           <Route path="/staff/me" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
+          <Route path="/admin/attendance/teachers" element={<ProtectedRoute><AttendanceGate permissions={myPermissions.data} own={false} enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />
+          <Route path="/attendance/me" element={<ProtectedRoute><AttendanceGate permissions={myPermissions.data} own enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

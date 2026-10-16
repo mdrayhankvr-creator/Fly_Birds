@@ -215,6 +215,19 @@ export const decideLeave = (token: string, id: string, status: 'approved' | 'rej
 export const getSalaryRecords = (token: string, id: string, params: URLSearchParams) => bearerRequest<Page<SalaryRecord>>(`/staff/employees/${encodeURIComponent(id)}/salaries?${params}`, token)
 export const addSalaryRecord = (token: string, id: string, input: SalaryInput) => bearerRequest<SalaryRecord>(`/staff/employees/${encodeURIComponent(id)}/salaries`, token, json('POST', input))
 
+export type AttendanceSession = { id: string; name: string; start_date: string; end_date: string }
+export type TeacherRosterItem = { employee_id: string; employee_code: string; name_en: string; name_bn: string; record_id: string | null; status: 'present' | 'absent' | 'leave' | null; note: string | null }
+export type TeacherAttendanceRecord = { id: string; session_id: string; employee_id: string; attendance_date: string; status: 'present' | 'absent' | 'leave'; note: string; recorded_by: string; updated_by: string; created_at: string; updated_at: string; session_name: string; employee_code: string; employee_name_en: string; employee_name_bn: string }
+export type TeacherMonthlySummary = { employee_id: string; employee_code: string; name_en: string; name_bn: string; present: number; absent: number; leave: number; total: number }
+export type TeacherAttendanceInput = Pick<TeacherAttendanceRecord, 'session_id' | 'employee_id' | 'attendance_date' | 'status' | 'note'>
+export const getAttendanceSessions = (token: string, params: URLSearchParams) => bearerRequest<Page<AttendanceSession>>(`/attendance/sessions?${params}`, token)
+export const getTeacherRoster = (token: string, params: URLSearchParams) => bearerRequest<Page<TeacherRosterItem>>(`/attendance/teachers/roster?${params}`, token)
+export const recordTeacherAttendance = (token: string, input: TeacherAttendanceInput) => bearerRequest<TeacherAttendanceRecord>('/attendance/teachers', token, json('POST', input))
+export const correctTeacherAttendance = (token: string, id: string, input: Pick<TeacherAttendanceRecord, 'status' | 'note'>) => bearerRequest<TeacherAttendanceRecord>(`/attendance/teachers/${encodeURIComponent(id)}`, token, json('PATCH', input))
+export const getOwnTeacherAttendance = (token: string, params: URLSearchParams) => bearerRequest<Page<TeacherAttendanceRecord>>(`/attendance/teachers/me?${params}`, token)
+export const getTeacherMonthlyReport = (token: string, params: URLSearchParams) => bearerRequest<Page<TeacherMonthlySummary>>(`/attendance/teachers/monthly?${params}`, token)
+export const getOwnTeacherMonthly = (token: string, params: URLSearchParams) => bearerRequest<TeacherMonthlySummary>(`/attendance/teachers/me/monthly?${params}`, token)
+
 type HealthResponse = {
   data: {
     status: string
