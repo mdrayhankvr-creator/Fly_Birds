@@ -9,7 +9,7 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 The counted criteria are all four M0 criteria, all twelve M1 criteria, five M2 criteria (Sections pending), all four M4 criteria, and daily teacher attendance in M5. M3 has not been integrated. M5 student attendance, QR scanning, and absence alerts remain blocked on the shared schema; monthly reporting is verified for teachers only. The older M2 and M1 sections below are historical evidence.
 
-## Current Status — Batch B, M5 (2026-10-16)
+## Current Status — Batch B, M5 (2026-10-17)
 
 | Item | Status |
 |---|---|
@@ -18,7 +18,7 @@ The counted criteria are all four M0 criteria, all twelve M1 criteria, five M2 c
 | Completed criterion | Daily teacher attendance, including guarded entry/correction, self history, roster, approved leave relationship, and duplicate prevention |
 | Partial criterion | Monthly teacher reports work; student monthly reports await M2/M3 integration |
 | Blocked criteria | Daily student attendance, QR attendance scanning, and absence alert triggers |
-| Verification | Fresh PostgreSQL Go suite, Go vet, frontend build, OpenAPI route/reference test, isolated Edge admin/teacher English/Bangla desktop/mobile flows |
+| Verification | Original slice: fresh PostgreSQL Go suite and isolated Edge desktop/mobile flows. Rebased branch: Go vet, database-free Go suite, frontend build, and OpenAPI test. New PostgreSQL assertions await Docker daemon availability. |
 | Overall progress | 26/83 = 31.3% locally; M5 1/5 = 20.0% |
 
 See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for schema dependencies and recommended integration order. M5 is **not** ready to claim full milestone completion until the shared M2/M3 tables and contracts are merged and the student workflows are tested.
@@ -31,7 +31,7 @@ See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for schema dependencies and recommend
 | Schema | `0401_staff.sql`; no duplicate users, students, guardians, or sections tables |
 | Backend | Staff profiles, secure existing-account links, class/subject/session assignments, leave requests and decisions, private salary records, audit logs |
 | Frontend | Bilingual admin directory/editor and own profile page at `/admin/staff` and `/staff/me` |
-| Verification | Full PostgreSQL Go suite, Go vet, frontend build, OpenAPI route/reference check, isolated Edge desktop/mobile creation and language switch |
+| Verification | Original M4 slice: full PostgreSQL Go suite and isolated Edge desktop/mobile flow. Pagination update: Go vet, database-free Go suite, frontend build; new PostgreSQL assertions pending Docker daemon. |
 | M4 criterion count | 4/4 locally verified |
 | Pending external checks | Remote CI, review, production migration/deployment |
 
