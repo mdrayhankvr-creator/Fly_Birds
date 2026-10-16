@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.7.0
-  description: M0-M4 APIs, including academic structure, students and guardians, and staff management. Protected module routes check the active session, current role permission, and current database module state. Student detail, card, and photo reads additionally scope records to the linked student or guardian account.
+  version: 0.9.0
+  description: M0-M5 APIs, including academic structure, students and guardians, staff management, and student and teacher attendance. Protected module routes check the active session, current role permission, and current database module state. Student and guardian reads scope records to their linked accounts.
 servers:
   - url: http://localhost:8080
 paths:
@@ -713,6 +713,82 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SalaryInput' } } } }
       responses: { '201': { description: Salary record }, '409': { description: Record for this effective date already exists } }
+  /attendance/sessions:
+    get:
+      operationId: listAttendanceSessions
+      tags: [attendance]
+      summary: Search and paginate academic sessions available to attendance users
+      description: Requires attendance:teachers_read_self and the attendance module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Academic session page }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /attendance/teachers/roster:
+    get:
+      operationId: getTeacherRoster
+      tags: [attendance]
+      summary: Read a daily teacher roster and recorded statuses
+      description: Requires attendance:teachers_read and the attendance module. The date must lie inside the session. Search matches employee code and English/Bangla names.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+        - { $ref: '#/components/parameters/Search' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses: { '200': { description: Teacher roster page }, '409': { description: Date outside session } }
+  /attendance/teachers:
+    post:
+      operationId: recordTeacherAttendance
+      tags: [attendance]
+      summary: Record teacher attendance once per session and date
+      description: Requires attendance:teachers_manage, an administrator or head teacher account, and the attendance module. A head teacher cannot mark their own attendance. Leave status requires approved leave for that date.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TeacherAttendanceInput' } } } }
+      responses: { '201': { description: Recorded attendance }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Duplicate entry or invalid session/employee/leave relationship } }
+  /attendance/teachers/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    patch:
+      operationId: correctTeacherAttendance
+      tags: [attendance]
+      summary: Correct an existing teacher attendance status and note
+      description: Requires attendance:teachers_manage, an administrator or head teacher account, and the attendance module. Corrections record old and new statuses in the audit log.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TeacherAttendanceCorrection' } } } }
+      responses: { '200': { description: Corrected attendance }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Leave requires approved leave } }
+  /attendance/teachers/me:
+    get:
+      operationId: getOwnTeacherAttendance
+      tags: [attendance]
+      summary: Read own teacher attendance history
+      description: Requires attendance:teachers_read_self and the attendance module. Optional session_id, from, and to date filters. Returns a paginated history.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Own attendance history }, '404': { $ref: '#/components/responses/NotFound' } }
+  /attendance/teachers/monthly:
+    get:
+      operationId: getTeacherMonthlyReport
+      tags: [attendance]
+      summary: Read monthly attendance totals for teachers
+      description: Requires attendance:teachers_reports and the attendance module. session_id and YYYY-MM month are required. Search and pagination apply to teachers.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: month, in: query, required: true, schema: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' } }
+        - { $ref: '#/components/parameters/Search' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses: { '200': { description: Paginated teacher totals }, '409': { description: Month outside session } }
+  /attendance/teachers/me/monthly:
+    get:
+      operationId: getOwnTeacherMonthly
+      tags: [attendance]
+      summary: Read own monthly teacher attendance totals
+      description: Requires attendance:teachers_read_self and the attendance module. session_id and YYYY-MM month are required.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: session_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: month, in: query, required: true, schema: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' } }
+      responses: { '200': { description: Own monthly totals }, '404': { $ref: '#/components/responses/NotFound' } }
   /academic/sections:
     get:
       operationId: listAcademicSections
@@ -933,6 +1009,65 @@ paths:
       description: Requires guardians:read and students module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Linked student profiles }, '404': { $ref: '#/components/responses/NotFound' } }
+  /attendance/students/sections:
+    get:
+      operationId: listAttendanceSections
+      description: Requires attendance:students_read and enabled Attendance module; sections are scoped to assigned classes.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Sections } }
+  /attendance/students/roster:
+    get:
+      operationId: getStudentAttendanceRoster
+      description: Requires attendance:students_read and enabled Attendance module; teachers are scoped to assigned classes.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated daily student roster } }
+  /attendance/students:
+    post:
+      operationId: recordStudentAttendance
+      description: Requires attendance:students_manage and enabled Attendance module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentAttendanceInput' } } } }
+      responses: { '201': { description: Daily record }, '409': { description: Duplicate attendance } }
+  /attendance/students/qr:
+    post:
+      operationId: scanStudentAttendanceQR
+      description: The M3 card QR uses FB-STUDENT plus a student UUID and identifies a student; the authenticated actor and class assignment authorize marking present.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentAttendanceScan' } } } }
+      responses: { '201': { description: Student marked present }, '403': { description: Unassigned actor } }
+  /attendance/students/{id}:
+    patch:
+      operationId: correctStudentAttendance
+      description: Requires attendance:students_manage and enabled Attendance module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentAttendanceCorrection' } } } }
+      responses: { '200': { description: Corrected record } }
+  /attendance/students/monthly:
+    get:
+      operationId: getStudentAttendanceMonthly
+      description: Requires attendance:students_read and enabled Attendance module; teachers are scoped to assigned classes.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated monthly section totals } }
+  /attendance/students/me/report:
+    get:
+      operationId: getOwnStudentAttendanceReport
+      description: Requires attendance:students_read_self and enabled Attendance module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Own linked student report }, '404': { description: No linked student } }
+  /attendance/guardians/children/{id}/report:
+    get:
+      operationId: getGuardianChildAttendanceReport
+      description: Requires attendance:guardians_read_children and enabled Attendance module; current guardian link is verified.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Linked child report }, '404': { description: Child not linked } }
+  /attendance/alerts:
+    get:
+      operationId: listAbsenceAlerts
+      description: Administrator only; requires attendance:alerts_read and enabled Attendance module. Events are triggers for later delivery.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated pending absence events } }
 components:
   securitySchemes:
     bearerAuth:
@@ -1006,6 +1141,41 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    StudentAttendanceInput:
+      type: object
+      required: [student_id, attendance_date, status]
+      properties:
+        student_id: { type: string, format: uuid }
+        attendance_date: { type: string, format: date }
+        status: { type: string, enum: [present, absent, late] }
+        note: { type: string, maxLength: 500 }
+    StudentAttendanceScan:
+      type: object
+      required: [payload, attendance_date]
+      properties:
+        payload: { type: string, description: M3 FB-STUDENT card QR identifier; never an authorization token }
+        attendance_date: { type: string, format: date }
+    StudentAttendanceCorrection:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [present, absent, late] }
+        note: { type: string, maxLength: 500 }
+    TeacherAttendanceInput:
+      type: object
+      required: [session_id, employee_id, attendance_date, status]
+      properties:
+        session_id: { type: string, format: uuid }
+        employee_id: { type: string, format: uuid }
+        attendance_date: { type: string, format: date }
+        status: { type: string, enum: [present, absent, leave] }
+        note: { type: string, maxLength: 500 }
+    TeacherAttendanceCorrection:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [present, absent, leave] }
+        note: { type: string, maxLength: 500 }
     EmployeeInput:
       type: object
       required: [employee_code, kind, name_en, designation, joined_on]

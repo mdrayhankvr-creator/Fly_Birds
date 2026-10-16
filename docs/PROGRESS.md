@@ -4,10 +4,27 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 32 verified criteria / 83 total criteria x 100 = **38.6%** (rounded to one decimal place).
-- **Current milestone completion:** 4 verified M4 criteria / 4 M4 criteria x 100 = **100% locally**.
+- **Overall completion:** 37 verified criteria / 83 total criteria x 100 = **44.6%**.
+- **Current milestone completion:** 5 verified M5 criteria / 5 M5 criteria = **100% locally**.
 
-The counted criteria are all four M0 criteria, all twelve M1 criteria, all six M2 criteria, all six M3 criteria, and all four M4 criteria: teacher/staff profiles, subject assignment, leave management, and salary records. The older M2 and M1 sections below are historical evidence.
+M0-M4 are complete and merged into main. All five M5 criteria are locally verified on the feature branch.
+
+## Current Status — M5 Attendance (2026-10-17)
+
+| Item | Verified status |
+|---|---|
+| Branch | `feature/m5-attendance`, normal merge of M4-enabled `origin/main`; not pushed |
+| Schema | `0501_teacher_attendance.sql` and `0502_student_attendance.sql`; versions 1–4, 101–103, 201, 401, 501, 502 applied in a fresh disposable database |
+| Daily student attendance | Complete: assigned teacher/admin entry and correction, section context, duplicate and foreign-key protection |
+| Daily teacher attendance | Complete: existing M5 entry/correction, approved leave, self history, and roster preserved |
+| QR attendance | Complete for M3 card payload via authenticated, assigned staff and single daily entry; input and browser camera fallback |
+| Monthly reports | Complete for teacher, student, and currently linked guardian views |
+| Absence alert triggers | Complete: one durable pending/cancelled event per absent student/day; delivery deferred to M9 |
+| Verification | Go vet; full Go suite on fresh PostgreSQL; OpenAPI route/reference; TypeScript and production build; Compose config; mock-backed Chrome desktop/mobile UI smoke |
+| Local progress | M5 5/5 = 100%; overall 37/83 = 44.6% |
+| Unverified | Native camera in a physical browser/device, remote CI, production migration and deployment |
+
+See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for permissions, schema rules, test boundaries, and run instructions. M6 has not started.
 
 ## Current Status — Batch B, M4 (2026-10-16)
 
@@ -17,11 +34,11 @@ The counted criteria are all four M0 criteria, all twelve M1 criteria, all six M
 | Schema | `0401_staff.sql`; no duplicate users, students, guardians, or sections tables |
 | Backend | Staff profiles, secure existing-account links, class/subject/session assignments, leave requests and decisions, private salary records, audit logs |
 | Frontend | Bilingual admin directory/editor and own profile page at `/admin/staff` and `/staff/me` |
-| Verification | Full PostgreSQL Go suite, Go vet, frontend build, OpenAPI route/reference check, isolated Edge desktop/mobile creation and language switch |
+| Verification | Original M4 slice: full PostgreSQL Go suite and isolated Edge desktop/mobile flow. Pagination update: Go vet, database-free Go suite, frontend build; new PostgreSQL assertions pending Docker daemon. |
 | M4 criterion count | 4/4 locally verified |
 | Pending external checks | Remote CI, review, production migration/deployment |
 
-See [M4 handoff](M4_TEACHERS_STAFF.md) for schema, permissions, APIs, verification, and run instructions. M2 Sections and M3 Students/Guardians are present in main. M4 remains in local review.
+See [M4 handoff](M4_TEACHERS_STAFF.md) for schema, permissions, APIs, verification, and run instructions. M2, M3, and M4 are now merged into main.
 
 ## PR #7 integration verification (2026-10-17)
 

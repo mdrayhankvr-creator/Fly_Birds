@@ -5,6 +5,8 @@ import { checkpoint4Translations } from './checkpoint4Translations'
 import { academicTranslations } from './academicTranslations'
 import { academicSessionsTranslations } from './academicSessionsTranslations'
 import { staffTranslations } from './staffTranslations'
+import { attendanceTranslations } from './attendanceTranslations'
+import { studentAttendanceTranslations } from './studentAttendanceTranslations'
 import { sectionTranslations } from './sectionTranslations'
 import { peopleTranslations } from './peopleTranslations'
 
@@ -138,6 +140,10 @@ i18n.addResourceBundle('en', 'translation', academicSessionsTranslations.en, tru
 i18n.addResourceBundle('bn', 'translation', academicSessionsTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', staffTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', staffTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', attendanceTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', attendanceTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', studentAttendanceTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', studentAttendanceTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', sectionTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', sectionTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', peopleTranslations.en, true, true)

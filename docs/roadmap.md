@@ -6,10 +6,10 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 |---|---|---|
 | M0 | Foundation, health endpoint, CI, initial documentation | Merged into main; local Compose runtime verified |
 | M1 | Authentication and school configuration | Merged into main; 12/12 brief criteria locally verified |
-| M2 | Academic structure | 6/6 merged into main; Sections integrated |
+| M2 | Academic structure | 6/6 merged into main |
 | M3 | Students and guardians | 6/6 merged into main |
-| M4 | Teachers and staff | 4/4 locally verified on feature/m4-teachers-staff; merged with current main; review pending |
-| M5 | Attendance | Not started |
+| M4 | Teachers and staff | 4/4 merged into main |
+| M5 | Attendance | 5/5 locally verified on feature/m5-attendance; review and merge pending |
 | M6 | Routine | Not started |
 | M7 | Examinations and results | Not started |
 | M8 | Fees and accounts | Not started |
