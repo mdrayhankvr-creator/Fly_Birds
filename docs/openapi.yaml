@@ -572,6 +572,40 @@ paths:
       description: Requires academics:manage, an administrator account, and the academics module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Assignment removed }, '404': { $ref: '#/components/responses/NotFound' } }
+  /academic/sections:
+    get:
+      operationId: listAcademicSections
+      tags: [academic]
+      summary: Search and page sections across sessions and classes
+      description: Requires academics:read and the academics module. Session and class filters are optional UUIDs.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/AcademicStatus' }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Sections, content: { application/json: { schema: { $ref: '#/components/schemas/SectionPageResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createAcademicSection
+      tags: [academic]
+      summary: Create a section for a class and academic session
+      description: Requires academics:manage, an administrator account, and the academics module. Names and codes are unique within each class and session.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SectionInput' } } } }
+      responses: { '201': { description: Created section, content: { application/json: { schema: { $ref: '#/components/schemas/SectionResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
+  /academic/sections/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getAcademicSection
+      tags: [academic]
+      summary: Get a section
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Section, content: { application/json: { schema: { $ref: '#/components/schemas/SectionResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      operationId: updateAcademicSection
+      tags: [academic]
+      summary: Edit or activate a section
+      description: Requires academics:manage, an administrator account, and the academics module. Session and class IDs must remain unchanged.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SectionInput' } } } }
+      responses: { '200': { description: Updated section, content: { application/json: { schema: { $ref: '#/components/schemas/SectionResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
 components:
   securitySchemes:
     bearerAuth:
@@ -656,6 +690,20 @@ components:
       allOf: [{ $ref: '#/components/schemas/ClassInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid } } }]
     ClassResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AcademicClass' } } }
     ClassPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/AcademicClass' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
+    SectionInput:
+      type: object
+      required: [session_id, class_id, name, code, display_order, is_active]
+      properties:
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        code: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$' }
+        display_order: { type: integer, minimum: 0, maximum: 100000 }
+        is_active: { type: boolean }
+    AcademicSection:
+      allOf: [{ $ref: '#/components/schemas/SectionInput' }, { type: object, required: [id, session_name, class_name], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string } } }]
+    SectionResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AcademicSection' } } }
+    SectionPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/AcademicSection' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
     SubjectInput:
       type: object
       required: [name_en, name_bn, code, is_active]

@@ -85,6 +85,13 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 			}
 			if academicSchemaReady {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: "academic_classes", Name: "Classes", Path: "/admin/academic/classes"}, NavigationItem{Key: "academic_subjects", Name: "Subjects", Path: "/admin/academic/subjects"})
+				var sectionSchemaReady bool
+				if err := tx.Raw("SELECT to_regclass('public.academic_sections') IS NOT NULL").Scan(&sectionSchemaReady).Error; err != nil {
+					return err
+				}
+				if sectionSchemaReady {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "academic_sections", Name: "Sections", Path: "/admin/academic/sections"})
+				}
 			}
 		}
 		if allowed["academic_sessions:read"] && enabled["academics"] {
