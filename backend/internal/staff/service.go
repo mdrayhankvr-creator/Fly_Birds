@@ -112,13 +112,13 @@ type Repository interface {
 	GetEmployee(context.Context, string) (Employee, error)
 	OwnEmployee(context.Context, string) (Employee, error)
 	SaveEmployee(context.Context, string, string, Employee) (Employee, error)
-	ListAssignments(context.Context, string) ([]Assignment, error)
+	ListAssignments(context.Context, string, Query) (Page[Assignment], error)
 	AddAssignment(context.Context, string, Assignment) (Assignment, error)
 	DeleteAssignment(context.Context, string, string, string) error
-	ListLeaves(context.Context, string, string, bool) ([]Leave, error)
+	ListLeaves(context.Context, string, string, bool, Query) (Page[Leave], error)
 	RequestLeave(context.Context, string, string, Leave) (Leave, error)
 	DecideLeave(context.Context, string, string, string) (Leave, error)
-	ListSalaries(context.Context, string) ([]Salary, error)
+	ListSalaries(context.Context, string, Query) (Page[Salary], error)
 	AddSalary(context.Context, string, Salary) (Salary, error)
 }
 type Service struct{ repo Repository }
@@ -181,11 +181,12 @@ func (s *Service) SaveEmployee(ctx context.Context, actor, id string, input Empl
 	}
 	return s.repo.SaveEmployee(ctx, actor, id, Employee{EmployeeCode: input.EmployeeCode, UserID: input.UserID, Kind: input.Kind, NameEN: input.NameEN, NameBN: input.NameBN, Designation: input.Designation, Phone: input.Phone, JoinedOn: input.JoinedOn, LeftOn: input.LeftOn, IsActive: active})
 }
-func (s *Service) ListAssignments(ctx context.Context, id string) ([]Assignment, error) {
-	if !validID(id) {
-		return nil, ErrInvalid
+func (s *Service) ListAssignments(ctx context.Context, id string, q Query) (Page[Assignment], error) {
+	if !validID(id) || !validQuery(q) || q.Kind != "" || q.Status != "" {
+		return Page[Assignment]{}, ErrInvalid
 	}
-	return s.repo.ListAssignments(ctx, id)
+	q.Search = strings.TrimSpace(q.Search)
+	return s.repo.ListAssignments(ctx, id, q)
 }
 func (s *Service) AddAssignment(ctx context.Context, actor, employee string, input AssignmentInput) (Assignment, error) {
 	if !validID(actor) || !validID(employee) || !validID(input.SessionID) || !validID(input.ClassID) || !validID(input.SubjectID) {
@@ -199,11 +200,12 @@ func (s *Service) DeleteAssignment(ctx context.Context, actor, employee, id stri
 	}
 	return s.repo.DeleteAssignment(ctx, actor, employee, id)
 }
-func (s *Service) ListLeaves(ctx context.Context, actor, employee string, self bool) ([]Leave, error) {
-	if !validID(actor) || (employee != "" && !validID(employee)) {
-		return nil, ErrInvalid
+func (s *Service) ListLeaves(ctx context.Context, actor, employee string, self bool, q Query) (Page[Leave], error) {
+	if !validID(actor) || (employee != "" && !validID(employee)) || !validQuery(q) || q.Kind != "" || q.Status != "" {
+		return Page[Leave]{}, ErrInvalid
 	}
-	return s.repo.ListLeaves(ctx, actor, employee, self)
+	q.Search = strings.TrimSpace(q.Search)
+	return s.repo.ListLeaves(ctx, actor, employee, self, q)
 }
 func (s *Service) RequestLeave(ctx context.Context, actor, employee string, self bool, input LeaveInput) (Leave, error) {
 	if !validID(actor) || (employee != "" && !validID(employee)) || !validDate(input.StartsOn) || !validDate(input.EndsOn) || input.EndsOn < input.StartsOn || !validText(input.Reason, 1000, false) {
@@ -225,11 +227,12 @@ func (s *Service) DecideLeave(ctx context.Context, actor, id, status string) (Le
 	}
 	return s.repo.DecideLeave(ctx, actor, id, status)
 }
-func (s *Service) ListSalaries(ctx context.Context, id string) ([]Salary, error) {
-	if !validID(id) {
-		return nil, ErrInvalid
+func (s *Service) ListSalaries(ctx context.Context, id string, q Query) (Page[Salary], error) {
+	if !validID(id) || !validQuery(q) || q.Kind != "" || q.Status != "" {
+		return Page[Salary]{}, ErrInvalid
 	}
-	return s.repo.ListSalaries(ctx, id)
+	q.Search = strings.TrimSpace(q.Search)
+	return s.repo.ListSalaries(ctx, id, q)
 }
 func (s *Service) AddSalary(ctx context.Context, actor, employee string, input SalaryInput) (Salary, error) {
 	if !validID(actor) || !validID(employee) || !validDate(input.EffectiveOn) || !validText(input.Note, 500, false) {

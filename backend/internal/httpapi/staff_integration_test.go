@@ -187,7 +187,30 @@ func TestPostgresStaffLifecycle(t *testing.T) {
 		t.Fatalf("assignment %+v %v", assignment, err)
 	}
 	check("POST", "/staff/employees/"+employeeID+"/assignments", assignmentInput, adminHeader, 409)
-	check("GET", "/staff/me/assignments", "", teacherHeader, 200)
+	checkPage := func(path string, headers map[string]string, wantTotal int64) {
+		t.Helper()
+		body := check("GET", path, "", headers, 200)
+		var result struct {
+			Data struct {
+				Items    []json.RawMessage `json:"items"`
+				Total    int64             `json:"total"`
+				Page     int               `json:"page"`
+				PageSize int               `json:"page_size"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil || result.Data.Total != wantTotal || int64(len(result.Data.Items)) != wantTotal || result.Data.Page != 1 || result.Data.PageSize != 1 {
+			t.Fatalf("page %s: %+v, %v", path, result, err)
+		}
+	}
+	checkPage("/staff/me/assignments?search=Staff+subject&page=1&page_size=1", teacherHeader, 1)
+	checkPage("/staff/employees/"+employeeID+"/assignments?search=no-match&page=1&page_size=1", adminHeader, 0)
+	checkPage("/staff/me/leaves?search=Illness&page=1&page_size=1", teacherHeader, 1)
+	checkPage("/staff/employees/"+employeeID+"/leaves?search=no-match&page=1&page_size=1", adminHeader, 0)
+	checkPage("/staff/employees/"+employeeID+"/salaries?search=2026-01&page=1&page_size=1", adminHeader, 1)
+	checkPage("/staff/employees/"+employeeID+"/salaries?search=no-match&page=1&page_size=1", adminHeader, 0)
+	check("GET", "/staff/me/assignments?page=0", "", teacherHeader, 400)
+	check("GET", "/staff/me/leaves?page_size=101", "", teacherHeader, 400)
+	check("GET", "/staff/employees/"+employeeID+"/salaries?page=bad", "", adminHeader, 400)
 	check("DELETE", "/staff/employees/"+employeeID+"/assignments/"+assignment.Data.ID, "", teacherHeader, 403)
 	check("DELETE", "/staff/employees/"+employeeID+"/assignments/"+assignment.Data.ID, "", adminHeader, 200)
 	if err := db.Table("school_modules").Where("school_id=? AND module_key='staff'", school.SingleSchoolID).Update("enabled", false).Error; err != nil {

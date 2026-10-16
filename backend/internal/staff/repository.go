@@ -150,13 +150,21 @@ func (r *GormRepository) assignment(tx *gorm.DB, id string) (Assignment, error) 
 	}
 	return a, err
 }
-func (r *GormRepository) ListAssignments(ctx context.Context, employee string) ([]Assignment, error) {
+func (r *GormRepository) ListAssignments(ctx context.Context, employee string, q Query) (Page[Assignment], error) {
 	if _, err := r.GetEmployee(ctx, employee); err != nil {
-		return nil, err
+		return Page[Assignment]{}, err
 	}
-	items := []Assignment{}
-	err := r.db.WithContext(ctx).Table("teacher_assignments AS a").Joins("JOIN academic_sessions AS s ON s.id=a.session_id").Joins("JOIN academic_classes AS c ON c.id=a.class_id").Joins("JOIN academic_subjects AS u ON u.id=a.subject_id").Select(assignmentSelect).Where("a.employee_id=?", employee).Order("s.start_date DESC,c.display_order,u.code").Scan(&items).Error
-	return items, err
+	base := r.db.WithContext(ctx).Table("teacher_assignments AS a").Joins("JOIN academic_sessions AS s ON s.id=a.session_id").Joins("JOIN academic_classes AS c ON c.id=a.class_id").Joins("JOIN academic_subjects AS u ON u.id=a.subject_id").Where("a.employee_id=?", employee)
+	if q.Search != "" {
+		term := "%" + q.Search + "%"
+		base = base.Where("s.name ILIKE ? OR c.name ILIKE ? OR u.code ILIKE ? OR u.name_en ILIKE ? OR u.name_bn ILIKE ?", term, term, term, term, term)
+	}
+	page := Page[Assignment]{Items: []Assignment{}, Page: q.Page, PageSize: q.PageSize}
+	if err := base.Count(&page.Total).Error; err != nil {
+		return Page[Assignment]{}, err
+	}
+	err := base.Select(assignmentSelect).Order("s.start_date DESC,c.display_order,u.code,a.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
+	return page, err
 }
 func (r *GormRepository) AddAssignment(ctx context.Context, actor string, a Assignment) (Assignment, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -214,22 +222,30 @@ func (r *GormRepository) ownID(tx *gorm.DB, actor string) (string, error) {
 	}
 	return id, err
 }
-func (r *GormRepository) ListLeaves(ctx context.Context, actor, employee string, self bool) ([]Leave, error) {
+func (r *GormRepository) ListLeaves(ctx context.Context, actor, employee string, self bool, q Query) (Page[Leave], error) {
 	db := r.db.WithContext(ctx)
 	if self {
 		var err error
 		employee, err = r.ownID(db, actor)
 		if err != nil {
-			return nil, err
+			return Page[Leave]{}, err
 		}
 	} else {
 		if _, err := r.GetEmployee(ctx, employee); err != nil {
-			return nil, err
+			return Page[Leave]{}, err
 		}
 	}
-	items := []Leave{}
-	err := db.Table("employee_leaves").Select(leaveSelect).Where("employee_id=?", employee).Order("starts_on DESC,id DESC").Scan(&items).Error
-	return items, err
+	base := db.Table("employee_leaves").Where("employee_id=?", employee)
+	if q.Search != "" {
+		term := "%" + q.Search + "%"
+		base = base.Where("leave_type ILIKE ? OR status ILIKE ? OR reason ILIKE ? OR to_char(starts_on,'YYYY-MM-DD') ILIKE ?", term, term, term, term)
+	}
+	page := Page[Leave]{Items: []Leave{}, Page: q.Page, PageSize: q.PageSize}
+	if err := base.Count(&page.Total).Error; err != nil {
+		return Page[Leave]{}, err
+	}
+	err := base.Select(leaveSelect).Order("starts_on DESC,id DESC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
+	return page, err
 }
 func (r *GormRepository) RequestLeave(ctx context.Context, actor, employee string, l Leave) (Leave, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -286,13 +302,21 @@ func (r *GormRepository) DecideLeave(ctx context.Context, actor, id, status stri
 
 const salarySelect = "id,employee_id,to_char(effective_on,'YYYY-MM-DD') AS effective_on,basic_bdt,allowance_bdt,deduction_bdt,note"
 
-func (r *GormRepository) ListSalaries(ctx context.Context, employee string) ([]Salary, error) {
+func (r *GormRepository) ListSalaries(ctx context.Context, employee string, q Query) (Page[Salary], error) {
 	if _, err := r.GetEmployee(ctx, employee); err != nil {
-		return nil, err
+		return Page[Salary]{}, err
 	}
-	items := []Salary{}
-	err := r.db.WithContext(ctx).Table("employee_salary_records").Select(salarySelect).Where("employee_id=?", employee).Order("effective_on DESC,id DESC").Scan(&items).Error
-	return items, err
+	base := r.db.WithContext(ctx).Table("employee_salary_records").Where("employee_id=?", employee)
+	if q.Search != "" {
+		term := "%" + q.Search + "%"
+		base = base.Where("note ILIKE ? OR to_char(effective_on,'YYYY-MM-DD') ILIKE ?", term, term)
+	}
+	page := Page[Salary]{Items: []Salary{}, Page: q.Page, PageSize: q.PageSize}
+	if err := base.Count(&page.Total).Error; err != nil {
+		return Page[Salary]{}, err
+	}
+	err := base.Select(salarySelect).Order("effective_on DESC,id DESC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
+	return page, err
 }
 func (r *GormRepository) AddSalary(ctx context.Context, actor string, s Salary) (Salary, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

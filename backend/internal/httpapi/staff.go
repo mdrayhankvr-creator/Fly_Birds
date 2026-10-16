@@ -11,6 +11,11 @@ import (
 
 type staffHandler struct{ service *staff.Service }
 
+func staffSubQuery(c *gin.Context) (staff.Query, error) {
+	page, size, err := parsePage(c)
+	return staff.Query{Search: c.Query("search"), Page: page, PageSize: size}, err
+}
+
 func (h *staffHandler) available(c *gin.Context) bool {
 	if h.service != nil {
 		return true
@@ -121,7 +126,12 @@ func (h *staffHandler) listAssignments(c *gin.Context) {
 	if !h.available(c) {
 		return
 	}
-	v, err := h.service.ListAssignments(c.Request.Context(), c.Param("id"))
+	query, err := staffSubQuery(c)
+	if err != nil {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	v, err := h.service.ListAssignments(c.Request.Context(), c.Param("id"), query)
 	if err != nil {
 		staffError(c, err)
 		return
@@ -132,12 +142,17 @@ func (h *staffHandler) ownAssignments(c *gin.Context) {
 	if !h.available(c) {
 		return
 	}
+	query, err := staffSubQuery(c)
+	if err != nil {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
 	e, err := h.service.OwnEmployee(c.Request.Context(), staffActor(c))
 	if err != nil {
 		staffError(c, err)
 		return
 	}
-	v, err := h.service.ListAssignments(c.Request.Context(), e.ID)
+	v, err := h.service.ListAssignments(c.Request.Context(), e.ID, query)
 	if err != nil {
 		staffError(c, err)
 		return
@@ -189,7 +204,12 @@ func (h *staffHandler) listLeaves(c *gin.Context) {
 	if !h.available(c) {
 		return
 	}
-	v, err := h.service.ListLeaves(c.Request.Context(), staffActor(c), c.Param("id"), false)
+	query, err := staffSubQuery(c)
+	if err != nil {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	v, err := h.service.ListLeaves(c.Request.Context(), staffActor(c), c.Param("id"), false, query)
 	if err != nil {
 		staffError(c, err)
 		return
@@ -200,7 +220,12 @@ func (h *staffHandler) ownLeaves(c *gin.Context) {
 	if !h.available(c) {
 		return
 	}
-	v, err := h.service.ListLeaves(c.Request.Context(), staffActor(c), "", true)
+	query, err := staffSubQuery(c)
+	if err != nil {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	v, err := h.service.ListLeaves(c.Request.Context(), staffActor(c), "", true, query)
 	if err != nil {
 		staffError(c, err)
 		return
@@ -259,7 +284,12 @@ func (h *staffHandler) listSalaries(c *gin.Context) {
 	if !h.available(c) {
 		return
 	}
-	v, err := h.service.ListSalaries(c.Request.Context(), c.Param("id"))
+	query, err := staffSubQuery(c)
+	if err != nil {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	v, err := h.service.ListSalaries(c.Request.Context(), c.Param("id"), query)
 	if err != nil {
 		staffError(c, err)
 		return

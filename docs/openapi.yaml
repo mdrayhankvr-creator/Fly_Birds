@@ -621,7 +621,8 @@ paths:
       summary: Read own teaching assignments
       description: Requires staff:read_self and the staff module.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Own assignments } }
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated own assignments; data contains items, total, page, and page_size } }
   /staff/me/leaves:
     get:
       operationId: getOwnLeaves
@@ -629,7 +630,8 @@ paths:
       summary: Read own leave requests
       description: Requires staff_leaves:request_self and the staff module.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Own leave history } }
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated own leave history; data contains items, total, page, and page_size } }
     post:
       operationId: requestOwnLeave
       tags: [staff]
@@ -646,7 +648,8 @@ paths:
       summary: Read an employee's teaching assignments
       description: Requires staff:read and the staff module.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Teacher assignments } }
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated teacher assignments; data contains items, total, page, and page_size } }
     post:
       operationId: addTeacherAssignment
       tags: [staff]
@@ -672,7 +675,8 @@ paths:
       summary: Read employee leave history
       description: Requires staff_leaves:read and the staff module.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Leave history } }
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated leave history; data contains items, total, page, and page_size } }
     post:
       operationId: requestEmployeeLeave
       tags: [staff]
@@ -699,7 +703,8 @@ paths:
       summary: Read private salary history
       description: Requires staff_salary:read, an administrator account, and the staff module.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Salary records } }
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated salary records; data contains items, total, page, and page_size } }
     post:
       operationId: addEmployeeSalary
       tags: [staff]
