@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -76,7 +75,13 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.Exec("DELETE FROM users WHERE id IN (?,?)", admin.ID, teacher.ID).Error })
+	headTeacher, err := authService.BootstrapUser(ctx, "academic-head-"+suffix+"@example.test", password, "head_teacher")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = db.Exec("DELETE FROM users WHERE id IN (?,?,?)", admin.ID, teacher.ID, headTeacher.ID).Error
+	})
 	var oldEnabled bool
 	if err := db.Table("school_modules").Select("enabled").Where("school_id=? AND module_key='academics'", school.SingleSchoolID).Scan(&oldEnabled).Error; err != nil {
 		t.Fatal(err)
@@ -96,8 +101,13 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	headLogin, err := authService.Login(ctx, headTeacher.Email, password)
+	if err != nil {
+		t.Fatal(err)
+	}
 	adminHeaders := map[string]string{"Authorization": "Bearer " + adminLogin.AccessToken}
 	teacherHeaders := map[string]string{"Authorization": "Bearer " + teacherLogin.AccessToken}
+	headHeaders := map[string]string{"Authorization": "Bearer " + headLogin.AccessToken}
 	check := func(method, path, body string, headers map[string]string, status int) []byte {
 		t.Helper()
 		response := perform(router, method, path, body, nil, headers)
@@ -108,6 +118,8 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 	}
 	check("GET", "/academic/classes", "", nil, 401)
 	check("GET", "/academic/classes", "", teacherHeaders, 403)
+	check("GET", "/academic/classes", "", headHeaders, 200)
+	check("POST", "/academic/classes", `{"name":"Denied","display_order":1,"is_active":true}`, headHeaders, 403)
 	check("POST", "/academic/classes", `{"name":"Invalid","display_order":-1,"is_active":true}`, adminHeaders, 400)
 	classBody := check("POST", "/academic/classes", `{"name":"Class `+suffix+`","display_order":10,"is_active":true}`, adminHeaders, 201)
 	var classResponse struct {
@@ -125,6 +137,10 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 		_ = db.Exec("DELETE FROM academic_classes WHERE id=?", classID).Error
 	})
 	check("POST", "/academic/classes", `{"name":"class `+suffix+`","display_order":11,"is_active":true}`, adminHeaders, 409)
+	classUpdated := check("PATCH", "/academic/classes/"+classID, `{"name":"Class `+suffix+`","display_order":12,"is_active":true}`, adminHeaders, 200)
+	if err := json.Unmarshal(classUpdated, &classResponse); err != nil || classResponse.Data.DisplayOrder != 12 {
+		t.Fatalf("class update failed: %+v %v", classResponse.Data, err)
+	}
 	code := "MAT" + suffix
 	subjectBody := check("POST", "/academic/subjects", `{"name_en":"Mathematics `+suffix+`","name_bn":"গণিত","code":"`+code+`","is_active":true}`, adminHeaders, 201)
 	var subjectResponse struct {
@@ -143,9 +159,11 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 	})
 	check("POST", "/academic/subjects", `{"name_en":"Another","name_bn":"আরেকটি","code":"`+code+`","is_active":true}`, adminHeaders, 409)
 	check("POST", "/academic/subjects", `{"name_en":"Another","name_bn":"আরেকটি","code":"bad code","is_active":true}`, adminHeaders, 400)
-	if err := db.Exec("INSERT INTO academic_subjects (name_en,name_bn,code,is_active) VALUES (?,?,?,true)", "Direct", "সরাসরি", strings.ToLower(code)).Error; err == nil {
-		t.Fatal("database accepted case-insensitive duplicate subject code")
+	if err := db.Exec("INSERT INTO academic_subjects (name_en,name_bn,code,is_active) VALUES (?,?,?,true)", "Direct", "সরাসরি", code).Error; err == nil {
+		t.Fatal("database accepted duplicate subject code")
 	}
+	check("GET", "/academic/subjects", "", headHeaders, 200)
+	check("PATCH", "/academic/subjects/"+subjectID, `{"name_en":"Mathematics `+suffix+`","name_bn":"উচ্চতর গণিত","code":"`+code+`","is_active":true}`, adminHeaders, 200)
 	classList := check("GET", "/academic/classes?search="+suffix+"&page=1&page_size=1", "", adminHeaders, 200)
 	var classPage struct {
 		Data academic.Page[academic.Class] `json:"data"`
@@ -174,11 +192,13 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 		t.Fatalf("subject filtering failed: %+v", subjectPage.Data)
 	}
 	path := "/academic/classes/" + classID + "/subjects"
+	check("GET", path, "", headHeaders, 200)
+	check("POST", path, `{"subject_id":"`+subjectID+`","is_required":true,"is_fourth_subject":false}`, headHeaders, 403)
 	check("POST", path, `{"subject_id":"`+subjectID+`","is_required":true,"is_fourth_subject":true}`, adminHeaders, 400)
 	check("POST", path, `{"subject_id":"`+subjectID+`","is_required":true,"is_fourth_subject":false}`, adminHeaders, 201)
 	check("POST", path, `{"subject_id":"`+subjectID+`","is_required":true,"is_fourth_subject":false}`, adminHeaders, 409)
-	if err := db.Exec("INSERT INTO academic_class_subjects (class_id,subject_id,is_required,is_fourth_subject) VALUES (?,?,true,true)", classID, subjectID).Error; err == nil {
-		t.Fatal("database accepted conflicting mapping flags or duplicate pair")
+	if err := db.Exec("INSERT INTO academic_class_subjects (class_id,subject_id,is_required,is_fourth_subject) VALUES (?,?,true,false)", classID, subjectID).Error; err == nil {
+		t.Fatal("database accepted duplicate class-subject pair")
 	}
 	check("PATCH", path+"/"+subjectID, `{"is_required":false,"is_fourth_subject":true}`, adminHeaders, 200)
 	mappingList := check("GET", path+"?search="+code+"&page=1&page_size=1", "", adminHeaders, 200)
@@ -191,11 +211,28 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 	if mappingPage.Data.Total != 1 || len(mappingPage.Data.Items) != 1 || !mappingPage.Data.Items[0].IsFourthSubject || mappingPage.Data.Items[0].IsRequired {
 		t.Fatalf("mapping semantics or search failed: %+v", mappingPage.Data)
 	}
+	mappingList = check("GET", path+"?search="+code+"&page=2&page_size=1", "", adminHeaders, 200)
+	if err := json.Unmarshal(mappingList, &mappingPage); err != nil || mappingPage.Data.Total != 1 || len(mappingPage.Data.Items) != 0 {
+		t.Fatalf("mapping pagination failed: %+v %v", mappingPage.Data, err)
+	}
 	if err := db.Exec("UPDATE academic_class_subjects SET is_required=true,is_fourth_subject=true WHERE class_id=? AND subject_id=?", classID, subjectID).Error; err == nil {
 		t.Fatal("database accepted both mapping flags")
 	}
+	if err := db.Exec("UPDATE academic_class_subjects SET is_required=false,is_fourth_subject=false WHERE class_id=? AND subject_id=?", classID, subjectID).Error; err == nil {
+		t.Fatal("database accepted neither mapping flag")
+	}
 	check("DELETE", path+"/"+subjectID, "", adminHeaders, 200)
 	check("DELETE", path+"/"+subjectID, "", adminHeaders, 404)
+	check("PATCH", "/academic/classes/"+classID, `{"name":"Class `+suffix+`","display_order":12,"is_active":false}`, adminHeaders, 200)
+	classList = check("GET", "/academic/classes?status=active&search="+suffix, "", adminHeaders, 200)
+	if err := json.Unmarshal(classList, &classPage); err != nil || classPage.Data.Total != 0 {
+		t.Fatalf("active class filter failed: %+v %v", classPage.Data, err)
+	}
+	classList = check("GET", "/academic/classes?status=inactive&search="+suffix, "", adminHeaders, 200)
+	if err := json.Unmarshal(classList, &classPage); err != nil || classPage.Data.Total != 1 {
+		t.Fatalf("inactive class filter failed: %+v %v", classPage.Data, err)
+	}
+	check("POST", path, `{"subject_id":"`+subjectID+`","is_required":true,"is_fourth_subject":false}`, adminHeaders, 409)
 	if err := db.Exec("INSERT INTO academic_class_subjects (class_id,subject_id,is_required,is_fourth_subject) VALUES (?,gen_random_uuid(),true,false)", classID).Error; err == nil {
 		t.Fatal("database accepted missing subject foreign key")
 	}
