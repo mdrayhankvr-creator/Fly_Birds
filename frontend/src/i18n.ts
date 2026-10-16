@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import { schoolTranslations } from './schoolTranslations'
 import { checkpoint4Translations } from './checkpoint4Translations'
+import { academicTranslations } from './academicTranslations'
 import { academicSessionsTranslations } from './academicSessionsTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
@@ -128,6 +129,8 @@ i18n.addResourceBundle('en', 'translation', schoolTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', schoolTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', checkpoint4Translations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', checkpoint4Translations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', academicTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', academicTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', academicSessionsTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', academicSessionsTranslations.bn, true, true)
 

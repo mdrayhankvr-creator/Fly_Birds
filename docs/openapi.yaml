@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Fly_Birds API
   version: 0.6.0
-  description: M0 and M1 APIs plus M2 academic sessions. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
+  description: M0/M1 APIs and M2 academic sessions, classes, subjects, and class-subject assignments. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
 servers:
   - url: http://localhost:8080
 paths:
@@ -469,6 +469,109 @@ paths:
         '200': { description: Dashboard, content: { application/json: { schema: { $ref: '#/components/schemas/DashboardResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /academic/classes:
+    get:
+      operationId: listAcademicClasses
+      tags: [academic]
+      summary: Search and page class definitions
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/AcademicStatus' }]
+      responses: { '200': { description: Classes, content: { application/json: { schema: { $ref: '#/components/schemas/ClassPageResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createAcademicClass
+      tags: [academic]
+      summary: Create a class
+      description: Requires academics:manage, an administrator account, and the academics module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClassInput' } } } }
+      responses: { '201': { description: Created class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
+  /academic/classes/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getAcademicClass
+      tags: [academic]
+      summary: Get a class
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      operationId: updateAcademicClass
+      tags: [academic]
+      summary: Update a class
+      description: Requires academics:manage, an administrator account, and the academics module. All editable fields are required.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClassInput' } } } }
+      responses: { '200': { description: Updated class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
+  /academic/subjects:
+    get:
+      operationId: listAcademicSubjects
+      tags: [academic]
+      summary: Search and page subjects
+      description: Requires academics:read and the academics module. Search covers English name, Bangla name, and code.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/AcademicStatus' }]
+      responses: { '200': { description: Subjects, content: { application/json: { schema: { $ref: '#/components/schemas/SubjectPageResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' } }
+    post:
+      operationId: createAcademicSubject
+      tags: [academic]
+      summary: Create a subject
+      description: Requires academics:manage, an administrator account, and the academics module. Codes are uppercase canonical and case-insensitively unique.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SubjectInput' } } } }
+      responses: { '201': { description: Created subject, content: { application/json: { schema: { $ref: '#/components/schemas/SubjectResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
+  /academic/subjects/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getAcademicSubject
+      tags: [academic]
+      summary: Get a subject
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Subject, content: { application/json: { schema: { $ref: '#/components/schemas/SubjectResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      operationId: updateAcademicSubject
+      tags: [academic]
+      summary: Update a subject
+      description: Requires academics:manage, an administrator account, and the academics module. All editable fields are required.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SubjectInput' } } } }
+      responses: { '200': { description: Updated subject, content: { application/json: { schema: { $ref: '#/components/schemas/SubjectResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
+  /academic/classes/{id}/subjects:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: listClassSubjects
+      tags: [academic]
+      summary: Search and page subjects assigned to a class
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Class subjects, content: { application/json: { schema: { $ref: '#/components/schemas/MappingPageResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+    post:
+      operationId: assignClassSubject
+      tags: [academic]
+      summary: Assign a subject to a class
+      description: Requires academics:manage, an administrator account, and the academics module. Exactly one of is_required and is_fourth_subject must be true.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MappingInput' } } } }
+      responses: { '201': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/MappingResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
+  /academic/classes/{id}/subjects/{subjectId}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }, { name: subjectId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      operationId: updateClassSubject
+      tags: [academic]
+      summary: Change required or fourth-subject designation
+      description: Requires academics:manage, an administrator account, and the academics module. Exactly one flag must be true.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MappingFlags' } } } }
+      responses: { '200': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/MappingResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      operationId: removeClassSubject
+      tags: [academic]
+      summary: Remove a subject from a class
+      description: Requires academics:manage, an administrator account, and the academics module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Assignment removed }, '404': { $ref: '#/components/responses/NotFound' } }
 components:
   securitySchemes:
     bearerAuth:
@@ -481,6 +584,8 @@ components:
     PageSize: { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
     RoleId: { name: id, in: path, required: true, schema: { type: string }, description: One of the six role identifiers }
     UserId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    AcademicId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    AcademicStatus: { name: status, in: query, schema: { type: string, enum: [active, inactive] } }
     CSRFToken:
       name: X-CSRF-Token
       in: header
@@ -488,6 +593,7 @@ components:
       schema:
         type: string
   responses:
+    AcademicConflict: { description: Duplicate class, subject code, assignment, or inactive assignment target }
     IDList:
       description: Current identifiers
       content:
@@ -539,6 +645,51 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    ClassInput:
+      type: object
+      required: [name, display_order, is_active]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        display_order: { type: integer, minimum: 0, maximum: 100000 }
+        is_active: { type: boolean }
+    AcademicClass:
+      allOf: [{ $ref: '#/components/schemas/ClassInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid } } }]
+    ClassResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AcademicClass' } } }
+    ClassPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/AcademicClass' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
+    SubjectInput:
+      type: object
+      required: [name_en, name_bn, code, is_active]
+      properties:
+        name_en: { type: string, minLength: 1, maxLength: 160 }
+        name_bn: { type: string, minLength: 1, maxLength: 160 }
+        code: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$' }
+        is_active: { type: boolean }
+    AcademicSubject:
+      allOf: [{ $ref: '#/components/schemas/SubjectInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid } } }]
+    SubjectResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AcademicSubject' } } }
+    SubjectPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/AcademicSubject' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
+    MappingFlags:
+      type: object
+      required: [is_required, is_fourth_subject]
+      oneOf:
+        - properties: { is_required: { enum: [true] }, is_fourth_subject: { enum: [false] } }
+        - properties: { is_required: { enum: [false] }, is_fourth_subject: { enum: [true] } }
+    MappingInput:
+      allOf: [{ $ref: '#/components/schemas/MappingFlags' }, { type: object, required: [subject_id], properties: { subject_id: { type: string, format: uuid } } }]
+    ClassSubject:
+      type: object
+      required: [id, class_id, subject_id, is_required, is_fourth_subject, subject_name_en, subject_name_bn, subject_code]
+      properties:
+        id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        subject_id: { type: string, format: uuid }
+        is_required: { type: boolean }
+        is_fourth_subject: { type: boolean }
+        subject_name_en: { type: string }
+        subject_name_bn: { type: string }
+        subject_code: { type: string }
+    MappingResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ClassSubject' } } }
+    MappingPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/ClassSubject' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
     AcademicSession:
       type: object
       required: [id, name, start_date, end_date, is_active, created_at, updated_at]

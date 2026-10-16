@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
@@ -43,6 +44,7 @@ func run(logger *slog.Logger) error {
 	var userService *users.Service
 	var auditService *audit.Service
 	var dashboardService *dashboard.Service
+	var academicService *academic.Service
 	var sessionService *academicsessions.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -68,6 +70,13 @@ func run(logger *slog.Logger) error {
 		userService = users.NewService(users.NewRepository(db))
 		auditService = audit.NewService(audit.NewRepository(db))
 		dashboardService = dashboard.NewService(dashboard.NewRepository(db))
+		var academicSchemaReady bool
+		if err := db.WithContext(connectCtx).Raw("SELECT to_regclass('public.academic_class_subjects') IS NOT NULL").Scan(&academicSchemaReady).Error; err != nil {
+			return err
+		}
+		if academicSchemaReady {
+			academicService = academic.NewService(academic.NewRepository(db))
+		}
 		sessionService = academicsessions.NewService(academicsessions.NewRepository(db))
 		logger.Info("postgres connected")
 	} else {
@@ -76,7 +85,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithAll(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService),
+		Handler:           httpapi.NewRouterWithAcademicServices(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

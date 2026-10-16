@@ -4,12 +4,51 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 17 verified criteria / 83 total criteria x 100 = **20.5%** (rounded to one decimal place).
-- **Current milestone completion:** 1 verified M2 criterion / 6 M2 criteria x 100 = **16.7% locally**.
+- **Overall completion:** 21 verified criteria / 83 total criteria x 100 = **25.3%** (rounded to one decimal place).
+- **Current milestone completion:** 5 verified M2 criteria / 6 M2 criteria x 100 = **83.3% locally**.
 
-The seventeen counted criteria are all four M0 criteria, all twelve M1 criteria, and the Academic Sessions criterion in M2. M1 audit details remain below as historical evidence. Remote M2 CI remains unverified until the branch is pushed by the developer.
+The counted criteria are all four M0 criteria, all twelve M1 criteria, and Academic Sessions, Classes, Subjects, Class-subject mapping, and Fourth/optional subject flag in M2. Sections remains pending. M1 audit details below are historical evidence. Remote M2 CI remains unverified until the developer pushes the branch.
 
-## Current Status
+## Current Status — M2 Task 002 (2026-10-16)
+
+| Item | Status |
+|---|---|
+| Development phase | Joy's Academic Sessions merged from `origin/main` into `feature/m2-classes-subjects`; class and subject schema integrated locally |
+| Current milestone | M2 — Academic Structure |
+| Verified criteria | M0: 4/4; M1: 12/12; M2: 5/6 |
+| Remaining criteria | Sections in M2 and 61 criteria in M3–M13 |
+| Backend and frontend | Sessions, classes, subjects, and assignments work together with guarded APIs and bilingual admin pages |
+| Tests passed | Go vet and full PostgreSQL-backed Go suite, fresh and upgrade migration runs, frontend production build, OpenAPI route/reference test, Compose validation, isolated browser flows |
+| Unverified | Remote CI, deployment, production database migration; Sections are intentionally unimplemented |
+| Application runnability | A dedicated PostgreSQL test database passed versioned migrations 1–4, 101, 102 and live browser flows. The developer's application database and accounts were not modified. |
+| Next step | Review this integration branch; after approval, plan Sections against the merged academic session UUID. No other M2 work is included here. |
+
+### M2 Task 002 integration evidence
+
+| M2 criterion | Status | Local evidence |
+|---|---|---|
+| Academic sessions | Complete locally | Joy's `0101_academic_sessions.sql`, guarded CRUD and activation, PostgreSQL HTTP tests, browser creation and activation |
+| Classes | Complete locally | `0102_classes_subjects.sql`, validation and uniqueness, guarded CRUD, search and pagination, browser create/read at desktop and mobile widths |
+| Sections | Pending | Session-specific ownership and assignments require a separate approved implementation step |
+| Subjects | Complete locally | English and Bangla names, unique canonical codes, guarded CRUD, browser create/read and Bangla rendering |
+| Class-subject mapping | Complete locally | Stable UUID foreign keys, duplicate-pair constraint, guarded create/update/delete/list, PostgreSQL and browser assignment flow |
+| Fourth/optional subject flag | Complete locally | Exclusive database check and service validation; required-to-fourth switch passed PostgreSQL and browser checks |
+
+- **Git integration:** `0bb712d` is an ancestor of fetched `origin/main`; a normal merge preserved Joy's eight commits and this branch's six Task 001 commits. Migration `0101` was not edited. The migration runner discovers sorted numeric SQL filenames, so `0102` needs no manual registration entry.
+- **Database and API:** A fresh disposable database applied versions 1, 2, 3, 4, 101, 102. A second disposable database began with versions 1–4 and upgraded through 101 and 102. PostgreSQL-backed HTTP tests checked session activation, classes, subjects, codes, assignment flags, foreign keys, duplicate prevention, grants, disabled modules, filtering, and pagination. The optional `academics` module remains disabled by default; an administrator enables it in school settings.
+- **Browser:** An isolated backend on port 8082 and frontend on 5174 used a dedicated test database. Headless Edge created and activated a session, created a class and bilingual subject, assigned the subject, and switched it to fourth/optional. An authenticated head teacher read all three academic routes without edit controls. English and Bangla pages rendered at 1280 px and 390 px; the Bangla class assignment panel at 390 px had no horizontal overflow. Disabled Academics hid academic navigation and blocked page access. No JavaScript exceptions were observed.
+- **Gates and limits:** `go vet ./...`, `go test ./... -count=1` with `AUTH_TEST_DATABASE_URL`, the frontend TypeScript/production build in Docker, `docker compose config --quiet`, and OpenAPI route/reference validation passed. The full suite requires a fresh disposable database: rerunning it against the browser database failed two older tests whose fixed session count and last-admin assertions assume no preexisting fixtures; it passed on a new database. Remote CI, a production migration, and deployment behavior were not run. Browser checks used disposable accounts and a separate database; existing developer accounts and Docker volumes were preserved.
+
+## M2 Task 001 checkpoint — 2026-10-16
+
+- Started from clean updated `main` at merge commit `49a03c08` and created `feature/m2-classes-subjects`. Joy's branch was not published at the time of the check, so no migration version or runner registration was guessed. [The handoff](M2_CLASSES_SUBJECTS_HANDOFF.md) specifies the session-independent schema and merge sequence.
+- Added class definitions (configurable name, order, active state), bilingual subjects (English/Bangla names, normalized code, active state), and class-subject mapping with exactly one required or fourth/optional designation. The service validates inputs; repositories are prepared for UUID keys, unique indexes, foreign keys, transactional authorization, and audit records once the migration exists.
+- Added academic APIs guarded by authentication, `academics:read`/`academics:manage`, the `academics` module, and administrator status for writes. Class, subject, and mapping lists support search and pagination. OpenAPI covers all registered routes and references.
+- Added bilingual `/admin/academic/classes` and `/admin/academic/subjects` views with responsive cards, filters, editors, and mapping controls. Navigation requires current permission and module state. The production frontend build passed, but the pages could not be exercised in a browser without the academic migration and grants; responsive behavior remains unverified.
+- `go vet ./...` passed with a workspace-local Go cache. `go test ./... -count=1` passed against a dedicated PostgreSQL database; `TestPostgresAcademicLifecycle` skipped explicitly because the coordinated tables do not exist. The M1 PostgreSQL tests passed. The OpenAPI route/reference test passed. `docker compose config --quiet` passed. Both backend and frontend Docker images built. An isolated backend container on port 8082 returned healthy JSON and 401 for an anonymous academic request, then was stopped. The disposable database was removed; the existing Compose services remained running. The host `npm ci` hit the same locked `lightningcss` binary as M1; a Docker production build passed.
+- **Integration dependency:** the migration filename, runner entry, permission seeds, and database constraints must be added after Joy's version is confirmed. Subject-code uniqueness, duplicate mapping prevention, foreign-key integrity, module-enabled HTTP behavior, and responsive browser behavior are prepared in tests/UI but not yet verified end to end. No sessions, sections, or later milestone data was added.
+
+## M1 Historical Status
 
 | Item | Status |
 |---|---|
