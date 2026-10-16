@@ -227,6 +227,29 @@ export const setAcademicSessionActive = (token: string, id: string, is_active: b
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active }),
 })
 
+export type Employee = { id: string; employee_code: string; user_id: string | null; kind: 'teacher' | 'non_teaching'; name_en: string; name_bn: string; designation: string; phone: string; joined_on: string; left_on: string | null; is_active: boolean }
+export type EmployeeInput = Omit<Employee, 'id'>
+export type TeacherAssignment = { id: string; employee_id: string; session_id: string; class_id: string; subject_id: string; session_name: string; class_name: string; subject_name_en: string; subject_name_bn: string }
+export type EmployeeLeave = { id: string; employee_id: string; starts_on: string; ends_on: string; leave_type: string; reason: string; status: string; reviewed_by: string | null }
+export type LeaveInput = Pick<EmployeeLeave, 'starts_on' | 'ends_on' | 'leave_type' | 'reason'>
+export type SalaryRecord = { id: string; employee_id: string; effective_on: string; basic_bdt: string; allowance_bdt: string; deduction_bdt: string; note: string }
+export type SalaryInput = Omit<SalaryRecord, 'id' | 'employee_id'>
+const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+export const getEmployees = (token: string, params: URLSearchParams) => bearerRequest<Page<Employee>>(`/staff/employees?${params}`, token)
+export const getEmployee = (token: string, id: string) => bearerRequest<Employee>(`/staff/employees/${encodeURIComponent(id)}`, token)
+export const getOwnEmployee = (token: string) => bearerRequest<Employee>('/staff/me', token)
+export const saveEmployee = (token: string, input: EmployeeInput, id?: string) => bearerRequest<Employee>(id ? `/staff/employees/${encodeURIComponent(id)}` : '/staff/employees', token, json(id ? 'PATCH' : 'POST', input))
+export const getTeacherAssignments = (token: string, id: string, params: URLSearchParams) => bearerRequest<Page<TeacherAssignment>>(`/staff/employees/${encodeURIComponent(id)}/assignments?${params}`, token)
+export const getOwnAssignments = (token: string, params: URLSearchParams) => bearerRequest<Page<TeacherAssignment>>(`/staff/me/assignments?${params}`, token)
+export const addTeacherAssignment = (token: string, id: string, input: { session_id: string; class_id: string; subject_id: string }) => bearerRequest<TeacherAssignment>(`/staff/employees/${encodeURIComponent(id)}/assignments`, token, json('POST', input))
+export const deleteTeacherAssignment = (token: string, id: string, assignmentId: string) => bearerRequest<{ deleted: boolean }>(`/staff/employees/${encodeURIComponent(id)}/assignments/${encodeURIComponent(assignmentId)}`, token, { method: 'DELETE' })
+export const getEmployeeLeaves = (token: string, id: string, params: URLSearchParams) => bearerRequest<Page<EmployeeLeave>>(`/staff/employees/${encodeURIComponent(id)}/leaves?${params}`, token)
+export const getOwnLeaves = (token: string, params: URLSearchParams) => bearerRequest<Page<EmployeeLeave>>(`/staff/me/leaves?${params}`, token)
+export const requestLeave = (token: string, input: LeaveInput, id?: string) => bearerRequest<EmployeeLeave>(id ? `/staff/employees/${encodeURIComponent(id)}/leaves` : '/staff/me/leaves', token, json('POST', input))
+export const decideLeave = (token: string, id: string, status: 'approved' | 'rejected') => bearerRequest<EmployeeLeave>(`/staff/leaves/${encodeURIComponent(id)}/decision`, token, json('PATCH', { status }))
+export const getSalaryRecords = (token: string, id: string, params: URLSearchParams) => bearerRequest<Page<SalaryRecord>>(`/staff/employees/${encodeURIComponent(id)}/salaries?${params}`, token)
+export const addSalaryRecord = (token: string, id: string, input: SalaryInput) => bearerRequest<SalaryRecord>(`/staff/employees/${encodeURIComponent(id)}/salaries`, token, json('POST', input))
+
 type HealthResponse = {
   data: {
     status: string

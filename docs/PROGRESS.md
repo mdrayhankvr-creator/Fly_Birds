@@ -4,14 +4,34 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 28 verified criteria / 83 total criteria x 100 = **33.7%** (rounded to one decimal place).
-- **Current milestone completion:** 6 verified M3 criteria / 6 M3 criteria x 100 = **100% locally**. M2 remains 6/6.
+- **Overall completion:** 32 verified criteria / 83 total criteria x 100 = **38.6%** (rounded to one decimal place).
+- **Current milestone completion:** 4 verified M4 criteria / 4 M4 criteria x 100 = **100% locally**.
 
-The counted criteria are all four M0 criteria, all twelve M1 criteria, all six M2 criteria, and all six M3 criteria. M1 and M2 audit details below are historical evidence. Remote CI for the local M2 and M3 branches remains unverified until the developer pushes them.
+The counted criteria are all four M0 criteria, all twelve M1 criteria, all six M2 criteria, all six M3 criteria, and all four M4 criteria: teacher/staff profiles, subject assignment, leave management, and salary records. The older M2 and M1 sections below are historical evidence.
+
+## Current Status — Batch B, M4 (2026-10-16)
+
+| Item | Status |
+|---|---|
+| Branch | `feature/m4-teachers-staff`, merged with `origin/main` at `8cc316c` |
+| Schema | `0401_staff.sql`; no duplicate users, students, guardians, or sections tables |
+| Backend | Staff profiles, secure existing-account links, class/subject/session assignments, leave requests and decisions, private salary records, audit logs |
+| Frontend | Bilingual admin directory/editor and own profile page at `/admin/staff` and `/staff/me` |
+| Verification | Full PostgreSQL Go suite, Go vet, frontend build, OpenAPI route/reference check, isolated Edge desktop/mobile creation and language switch |
+| M4 criterion count | 4/4 locally verified |
+| Pending external checks | Remote CI, review, production migration/deployment |
+
+See [M4 handoff](M4_TEACHERS_STAFF.md) for schema, permissions, APIs, verification, and run instructions. M2 Sections and M3 Students/Guardians are present in main. M4 remains in local review.
+
+## PR #7 integration verification (2026-10-17)
+
+The normal merge of origin/main into feature/m4-teachers-staff includes M2 Sections and M3 Students/Guardians alongside M4 Teachers and Staff. The merged backend registers all three service groups, and the frontend registers their routes and English/Bangla resources. The disposable PostgreSQL test database applied migrations 1, 2, 3, 4, 101, 102, 103, 201, and 401; the corresponding academic, student, guardian, and staff tables were present.
+
+The merged branch passed go vet ./..., go test ./... -count=1 both without PostgreSQL and with AUTH_TEST_DATABASE_URL pointing to the disposable database, the explicit OpenAPI route/reference test, frontend TypeScript and production build, and docker compose config --quiet. The non-PostgreSQL run skipped the environment-gated integration tests; the PostgreSQL run executed them. Browser interaction, remote CI, PR review, and deployment were not rerun or verified for this merge.
 
 ## Current Status — M3 Students and Guardians (2026-10-17)
 
-M3 is complete locally on `feature/m3-students-guardians`, which was created from the completed, unmerged `feature/m2-sections` branch. Review and merge M2 first, then M3. Do not merge M3 directly into `main` before M2 is integrated.
+M3 is complete and merged into main after M2 Sections.
 
 | M3 brief criterion | Local evidence |
 |---|---|
@@ -34,7 +54,6 @@ M2 is complete locally on `feature/m2-sections`, based on merged `origin/main` a
 
 **Verification:** `go vet ./...` and `go test ./... -count=1` passed against a dedicated PostgreSQL database, including the Sections HTTP lifecycle and the existing suite. Migration 103 applied twice without error; the test verified the ledger through 103, direct database uniqueness and foreign keys, unauthorized and head-teacher requests, disabled Academics, creation, editing, activation, search, and pagination. Docker frontend `npm run build` passed TypeScript checking and Vite production compilation. `docker compose -p flybirds_sections_smoke config --quiet` passed. An isolated Compose project with its own database and ports rendered the saved section and editor at 1280 px in English and at 390 px in Bangla, without horizontal overflow or browser exceptions. The developer's application database and volume were untouched. OpenAPI route/reference validation passed in the Go suite. Remote CI and production migration remain unverified.
 
-**Next milestone:** M3 Students and Guardians starts on `feature/m3-students-guardians` from the completed local M2 branch; it must be reviewed and merged after M2.
 
 ## Current Status — M2 Task 002 (2026-10-16)
 
