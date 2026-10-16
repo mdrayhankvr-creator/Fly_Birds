@@ -1,12 +1,12 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 and M1 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. The M2 classes and subjects branch contains session-independent application code; its database migration is awaiting coordination with Joy's academic sessions branch.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 and M1 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. The M2 integration branch combines Joy's Academic Sessions with classes, subjects, and class-subject assignments; Sections remain pending.
 
-## M2 Task 001 — Classes and Subjects
+## M2 Tasks 001–002 — Academic Structure Integration
 
-The `feature/m2-classes-subjects` branch adds validated class definitions, bilingual subjects with canonical subject codes, and class-subject assignments with exactly one required or fourth/optional designation. The backend follows Handler → Service → Repository and guards academic routes with current authentication, `academics:read` or `academics:manage`, administrator status for writes, and the `academics` module. The frontend adds `/admin/academic/classes` and `/admin/academic/subjects`, English/Bangla text, paginated search, responsive forms, and mapping controls. Admin navigation appears only when the required grant and module are available.
+The `feature/m2-classes-subjects` branch combines Academic Sessions with validated class definitions, bilingual subjects with canonical subject codes, and class-subject assignments with exactly one required or fourth/optional designation. The backend follows Handler → Service → Repository and guards every academic route with current authentication, its permission, and the `academics` module; writes also require administrator status. The frontend provides `/admin/academic/sessions`, `/admin/academic/classes`, and `/admin/academic/subjects` with English/Bangla text, paginated search, responsive forms, and permission-aware controls. Head teachers have read-only access to all three pages when Academics is enabled.
 
-**Integration dependency:** Joy's session migration number has not been confirmed. This branch has no academic SQL migration or runner registration, so the academic tables and permissions do not yet exist. Academic APIs are not usable against an M1-only database. See [the schema and integration handoff](docs/M2_CLASSES_SUBJECTS_HANDOFF.md). No academic session or section implementation is included.
+Joy's `0101_academic_sessions.sql` is merged from `origin/main`. This branch adds `0102_classes_subjects.sql` after it; the versioned runner discovers both filenames in numeric order. The migration creates three UUID-backed tables, foreign keys, unique indexes, an exclusive required/fourth designation check, and idempotent Academics grants. It does not change `0101`, add a session foreign key, or implement Sections. See [the schema handoff](docs/M2_CLASSES_SUBJECTS_HANDOFF.md) and [verified progress](docs/PROGRESS.md). The optional Academics module starts disabled; enable it in school settings before using the academic APIs or pages.
 
 The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
 
@@ -76,7 +76,7 @@ The security review found no confirmed critical or high M1 defect. Administrator
 
 At the M1 audit, M1 was ready for Pull Request review and M2 had not started. The audit's branch and CI status is historical; the current task status is tracked in [Progress](docs/PROGRESS.md).
 
-## M2 Task 001 — Academic Sessions
+## Academic Sessions contribution from Joy
 
 Academic Sessions adds one M2 feature. Administrators can create, edit, activate, and deactivate sessions at `/admin/academic/sessions`; authorized head teachers can read them. The page supports English and Bangla, search, pagination, form validation, current-session status, and the configured school theme. The optional **Academics** module starts disabled. Enable it in `/admin/school-settings` before using the page or API. No session or school name is seeded.
 
@@ -93,9 +93,9 @@ Migration `0101_academic_sessions.sql` adds `academic_sessions` with UUID IDs, d
 
 All six endpoints require a valid JWT and the enabled `academics` module. Writes require an active administrator account as well as the listed permission. Activation is serialized and transactional; the previous active session is deactivated in the same transaction. See [OpenAPI](docs/openapi.yaml) for request and response schemas.
 
-Deactivation may leave no current session; in that state the current lookup returns 404. No downstream academic records exist yet. Future modules should reference the stable UUID and decide whether their own operations require a current session.
+Deactivation may leave no current session; in that state the current lookup returns 404. The integrated classes, subjects, and assignments remain independent of sessions. Future session-dependent records should reference the stable session UUID and decide whether their own operations require a current session.
 
-Run this branch with the existing [Docker Compose instructions](#run-with-docker-compose) or the [local backend and frontend instructions](#run-backend-and-frontend-locally). The backend applies the new migration at startup. Existing Compose ports remain 5432/8080/5173. No demo credentials are provided; use an administrator account created through the documented interactive command. For PostgreSQL integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable database, then run `go test ./... -count=1` from `backend/`. The tests must not run against the application database.
+Run this branch with the existing [Docker Compose instructions](#run-with-docker-compose) or the [local backend and frontend instructions](#run-backend-and-frontend-locally). The backend applies migrations 101 and 102 at startup. Existing Compose ports remain 5432/8080/5173. No demo credentials are provided; use an administrator account created through the documented interactive command. For PostgreSQL integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable database, then run `go test ./... -count=1` from `backend/`. The tests must not run against the application database.
 
 ## Repository Layout
 
@@ -152,6 +152,8 @@ Use `docker compose down` to stop the stack. The default endpoints are:
 | User administration | http://localhost:5173/admin/users |
 | Role dashboard | http://localhost:5173/dashboard |
 | Academic sessions | http://localhost:5173/admin/academic/sessions |
+| Classes | http://localhost:5173/admin/academic/classes |
+| Subjects and class-subject mapping | http://localhost:5173/admin/academic/subjects and http://localhost:5173/admin/academic/classes |
 
 The database is exposed on `localhost:5432` by default. Change the values in `.env` if those ports are occupied. The sample PostgreSQL password is for local development only.
 
@@ -212,7 +214,7 @@ See `.env.example`, `backend/.env.example`, and `frontend/.env.example` for exam
 | `DATABASE_URL` | PostgreSQL DSN; required for authentication, optional for the health-only server | Unset |
 | `JWT_SIGNING_KEY_B64` | Base64 encoding of at least 32 random signing-key bytes; required when the database is configured | Unset |
 | `AUTH_COOKIE_SECURE` | Set `false` only for local HTTP; keep `true` behind HTTPS | `true` in the backend, `false` in local Compose |
-| `AUTH_TEST_DATABASE_URL` | Dedicated PostgreSQL database for the opt-in authentication, RBAC, school configuration, and user/audit/dashboard integration tests | Unset |
+| `AUTH_TEST_DATABASE_URL` | Fresh, dedicated disposable PostgreSQL database for opt-in authentication, RBAC, school, dashboard, and academic integration tests; never point it at the application database | Unset |
 | `GIN_MODE` | Gin log mode; Compose sets `release` | Gin default |
 | `VITE_API_BASE_URL` | Browser API path | `/api` |
 | `VITE_API_PROXY_TARGET` | Vite development proxy target | `http://localhost:8080` |

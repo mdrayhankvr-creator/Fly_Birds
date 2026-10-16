@@ -1,10 +1,10 @@
 # M2 Task 001: classes and subjects handoff
 
-This branch contains session-independent class, subject, and class-subject code. Joy owns academic sessions on `feature/m2-academic-sessions-joy`. Her migration number and filename were not available when this checkpoint was prepared, so this branch does **not** add an academic migration file or edit the migration runner's ordered list. No academic table is created by this branch. The API service stays unavailable until its schema exists, and the admin links remain hidden without the new permissions.
+Task 001 prepared session-independent class, subject, and class-subject code while Joy owned Academic Sessions. Task 002 verified Joy's commit `0bb712d` in `origin/main`, merged that history normally, and added `0102_classes_subjects.sql` after her `0101_academic_sessions.sql`. This document records the schema contract and its local integration results. The branch remains local and has not been pushed.
 
 ## Schema contract for the coordinated migration
 
-After Joy's migration number is confirmed, reserve the next unique version for this branch and add one forward-only SQL migration. The proposed tables are independent of `academic_sessions`:
+The implemented forward-only migration uses version 102. Its tables are independent of `academic_sessions`:
 
 | Table | Columns | Constraints and indexes |
 |---|---|---|
@@ -12,13 +12,13 @@ After Joy's migration number is confirmed, reserve the next unique version for t
 | `academic_subjects` | `id uuid DEFAULT gen_random_uuid()`, `name_en text`, `name_bn text`, `code text`, `is_active boolean DEFAULT true`, timestamps | UUID primary key; both names nonempty, max 160 UTF-8 bytes; code matches uppercase `[A-Z0-9][A-Z0-9_-]{0,31}`; unique index on `upper(code)`; index on active status |
 | `academic_class_subjects` | `id uuid DEFAULT gen_random_uuid()`, `class_id uuid`, `subject_id uuid`, `is_required boolean`, `is_fourth_subject boolean`, timestamps | UUID primary key; foreign keys to classes and subjects with `ON DELETE RESTRICT`; unique `(class_id, subject_id)`; `CHECK (is_required <> is_fourth_subject)`; index on `(class_id, subject_id)` and on `subject_id` |
 
-The migration should add `academics:read` and `academics:manage` to `permissions` and grant both to the administrator role. Existing `module_definitions` already contains the `academics` key and its default is disabled. Do not add a session foreign key. In this model, “fourth/optional” is one designation: exactly one of `is_required` and `is_fourth_subject` must be true. A future session-specific assignment must reference these stable class and subject IDs rather than change their meaning.
+The migration idempotently seeds the `academics` module definition and disabled school module state, adds `academics:read` and `academics:manage`, grants both to administrators, and grants read to head teachers. It adds no session foreign key. In this model, “fourth/optional” is one designation: exactly one of `is_required` and `is_fourth_subject` must be true. A future session-specific assignment should reference these stable class and subject IDs rather than change their meaning.
 
-## Integration steps
+## Task 002 integration result
 
-1. Confirm Joy's migration version and merge order. Assign a unique subsequent filename to this schema, then add it to `backend/internal/database/migrate.go` after her filename. Resolve the hard-coded migration count assertions in existing M1 integration tests to the new count.
-2. Apply both migrations to a fresh database and an upgraded M1 database. Check unique indexes, foreign keys, the flag check, permission grants, and the unchanged M1 data.
-3. Run `go vet ./...` and `go test ./... -count=1` with `AUTH_TEST_DATABASE_URL` pointing to a dedicated PostgreSQL database. `TestPostgresAcademicLifecycle` currently skips when its schema is absent; it must pass after the migration is registered.
-4. Enable the academics module in school settings and verify the admin pages at desktop and mobile widths, the module-disabled 403 path, and the complete OpenAPI route list.
+1. `git merge-base --is-ancestor 0bb712d origin/main` succeeded. The merge preserved both developers' commits and left Joy's migration unchanged.
+2. `backend/internal/database/migrate.go` discovers versioned SQL files by numeric prefix, so adding `0102_classes_subjects.sql` registered it without a hard-coded runner edit. Fresh and M1-upgrade disposable databases both reached versions 1–4, 101, 102.
+3. Dedicated PostgreSQL-backed HTTP tests passed for validation, uniqueness, foreign keys, exclusive flags, permissions, disabled module behavior, search, pagination, and sessions. `TestPostgresAcademicLifecycle` now requires the installed schema when a test database is configured.
+4. Headless Edge passed authenticated academic creation and read flows, read-only head-teacher access, English/Bangla rendering at 1280 px and 390 px, mobile mapping display, and disabled-module navigation. Go vet, the full Go suite, frontend production build, Compose validation, and OpenAPI route/reference validation passed locally. Remote CI and production migration remain unverified.
 
 Sections, academic-session assignments, student and teacher profiles, attendance, and exams are outside this checkpoint.
