@@ -19,6 +19,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/httpapi"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/staff"
@@ -46,6 +47,8 @@ func run(logger *slog.Logger) error {
 	var auditService *audit.Service
 	var dashboardService *dashboard.Service
 	var academicService *academic.Service
+	var sectionService *academic.SectionService
+	var peopleService *people.Service
 	var sessionService *academicsessions.Service
 	var staffService *staff.Service
 	if cfg.DatabaseURL != "" {
@@ -78,6 +81,8 @@ func run(logger *slog.Logger) error {
 		}
 		if academicSchemaReady {
 			academicService = academic.NewService(academic.NewRepository(db))
+			sectionService = academic.NewSectionService(academic.NewSectionRepository(db))
+			peopleService = people.NewService(people.NewRepository(db))
 		}
 		sessionService = academicsessions.NewService(academicsessions.NewRepository(db))
 		staffService = staff.NewService(staff.NewRepository(db))
@@ -88,7 +93,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithAcademicServices(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, staffService),
+		Handler:           httpapi.NewRouterWithIntegratedServices(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

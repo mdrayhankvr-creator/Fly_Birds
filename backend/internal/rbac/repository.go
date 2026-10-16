@@ -175,6 +175,20 @@ func (r *GormRepository) ReplaceUserRole(ctx context.Context, actor, user, role 
 		if existing.Role == role {
 			return nil
 		}
+		// A profile/account link is protected by a composite foreign key as well.
+		// Return a domain error before the database rejects the role change.
+		if existing.Role == "student" || existing.Role == "guardian" {
+			table := "students"
+			if existing.Role == "guardian" {
+				table = "guardians"
+			}
+			if err := tx.Table(table).Where("user_id=?", user).Count(&count).Error; err != nil {
+				return err
+			}
+			if count > 0 {
+				return ErrInvalid
+			}
+		}
 		if err := tx.Table("users").Where("id = ?", user).Updates(map[string]any{"role": role, "updated_at": gorm.Expr("now()")}).Error; err != nil {
 			return err
 		}

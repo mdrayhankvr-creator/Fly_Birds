@@ -1,14 +1,24 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 and M1 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. The M2 integration branch combines Joy's Academic Sessions with classes, subjects, and class-subject assignments; Sections remain pending.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 and M1 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M2 is complete locally on `feature/m2-sections`; M3 Students and Guardians is complete locally on `feature/m3-students-guardians`, which contains the unmerged M2 commits. Review and merge M2 before M3.
 
 ## M2 Tasks 001–002 — Academic Structure Integration
 
-The `feature/m2-classes-subjects` branch combines Academic Sessions with validated class definitions, bilingual subjects with canonical subject codes, and class-subject assignments with exactly one required or fourth/optional designation. The backend follows Handler → Service → Repository and guards every academic route with current authentication, its permission, and the `academics` module; writes also require administrator status. The frontend provides `/admin/academic/sessions`, `/admin/academic/classes`, and `/admin/academic/subjects` with English/Bangla text, paginated search, responsive forms, and permission-aware controls. Head teachers have read-only access to all three pages when Academics is enabled.
+The `feature/m2-sections` branch completes Academic Sessions, validated classes, session- and class-owned Sections, bilingual subjects with canonical subject codes, and class-subject assignments with exactly one required or fourth/optional designation. The backend follows Handler → Service → Repository and guards academic routes with current authentication, permission, and the `academics` module; writes also require administrator status. The frontend provides `/admin/academic/sessions`, `/admin/academic/classes`, `/admin/academic/sections`, and `/admin/academic/subjects` with English/Bangla text, paginated search, responsive forms, and permission-aware controls. Head teachers have read-only access when Academics is enabled.
 
-Joy's `0101_academic_sessions.sql` is merged from `origin/main`. This branch adds `0102_classes_subjects.sql` after it; the versioned runner discovers both filenames in numeric order. The migration creates three UUID-backed tables, foreign keys, unique indexes, an exclusive required/fourth designation check, and idempotent Academics grants. It does not change `0101`, add a session foreign key, or implement Sections. See [the schema handoff](docs/M2_CLASSES_SUBJECTS_HANDOFF.md) and [verified progress](docs/PROGRESS.md). The optional Academics module starts disabled; enable it in school settings before using the academic APIs or pages.
+Joy's `0101_academic_sessions.sql` and `0102_classes_subjects.sql` are on `origin/main`. This branch adds `0103_sections.sql`; the versioned runner discovers numeric filenames in order. Sections have UUID identifiers, session and class foreign keys, scoped unique names/codes, and indexes that support listing and future student enrollment integrity. The optional Academics module starts disabled; enable it in school settings before using the academic APIs or pages. See [verified progress](docs/PROGRESS.md).
 
 The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
+
+## M3 Students and Guardians
+
+Migration `0201_students_guardians.sql` creates student profiles, protected photos, guardian profiles, and many-to-many student–guardian links. Student admission numbers are case-insensitively unique; roll numbers are unique within a section. A composite foreign key ensures every student's section belongs to the selected class and session. Optional student and guardian login links require a user with the matching role. One child can have several guardians and at most one primary guardian.
+
+Administrators can create, search, edit, and delete student and guardian profiles at `/admin/students` and `/admin/guardians`; student detail, photo upload, guardian links, printable QR ID cards, and atomic CSV import are available there. A student sees their linked profile at `/student/me`. A guardian sees only linked children at `/guardian/children`. Head teachers have read-only directories. Every route requires authentication, its current permission, and the enabled **Students** module. The admin student editor also reads Academics options, so enable **Academics** for that workflow. Both optional modules remain disabled by default.
+
+The CSV header is `admission_no,name_en,name_bn,date_of_birth,roll_no,status`; all imported rows use the selected session, class, and section. The limit is 1,000 rows and 2 MiB per import. Photos accept JPEG or PNG up to 2 MiB and are re-encoded to discard metadata. A QR code contains the student's UUID as an identifier, not an access credential. Administrator deletion removes a profile and its photo/relationship links after a browser confirmation; existing login accounts remain. Account creation and initial-password delivery still use the M1 administrator workflow. See [OpenAPI](docs/openapi.yaml) for all endpoints and permissions.
+
+Run the stack with the [Compose instructions](#run-with-docker-compose). The backend applies migration 201 after versions 1–4 and 101–103. For PostgreSQL tests, set `AUTH_TEST_DATABASE_URL` to a fresh, separate database before running `go test ./... -count=1` from `backend/`.
 
 ## M0 Features
 
@@ -95,7 +105,7 @@ All six endpoints require a valid JWT and the enabled `academics` module. Writes
 
 Deactivation may leave no current session; in that state the current lookup returns 404. The integrated classes, subjects, and assignments remain independent of sessions. Future session-dependent records should reference the stable session UUID and decide whether their own operations require a current session.
 
-Run this branch with the existing [Docker Compose instructions](#run-with-docker-compose) or the [local backend and frontend instructions](#run-backend-and-frontend-locally). The backend applies migrations 101 and 102 at startup. Existing Compose ports remain 5432/8080/5173. No demo credentials are provided; use an administrator account created through the documented interactive command. For PostgreSQL integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable database, then run `go test ./... -count=1` from `backend/`. The tests must not run against the application database.
+Run this branch with the existing [Docker Compose instructions](#run-with-docker-compose) or the [local backend and frontend instructions](#run-backend-and-frontend-locally). The backend applies migrations 101–103 at startup. Existing Compose ports remain 5432/8080/5173. No demo credentials are provided; use an administrator account created through the documented interactive command. For PostgreSQL integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable database, then run `go test ./... -count=1` from `backend/`. The tests must not run against the application database.
 
 ## Teachers and Staff (M4)
 
@@ -218,7 +228,7 @@ See `.env.example`, `backend/.env.example`, and `frontend/.env.example` for exam
 | `DATABASE_URL` | PostgreSQL DSN; required for authentication, optional for the health-only server | Unset |
 | `JWT_SIGNING_KEY_B64` | Base64 encoding of at least 32 random signing-key bytes; required when the database is configured | Unset |
 | `AUTH_COOKIE_SECURE` | Set `false` only for local HTTP; keep `true` behind HTTPS | `true` in the backend, `false` in local Compose |
-| `AUTH_TEST_DATABASE_URL` | Fresh, dedicated disposable PostgreSQL database for opt-in authentication, RBAC, school, dashboard, and academic integration tests; never point it at the application database | Unset |
+| `AUTH_TEST_DATABASE_URL` | Fresh, dedicated disposable PostgreSQL database for opt-in authentication, RBAC, school, academic, student, and guardian integration tests; never point it at the application database | Unset |
 | `GIN_MODE` | Gin log mode; Compose sets `release` | Gin default |
 | `VITE_API_BASE_URL` | Browser API path | `/api` |
 | `VITE_API_PROXY_TARGET` | Vite development proxy target | `http://localhost:8080` |
@@ -232,7 +242,7 @@ The backend reads shell environment variables. It does not load `.env` files aut
 ```powershell
 cd backend
 go vet ./...
-go test ./...
+go test ./... -count=1
 cd ../frontend
 npm.cmd ci
 npm.cmd run build
@@ -240,7 +250,7 @@ cd ..
 docker compose config --quiet
 ```
 
-For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The audit rollback test temporarily adds a rejecting constraint inside a transaction and rolls it back. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. M1 branch CI remains unverified until a developer push.
+For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The audit rollback test temporarily adds a rejecting constraint inside a transaction and rolls it back. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. Remote CI for the local M2 and M3 branches remains unverified until pushed.
 
 ## Future Work
 
