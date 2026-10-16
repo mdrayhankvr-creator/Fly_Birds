@@ -174,6 +174,12 @@ export const addClassSubject = (token: string, classId: string, subjectId: strin
 export const updateClassSubject = (token: string, classId: string, subjectId: string, fourth: boolean) => bearerRequest<ClassSubject>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_required: !fourth, is_fourth_subject: fourth }) })
 export const removeClassSubject = (token: string, classId: string, subjectId: string) => bearerRequest<{ deleted: boolean }>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'DELETE' })
 
+export type AcademicSection = { id: string; session_id: string; class_id: string; name: string; code: string; display_order: number; is_active: boolean; session_name: string; class_name: string }
+export type AcademicSectionInput = Omit<AcademicSection, 'id' | 'session_name' | 'class_name'>
+export const getAcademicSections = (token: string, params: URLSearchParams) => bearerRequest<Page<AcademicSection>>(`/academic/sections?${params}`, token)
+export const getAcademicSection = (token: string, id: string) => bearerRequest<AcademicSection>(`/academic/sections/${encodeURIComponent(id)}`, token)
+export const saveAcademicSection = (token: string, input: AcademicSectionInput, id?: string) => bearerRequest<AcademicSection>(id ? `/academic/sections/${encodeURIComponent(id)}` : '/academic/sections', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+
 export type AcademicSession = {
   id: string; name: string; start_date: string; end_date: string
   is_active: boolean; created_at: string; updated_at: string

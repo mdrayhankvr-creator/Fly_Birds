@@ -80,6 +80,7 @@ export function AcademicPage({ kind, canManage }: { kind: 'classes' | 'subjects'
       <p className="mt-2 text-slate-600">{t(kind === 'classes' ? 'classesDescription' : 'subjectsDescription')}</p>
       <nav className="mt-5 flex flex-wrap gap-2" aria-label={t('academicStructure')}>
         <Link to="/admin/academic/classes" className="rounded-lg bg-teal-50 px-4 py-2 font-semibold text-teal-800 hover:bg-teal-100">{t('classesHeading')}</Link>
+        <Link to="/admin/academic/sections" className="rounded-lg bg-teal-50 px-4 py-2 font-semibold text-teal-800 hover:bg-teal-100">{t('sectionsHeading')}</Link>
         <Link to="/admin/academic/subjects" className="rounded-lg bg-teal-50 px-4 py-2 font-semibold text-teal-800 hover:bg-teal-100">{t('subjectsHeading')}</Link>
       </nav>
     </header>

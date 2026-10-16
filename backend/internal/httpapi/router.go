@@ -41,7 +41,7 @@ func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Se
 	return NewRouterWithAcademicServices(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, nil)
 }
 
-func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service) *gin.Engine {
+func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionServices ...*academic.SectionService) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -114,6 +114,15 @@ func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, gr
 	academicRoutes.POST("/classes/:id/subjects", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.createMapping)
 	academicRoutes.PATCH("/classes/:id/subjects/:subjectId", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.updateMapping)
 	academicRoutes.DELETE("/classes/:id/subjects/:subjectId", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.deleteMapping)
+	var sectionService *academic.SectionService
+	if len(sectionServices) > 0 {
+		sectionService = sectionServices[0]
+	}
+	sectionHandler := &sectionsHandler{service: sectionService}
+	academicRoutes.GET("/sections", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), sectionHandler.list)
+	academicRoutes.POST("/sections", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
+	academicRoutes.GET("/sections/:id", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), sectionHandler.get)
+	academicRoutes.PATCH("/sections/:id", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
 	router.NoRoute(func(c *gin.Context) {
 		failure(c, http.StatusNotFound, "not_found", "route not found")
 	})

@@ -4,6 +4,7 @@ import { schoolTranslations } from './schoolTranslations'
 import { checkpoint4Translations } from './checkpoint4Translations'
 import { academicTranslations } from './academicTranslations'
 import { academicSessionsTranslations } from './academicSessionsTranslations'
+import { sectionTranslations } from './sectionTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -133,5 +134,7 @@ i18n.addResourceBundle('en', 'translation', academicTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', academicTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', academicSessionsTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', academicSessionsTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', sectionTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', sectionTranslations.bn, true, true)
 
 export default i18n

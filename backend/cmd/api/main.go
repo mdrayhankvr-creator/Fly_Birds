@@ -45,6 +45,7 @@ func run(logger *slog.Logger) error {
 	var auditService *audit.Service
 	var dashboardService *dashboard.Service
 	var academicService *academic.Service
+	var sectionService *academic.SectionService
 	var sessionService *academicsessions.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -76,6 +77,7 @@ func run(logger *slog.Logger) error {
 		}
 		if academicSchemaReady {
 			academicService = academic.NewService(academic.NewRepository(db))
+			sectionService = academic.NewSectionService(academic.NewSectionRepository(db))
 		}
 		sessionService = academicsessions.NewService(academicsessions.NewRepository(db))
 		logger.Info("postgres connected")
@@ -85,7 +87,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithAcademicServices(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService),
+		Handler:           httpapi.NewRouterWithAcademicServices(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

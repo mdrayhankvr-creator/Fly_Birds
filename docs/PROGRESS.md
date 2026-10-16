@@ -4,10 +4,18 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 21 verified criteria / 83 total criteria x 100 = **25.3%** (rounded to one decimal place).
-- **Current milestone completion:** 5 verified M2 criteria / 6 M2 criteria x 100 = **83.3% locally**.
+- **Overall completion:** 22 verified criteria / 83 total criteria x 100 = **26.5%** (rounded to one decimal place).
+- **Current milestone completion:** 6 verified M2 criteria / 6 M2 criteria x 100 = **100% locally**.
 
-The counted criteria are all four M0 criteria, all twelve M1 criteria, and Academic Sessions, Classes, Subjects, Class-subject mapping, and Fourth/optional subject flag in M2. Sections remains pending. M1 audit details below are historical evidence. Remote M2 CI remains unverified until the developer pushes the branch.
+The counted criteria are all four M0 criteria, all twelve M1 criteria, and all six M2 criteria. M1 audit details below are historical evidence. Remote M2 CI remains unverified until the developer pushes the branch.
+
+## Current Status — M2 Sections (2026-10-16)
+
+M2 is complete locally on `feature/m2-sections`, based on merged `origin/main` at `9c066178`. Migration `0103_sections.sql` follows versions 1–4, 101, and 102. A section belongs to one session and class; names and codes are unique within that pair, and both foreign keys restrict deletion. Editing and activation use the existing Academics permission, module, administrator, and audit controls. The section identifier and owning class/session are stable after creation. The bilingual `/admin/academic/sections` page offers search, filters, pagination, and an administrator editor; head teachers have read access.
+
+**Verification:** `go vet ./...` and `go test ./... -count=1` passed against a dedicated PostgreSQL database, including the Sections HTTP lifecycle and the existing suite. Migration 103 applied twice without error; the test verified the ledger through 103, direct database uniqueness and foreign keys, unauthorized and head-teacher requests, disabled Academics, creation, editing, activation, search, and pagination. Docker frontend `npm run build` passed TypeScript checking and Vite production compilation. `docker compose -p flybirds_sections_smoke config --quiet` passed. An isolated Compose project with its own database and ports rendered the saved section and editor at 1280 px in English and at 390 px in Bangla, without horizontal overflow or browser exceptions. The developer's application database and volume were untouched. OpenAPI route/reference validation passed in the Go suite. Remote CI and production migration remain unverified.
+
+**Next milestone:** M3 Students and Guardians starts on `feature/m3-students-guardians` from the completed local M2 branch; it must be reviewed and merged after M2.
 
 ## Current Status — M2 Task 002 (2026-10-16)
 
