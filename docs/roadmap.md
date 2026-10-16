@@ -7,7 +7,7 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | M0 | Foundation, health endpoint, CI, initial documentation | Merged into main; local Compose runtime verified |
 | M1 | Authentication and school configuration | Merged into main; 12/12 brief criteria locally verified |
 | M2 | Academic structure | 6/6 locally verified on `feature/m2-sections`; Sections complete with session/class integrity, guarded API, and bilingual page |
-| M3 | Students and guardians | In development on a branch based on the local M2 branch |
+| M3 | Students and guardians | 6/6 locally verified on `feature/m3-students-guardians`; this branch contains the unmerged M2 Sections commits and must follow M2 in review |
 | M4 | Teachers and staff | Not started |
 | M5 | Attendance | Not started |
 | M6 | Routine | Not started |

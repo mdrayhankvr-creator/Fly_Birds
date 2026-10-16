@@ -41,3 +41,8 @@
 
 [data-theme-preview] { background-color: #f8fafc; color: #0f172a; }
 [data-theme-preview="dark"] { background-color: #0b1424; color: #f8fafc; }
+@media print {
+  body * { visibility: hidden !important; }
+  .student-card, .student-card * { visibility: visible !important; }
+  .student-card { position: fixed; top: 12mm; left: 12mm; width: 86mm; margin: 0; box-shadow: none; }
+}

@@ -97,8 +97,28 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 		if allowed["academic_sessions:read"] && enabled["academics"] {
 			result.Navigation = append(result.Navigation, NavigationItem{Key: "academic_sessions", Name: "Academic sessions", Path: "/admin/academic/sessions"})
 		}
+		if enabled["students"] {
+			var peopleSchemaReady bool
+			if err := tx.Raw("SELECT to_regclass('public.students') IS NOT NULL").Scan(&peopleSchemaReady).Error; err != nil {
+				return err
+			}
+			if peopleSchemaReady {
+				if allowed["students:read"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "students", Name: "Students", Path: "/admin/students"})
+				}
+				if allowed["guardians:read"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "guardians", Name: "Guardians", Path: "/admin/guardians"})
+				}
+				if allowed["students:read_self"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "student_profile", Name: "My student profile", Path: "/student/me"})
+				}
+				if allowed["guardians:read_children"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "guardian_children", Name: "My children", Path: "/guardian/children"})
+				}
+			}
+		}
 		for _, m := range modules {
-			if m.Enabled && !m.IsCore && m.Key != "academics" {
+			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "students" {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: m.Key, Name: m.Name, ComingSoon: true})
 			}
 		}

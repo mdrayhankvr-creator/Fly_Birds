@@ -14,6 +14,10 @@ import { DashboardPage } from './pages/DashboardPage'
 import { AcademicPage } from './pages/AcademicPage'
 import { AcademicSessionsPage } from './pages/AcademicSessionsPage'
 import { SectionsPage } from './pages/SectionsPage'
+import { StudentsPage } from './pages/StudentsPage'
+import { GuardiansPage } from './pages/GuardiansPage'
+import { StudentProfilePage } from './pages/StudentProfilePage'
+import { GuardianChildrenPage } from './pages/GuardianChildrenPage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -116,6 +120,24 @@ function AcademicSessionsGate({ permissions, loading, error }: { permissions: st
   return <AcademicSessionsPage permissions={permissions} />
 }
 
+function PeopleGate({ kind, permissions, role, enabled, loading, error }: { kind: 'students' | 'guardians' | 'profile' | 'self' | 'children' | 'child'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('loadingPermissions')}</p>
+  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (!enabled) return <p role="alert">{t('peopleModuleDisabled')}</p>
+  const canStudents = !!permissions?.includes('students:read') && (role === 'admin' || role === 'head_teacher')
+  const canGuardians = !!permissions?.includes('guardians:read') && (role === 'admin' || role === 'head_teacher')
+  const canManageStudents = role === 'admin' && !!permissions?.includes('students:manage')
+  const canManageGuardians = role === 'admin' && !!permissions?.includes('guardians:manage')
+  if (kind === 'students' && canStudents) return <StudentsPage canManage={canManageStudents} />
+  if (kind === 'guardians' && canGuardians) return <GuardiansPage canManage={canManageGuardians} />
+  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} />
+  if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
+  if (kind === 'children' && role === 'guardian' && permissions?.includes('guardians:read_children')) return <GuardianChildrenPage />
+  if (kind === 'child' && role === 'guardian' && permissions?.includes('guardians:read_children')) return <StudentProfilePage mode="child" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
+  return <p role="alert">{t('permissionDenied')}</p>
+}
+
 function applyBranding(branding: SchoolBranding | undefined) {
   const root = document.documentElement
   const validColor = (value: string | undefined) => value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null
@@ -159,7 +181,7 @@ export default function App() {
   })
   const academicNavigation = useQuery({
     queryKey: ['dashboard', user?.id],
-    enabled: !!accessToken && !!myPermissions.data?.some((permission) => permission === 'academics:read' || permission === 'academic_sessions:read') && !myPermissions.data?.includes('modules:read'),
+    enabled: !!accessToken && !!myPermissions.data?.some((permission) => ['academics:read', 'academic_sessions:read', 'students:read', 'guardians:read', 'students:read_self', 'guardians:read_children'].includes(permission)) && !myPermissions.data?.includes('modules:read'),
     retry: false,
     refetchInterval: 15_000,
     queryFn: async () => {
@@ -185,8 +207,9 @@ export default function App() {
   const academicEnabled = myModules.data
     ? moduleEnabled('academics')
     : !!academicNavigation.data?.navigation.some((item) => item.path.startsWith('/admin/academic/'))
-  const hasAcademicRead = !!myPermissions.data?.includes('academics:read')
-  const academicLoading = myPermissions.isPending || (hasAcademicRead && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
+  const peopleEnabled = myModules.data ? moduleEnabled('students') : !!academicNavigation.data?.navigation.some((item) => ['/admin/students', '/admin/guardians', '/student/me', '/guardian/children'].some(path => item.path.startsWith(path)))
+  const hasModuleNavigation = !!myPermissions.data?.some(permission => ['academics:read', 'academic_sessions:read', 'students:read', 'guardians:read', 'students:read_self', 'guardians:read_children'].includes(permission))
+  const academicLoading = myPermissions.isPending || (hasModuleNavigation && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
   const academicError = myPermissions.isError || myModules.isError || academicNavigation.isError
 
   async function setLanguage(language: 'en' | 'bn') {
@@ -220,6 +243,10 @@ export default function App() {
                     {myPermissions.data?.includes('school_settings:read') && moduleEnabled('school_settings') && <Link to="/admin/school-settings" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('schoolSettings')}</Link>}
                     {myPermissions.data?.includes('academics:read') && academicEnabled && <><Link to="/admin/academic/classes" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('classesHeading')}</Link><Link to="/admin/academic/sections" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('sectionsHeading')}</Link><Link to="/admin/academic/subjects" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('subjectsHeading')}</Link></>}
                     {myPermissions.data?.includes('academic_sessions:read') && academicEnabled && <Link to="/admin/academic/sessions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('academicSessions')}</Link>}
+                    {myPermissions.data?.includes('students:read') && peopleEnabled && <Link to="/admin/students" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('studentsHeading')}</Link>}
+                    {myPermissions.data?.includes('guardians:read') && peopleEnabled && <Link to="/admin/guardians" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('guardiansHeading')}</Link>}
+                    {myPermissions.data?.includes('students:read_self') && peopleEnabled && <Link to="/student/me" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('myStudentProfile')}</Link>}
+                    {myPermissions.data?.includes('guardians:read_children') && peopleEnabled && <Link to="/guardian/children" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('guardianChildren')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
               </div>
@@ -246,6 +273,12 @@ export default function App() {
           <Route path="/admin/academic/subjects" element={<ProtectedRoute><AcademicGate kind="subjects" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="/admin/academic/sections" element={<ProtectedRoute><AcademicGate kind="sections" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="/admin/academic/sessions" element={<ProtectedRoute><AcademicSessionsGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
+          <Route path="/admin/students" element={<ProtectedRoute><PeopleGate kind="students" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
+          <Route path="/admin/students/:id" element={<ProtectedRoute><PeopleGate kind="profile" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
+          <Route path="/admin/guardians" element={<ProtectedRoute><PeopleGate kind="guardians" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
+          <Route path="/student/me" element={<ProtectedRoute><PeopleGate kind="self" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
+          <Route path="/guardian/children" element={<ProtectedRoute><PeopleGate kind="children" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
+          <Route path="/guardian/children/:id" element={<ProtectedRoute><PeopleGate kind="child" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
