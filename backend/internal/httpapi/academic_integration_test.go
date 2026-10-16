@@ -17,8 +17,8 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
 )
 
-// This test intentionally waits for the coordinated migration. Its table check
-// prevents this branch from creating or numbering Joy's session migration.
+// The migration runner must install both Joy's sessions schema and the
+// independent classes/subjects schema before this lifecycle can run.
 func TestPostgresAcademicLifecycle(t *testing.T) {
 	dsn := os.Getenv("AUTH_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -43,7 +43,20 @@ func TestPostgresAcademicLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !hasSchema {
-		t.Skip("academic migration is awaiting Joy's migration number and registration")
+		t.Fatal("academic migration 0102 was not installed")
+	}
+	var requiredVersions int64
+	if err := db.Table("schema_migrations").Where("version IN ?", []int{1, 2, 3, 4, 101, 102}).Count(&requiredVersions).Error; err != nil || requiredVersions != 6 {
+		t.Fatalf("required migrations: %d, error %v", requiredVersions, err)
+	}
+	for _, check := range []struct {
+		role, permission string
+		want             int64
+	}{{"admin", "academics:read", 1}, {"admin", "academics:manage", 1}, {"head_teacher", "academics:read", 1}, {"head_teacher", "academics:manage", 0}} {
+		var count int64
+		if err := db.Table("role_permissions").Where("role_id=? AND permission_id=?", check.role, check.permission).Count(&count).Error; err != nil || count != check.want {
+			t.Fatalf("%s %s grant: count=%d error=%v", check.role, check.permission, count, err)
+		}
 	}
 	var suffixBytes [6]byte
 	if _, err := rand.Read(suffixBytes[:]); err != nil {
