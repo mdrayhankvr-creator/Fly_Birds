@@ -71,6 +71,10 @@ func NewRouterWithIntegratedServices(service *auth.Service, secureCookies bool, 
 	if len(attendanceServices) > 0 {
 		attendanceService = attendanceServices[0]
 	}
+	return NewRouterWithStudentAttendance(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, nil)
+}
+
+func NewRouterWithStudentAttendance(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -143,6 +147,16 @@ func NewRouterWithIntegratedServices(service *auth.Service, secureCookies bool, 
 	management.GET("/attendance/teachers/me", RequirePermission(service, "attendance:teachers_read_self"), moduleGuard("attendance"), attendanceHandler.ownTeacherHistory)
 	management.GET("/attendance/teachers/monthly", RequirePermission(service, "attendance:teachers_reports"), moduleGuard("attendance"), attendanceHandler.teacherMonthly)
 	management.GET("/attendance/teachers/me/monthly", RequirePermission(service, "attendance:teachers_read_self"), moduleGuard("attendance"), attendanceHandler.ownTeacherMonthly)
+	studentAttendance := &studentAttendanceHandler{service: studentAttendanceService}
+	management.GET("/attendance/students/sections", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.sections)
+	management.GET("/attendance/students/roster", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.roster)
+	management.POST("/attendance/students", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.record)
+	management.POST("/attendance/students/qr", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.scan)
+	management.PATCH("/attendance/students/:id", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.correct)
+	management.GET("/attendance/students/monthly", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.monthly)
+	management.GET("/attendance/students/me/report", RequirePermission(service, "attendance:students_read_self"), moduleGuard("attendance"), studentAttendance.self)
+	management.GET("/attendance/guardians/children/:id/report", RequirePermission(service, "attendance:guardians_read_children"), moduleGuard("attendance"), studentAttendance.child)
+	management.GET("/attendance/alerts", RequirePermission(service, "attendance:alerts_read"), moduleGuard("attendance"), studentAttendance.alerts)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")

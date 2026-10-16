@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.8.0
+  version: 0.9.0
   description: M0-M5 APIs, including academic structure, students and guardians, staff management, and teacher attendance. Protected module routes check the active session, current role permission, and current database module state. Student and guardian reads scope records to their linked accounts.
 servers:
   - url: http://localhost:8080
@@ -1009,6 +1009,65 @@ paths:
       description: Requires guardians:read and students module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Linked student profiles }, '404': { $ref: '#/components/responses/NotFound' } }
+  /attendance/students/sections:
+    get:
+      operationId: listAttendanceSections
+      description: Requires attendance:students_read and enabled Attendance module; sections are scoped to assigned classes.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Sections } }
+  /attendance/students/roster:
+    get:
+      operationId: getStudentAttendanceRoster
+      description: Requires attendance:students_read and enabled Attendance module; teachers are scoped to assigned classes.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated daily student roster } }
+  /attendance/students:
+    post:
+      operationId: recordStudentAttendance
+      description: Requires attendance:students_manage and enabled Attendance module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentAttendanceInput' } } } }
+      responses: { '201': { description: Daily record }, '409': { description: Duplicate attendance } }
+  /attendance/students/qr:
+    post:
+      operationId: scanStudentAttendanceQR
+      description: The M3 card QR uses FB-STUDENT plus a student UUID and identifies a student; the authenticated actor and class assignment authorize marking present.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentAttendanceScan' } } } }
+      responses: { '201': { description: Student marked present }, '403': { description: Unassigned actor } }
+  /attendance/students/{id}:
+    patch:
+      operationId: correctStudentAttendance
+      description: Requires attendance:students_manage and enabled Attendance module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentAttendanceCorrection' } } } }
+      responses: { '200': { description: Corrected record } }
+  /attendance/students/monthly:
+    get:
+      operationId: getStudentAttendanceMonthly
+      description: Requires attendance:students_read and enabled Attendance module; teachers are scoped to assigned classes.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated monthly section totals } }
+  /attendance/students/me/report:
+    get:
+      operationId: getOwnStudentAttendanceReport
+      description: Requires attendance:students_read_self and enabled Attendance module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Own linked student report }, '404': { description: No linked student } }
+  /attendance/guardians/children/{id}/report:
+    get:
+      operationId: getGuardianChildAttendanceReport
+      description: Requires attendance:guardians_read_children and enabled Attendance module; current guardian link is verified.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Linked child report }, '404': { description: Child not linked } }
+  /attendance/alerts:
+    get:
+      operationId: listAbsenceAlerts
+      description: Administrator only; requires attendance:alerts_read and enabled Attendance module. Events are triggers for later delivery.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated pending absence events } }
 components:
   securitySchemes:
     bearerAuth:
@@ -1082,6 +1141,26 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    StudentAttendanceInput:
+      type: object
+      required: [student_id, attendance_date, status]
+      properties:
+        student_id: { type: string, format: uuid }
+        attendance_date: { type: string, format: date }
+        status: { type: string, enum: [present, absent, late] }
+        note: { type: string, maxLength: 500 }
+    StudentAttendanceScan:
+      type: object
+      required: [payload, attendance_date]
+      properties:
+        payload: { type: string, description: M3 FB-STUDENT card QR identifier; never an authorization token }
+        attendance_date: { type: string, format: date }
+    StudentAttendanceCorrection:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [present, absent, late] }
+        note: { type: string, maxLength: 500 }
     TeacherAttendanceInput:
       type: object
       required: [session_id, employee_id, attendance_date, status]
