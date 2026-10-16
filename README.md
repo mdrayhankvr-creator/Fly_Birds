@@ -1,12 +1,12 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 and M1 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M2 is complete locally on `feature/m2-sections`; M3 Students and Guardians is complete locally on `feature/m3-students-guardians`, which contains the unmerged M2 commits. Review and merge M2 before M3.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M4 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M5 Attendance is complete locally on `feature/m5-attendance` and awaits review.
 
 ## M2 Tasks 001–002 — Academic Structure Integration
 
 The `feature/m2-sections` branch completes Academic Sessions, validated classes, session- and class-owned Sections, bilingual subjects with canonical subject codes, and class-subject assignments with exactly one required or fourth/optional designation. The backend follows Handler → Service → Repository and guards academic routes with current authentication, permission, and the `academics` module; writes also require administrator status. The frontend provides `/admin/academic/sessions`, `/admin/academic/classes`, `/admin/academic/sections`, and `/admin/academic/subjects` with English/Bangla text, paginated search, responsive forms, and permission-aware controls. Head teachers have read-only access when Academics is enabled.
 
-Joy's `0101_academic_sessions.sql` and `0102_classes_subjects.sql` are on `origin/main`. This branch adds `0103_sections.sql`; the versioned runner discovers numeric filenames in order. Sections have UUID identifiers, session and class foreign keys, scoped unique names/codes, and indexes that support listing and future student enrollment integrity. The optional Academics module starts disabled; enable it in school settings before using the academic APIs or pages. See [verified progress](docs/PROGRESS.md).
+M2 migrations `0101_academic_sessions.sql`, `0102_classes_subjects.sql`, and `0103_sections.sql` are merged into main; the versioned runner discovers numeric filenames in order. Sections have UUID identifiers, session and class foreign keys, scoped unique names/codes, and indexes that support listing and future student enrollment integrity. The optional Academics module starts disabled; enable it in school settings before using the academic APIs or pages. See [verified progress](docs/PROGRESS.md).
 
 The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
 
@@ -232,7 +232,7 @@ See `.env.example`, `backend/.env.example`, and `frontend/.env.example` for exam
 | `DATABASE_URL` | PostgreSQL DSN; required for authentication, optional for the health-only server | Unset |
 | `JWT_SIGNING_KEY_B64` | Base64 encoding of at least 32 random signing-key bytes; required when the database is configured | Unset |
 | `AUTH_COOKIE_SECURE` | Set `false` only for local HTTP; keep `true` behind HTTPS | `true` in the backend, `false` in local Compose |
-| `AUTH_TEST_DATABASE_URL` | Fresh, dedicated disposable PostgreSQL database for opt-in authentication, RBAC, school, academic, student, and guardian integration tests; never point it at the application database | Unset |
+| `AUTH_TEST_DATABASE_URL` | Fresh, dedicated disposable PostgreSQL database for opt-in authentication, RBAC, school, academic, student, guardian, and attendance integration tests; never point it at the application database | Unset |
 | `GIN_MODE` | Gin log mode; Compose sets `release` | Gin default |
 | `VITE_API_BASE_URL` | Browser API path | `/api` |
 | `VITE_API_PROXY_TARGET` | Vite development proxy target | `http://localhost:8080` |
@@ -254,7 +254,7 @@ cd ..
 docker compose config --quiet
 ```
 
-For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The audit rollback test temporarily adds a rejecting constraint inside a transaction and rolls it back. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. Remote CI for the local M2 and M3 branches remains unverified until pushed.
+For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The audit rollback test temporarily adds a rejecting constraint inside a transaction and rolls it back. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. Remote CI for the local M5 branch remains unverified until pushed.
 
 ## Future Work
 
