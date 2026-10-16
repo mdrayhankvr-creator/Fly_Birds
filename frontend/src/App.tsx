@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Route, Routes } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, getHealth, getMyPermissions, getSchoolBranding, getSchoolModules, type SchoolBranding } from './api/client'
+import { ApiError, getDashboard, getHealth, getMyPermissions, getSchoolBranding, getSchoolModules, type SchoolBranding } from './api/client'
 import { useAuth } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { LoginPage } from './pages/LoginPage'
@@ -101,9 +101,9 @@ function AcademicGate({ kind, permissions, role, enabled, loading, error }: { ki
   const { t } = useTranslation()
   if (loading) return <p role="status">{t('loadingPermissions')}</p>
   if (error) return <p role="alert">{t('loadPermissionsError')}</p>
-  if (role !== 'admin' || !permissions?.includes('academics:read')) return <p role="alert">{t('permissionDenied')}</p>
+  if (!permissions?.includes('academics:read')) return <p role="alert">{t('permissionDenied')}</p>
   if (!enabled) return <p role="alert">{t('academicModuleDisabled')}</p>
-  return <AcademicPage kind={kind} canManage={permissions.includes('academics:manage')} />
+  return <AcademicPage kind={kind} canManage={role === 'admin' && permissions.includes('academics:manage')} />
 }
 
 function AcademicSessionsGate({ permissions, loading, error }: { permissions: string[] | undefined; loading: boolean; error: boolean }) {
@@ -155,6 +155,23 @@ export default function App() {
       }
     },
   })
+  const academicNavigation = useQuery({
+    queryKey: ['dashboard', user?.id],
+    enabled: !!accessToken && !!myPermissions.data?.some((permission) => permission === 'academics:read' || permission === 'academic_sessions:read') && !myPermissions.data?.includes('modules:read'),
+    retry: false,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      if (!accessToken) throw new ApiError(401, 'unauthorized')
+      try { return await getDashboard(accessToken) }
+      catch (cause) {
+        if (cause instanceof ApiError && cause.status === 401) {
+          try { return await getDashboard(await renew()) }
+          catch (retryCause) { if (retryCause instanceof ApiError && retryCause.status === 401) expire(); throw retryCause }
+        }
+        throw cause
+      }
+    },
+  })
   useEffect(() => {
     applyBranding(branding.data)
     if (branding.data?.preferred_language && !localStorage.getItem('flybirds.language')) {
@@ -163,6 +180,12 @@ export default function App() {
     }
   }, [branding.data, i18n])
   const moduleEnabled = (key: string) => myModules.data?.items.find((item) => item.key === key)?.enabled ?? true
+  const academicEnabled = myModules.data
+    ? moduleEnabled('academics')
+    : !!academicNavigation.data?.navigation.some((item) => item.path.startsWith('/admin/academic/'))
+  const hasAcademicRead = !!myPermissions.data?.includes('academics:read')
+  const academicLoading = myPermissions.isPending || (hasAcademicRead && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
+  const academicError = myPermissions.isError || myModules.isError || academicNavigation.isError
 
   async function setLanguage(language: 'en' | 'bn') {
     localStorage.setItem('flybirds.language', language)
@@ -193,8 +216,8 @@ export default function App() {
                     {user.role === 'admin' && myPermissions.data?.includes('users:read') && moduleEnabled('permissions') && <Link to="/admin/users" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_users')}</Link>}
                     {myPermissions.data?.includes('permissions:read') && moduleEnabled('permissions') && <Link to="/admin/permissions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('permissionEditor')}</Link>}
                     {myPermissions.data?.includes('school_settings:read') && moduleEnabled('school_settings') && <Link to="/admin/school-settings" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('schoolSettings')}</Link>}
-                    {user.role === 'admin' && myPermissions.data?.includes('academics:read') && myModules.data && moduleEnabled('academics') && <><Link to="/admin/academic/classes" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('classesHeading')}</Link><Link to="/admin/academic/subjects" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('subjectsHeading')}</Link></>}
-                    {myPermissions.data?.includes('academic_sessions:read') && myModules.data?.items.some((item) => item.key === 'academics' && item.enabled) && <Link to="/admin/academic/sessions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('academicSessions')}</Link>}
+                    {myPermissions.data?.includes('academics:read') && academicEnabled && <><Link to="/admin/academic/classes" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('classesHeading')}</Link><Link to="/admin/academic/subjects" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('subjectsHeading')}</Link></>}
+                    {myPermissions.data?.includes('academic_sessions:read') && academicEnabled && <Link to="/admin/academic/sessions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('academicSessions')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
               </div>
@@ -217,8 +240,8 @@ export default function App() {
           <Route path="/admin/users" element={<ProtectedRoute><UsersGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/permissions" element={<ProtectedRoute><PermissionGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/school-settings" element={<ProtectedRoute><SchoolGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
-          <Route path="/admin/academic/classes" element={<ProtectedRoute><AcademicGate kind="classes" permissions={myPermissions.data} role={user?.role} enabled={!!myModules.data && moduleEnabled('academics')} loading={myPermissions.isPending || (!!myPermissions.data?.includes('modules:read') && myModules.isPending)} error={myPermissions.isError || myModules.isError} /></ProtectedRoute>} />
-          <Route path="/admin/academic/subjects" element={<ProtectedRoute><AcademicGate kind="subjects" permissions={myPermissions.data} role={user?.role} enabled={!!myModules.data && moduleEnabled('academics')} loading={myPermissions.isPending || (!!myPermissions.data?.includes('modules:read') && myModules.isPending)} error={myPermissions.isError || myModules.isError} /></ProtectedRoute>} />
+          <Route path="/admin/academic/classes" element={<ProtectedRoute><AcademicGate kind="classes" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
+          <Route path="/admin/academic/subjects" element={<ProtectedRoute><AcademicGate kind="subjects" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="/admin/academic/sessions" element={<ProtectedRoute><AcademicSessionsGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -100,7 +100,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label={t('currentSession')}>
       <h2 className="text-lg font-semibold text-slate-900">{t('currentSession')}</h2>
       {current.isPending ? <p role="status" className="mt-2 text-slate-600">{t('loadingSessions')}</p> :
-        current.isError ? <p role="alert" className="mt-2 text-rose-700">{t('loadSessionsError')}</p> :
+        current.isError ? <p role="alert" className="mt-2 text-rose-700">{current.error instanceof ApiError && current.error.code === 'module_disabled' ? t('academicModuleDisabled') : t('loadSessionsError')}</p> :
           <p className="mt-2 text-slate-700">{current.data?.name ?? t('noCurrentSession')}</p>}
     </section>
     {(canCreate || (canUpdate && editing)) && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
