@@ -196,6 +196,11 @@ func TestPostgresTeacherAttendance(t *testing.T) {
 	if !((first == 201 && second == 409) || (first == 409 && second == 201)) {
 		t.Fatalf("concurrent duplicate entry results: %d, %d", first, second)
 	}
+	if err := db.Table("employees").Where("id=?", teacherEmployeeID).Update("is_active", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	check("POST", "/attendance/teachers", input(teacherEmployeeID, "2026-01-05", "present"), adminHeader, 409)
+	check("PATCH", "/attendance/teachers/"+recorded.Data.ID, `{"status":"present","note":"Historical correction"}`, adminHeader, 200)
 	if err := db.Table("school_modules").Where("school_id=? AND module_key='attendance'", school.SingleSchoolID).Update("enabled", false).Error; err != nil {
 		t.Fatal(err)
 	}

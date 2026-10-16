@@ -77,7 +77,7 @@ func validateDate(tx *gorm.DB, sessionID, date string) error {
 	}
 	return nil
 }
-func validateEmployee(tx *gorm.DB, employeeID, date, status string) error {
+func validateEmployee(tx *gorm.DB, employeeID, date, status string, requireActive bool) error {
 	var row struct {
 		Kind     string
 		IsActive bool
@@ -85,14 +85,14 @@ func validateEmployee(tx *gorm.DB, employeeID, date, status string) error {
 		JoinedOn string
 		LeftOn   *string
 	}
-	err := tx.Table("employees").Select("kind,is_active,user_id,to_char(joined_on,'YYYY-MM-DD') AS joined_on,to_char(left_on,'YYYY-MM-DD') AS left_on").Where("id=?", employeeID).Take(&row).Error
+	err := tx.Table("employees").Clauses(clause.Locking{Strength: "SHARE"}).Select("kind,is_active,user_id,to_char(joined_on,'YYYY-MM-DD') AS joined_on,to_char(left_on,'YYYY-MM-DD') AS left_on").Where("id=?", employeeID).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
-	if row.Kind != "teacher" || date < row.JoinedOn || (row.LeftOn != nil && date > *row.LeftOn) {
+	if row.Kind != "teacher" || (requireActive && !row.IsActive) || date < row.JoinedOn || (row.LeftOn != nil && date > *row.LeftOn) {
 		return ErrConflict
 	}
 	if status == "leave" {
@@ -144,7 +144,7 @@ func (r *GormRepository) Record(ctx context.Context, actor string, value Record)
 		if err := validateDate(tx, value.SessionID, value.AttendanceDate); err != nil {
 			return err
 		}
-		if err := validateEmployee(tx, value.EmployeeID, value.AttendanceDate, value.Status); err != nil {
+		if err := validateEmployee(tx, value.EmployeeID, value.AttendanceDate, value.Status, true); err != nil {
 			return err
 		}
 		if role == "head_teacher" {
@@ -189,7 +189,7 @@ func (r *GormRepository) Correct(ctx context.Context, actor, id string, input Co
 				return ErrForbidden
 			}
 		}
-		if err := validateEmployee(tx, before.EmployeeID, before.AttendanceDate, input.Status); err != nil {
+		if err := validateEmployee(tx, before.EmployeeID, before.AttendanceDate, input.Status, false); err != nil {
 			return err
 		}
 		if err := tx.Table("teacher_attendance").Where("id=?", id).Updates(map[string]any{"status": input.Status, "note": input.Note, "updated_by": actor, "updated_at": time.Now().UTC()}).Error; err != nil {
