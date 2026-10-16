@@ -68,7 +68,28 @@ Final local gates passed: `go vet ./...`, `go test ./... -count=1` with and with
 
 The security review found no confirmed critical or high M1 defect. Administrator-assisted initial password delivery remains a **medium** operational risk; use a private channel and a unique temporary password. Account lockout is per account, with no independent IP or edge rate limit (**medium**); deploy a rate limit before public exposure. Production HTTPS and Secure-cookie behavior have not been exercised (**medium**, deployment verification). External HTTPS logo bytes are not inspected and the browser contacts the chosen host (**low**); use a trusted host. There are no implemented optional feature routes yet: module enablement and the `RequireModule` middleware passed PostgreSQL tests on an isolated test route, while rejection by a real optional feature route must be checked when that route is introduced. Do not infer any academic or financial feature from a Coming Soon module link.
 
-M1 is ready for Pull Request review. Merge only after the branch is pushed by the developer, GitHub Actions passes, and the limitations above are accepted. M2 has not started.
+At the M1 audit, M1 was ready for Pull Request review and M2 had not started. The audit's branch and CI status is historical; the current task status is tracked in [Progress](docs/PROGRESS.md).
+
+## M2 Task 001 — Academic Sessions
+
+Academic Sessions adds one M2 feature. Administrators can create, edit, activate, and deactivate sessions at `/admin/academic/sessions`; authorized head teachers can read them. The page supports English and Bangla, search, pagination, form validation, current-session status, and the configured school theme. The optional **Academics** module starts disabled. Enable it in `/admin/school-settings` before using the page or API. No session or school name is seeded.
+
+Migration `0101_academic_sessions.sql` adds `academic_sessions` with UUID IDs, date ordering, a generated normalized name key, and a unique index that permits at most one active session. Labels may be a single year (`2026`) or consecutive years (`2026–2027` or `2026-2027`). Hyphen and en-dash variants have the same unique key. The migration also adds `academic_sessions:read`, `academic_sessions:create`, `academic_sessions:update`, and `academic_sessions:activate`; all four are granted to administrators, and read is granted to head teachers. Its numeric version leaves room for independently numbered migrations after M1. Later classes, sections, subjects, attendance, and exams can reference `academic_sessions(id)`; they are outside this task.
+
+| Method | Endpoint | Permission | Purpose |
+|---|---|---|---|
+| GET | `/academic/sessions` | `academic_sessions:read` | Search and page through sessions |
+| POST | `/academic/sessions` | `academic_sessions:create` | Create an inactive session |
+| GET | `/academic/sessions/current` | `academic_sessions:read` | Read the active session; 404 if none |
+| GET | `/academic/sessions/{id}` | `academic_sessions:read` | Read one session |
+| PATCH | `/academic/sessions/{id}` | `academic_sessions:update` | Edit the name and dates |
+| PATCH | `/academic/sessions/{id}/activation` | `academic_sessions:activate` | Activate or deactivate |
+
+All six endpoints require a valid JWT and the enabled `academics` module. Writes require an active administrator account as well as the listed permission. Activation is serialized and transactional; the previous active session is deactivated in the same transaction. See [OpenAPI](docs/openapi.yaml) for request and response schemas.
+
+Deactivation may leave no current session; in that state the current lookup returns 404. No downstream academic records exist yet. Future modules should reference the stable UUID and decide whether their own operations require a current session.
+
+Run this branch with the existing [Docker Compose instructions](#run-with-docker-compose) or the [local backend and frontend instructions](#run-backend-and-frontend-locally). The backend applies the new migration at startup. Existing Compose ports remain 5432/8080/5173. No demo credentials are provided; use an administrator account created through the documented interactive command. For PostgreSQL integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable database, then run `go test ./... -count=1` from `backend/`. The tests must not run against the application database.
 
 ## Repository Layout
 
@@ -124,6 +145,7 @@ Use `docker compose down` to stop the stack. The default endpoints are:
 | School settings | http://localhost:5173/admin/school-settings |
 | User administration | http://localhost:5173/admin/users |
 | Role dashboard | http://localhost:5173/dashboard |
+| Academic sessions | http://localhost:5173/admin/academic/sessions |
 
 The database is exposed on `localhost:5432` by default. Change the values in `.env` if those ports are occupied. The sample PostgreSQL password is for local development only.
 
