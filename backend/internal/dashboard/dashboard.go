@@ -85,6 +85,13 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 			}
 			if academicSchemaReady {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: "academic_classes", Name: "Classes", Path: "/admin/academic/classes"}, NavigationItem{Key: "academic_subjects", Name: "Subjects", Path: "/admin/academic/subjects"})
+				var sectionSchemaReady bool
+				if err := tx.Raw("SELECT to_regclass('public.academic_sections') IS NOT NULL").Scan(&sectionSchemaReady).Error; err != nil {
+					return err
+				}
+				if sectionSchemaReady {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "academic_sections", Name: "Sections", Path: "/admin/academic/sections"})
+				}
 			}
 		}
 		if allowed["academic_sessions:read"] && enabled["academics"] {
@@ -102,8 +109,28 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 		if user.Role != "admin" && allowed["attendance:teachers_read_self"] && enabled["attendance"] {
 			result.Navigation = append(result.Navigation, NavigationItem{Key: "teacher_attendance_self", Name: "My attendance", Path: "/attendance/me"})
 		}
+		if enabled["students"] {
+			var peopleSchemaReady bool
+			if err := tx.Raw("SELECT to_regclass('public.students') IS NOT NULL").Scan(&peopleSchemaReady).Error; err != nil {
+				return err
+			}
+			if peopleSchemaReady {
+				if allowed["students:read"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "students", Name: "Students", Path: "/admin/students"})
+				}
+				if allowed["guardians:read"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "guardians", Name: "Guardians", Path: "/admin/guardians"})
+				}
+				if allowed["students:read_self"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "student_profile", Name: "My student profile", Path: "/student/me"})
+				}
+				if allowed["guardians:read_children"] {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "guardian_children", Name: "My children", Path: "/guardian/children"})
+				}
+			}
+		}
 		for _, m := range modules {
-			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "attendance" {
+			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: m.Key, Name: m.Name, ComingSoon: true})
 			}
 		}
