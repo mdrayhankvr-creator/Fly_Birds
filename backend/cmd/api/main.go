@@ -13,6 +13,7 @@ import (
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/config"
@@ -48,6 +49,7 @@ func run(logger *slog.Logger) error {
 	var academicService *academic.Service
 	var sessionService *academicsessions.Service
 	var staffService *staff.Service
+	var attendanceService *attendance.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -81,6 +83,7 @@ func run(logger *slog.Logger) error {
 		}
 		sessionService = academicsessions.NewService(academicsessions.NewRepository(db))
 		staffService = staff.NewService(staff.NewRepository(db))
+		attendanceService = attendance.NewService(attendance.NewRepository(db))
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -88,7 +91,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithAcademicServices(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, staffService),
+		Handler:           httpapi.NewRouterWithBatchServices(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, staffService, attendanceService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

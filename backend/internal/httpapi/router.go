@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
@@ -47,6 +48,10 @@ func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, gr
 	if len(staffServices) > 0 {
 		staffService = staffServices[0]
 	}
+	return NewRouterWithBatchServices(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, staffService, nil)
+}
+
+func NewRouterWithBatchServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, staffService *staff.Service, attendanceService *attendance.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -111,6 +116,14 @@ func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, gr
 	management.PATCH("/staff/leaves/:id/decision", RequirePermission(service, "staff_leaves:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.decideLeave)
 	management.GET("/staff/employees/:id/salaries", RequirePermission(service, "staff_salary:read"), moduleGuard("staff"), RequireAdministrator(), staffHandler.listSalaries)
 	management.POST("/staff/employees/:id/salaries", RequirePermission(service, "staff_salary:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.addSalary)
+	attendanceHandler := &attendanceHandler{service: attendanceService}
+	management.GET("/attendance/sessions", RequirePermission(service, "attendance:teachers_read_self"), moduleGuard("attendance"), attendanceHandler.attendanceSessions)
+	management.GET("/attendance/teachers/roster", RequirePermission(service, "attendance:teachers_read"), moduleGuard("attendance"), attendanceHandler.teacherRoster)
+	management.POST("/attendance/teachers", RequirePermission(service, "attendance:teachers_manage"), moduleGuard("attendance"), attendanceHandler.recordTeacher)
+	management.PATCH("/attendance/teachers/:id", RequirePermission(service, "attendance:teachers_manage"), moduleGuard("attendance"), attendanceHandler.correctTeacher)
+	management.GET("/attendance/teachers/me", RequirePermission(service, "attendance:teachers_read_self"), moduleGuard("attendance"), attendanceHandler.ownTeacherHistory)
+	management.GET("/attendance/teachers/monthly", RequirePermission(service, "attendance:teachers_reports"), moduleGuard("attendance"), attendanceHandler.teacherMonthly)
+	management.GET("/attendance/teachers/me/monthly", RequirePermission(service, "attendance:teachers_read_self"), moduleGuard("attendance"), attendanceHandler.ownTeacherMonthly)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")
