@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.6.0
-  description: M0/M1 APIs and M2 academic sessions, classes, subjects, and class-subject assignments. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
+  version: 0.7.0
+  description: M0–M3 APIs. Protected module routes check the active session, current role permission, and current database module state. Student detail, card, and photo reads additionally scope records to the linked student or guardian account.
 servers:
   - url: http://localhost:8080
 paths:
@@ -606,6 +606,192 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SectionInput' } } } }
       responses: { '200': { description: Updated section, content: { application/json: { schema: { $ref: '#/components/schemas/SectionResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' } }
+  /students:
+    get:
+      operationId: listStudents
+      tags: [students]
+      summary: Search and page student directory
+      description: Requires students:read and the students module; administrator and head teacher only.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { name: status, in: query, schema: { type: string, enum: [active, inactive, graduated, transferred] } }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: section_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Students, content: { application/json: { schema: { $ref: '#/components/schemas/StudentPageResponse' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createStudent
+      tags: [students]
+      summary: Admit a student
+      description: Requires students:manage, administrator account, and students module. Session, class, and section must match.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentInput' } } } }
+      responses: { '201': { description: Student, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Duplicate admission number or section roll } }
+  /students/import:
+    post:
+      operationId: importStudents
+      tags: [students]
+      summary: Import up to 1000 students atomically from CSV
+      description: Requires students:manage and administrator. Query supplies academic context. CSV header is admission_no,name_en,name_bn,date_of_birth,roll_no,status. Maximum 2 MiB.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: section_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { text/csv: { schema: { type: string, format: binary } } } }
+      responses: { '201': { description: Imported count }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Duplicate student or roll; transaction rolled back } }
+  /students/me:
+    get:
+      operationId: getOwnStudent
+      tags: [students]
+      summary: Read own linked student profile
+      description: Requires students:read_self and the students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+  /students/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getStudent
+      tags: [students]
+      summary: Read a student in the actor's authorized scope
+      description: Requires auth:read_self plus students:read for staff, students:read_self for the linked student, or guardians:read_children for a linked guardian; students module required.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      operationId: updateStudent
+      tags: [students]
+      summary: Update admission, profile, academic placement, status, or account link
+      description: Requires students:manage, administrator account, and students module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentInput' } } } }
+      responses: { '200': { description: Updated student, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' } }
+    delete:
+      operationId: deleteStudent
+      tags: [students]
+      summary: Delete a student profile, photo, and guardian links
+      description: Requires students:manage, administrator account, and students module. Linked login accounts remain.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Deleted }, '404': { $ref: '#/components/responses/NotFound' } }
+  /students/{id}/card:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getStudentCard
+      tags: [students]
+      summary: Read printable card data and student UUID QR code
+      description: Same record scope as getStudent; QR carries only the student UUID.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Student card data, content: { application/json: { schema: { $ref: '#/components/schemas/StudentCardResponse' } } } } }
+  /students/{id}/photo:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getStudentPhoto
+      tags: [students]
+      summary: Read a student's protected photo
+      description: Same record scope as getStudent. Response is never cached.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: JPEG or PNG image }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      operationId: putStudentPhoto
+      tags: [students]
+      summary: Store a validated JPEG or PNG photo up to 2 MiB
+      description: Requires students:manage, administrator, and students module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: Photo saved }, '400': { $ref: '#/components/responses/InvalidRequest' } }
+  /students/{id}/guardians:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: listStudentGuardians
+      tags: [guardians]
+      summary: Read guardian relationships for a student
+      description: Requires guardians:read and students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Relationships } }
+    put:
+      operationId: linkStudentGuardian
+      tags: [guardians]
+      summary: Add or update a guardian relationship
+      description: Requires guardians:manage and administrator; one primary guardian per student.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RelationshipInput' } } } }
+      responses: { '200': { description: Relationship }, '409': { description: Primary guardian already assigned } }
+  /students/{id}/guardians/{guardianId}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }, { name: guardianId, in: path, required: true, schema: { type: string, format: uuid } }]
+    delete:
+      operationId: unlinkStudentGuardian
+      tags: [guardians]
+      summary: Remove a guardian relationship
+      description: Requires guardians:manage, administrator, and students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Removed }, '404': { $ref: '#/components/responses/NotFound' } }
+  /guardians:
+    get:
+      operationId: listGuardians
+      tags: [guardians]
+      summary: Search and page guardian directory
+      description: Requires guardians:read and students module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Guardians, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianPageResponse' } } } } }
+    post:
+      operationId: createGuardian
+      tags: [guardians]
+      summary: Create a guardian profile
+      description: Requires guardians:manage, administrator, and students module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianInput' } } } }
+      responses: { '201': { description: Guardian, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianResponse' } } } } }
+  /guardians/me:
+    get:
+      operationId: getOwnGuardian
+      tags: [guardians]
+      summary: Read own linked guardian profile
+      description: Requires guardians:read_children and students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Guardian, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianResponse' } } } } }
+  /guardians/me/children:
+    get:
+      operationId: getOwnChildren
+      tags: [guardians]
+      summary: Read only linked children
+      description: Requires guardians:read_children and students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Linked student profiles } }
+  /guardians/me/children/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getOwnChild
+      tags: [guardians]
+      summary: Read one linked child's profile
+      description: Requires guardians:read_children and students module. Unlinked IDs return 404.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Linked student profile }, '404': { $ref: '#/components/responses/NotFound' } }
+  /guardians/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getGuardian
+      tags: [guardians]
+      summary: Read a guardian profile
+      description: Requires guardians:read and students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Guardian, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianResponse' } } } } }
+    patch:
+      operationId: updateGuardian
+      tags: [guardians]
+      summary: Update a guardian profile or account link
+      description: Requires guardians:manage, administrator, and students module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianInput' } } } }
+      responses: { '200': { description: Guardian, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianResponse' } } } } }
+    delete:
+      operationId: deleteGuardian
+      tags: [guardians]
+      summary: Delete a guardian profile and student links
+      description: Requires guardians:manage, administrator, and students module. Linked login accounts remain.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Deleted }, '404': { $ref: '#/components/responses/NotFound' } }
+  /guardians/{id}/students:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getGuardianStudents
+      tags: [guardians]
+      summary: Read students linked to a guardian in the staff directory
+      description: Requires guardians:read and students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Linked student profiles }, '404': { $ref: '#/components/responses/NotFound' } }
 components:
   securitySchemes:
     bearerAuth:
@@ -679,6 +865,46 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    StudentInput:
+      type: object
+      required: [admission_no, name_en, status, session_id, class_id, section_id]
+      properties:
+        admission_no: { type: string, maxLength: 64 }
+        name_en: { type: string, maxLength: 160 }
+        name_bn: { type: string, maxLength: 160 }
+        date_of_birth: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [active, inactive, graduated, transferred] }
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        section_id: { type: string, format: uuid }
+        roll_no: { type: integer, minimum: 1, maximum: 999999, nullable: true }
+        user_id: { type: string, format: uuid, nullable: true, description: Must reference a student-role user }
+    Student:
+      allOf: [{ $ref: '#/components/schemas/StudentInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string }, section_name: { type: string }, has_photo: { type: boolean } } }]
+    StudentResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Student' } } }
+    StudentCardResponse: { type: object, required: [data], properties: { data: { type: object, required: [student, qr_payload, qr_data_url], properties: { student: { $ref: '#/components/schemas/Student' }, qr_payload: { type: string }, qr_data_url: { type: string, description: Base64 PNG data URL } } } } }
+    StudentPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/Student' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
+    GuardianInput:
+      type: object
+      required: [name_en]
+      properties:
+        name_en: { type: string, maxLength: 160 }
+        name_bn: { type: string, maxLength: 160 }
+        phone: { type: string, maxLength: 32 }
+        email: { type: string, maxLength: 254 }
+        address: { type: string, maxLength: 500 }
+        user_id: { type: string, format: uuid, nullable: true, description: Must reference a guardian-role user }
+    Guardian:
+      allOf: [{ $ref: '#/components/schemas/GuardianInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid } } }]
+    GuardianResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Guardian' } } }
+    GuardianPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/Guardian' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
+    RelationshipInput:
+      type: object
+      required: [guardian_id, relationship, is_primary]
+      properties:
+        guardian_id: { type: string, format: uuid }
+        relationship: { type: string, maxLength: 60 }
+        is_primary: { type: boolean }
     ClassInput:
       type: object
       required: [name, display_order, is_active]

@@ -9,6 +9,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/users"
@@ -42,6 +43,14 @@ func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Se
 }
 
 func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionServices ...*academic.SectionService) *gin.Engine {
+	var sectionService *academic.SectionService
+	if len(sectionServices) > 0 {
+		sectionService = sectionServices[0]
+	}
+	return NewRouterWithPeople(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, nil)
+}
+
+func NewRouterWithPeople(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -114,15 +123,38 @@ func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, gr
 	academicRoutes.POST("/classes/:id/subjects", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.createMapping)
 	academicRoutes.PATCH("/classes/:id/subjects/:subjectId", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.updateMapping)
 	academicRoutes.DELETE("/classes/:id/subjects/:subjectId", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.deleteMapping)
-	var sectionService *academic.SectionService
-	if len(sectionServices) > 0 {
-		sectionService = sectionServices[0]
-	}
 	sectionHandler := &sectionsHandler{service: sectionService}
 	academicRoutes.GET("/sections", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), sectionHandler.list)
 	academicRoutes.POST("/sections", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
 	academicRoutes.GET("/sections/:id", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), sectionHandler.get)
 	academicRoutes.PATCH("/sections/:id", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
+	peopleHandler := &peopleHandler{service: peopleService}
+	studentRoutes := router.Group("/students")
+	studentRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), RequireModule(schoolService, "students"))
+	studentRoutes.GET("", RequirePermission(service, "students:read"), peopleHandler.students)
+	studentRoutes.POST("", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.saveStudent)
+	studentRoutes.POST("/import", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.importStudents)
+	studentRoutes.GET("/me", RequirePermission(service, "students:read_self"), peopleHandler.myStudent)
+	studentRoutes.GET("/:id", RequirePermission(service, "auth:read_self"), peopleHandler.student)
+	studentRoutes.PATCH("/:id", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.saveStudent)
+	studentRoutes.DELETE("/:id", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.deleteStudent)
+	studentRoutes.GET("/:id/card", RequirePermission(service, "auth:read_self"), peopleHandler.card)
+	studentRoutes.GET("/:id/photo", RequirePermission(service, "auth:read_self"), peopleHandler.photo)
+	studentRoutes.PUT("/:id/photo", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.savePhoto)
+	studentRoutes.GET("/:id/guardians", RequirePermission(service, "guardians:read"), peopleHandler.relationships)
+	studentRoutes.PUT("/:id/guardians", RequirePermission(service, "guardians:manage"), RequireAdministrator(), peopleHandler.link)
+	studentRoutes.DELETE("/:id/guardians/:guardianId", RequirePermission(service, "guardians:manage"), RequireAdministrator(), peopleHandler.unlink)
+	guardianRoutes := router.Group("/guardians")
+	guardianRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), RequireModule(schoolService, "students"))
+	guardianRoutes.GET("", RequirePermission(service, "guardians:read"), peopleHandler.guardians)
+	guardianRoutes.POST("", RequirePermission(service, "guardians:manage"), RequireAdministrator(), peopleHandler.saveGuardian)
+	guardianRoutes.GET("/me", RequirePermission(service, "guardians:read_children"), peopleHandler.myGuardian)
+	guardianRoutes.GET("/me/children", RequirePermission(service, "guardians:read_children"), peopleHandler.children)
+	guardianRoutes.GET("/me/children/:id", RequirePermission(service, "guardians:read_children"), peopleHandler.child)
+	guardianRoutes.GET("/:id", RequirePermission(service, "guardians:read"), peopleHandler.guardian)
+	guardianRoutes.GET("/:id/students", RequirePermission(service, "guardians:read"), peopleHandler.guardianStudents)
+	guardianRoutes.PATCH("/:id", RequirePermission(service, "guardians:manage"), RequireAdministrator(), peopleHandler.saveGuardian)
+	guardianRoutes.DELETE("/:id", RequirePermission(service, "guardians:manage"), RequireAdministrator(), peopleHandler.deleteGuardian)
 	router.NoRoute(func(c *gin.Context) {
 		failure(c, http.StatusNotFound, "not_found", "route not found")
 	})
