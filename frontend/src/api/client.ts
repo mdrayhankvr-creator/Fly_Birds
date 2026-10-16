@@ -180,6 +180,35 @@ export const getAcademicSections = (token: string, params: URLSearchParams) => b
 export const getAcademicSection = (token: string, id: string) => bearerRequest<AcademicSection>(`/academic/sections/${encodeURIComponent(id)}`, token)
 export const saveAcademicSection = (token: string, input: AcademicSectionInput, id?: string) => bearerRequest<AcademicSection>(id ? `/academic/sections/${encodeURIComponent(id)}` : '/academic/sections', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 
+export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; session_name: string; class_name: string; section_name: string; has_photo: boolean }
+export type StudentInput = Omit<Student, 'id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo'>
+export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
+export type GuardianInput = Omit<Guardian, 'id'>
+export type StudentGuardian = { student_id: string; guardian_id: string; guardian_name: string; relationship: string; is_primary: boolean }
+export type StudentCard = { student: Student; qr_payload: string; qr_data_url: string }
+export const getStudents = (token: string, params: URLSearchParams) => bearerRequest<Page<Student>>(`/students?${params}`, token)
+export const getStudent = (token: string, id: string) => bearerRequest<Student>(`/students/${encodeURIComponent(id)}`, token)
+export const getMyStudent = (token: string) => bearerRequest<Student>('/students/me', token)
+export const saveStudent = (token: string, input: StudentInput, id?: string) => bearerRequest<Student>(id ? `/students/${encodeURIComponent(id)}` : '/students', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+export const deleteStudent = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/students/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
+export const importStudents = (token: string, params: URLSearchParams, csv: string) => bearerRequest<{ imported: number }>(`/students/import?${params}`, token, { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv })
+export const getStudentCard = (token: string, id: string) => bearerRequest<StudentCard>(`/students/${encodeURIComponent(id)}/card`, token)
+export const saveStudentPhoto = (token: string, id: string, file: File) => bearerRequest<{ saved: boolean }>(`/students/${encodeURIComponent(id)}/photo`, token, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+export async function getStudentPhoto(token: string, id: string): Promise<Blob> {
+  const response = await authRequest(`/students/${encodeURIComponent(id)}/photo`, { headers: { Authorization: `Bearer ${token}` } })
+  return response.blob()
+}
+export const getGuardians = (token: string, params: URLSearchParams) => bearerRequest<Page<Guardian>>(`/guardians?${params}`, token)
+export const getGuardian = (token: string, id: string) => bearerRequest<Guardian>(`/guardians/${encodeURIComponent(id)}`, token)
+export const getMyGuardian = (token: string) => bearerRequest<Guardian>('/guardians/me', token)
+export const saveGuardian = (token: string, input: GuardianInput, id?: string) => bearerRequest<Guardian>(id ? `/guardians/${encodeURIComponent(id)}` : '/guardians', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+export const deleteGuardian = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/guardians/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
+export const getStudentGuardians = (token: string, id: string) => bearerRequest<StudentGuardian[]>(`/students/${encodeURIComponent(id)}/guardians`, token)
+export const linkStudentGuardian = (token: string, id: string, guardian_id: string, relationship: string, is_primary: boolean) => bearerRequest<StudentGuardian>(`/students/${encodeURIComponent(id)}/guardians`, token, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guardian_id, relationship, is_primary }) })
+export const unlinkStudentGuardian = (token: string, id: string, guardianId: string) => bearerRequest<{ deleted: boolean }>(`/students/${encodeURIComponent(id)}/guardians/${encodeURIComponent(guardianId)}`, token, { method: 'DELETE' })
+export const getMyChildren = (token: string) => bearerRequest<Student[]>('/guardians/me/children', token)
+export const getGuardianStudents = (token: string, id: string) => bearerRequest<Student[]>(`/guardians/${encodeURIComponent(id)}/students`, token)
+
 export type AcademicSession = {
   id: string; name: string; start_date: string; end_date: string
   is_active: boolean; created_at: string; updated_at: string
