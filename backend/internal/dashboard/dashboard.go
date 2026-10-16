@@ -90,8 +90,14 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 		if allowed["academic_sessions:read"] && enabled["academics"] {
 			result.Navigation = append(result.Navigation, NavigationItem{Key: "academic_sessions", Name: "Academic sessions", Path: "/admin/academic/sessions"})
 		}
+		if allowed["staff:read"] && enabled["staff"] {
+			result.Navigation = append(result.Navigation, NavigationItem{Key: "staff", Name: "Teachers and staff", Path: "/admin/staff"})
+		}
+		if allowed["staff:read_self"] && enabled["staff"] {
+			result.Navigation = append(result.Navigation, NavigationItem{Key: "staff_self", Name: "My staff profile", Path: "/staff/me"})
+		}
 		for _, m := range modules {
-			if m.Enabled && !m.IsCore && m.Key != "academics" {
+			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: m.Key, Name: m.Name, ComingSoon: true})
 			}
 		}

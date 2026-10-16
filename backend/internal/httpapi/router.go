@@ -11,6 +11,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/staff"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/users"
 )
 
@@ -41,7 +42,11 @@ func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Se
 	return NewRouterWithAcademicServices(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, nil)
 }
 
-func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service) *gin.Engine {
+func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, staffServices ...*staff.Service) *gin.Engine {
+	var staffService *staff.Service
+	if len(staffServices) > 0 {
+		staffService = staffServices[0]
+	}
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -89,6 +94,23 @@ func NewRouterWithAcademicServices(service *auth.Service, secureCookies bool, gr
 	management.POST("/academic/sessions", RequirePermission(service, "academic_sessions:create"), moduleGuard("academics"), RequireAdministrator(), sessionsHandler.create)
 	management.PATCH("/academic/sessions/:id", RequirePermission(service, "academic_sessions:update"), moduleGuard("academics"), RequireAdministrator(), sessionsHandler.update)
 	management.PATCH("/academic/sessions/:id/activation", RequirePermission(service, "academic_sessions:activate"), moduleGuard("academics"), RequireAdministrator(), sessionsHandler.activation)
+	staffHandler := &staffHandler{service: staffService}
+	management.GET("/staff/employees", RequirePermission(service, "staff:read"), moduleGuard("staff"), staffHandler.listEmployees)
+	management.POST("/staff/employees", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.saveEmployee)
+	management.GET("/staff/me", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownEmployee)
+	management.GET("/staff/me/assignments", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownAssignments)
+	management.GET("/staff/me/leaves", RequirePermission(service, "staff_leaves:request_self"), moduleGuard("staff"), staffHandler.ownLeaves)
+	management.POST("/staff/me/leaves", RequirePermission(service, "staff_leaves:request_self"), moduleGuard("staff"), staffHandler.requestLeave)
+	management.GET("/staff/employees/:id", RequirePermission(service, "staff:read"), moduleGuard("staff"), staffHandler.getEmployee)
+	management.PATCH("/staff/employees/:id", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.saveEmployee)
+	management.GET("/staff/employees/:id/assignments", RequirePermission(service, "staff:read"), moduleGuard("staff"), staffHandler.listAssignments)
+	management.POST("/staff/employees/:id/assignments", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.addAssignment)
+	management.DELETE("/staff/employees/:id/assignments/:assignmentId", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.deleteAssignment)
+	management.GET("/staff/employees/:id/leaves", RequirePermission(service, "staff_leaves:read"), moduleGuard("staff"), staffHandler.listLeaves)
+	management.POST("/staff/employees/:id/leaves", RequirePermission(service, "staff_leaves:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.requestLeave)
+	management.PATCH("/staff/leaves/:id/decision", RequirePermission(service, "staff_leaves:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.decideLeave)
+	management.GET("/staff/employees/:id/salaries", RequirePermission(service, "staff_salary:read"), moduleGuard("staff"), RequireAdministrator(), staffHandler.listSalaries)
+	management.POST("/staff/employees/:id/salaries", RequirePermission(service, "staff_salary:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.addSalary)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")
