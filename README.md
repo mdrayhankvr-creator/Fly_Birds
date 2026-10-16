@@ -111,9 +111,9 @@ Run this branch with the existing [Docker Compose instructions](#run-with-docker
 
 The staff module adds employee profiles, existing-account links, session/class/subject assignments, leave management, and private salary records. Administrators use `/admin/staff`; linked teachers use `/staff/me`. Enable the optional **Staff** module in school settings. Migration `0401` runs at backend startup after M2 academic migrations. See the [M4 handoff](docs/M4_TEACHERS_STAFF.md) for the API, permissions, schema, test evidence, and integration notes. No employee or school-specific data is seeded.
 
-## Attendance (M5, teacher slice)
+## Attendance (M5)
 
-The Attendance module adds daily teacher entry and correction, a roster, teacher self-view, and monthly teacher reports at `/admin/attendance/teachers` and `/attendance/me`. Enable the optional **Attendance** module in school settings. Migration `0501` follows M4's `0401`. Student attendance, guardian access, QR scanning, student monthly reports, and absence alerts await the shared Sections and Students/Guardians schema. See the [M5 handoff](docs/M5_ATTENDANCE_HANDOFF.md) for the exact dependency contract, API, verification, and integration order. No attendance data is seeded.
+The optional Attendance module provides daily student and teacher entry, corrections, QR-assisted student check-in, monthly teacher/student/guardian reports, and durable absence alert triggers. Enable Attendance in school settings. Teachers may mark students only in classes assigned through M4; a guardian may read only currently linked children. The printed student QR identifies a student and does not authorize a request. Alert delivery belongs to M9. Migrations 0501 and 0502 apply at backend startup. Pages include /admin/attendance/teachers, /admin/attendance/students, /attendance/me, /student/attendance, and /guardian/children/{id}/attendance. See the [M5 handoff](docs/M5_ATTENDANCE_HANDOFF.md) for APIs, permissions, run instructions, and verified test boundaries. No attendance data is seeded.
 
 ## Repository Layout
 

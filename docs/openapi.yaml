@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Fly_Birds API
   version: 0.9.0
-  description: M0-M5 APIs, including academic structure, students and guardians, staff management, and teacher attendance. Protected module routes check the active session, current role permission, and current database module state. Student and guardian reads scope records to their linked accounts.
+  description: M0-M5 APIs, including academic structure, students and guardians, staff management, and student and teacher attendance. Protected module routes check the active session, current role permission, and current database module state. Student and guardian reads scope records to their linked accounts.
 servers:
   - url: http://localhost:8080
 paths:

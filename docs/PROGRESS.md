@@ -4,24 +4,27 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 33 verified criteria / 83 total criteria x 100 = **39.8%**.
-- **Current milestone completion:** 1 verified M5 criterion / 5 M5 criteria = **20.0% locally**.
+- **Overall completion:** 37 verified criteria / 83 total criteria x 100 = **44.6%**.
+- **Current milestone completion:** 5 verified M5 criteria / 5 M5 criteria = **100% locally**.
 
-M0-M4 are complete and merged into main. M5 teacher daily attendance is locally verified; remaining criteria are in progress.
+M0-M4 are complete and merged into main. All five M5 criteria are locally verified on the feature branch.
 
-## Current Status — Batch B, M5 (2026-10-17)
+## Current Status — M5 Attendance (2026-10-17)
 
-| Item | Status |
+| Item | Verified status |
 |---|---|
-| Branch | `feature/m5-attendance`, based on completed M4 branch |
-| Schema | `0501_teacher_attendance.sql`; references merged academic sessions and M4 employees; no competing student/guardian/section tables |
-| Completed criterion | Daily teacher attendance, including guarded entry/correction, self history, roster, approved leave relationship, and duplicate prevention |
-| Partial criterion | Monthly teacher reports work; student monthly reports await M2/M3 integration |
-| Blocked criteria | Daily student attendance, QR attendance scanning, and absence alert triggers |
-| Verification | Original slice: fresh PostgreSQL Go suite and isolated Edge desktop/mobile flows. Rebased branch: Go vet, database-free Go suite, frontend build, and OpenAPI test. New PostgreSQL assertions await Docker daemon availability. |
-| Overall progress | 33/83 = 39.8% locally; M5 1/5 = 20.0% |
+| Branch | `feature/m5-attendance`, normal merge of M4-enabled `origin/main`; not pushed |
+| Schema | `0501_teacher_attendance.sql` and `0502_student_attendance.sql`; versions 1–4, 101–103, 201, 401, 501, 502 applied in a fresh disposable database |
+| Daily student attendance | Complete: assigned teacher/admin entry and correction, section context, duplicate and foreign-key protection |
+| Daily teacher attendance | Complete: existing M5 entry/correction, approved leave, self history, and roster preserved |
+| QR attendance | Complete for M3 card payload via authenticated, assigned staff and single daily entry; input and browser camera fallback |
+| Monthly reports | Complete for teacher, student, and currently linked guardian views |
+| Absence alert triggers | Complete: one durable pending/cancelled event per absent student/day; delivery deferred to M9 |
+| Verification | Go vet; full Go suite on fresh PostgreSQL; OpenAPI route/reference; TypeScript and production build; Compose config; mock-backed Chrome desktop/mobile UI smoke |
+| Local progress | M5 5/5 = 100%; overall 37/83 = 44.6% |
+| Unverified | Native camera in a physical browser/device, remote CI, production migration and deployment |
 
-See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for schema dependencies and recommended integration order. M2/M3 tables are merged; student workflows remain to be implemented and verified.
+See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for permissions, schema rules, test boundaries, and run instructions. M6 has not started.
 
 ## Current Status — Batch B, M4 (2026-10-16)
 
@@ -35,7 +38,7 @@ See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for schema dependencies and recommend
 | M4 criterion count | 4/4 locally verified |
 | Pending external checks | Remote CI, review, production migration/deployment |
 
-See [M4 handoff](M4_TEACHERS_STAFF.md) for schema, permissions, APIs, verification, and run instructions. M2 Sections and M3 Students/Guardians are present in main. M4 remains in local review.
+See [M4 handoff](M4_TEACHERS_STAFF.md) for schema, permissions, APIs, verification, and run instructions. M2, M3, and M4 are now merged into main.
 
 ## PR #7 integration verification (2026-10-17)
 

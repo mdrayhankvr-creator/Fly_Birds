@@ -9,7 +9,7 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | M2 | Academic structure | 6/6 merged into main |
 | M3 | Students and guardians | 6/6 merged into main |
 | M4 | Teachers and staff | 4/4 merged into main |
-| M5 | Attendance | 1/5 locally verified; teacher attendance complete, student work in progress |
+| M5 | Attendance | 5/5 locally verified on feature/m5-attendance; review and merge pending |
 | M6 | Routine | Not started |
 | M7 | Examinations and results | Not started |
 | M8 | Fees and accounts | Not started |
