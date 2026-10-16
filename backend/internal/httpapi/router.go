@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
@@ -31,7 +32,7 @@ func NewRouterWithServices(service *auth.Service, secureCookies bool, grants *rb
 	return NewRouterWithAll(service, secureCookies, grants, schoolService, nil, nil, nil)
 }
 
-func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service) *gin.Engine {
+func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, academics ...*academic.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -82,6 +83,25 @@ func NewRouterWithAll(service *auth.Service, secureCookies bool, grants *rbac.Se
 	schoolRoutes.PUT("/grading", RequirePermission(service, "grading:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveGrading)
 	schoolRoutes.GET("/modules", RequirePermission(service, "modules:read"), RequireModule(schoolService, "school_settings"), schoolHandler.modules)
 	schoolRoutes.PUT("/modules/:key", RequirePermission(service, "modules:manage"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveModule)
+	var academicService *academic.Service
+	if len(academics) > 0 {
+		academicService = academics[0]
+	}
+	academicHandler := &academicHandler{service: academicService}
+	academicRoutes := router.Group("/academic")
+	academicRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service))
+	academicRoutes.GET("/classes", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), academicHandler.classes)
+	academicRoutes.POST("/classes", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.saveClass)
+	academicRoutes.GET("/classes/:id", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), academicHandler.class)
+	academicRoutes.PATCH("/classes/:id", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.saveClass)
+	academicRoutes.GET("/subjects", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), academicHandler.subjects)
+	academicRoutes.POST("/subjects", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.saveSubject)
+	academicRoutes.GET("/subjects/:id", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), academicHandler.subject)
+	academicRoutes.PATCH("/subjects/:id", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.saveSubject)
+	academicRoutes.GET("/classes/:id/subjects", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), academicHandler.mappings)
+	academicRoutes.POST("/classes/:id/subjects", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.createMapping)
+	academicRoutes.PATCH("/classes/:id/subjects/:subjectId", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.updateMapping)
+	academicRoutes.DELETE("/classes/:id/subjects/:subjectId", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), academicHandler.deleteMapping)
 	router.NoRoute(func(c *gin.Context) {
 		failure(c, http.StatusNotFound, "not_found", "route not found")
 	})
