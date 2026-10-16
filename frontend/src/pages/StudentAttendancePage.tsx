@@ -71,7 +71,7 @@ export function StudentAttendancePage({permissions}:{permissions:string[]}) {
   if(!ctor){setCameraError(t('studentAttendanceCameraUnsupported'));setCameraOn(false);return}
   const detector=new ctor({formats:['qr_code']})
   async function start(){
-   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});if(!video.current||cancelled)return;video.current.srcObject=stream;await video.current.play()
+   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});if(!video.current||cancelled){stream.getTracks().forEach(track=>track.stop());return}video.current.srcObject=stream;await video.current.play()
     async function loop(){if(cancelled||!video.current)return;try{const codes=await detector.detect(video.current);if(codes.length){setCameraOn(false);void scan(codes[0].rawValue);return}}catch{setCameraError(t('studentAttendanceCameraError'))};frame=requestAnimationFrame(()=>void loop())}
     void loop()
    }catch{setCameraError(t('studentAttendanceCameraError'));setCameraOn(false)}
@@ -104,4 +104,3 @@ export function StudentAttendanceReportPage({guardian}:{guardian:boolean}){
  const report=useQuery({queryKey:['attendance','student-report',guardian,id,month],queryFn:()=>authorized(token=>guardian?getGuardianStudentAttendanceReport(token,id!,month):getOwnStudentAttendanceReport(token,month)),enabled:!guardian||!!id,retry:false})
  return <div className="space-y-4"><h1 className="text-3xl font-bold">{t('studentAttendanceReport')}</h1><section className={card}><label>{t('attendanceMonth')}<input className={field} type="month" value={month} onChange={event=>setMonth(event.target.value)} /></label>{report.isPending?<p role="status">{t('attendanceLoading')}</p>:report.isError?<p role="alert">{t('attendanceLoadError')}</p>:<><h2 className="mt-4 text-xl font-semibold">{report.data?.student.name_en}</h2><p>{t('attendancePresent')}: {report.data?.student.present} Â· {t('attendanceAbsent')}: {report.data?.student.absent} Â· {t('studentAttendanceLate')}: {report.data?.student.late}</p><ul className="mt-4 space-y-2">{report.data?.items.map(item=><li key={item.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3"><span>{item.attendance_date}</span><strong>{t(`studentAttendance${item.status[0].toUpperCase()}${item.status.slice(1)}`)}</strong></li>)}</ul></>}</section></div>
 }
-
