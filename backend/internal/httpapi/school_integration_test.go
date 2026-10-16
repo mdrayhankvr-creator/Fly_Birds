@@ -41,7 +41,7 @@ func TestPostgresSchoolConfigurationHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	var migrationCount int64
-	if err := db.Table("schema_migrations").Count(&migrationCount).Error; err != nil || migrationCount != 4 {
+	if err := db.Table("schema_migrations").Count(&migrationCount).Error; err != nil || migrationCount != 5 {
 		t.Fatalf("migration count %d, error %v", migrationCount, err)
 	}
 	var suffix [10]byte
