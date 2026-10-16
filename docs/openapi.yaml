@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.5.0
-  description: M0 health and M1 authentication, role permissions, school configuration, user administration, audit, and dashboard APIs. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
+  version: 0.6.0
+  description: M0 and M1 APIs plus M2 academic sessions. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
 servers:
   - url: http://localhost:8080
 paths:
@@ -372,6 +372,92 @@ paths:
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /academic/sessions:
+    get:
+      operationId: listAcademicSessions
+      tags: [academic-sessions]
+      summary: List academic sessions
+      description: Requires academic_sessions:read and the enabled academics module. Names are searched case-insensitively.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200': { description: Paginated sessions, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionPageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createAcademicSession
+      tags: [academic-sessions]
+      summary: Create an inactive academic session
+      description: Requires an active administrator, academic_sessions:create, and the enabled academics module.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionInput' } } } }
+      responses:
+        '201': { description: Created session, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Normalized name already exists, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /academic/sessions/current:
+    get:
+      operationId: getCurrentAcademicSession
+      tags: [academic-sessions]
+      summary: Get the active academic session
+      description: Requires academic_sessions:read and the enabled academics module. Returns 404 if none is active.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Active session, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /academic/sessions/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getAcademicSession
+      tags: [academic-sessions]
+      summary: Get an academic session
+      description: Requires academic_sessions:read and the enabled academics module.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Session, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateAcademicSession
+      tags: [academic-sessions]
+      summary: Edit an academic session name and dates
+      description: Requires an active administrator, academic_sessions:update, and the enabled academics module. Activation is a separate operation.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionInput' } } } }
+      responses:
+        '200': { description: Updated session, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Normalized name already exists, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /academic/sessions/{id}/activation:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      operationId: setAcademicSessionActivation
+      tags: [academic-sessions]
+      summary: Activate or deactivate an academic session
+      description: Requires an active administrator, academic_sessions:activate, and the enabled academics module. Activating one session transactionally deactivates the previous session. The operation is idempotent.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionActivationInput' } } } }
+      responses:
+        '200': { description: Session after activation change, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicSessionResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /dashboard:
     get:
       operationId: getDashboard
@@ -408,7 +494,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/IDListResponse' }
     NotFound:
-      description: Role or user does not exist
+      description: Requested resource does not exist
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -418,7 +504,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     InvalidRequest:
-      description: Invalid JSON or credentials format
+      description: Invalid JSON or request data
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -453,6 +539,48 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    AcademicSession:
+      type: object
+      required: [id, name, start_date, end_date, is_active, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: '2026–2027' }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AcademicSessionInput:
+      type: object
+      required: [name, start_date, end_date]
+      additionalProperties: false
+      properties:
+        name: { type: string, pattern: '^[0-9]{4}([-–][0-9]{4})?$', description: A year or two consecutive years }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date, description: Must be after start_date }
+    AcademicSessionActivationInput:
+      type: object
+      required: [is_active]
+      additionalProperties: false
+      properties:
+        is_active: { type: boolean }
+    AcademicSessionResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AcademicSession' }
+    AcademicSessionPageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/AcademicSession' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
     ManagedUser:
       type: object
       required: [id, email, display_name, role, is_active]

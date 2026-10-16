@@ -4,24 +4,32 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 16 verified criteria / 83 total criteria x 100 = **19.3%** (rounded to one decimal place).
-- **Current milestone completion:** 12 verified M1 criteria / 12 M1 criteria x 100 = **100.0% locally**.
+- **Overall completion:** 17 verified criteria / 83 total criteria x 100 = **20.5%** (rounded to one decimal place).
+- **Current milestone completion:** 1 verified M2 criterion / 6 M2 criteria x 100 = **16.7% locally**.
 
-The sixteen counted criteria are all four M0 criteria and all twelve M1 criteria from the project brief. The final audit repeated backend and PostgreSQL tests, checked a rebuilt frontend in an isolated browser stack, and reviewed the security limitations. Remote M1 GitHub Actions execution remains unverified because this branch has not been pushed.
+The seventeen counted criteria are all four M0 criteria, all twelve M1 criteria, and the Academic Sessions criterion in M2. M1 audit details remain below as historical evidence. Remote M2 CI remains unverified until the branch is pushed by the developer.
 
 ## Current Status
 
 | Item | Status |
 |---|---|
-| Current development phase | M1 final local audit complete; ready for Pull Request review, awaiting developer push and remote CI |
-| Current milestone | M1 — Authentication and School Configuration |
-| Completed acceptance criteria | Four M0 criteria and all twelve M1 criteria verified locally |
-| Remaining acceptance criteria | No M1 brief criteria; 67 criteria in M2-M13 remain |
-| Features implemented | M0 and M1 checkpoints 1-4: authentication, six roles and runtime grants, persisted school profile, branding, grading, module toggles, user administration, audit logging, and six role dashboards |
-| Tests passed | Go vet, Go unit and PostgreSQL suites, Go race suite without PostgreSQL, fresh container npm install and frontend production build, Compose/OpenAPI checks, npm audit, isolated headless Chrome workflows at desktop/mobile widths |
-| Tests failed | Windows host `npm ci` was blocked by a locked native binary; the fresh isolated-container install and build passed. No application test failed in the final run. |
-| Application runnability | Existing PostgreSQL, backend, and frontend continue through Compose on 5432/8080/5173. The final browser audit used and removed a separate database and services; migration 4 remains applied to the existing database. |
-| Next planned milestone | No M2 work until the developer explicitly says `next`; first publish M1 and review remote CI |
+| Current development phase | M2 Academic Sessions implemented and locally verified; branch not pushed |
+| Current milestone | M2 — Academic Structure, Academic Sessions task only |
+| Completed acceptance criteria | Four M0, twelve M1, and one M2 criterion verified locally |
+| Remaining acceptance criteria | Five M2 criteria; 66 criteria remain overall |
+| Features implemented | Existing M0/M1 features plus versioned academic-session schema, CRUD/read/current/activation APIs, permission and module guards, and bilingual management page |
+| Tests passed | Go vet; Go unit and full PostgreSQL suites on a separate disposable container; frontend TypeScript and production build; isolated headless Chrome English desktop and Bangla mobile checks |
+| Tests failed | No application test failed in the final local run. First offline `npm ci` lacked a cached font package; the subsequent normal `npm ci` succeeded. |
+| Application runnability | Existing developer Compose stack was not changed. Academic routes require the new backend build, migration 101, and the Academics module enabled. A separate PostgreSQL container was used for tests. |
+| Next planned milestone | Remaining M2 work belongs to separate tasks; this task stops after Academic Sessions |
+
+## M2 Academic Sessions Task — 2026-10-16
+
+- **Scope:** One of six M2 brief criteria is verified locally: Academic Sessions. Classes, sections, subjects, mapping, and optional-subject flags remain unstarted in this workspace.
+- **Schema:** Migration `0101_academic_sessions.sql` follows M1 versions 1–4. Migration discovery uses explicit numeric prefixes, so separately numbered migrations do not overwrite one another. `academic_sessions.id` is a stable UUID; a generated normalized name key makes hyphen/en-dash variants unique. A date check and partial unique active-session index enforce core invariants in PostgreSQL. No session or school identity is seeded.
+- **Backend:** Handler → Service → Repository. Read, create, update, activate/deactivate, and current-session routes use JWT authentication, current grants, and the `academics` module guard. Activation serializes on a transaction advisory lock and writes audit events. Administrator gets read/create/update/activate grants; head teacher gets read. The optional Academics module remains disabled by default and must be enabled in school settings.
+- **Frontend:** `/admin/academic/sessions` supports English/Bangla, search and pagination, date and name validation, create/edit, current and active indicators, activation controls, and loading/error/empty states. It uses the school branding CSS variables and responsive cards.
+- **Verification:** `go vet ./...` and `go test ./... -count=1` passed with `AUTH_TEST_DATABASE_URL` pointed at a disposable PostgreSQL 17 container on local port 55433; the test database was separate from the developer's running Compose database on 5432. The suite covered valid/invalid dates, normalized duplicate names, permission/module denial, search/pagination, idempotent migration, current-session lookup, deactivation, and two concurrent activation requests. `npm ci` and `npm run build` passed. Isolated headless Chrome rendered English at 1280 px and Bangla at 390 px, including the active indicator and form, with no horizontal overflow. The browser check used mocked API fixtures; PostgreSQL-backed HTTP tests separately verified the live API. Remote CI and deployment remain unverified.
 
 ## M0 Acceptance Criteria and Evidence
 
