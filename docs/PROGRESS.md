@@ -4,10 +4,29 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 22 verified criteria / 83 total criteria x 100 = **26.5%** (rounded to one decimal place).
-- **Current milestone completion:** 6 verified M2 criteria / 6 M2 criteria x 100 = **100% locally**.
+- **Overall completion:** 28 verified criteria / 83 total criteria x 100 = **33.7%** (rounded to one decimal place).
+- **Current milestone completion:** 6 verified M3 criteria / 6 M3 criteria x 100 = **100% locally**. M2 remains 6/6.
 
-The counted criteria are all four M0 criteria, all twelve M1 criteria, and all six M2 criteria. M1 audit details below are historical evidence. Remote M2 CI remains unverified until the developer pushes the branch.
+The counted criteria are all four M0 criteria, all twelve M1 criteria, all six M2 criteria, and all six M3 criteria. M1 and M2 audit details below are historical evidence. Remote CI for the local M2 and M3 branches remains unverified until the developer pushes them.
+
+## Current Status — M3 Students and Guardians (2026-10-17)
+
+M3 is complete locally on `feature/m3-students-guardians`, which was created from the completed, unmerged `feature/m2-sections` branch. Review and merge M2 first, then M3. Do not merge M3 directly into `main` before M2 is integrated.
+
+| M3 brief criterion | Local evidence |
+|---|---|
+| Student admission | Guarded create/update/delete API, validated admission number and section/session/class context, statuses and roll numbers, admin directory and editor |
+| Student profiles | Scoped student detail, read-only self view, status and account links, guarded photo and card views |
+| Student photos | JPEG/PNG validation, dimension and 2 MiB limits, metadata-stripping re-encode, protected storage and no-store responses |
+| Student ID cards with QR codes | Printable card and PNG QR carrying only the student UUID; browser verified for admin, student, and linked guardian |
+| Bulk CSV import | Admin-only, 1,000-row/2 MiB limit, fixed header, UTF-8 BOM support, and atomic PostgreSQL import with duplicate rollback |
+| Guardian-student relationships | Guardian CRUD, multiple guardians per student, at most one primary guardian, role-correct account linking, linked-child-only access, and audited link/unlink/delete |
+
+Migration `0201_students_guardians.sql` follows 1–4 and 101–103. UUID keys, composite academic-section foreign key, case-insensitive admission uniqueness, per-section roll uniqueness, role-enforced account foreign keys, primary-guardian uniqueness, and indexes were verified in a dedicated PostgreSQL test database. Deleting a student removes its photo and guardian links; deleting a guardian removes its student links. Existing login accounts remain and can be linked again. Student and guardian data require the optional Students module, which remains disabled by default. The Academics module must be enabled for the admin editor to load session, class, and section choices.
+
+**Verification:** `go vet ./...` and `go test ./... -count=1` passed after the final CRUD changes, both without PostgreSQL and on fresh isolated `flybirds_m3_final4_test`. The PostgreSQL lifecycle covered migration order and repeat application, relationship and role integrity, create/update/delete, search and pagination, CSV rollback, photo/QR, 401/403/404 access, unrelated guardians, and disabled-module behavior. Frontend TypeScript and Vite production build passed. `docker compose config --quiet` and the Go OpenAPI parse, route, and reference test passed. An isolated Compose project rendered the admin student/guardian directories, card, student self profile, and guardian child profile in English at 1280 px and Bangla at 390 px without horizontal overflow or JavaScript exceptions. After the final CRUD change, the rebuilt admin pages showed both delete controls; the students, guardians, and student detail pages all had 390 px scroll width with real Bangla test names. The developer's application database and volume were not modified.
+
+**Unverified outside this workspace:** remote CI, review, production migration, and deployment. Existing user creation and password delivery use the M1 administrator workflow; M3 does not add invitations or password reset. QR codes identify a student but do not authenticate or authorize access. Academic foreign keys ensure valid placement; whether inactive academic records should forbid new admission is a school policy left configurable for a later decision.
 
 ## Current Status — M2 Sections (2026-10-16)
 
