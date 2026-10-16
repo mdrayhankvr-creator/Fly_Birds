@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.1.0
-  description: M0 API surface. Additional endpoints will be documented as milestones are implemented.
+  version: 0.5.0
+  description: M0 health and M1 authentication, role permissions, school configuration, user administration, audit, and dashboard APIs. Configuration requires PostgreSQL. Protected module routes check the active session, current role permission, and current database module state in that order.
 servers:
   - url: http://localhost:8080
 paths:
@@ -19,8 +19,713 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /auth/login:
+    post:
+      operationId: login
+      summary: Sign in with email and password
+      description: Returns a 15-minute JWT access token. Sets a seven-day HttpOnly refresh cookie and a session-bound CSRF cookie. Invalid, unknown, locked, and disabled accounts receive the same credentials error.
+      tags: [authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/InvalidCredentials' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/refresh:
+    post:
+      operationId: refreshSession
+      summary: Rotate refresh token and issue a new access token
+      description: Requires flybirds_refresh and flybirds_csrf cookies. The X-CSRF-Token header must match the CSRF cookie and its server-side session hash. Refresh secrets are rotated and stored only as hashes.
+      tags: [authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CSRFToken'
+      responses:
+        '200':
+          description: Session refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401': { $ref: '#/components/responses/InvalidSession' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the current session
+      description: Requires the refresh and CSRF cookies and X-CSRF-Token header. Revocation also invalidates access tokens tied to the session.
+      tags: [authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CSRFToken'
+      responses:
+        '204': { description: Session revoked and cookies cleared }
+        '401': { $ref: '#/components/responses/InvalidSession' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get the authenticated user's own account
+      description: Requires a valid access JWT, an active server-side session, the current auth:read_self role permission, and the core authentication module.
+      tags: [authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/permissions:
+    get:
+      operationId: getMyPermissions
+      summary: Get the current user's effective permissions
+      description: Reads current role grants from PostgreSQL. Requires auth:read_self and the core permissions module.
+      tags: [authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /roles:
+    get:
+      operationId: listRoles
+      summary: List supported roles
+      description: Requires roles:read. Results are ordered by ID.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Paginated roles, content: { application/json: { schema: { $ref: '#/components/schemas/RolePageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /permissions:
+    get:
+      operationId: listPermissions
+      summary: List defined permission identifiers
+      description: Requires permissions:read. Results are ordered by ID.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Paginated permissions, content: { application/json: { schema: { $ref: '#/components/schemas/PermissionPageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /roles/{id}/permissions:
+    parameters: [{ $ref: '#/components/parameters/RoleId' }]
+    get:
+      operationId: getRolePermissions
+      summary: Read a role's current grants
+      description: Requires permissions:read.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: replaceRolePermissions
+      summary: Replace all grants for one role
+      description: Requires permissions:manage and an administrator account. Valid IDs are unique. The admin role must retain auth:read_self and permissions:manage. Changes are atomic and effective for active sessions.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IDListRequest' } } } }
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/LastAdmin' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /users/{id}/roles:
+    parameters: [{ $ref: '#/components/parameters/UserId' }]
+    get:
+      operationId: getUserRoles
+      summary: Read a user's assigned role
+      description: Requires roles:read. The current user model supports one role per user, returned as a one-item array.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: replaceUserRole
+      summary: Replace a user's assigned role
+      description: Requires permissions:manage and an administrator account. The ids array must contain exactly one supported role. The final active administrator cannot be demoted.
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SingleRoleRequest' } } } }
+      responses:
+        '200': { $ref: '#/components/responses/IDList' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/LastAdmin' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /school/branding:
+    get:
+      operationId: getPublicSchoolBranding
+      summary: Read public school name and theme
+      description: Omits address, phone, email, and administrative settings. Uses neutral defaults until configured.
+      tags: [school]
+      security: []
+      responses:
+        '200': { description: Public branding, content: { application/json: { schema: { $ref: '#/components/schemas/BrandingResponse' } } } }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /school/settings:
+    get:
+      operationId: getSchoolSettings
+      summary: Read school profile and theme
+      description: Requires school_settings:read and the core school_settings module.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: School settings, content: { application/json: { schema: { $ref: '#/components/schemas/SchoolSettingsResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      operationId: updateSchoolSettings
+      summary: Replace school profile and theme
+      description: Requires an active administrator with school_settings:update. Logo is a validated public HTTPS image URL, not an upload. Colors must meet 4.5-to-1 contrast with white.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SchoolSettingsInput' } } } }
+      responses:
+        '200': { description: Updated settings, content: { application/json: { schema: { $ref: '#/components/schemas/SchoolSettingsResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /school/grading:
+    get:
+      operationId: getSchoolGrading
+      summary: Read active school grading bands
+      description: Requires grading:read and the core school_settings module.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Active bands, content: { application/json: { schema: { $ref: '#/components/schemas/GradingResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      operationId: replaceSchoolGrading
+      summary: Replace grading bands atomically
+      description: Requires an active administrator with grading:update. Bands must cover every integer mark from 0 to 100 without gaps or overlaps. GPA is from 0 to 5 with at most two decimals.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GradingInput' } } } }
+      responses:
+        '200': { description: Updated bands, content: { application/json: { schema: { $ref: '#/components/schemas/GradingResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /school/modules:
+    get:
+      operationId: listSchoolModules
+      summary: List module definitions and current enablement
+      description: Requires modules:read and the core school_settings module. Optional module definitions do not provide feature APIs yet.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Paginated modules, content: { application/json: { schema: { $ref: '#/components/schemas/ModulePageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /school/modules/{key}:
+    parameters: [{ name: key, in: path, required: true, schema: { type: string }, description: Stable module key }]
+    put:
+      operationId: setSchoolModule
+      summary: Enable or disable an optional module
+      description: Requires an active administrator with modules:manage. Core modules cannot be disabled. Status is read from PostgreSQL on each module-protected request.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], additionalProperties: false, properties: { enabled: { type: boolean } } } } } }
+      responses:
+        '200': { description: Updated module, content: { application/json: { schema: { $ref: '#/components/schemas/ModuleResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Core module cannot be disabled, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users with search, role, status and pagination
+      description: Requires active admin, users:read, and the permissions module.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: role, in: query, schema: { type: string, enum: [admin, head_teacher, teacher, student, guardian, accountant] } }
+        - { name: status, in: query, schema: { type: string, enum: [active, inactive] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Users, content: { application/json: { schema: { $ref: '#/components/schemas/UserPageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create an account with a privately delivered initial password
+      description: Requires active admin, users:create, permissions:manage, and the permissions module. The password is accepted only in the request body, immediately hashed, and never returned. Password delivery and later reset are outside this checkpoint.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateUserInput' } } }
+      responses:
+        '201': { description: Created user, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Email already registered }
+  /users/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Read one user
+      description: Requires active admin, users:read, and the permissions module.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: User, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: User not found }
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update email and display name
+      description: Requires active admin, users:update, and the permissions module. Role and status have separate guarded operations.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateUserInput' } } }
+      responses:
+        '200': { description: Updated user, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: User not found }
+        '409': { description: Email already registered }
+  /users/{id}/status:
+    patch:
+      operationId: setUserStatus
+      tags: [users]
+      summary: Activate or deactivate a user
+      description: Requires active admin, users:update, and the permissions module. Deactivation revokes all sessions in the same transaction. The last active authorized administrator is protected.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StatusInput' } } }
+      responses:
+        '200': { description: Updated user, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: User not found }
+        '409': { description: Last authorized administrator cannot be deactivated }
+  /audit/events:
+    get:
+      operationId: listAuditEvents
+      tags: [audit]
+      summary: Read audit events
+      description: Requires active admin, audit:read, and the permissions module. Sort is newest or oldest by timestamp and event ID. There are no audit mutation endpoints.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: actor, in: query, schema: { type: string, format: uuid } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: target_type, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [newest, oldest], default: newest } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Audit events, content: { application/json: { schema: { $ref: '#/components/schemas/AuditPageResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Read current role dashboard and allowed navigation
+      description: Requires auth:read_self and the authentication module. Administrator statistics require the current admin role and users:read grant; other roles receive no statistics.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Dashboard, content: { application/json: { schema: { $ref: '#/components/schemas/DashboardResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Search: { name: search, in: query, schema: { type: string, maxLength: 100 }, description: Case-insensitive ID or label search }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    PageSize: { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+    RoleId: { name: id, in: path, required: true, schema: { type: string }, description: One of the six role identifiers }
+    UserId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    CSRFToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+  responses:
+    IDList:
+      description: Current identifiers
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/IDListResponse' }
+    NotFound:
+      description: Role or user does not exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    LastAdmin:
+      description: Change would remove the last authorized administrator
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InvalidRequest:
+      description: Invalid JSON or credentials format
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InvalidCredentials:
+      description: Generic incorrect credentials response
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InvalidSession:
+      description: Session is missing, expired, or revoked
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Access token is missing or invalid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnsupportedMediaType:
+      description: Login requires application/json
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    AuthUnavailable:
+      description: Authentication requires a configured database
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    ManagedUser:
+      type: object
+      required: [id, email, display_name, role, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string }
+        role: { type: string, enum: [admin, head_teacher, teacher, student, guardian, accountant] }
+        is_active: { type: boolean }
+    ManagedUserResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ManagedUser' }
+    UserPageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/ManagedUser' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    CreateUserInput:
+      type: object
+      required: [email, display_name, role, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        display_name: { type: string, minLength: 1, maxLength: 160 }
+        role: { type: string, enum: [admin, head_teacher, teacher, student, guardian, accountant] }
+        password: { type: string, format: password, description: 12 to 72 UTF-8 bytes }
+    UpdateUserInput:
+      type: object
+      required: [email, display_name]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        display_name: { type: string, minLength: 1, maxLength: 160 }
+    StatusInput:
+      type: object
+      required: [is_active]
+      additionalProperties: false
+      properties:
+        is_active: { type: boolean }
+    AuditEvent:
+      type: object
+      required: [id, created_at, action, target_type, target_id, outcome, metadata]
+      properties:
+        id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        actor_user_id: { type: string, format: uuid, nullable: true }
+        action: { type: string }
+        target_type: { type: string }
+        target_id: { type: string }
+        outcome: { type: string, enum: [success, denied] }
+        metadata: { type: object, description: Explicit safe metadata only; no credentials or token material }
+    AuditPageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    DashboardNavigation:
+      type: object
+      required: [key, name, path, coming_soon]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        path: { type: string }
+        coming_soon: { type: boolean }
+    DashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [user, branding, navigation]
+          properties:
+            user: { $ref: '#/components/schemas/AuthUser' }
+            branding: { $ref: '#/components/schemas/Branding' }
+            navigation: { type: array, items: { $ref: '#/components/schemas/DashboardNavigation' } }
+            summary:
+              type: object
+              description: Present only for administrators with users:read.
+              properties:
+                total_users: { type: integer }
+                active_users: { type: integer }
+                inactive_users: { type: integer }
+                by_role: { type: array, items: { type: object, properties: { role: { type: string }, count: { type: integer } } } }
+                enabled_modules: { type: integer }
+                school_fields_complete: { type: integer }
+                school_fields_total: { type: integer }
+    Branding:
+      type: object
+      required: [name_en, name_bn, logo_url, preferred_language, primary_color, secondary_color, dashboard_theme]
+      properties:
+        name_en: { type: string }
+        name_bn: { type: string }
+        logo_url: { type: string, description: Optional HTTPS PNG, JPEG, or WebP URL }
+        preferred_language: { type: string, enum: [en, bn] }
+        primary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+        secondary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+        dashboard_theme: { type: string, enum: [light, dark] }
+    BrandingResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Branding' }
+    SchoolSettingsInput:
+      allOf: [{ $ref: '#/components/schemas/Branding' }]
+      type: object
+      required: [address, phone, email, grading_scheme_id]
+      properties:
+        address: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+        grading_scheme_id: { type: string, example: bd_default }
+    SchoolSettings:
+      allOf: [{ $ref: '#/components/schemas/SchoolSettingsInput' }]
+      type: object
+      properties:
+        updated_at: { type: string, format: date-time }
+    SchoolSettingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SchoolSettings' }
+    GradeBand:
+      type: object
+      required: [grade, min_marks, max_marks, gpa]
+      properties:
+        grade: { type: string }
+        min_marks: { type: integer, minimum: 0, maximum: 100 }
+        max_marks: { type: integer, minimum: 0, maximum: 100 }
+        gpa: { type: number, minimum: 0, maximum: 5, multipleOf: 0.01 }
+    GradingInput:
+      type: object
+      required: [bands]
+      additionalProperties: false
+      properties:
+        bands: { type: array, minItems: 1, maxItems: 30, items: { $ref: '#/components/schemas/GradeBand' } }
+    GradingResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/GradeBand' } }
+    SchoolModule:
+      type: object
+      required: [key, name, is_core, enabled]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        is_core: { type: boolean }
+        enabled: { type: boolean }
+    ModuleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SchoolModule' }
+    ModulePageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/SchoolModule' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    IDListRequest:
+      type: object
+      required: [ids]
+      additionalProperties: false
+      properties:
+        ids: { type: array, uniqueItems: true, items: { type: string } }
+    SingleRoleRequest:
+      allOf: [{ $ref: '#/components/schemas/IDListRequest' }]
+      description: The ids array must contain exactly one role identifier.
+    IDListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { type: string } }
+    RolePageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Role' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    PermissionPageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total, page, page_size]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Permission' } }
+            total: { type: integer }
+            page: { type: integer }
+            page_size: { type: integer }
+    Role:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    Permission:
+      type: object
+      required: [id, description]
+      properties:
+        id: { type: string }
+        description: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, format: password, minLength: 1, maxLength: 72 }
+    AuthUser:
+      type: object
+      required: [id, email, role]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string }
+        role:
+          type: string
+          enum: [admin, head_teacher, teacher, student, guardian, accountant]
+    AuthResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [user, access_token]
+          properties:
+            user: { $ref: '#/components/schemas/AuthUser' }
+            access_token: { type: string, description: JWT access token; expires in 15 minutes }
+    UserResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AuthUser' }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
     HealthResponse:
       type: object
       required: [data]

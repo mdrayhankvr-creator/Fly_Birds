@@ -4,8 +4,8 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 
 | Milestone | Scope | Status |
 |---|---|---|
-| M0 | Foundation, health endpoint, CI, initial documentation | Implemented locally; GitHub CI and Docker runtime remain unverified |
-| M1 | Authentication and school configuration | Not started; requires explicit `next` instruction |
+| M0 | Foundation, health endpoint, CI, initial documentation | Merged into main; local Compose runtime verified |
+| M1 | Authentication and school configuration | Final local audit passed; 12/12 brief criteria verified, ready for Pull Request review, remote CI pending |
 | M2 | Academic structure | Not started |
 | M3 | Students and guardians | Not started |
 | M4 | Teachers and staff | Not started |

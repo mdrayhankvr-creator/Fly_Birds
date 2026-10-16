@@ -15,6 +15,7 @@ import '@fontsource/noto-sans-bengali/800.css'
 import './i18n'
 import './styles.css'
 import App from './App'
+import { AuthProvider } from './auth/AuthProvider'
 
 const queryClient = new QueryClient()
 
@@ -22,7 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <AuthProvider><App /></AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,

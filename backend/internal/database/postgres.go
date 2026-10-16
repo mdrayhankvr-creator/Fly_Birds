@@ -3,13 +3,23 @@ package database
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func Open(ctx context.Context, dsn string) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	queryLogger := logger.New(log.New(os.Stderr, "", log.LstdFlags), logger.Config{
+		SlowThreshold:             time.Second,
+		LogLevel:                  logger.Warn,
+		IgnoreRecordNotFoundError: true,
+		ParameterizedQueries:      true,
+	})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: queryLogger})
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}

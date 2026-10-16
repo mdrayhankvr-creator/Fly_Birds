@@ -1,2 +1,5 @@
 .cache
 *.exe
+.env
+.env.*
+!.env.example
