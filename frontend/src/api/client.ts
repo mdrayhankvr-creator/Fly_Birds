@@ -160,6 +160,20 @@ export const setUserRole = (token: string, id: string, role: string) => bearerRe
 })
 export const getDashboard = (token: string) => bearerRequest<DashboardData>('/dashboard', token)
 
+export type AcademicClass = { id: string; name: string; display_order: number; is_active: boolean }
+export type AcademicSubject = { id: string; name_en: string; name_bn: string; code: string; is_active: boolean }
+export type ClassSubject = { id: string; class_id: string; subject_id: string; is_required: boolean; is_fourth_subject: boolean; subject_name_en: string; subject_name_bn: string; subject_code: string }
+export type AcademicClassInput = Omit<AcademicClass, 'id'>
+export type AcademicSubjectInput = Omit<AcademicSubject, 'id'>
+export const getAcademicClasses = (token: string, params: URLSearchParams) => bearerRequest<Page<AcademicClass>>(`/academic/classes?${params}`, token)
+export const getAcademicSubjects = (token: string, params: URLSearchParams) => bearerRequest<Page<AcademicSubject>>(`/academic/subjects?${params}`, token)
+export const saveAcademicClass = (token: string, input: AcademicClassInput, id?: string) => bearerRequest<AcademicClass>(id ? `/academic/classes/${encodeURIComponent(id)}` : '/academic/classes', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+export const saveAcademicSubject = (token: string, input: AcademicSubjectInput, id?: string) => bearerRequest<AcademicSubject>(id ? `/academic/subjects/${encodeURIComponent(id)}` : '/academic/subjects', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+export const getClassSubjects = (token: string, classId: string, params: URLSearchParams) => bearerRequest<Page<ClassSubject>>(`/academic/classes/${encodeURIComponent(classId)}/subjects?${params}`, token)
+export const addClassSubject = (token: string, classId: string, subjectId: string, fourth: boolean) => bearerRequest<ClassSubject>(`/academic/classes/${encodeURIComponent(classId)}/subjects`, token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject_id: subjectId, is_required: !fourth, is_fourth_subject: fourth }) })
+export const updateClassSubject = (token: string, classId: string, subjectId: string, fourth: boolean) => bearerRequest<ClassSubject>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_required: !fourth, is_fourth_subject: fourth }) })
+export const removeClassSubject = (token: string, classId: string, subjectId: string) => bearerRequest<{ deleted: boolean }>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'DELETE' })
+
 type HealthResponse = {
   data: {
     status: string
