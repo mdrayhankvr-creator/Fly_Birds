@@ -286,6 +286,10 @@ func (s *Service) ImportCSV(ctx context.Context, a Actor, sessionID, classID, se
 		return 0, ErrInvalid
 	}
 	body = bytes.TrimPrefix(body, []byte{0xef, 0xbb, 0xbf})
+	// PostgreSQL text cannot store NUL even though it is valid UTF-8.
+	if bytes.IndexByte(body, 0) >= 0 {
+		return 0, ErrInvalid
+	}
 	reader := csv.NewReader(bytes.NewReader(body))
 	reader.FieldsPerRecord = -1
 	header, err := reader.Read()

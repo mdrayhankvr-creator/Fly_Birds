@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -50,7 +51,16 @@ func decodeSchoolJSON(c *gin.Context, limit int64, destination any) bool {
 		failure(c, 415, "unsupported_media_type", "application/json is required")
 		return false
 	}
-	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, limit))
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, limit))
+	if err != nil {
+		failure(c, 400, "invalid_request", "invalid JSON body")
+		return false
+	}
+	if containsJSONNUL(body) {
+		failure(c, 400, "invalid_request", "NUL characters are not allowed")
+		return false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(destination) != nil {
 		failure(c, 400, "invalid_request", "invalid JSON body")

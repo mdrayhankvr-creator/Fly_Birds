@@ -90,7 +90,7 @@ func NewRouterWithExams(service *auth.Service, secureCookies bool, grants *rbac.
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
 		failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
 		c.Abort()
-	}))
+	}), rejectNULQuery())
 	router.HandleMethodNotAllowed = true
 	moduleGuard := func(key string) gin.HandlerFunc {
 		if schoolService == nil { // Compatibility for health-only and isolated legacy router tests.
