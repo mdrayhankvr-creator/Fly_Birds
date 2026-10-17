@@ -1,6 +1,14 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M4 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M5 Attendance is complete locally on `feature/m5-attendance` and awaits review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M5 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M6 Routine is complete locally on `feature/m6-routine-management` and awaits review.
+
+## M6 Class and Exam Routines
+
+Migration `0601_routines.sql` adds weekly class periods, exam routine drafts, and dated exam slots. It follows the existing M0–M5 migrations. Administrators can create, edit, delete, filter, and publish schedules at `/admin/routines`; class periods enforce active teacher assignments, academic section and subject relationships, and nonoverlapping teacher, room, and section times, including intersecting academic sessions. Exam slots enforce mapped subjects, session dates, and nonoverlapping section and room times across sessions. Writes are transactional and audited. Published exam routines are visible to students and linked guardians; drafts remain private.
+
+Teachers see assigned class periods at `/teacher/routine`, students see their class and published exams at `/student/routine`, and guardians reach a linked child's routines from `/guardian/children/:id/routine`. The pages support English and Bangla, mobile layouts, and browser printing. JWT authentication, current role permissions, and the optional `routine` module protect every endpoint. Enable **Routine** in school settings before use. The module starts disabled; Academics, Students, and Staff must contain the related records. See [OpenAPI](docs/openapi.yaml) for API paths and [Progress](docs/PROGRESS.md) for verification.
+
+To run locally, start the existing Compose stack as described below; backend startup applies the migration. For isolated PostgreSQL verification, set `AUTH_TEST_DATABASE_URL` to a fresh disposable database and run `go vet ./...` and `go test ./... -p 1 -count=1` from `backend/`. Run `npm run build` from `frontend/`. These commands do not require demo-school records in the application database.
 
 ## M2 Tasks 001–002 — Academic Structure Integration
 
