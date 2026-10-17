@@ -51,7 +51,7 @@ func (r *GormRepository) SaveClass(ctx context.Context, actor, id string, in Cla
 			return ErrInvalid
 		}
 		var overlap int64
-		err = tx.Table("class_routines").Where("session_id=? AND day_of_week=? AND start_minute<? AND end_minute>? AND id::text IS DISTINCT FROM ? AND (section_id=? OR teacher_id=? OR lower(room)=lower(?))", in.SessionID, in.DayOfWeek, end, start, id, in.SectionID, in.TeacherID, in.Room).Count(&overlap).Error
+		err = tx.Table("class_routines AS cr").Joins("JOIN academic_sessions existing_session ON existing_session.id=cr.session_id").Joins("JOIN academic_sessions selected_session ON selected_session.id=?", in.SessionID).Where("existing_session.start_date<=selected_session.end_date AND existing_session.end_date>=selected_session.start_date AND cr.day_of_week=? AND cr.start_minute<? AND cr.end_minute>? AND cr.id::text IS DISTINCT FROM ? AND (cr.section_id=? OR cr.teacher_id=? OR lower(cr.room)=lower(?))", in.DayOfWeek, end, start, id, in.SectionID, in.TeacherID, in.Room).Count(&overlap).Error
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (r *GormRepository) SaveExamSlot(ctx context.Context, actor, routineID, id 
 		if n > 0 {
 			return ErrConflict
 		}
-		conflicts := tx.Table("exam_routine_slots s").Joins("JOIN exam_routines r ON r.id=s.routine_id").Where("r.session_id=? AND s.exam_date=? AND s.start_minute<? AND s.end_minute>? AND s.id::text IS DISTINCT FROM ? AND (r.section_id=? OR lower(s.room)=lower(?))", exam.SessionID, in.ExamDate, end, start, id, exam.SectionID, in.Room)
+		conflicts := tx.Table("exam_routine_slots s").Joins("JOIN exam_routines r ON r.id=s.routine_id").Where("s.exam_date=? AND s.start_minute<? AND s.end_minute>? AND s.id::text IS DISTINCT FROM ? AND (r.section_id=? OR lower(s.room)=lower(?))", in.ExamDate, end, start, id, exam.SectionID, in.Room)
 		if err := conflicts.Count(&n).Error; err != nil {
 			return err
 		}

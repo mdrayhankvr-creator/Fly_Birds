@@ -53,7 +53,7 @@ func TestPostgresRoutineLifecycle(t *testing.T) {
 	userIndex := 0
 	user := func(role string) string {
 		userIndex++
-		return insert("INSERT INTO users(email,password_hash,role,display_name) VALUES (?,?,?,?) RETURNING id", fmt.Sprintf("%s%d%s@example.test",role,userIndex,unique), "unused", role, role)
+		return insert("INSERT INTO users(email,password_hash,role,display_name) VALUES (?,?,?,?) RETURNING id", fmt.Sprintf("%s%d%s@example.test", role, userIndex, unique), "unused", role, role)
 	}
 	admin, guardian, otherGuardian, studentUser, teacherUser, teacher2User := user("admin"), user("guardian"), user("guardian"), user("student"), user("teacher"), user("teacher")
 	session := insert("INSERT INTO academic_sessions(name,start_date,end_date,is_active) VALUES ('2188','2188-01-01','2188-12-31',false) RETURNING id")
@@ -86,6 +86,23 @@ func TestPostgresRoutineLifecycle(t *testing.T) {
 	first, err := s.SaveClass(ctx, admin, "", in)
 	if err != nil {
 		t.Fatal(err)
+	}
+	overlapSession := insert("INSERT INTO academic_sessions(name,start_date,end_date,is_active) VALUES ('2188-2189','2188-01-01','2188-12-31',false) RETURNING id")
+	overlapSection := insert("INSERT INTO academic_sections(session_id,class_id,name,code) VALUES (?,?,'B','B') RETURNING id", overlapSession, class2)
+	for _, teacher := range []string{teacher1, teacher2} {
+		if err := tx.Exec("INSERT INTO teacher_assignments(employee_id,session_id,class_id,subject_id) VALUES (?,?,?,?)", teacher, overlapSession, class2, subject1).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	crossSession := in
+	crossSession.SessionID, crossSession.ClassID, crossSession.SectionID = overlapSession, class2, overlapSection
+	crossSession.Room = "102"
+	if _, err := s.SaveClass(ctx, admin, "", crossSession); !errors.Is(err, ErrConflict) {
+		t.Fatalf("overlapping-session teacher conflict: %v", err)
+	}
+	crossSession.TeacherID, crossSession.Room = teacher2, "101"
+	if _, err := s.SaveClass(ctx, admin, "", crossSession); !errors.Is(err, ErrConflict) {
+		t.Fatalf("overlapping-session room conflict: %v", err)
 	}
 	sectionConflict := in
 	sectionConflict.SubjectID = subject2
@@ -167,6 +184,16 @@ func TestPostgresRoutineLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	crossExam, err := s.SaveExam(ctx, admin, "", ExamInput{Name: "Cross-session", SessionID: overlapSession, ClassID: class2, SectionID: overlapSection})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveExamSlot(ctx, admin, crossExam.ID, "", slot); !errors.Is(err, ErrConflict) {
+		t.Fatalf("overlapping-session exam room conflict: %v", err)
+	}
+	if err := s.DeleteExam(ctx, admin, crossExam.ID); err != nil {
+		t.Fatal(err)
+	}
 	if len(exam1.Slots) != 1 {
 		t.Fatalf("exam slots: %+v", exam1)
 	}
@@ -208,6 +235,15 @@ func TestPostgresRoutineLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.DeleteExam(ctx, admin, exam1.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Exec("DELETE FROM teacher_assignments WHERE session_id=?", overlapSession).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Exec("DELETE FROM academic_sections WHERE id=?", overlapSection).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Exec("DELETE FROM academic_sessions WHERE id=?", overlapSession).Error; err != nil {
 		t.Fatal(err)
 	}
 
