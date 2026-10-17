@@ -31,6 +31,10 @@ func TestPostgresExamRouteProtection(t *testing.T) {
 	if err := database.Migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
+	// Other integration tests can edit the shared role matrix. Restore the grants under test.
+	if err := db.Exec("INSERT INTO role_permissions (role_id,permission_id) VALUES ('admin','exams:manage'),('admin','exams:read'),('admin','exams:enter_marks'),('head_teacher','exams:read'),('teacher','exams:enter_marks'),('student','exams:read_self'),('guardian','exams:read_children') ON CONFLICT DO NOTHING").Error; err != nil {
+		t.Fatal(err)
+	}
 	var old bool
 	if err := db.Table("school_modules").Select("enabled").Where("school_id=1 AND module_key='examinations'").Scan(&old).Error; err != nil {
 		t.Fatal(err)
