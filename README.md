@@ -1,6 +1,12 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M6 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M7 Exams and Results is complete locally on `feature/m7-exams-results` and awaits review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M7 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M8 Fees and Accounts is complete locally on `feature/m8-fees-accounts` and awaits review.
+
+## M8 Fees and Accounts
+
+Migration `0801_fees_accounts.sql` adds fee categories, session and class fee structures, standing student concessions, dues, discounts and waivers, receipts with payment allocations, mock mobile payments and an income and expense ledger. It uses the existing student and academic tables. Dues store the amount at creation, so later structure changes do not rewrite history. A database check stops any due from being overpaid. Payments run in one transaction, settle the oldest dues first (or the dues you select) and issue a sequenced `RCT-` receipt. Retrying with the same idempotency key returns the original receipt instead of charging again. Bank, bKash and Nagad references must be unique. Every receipt posts fee income to the ledger, and every change is audited.
+
+Administrators and accountants use `/accounts/fees` to set up fees, generate monthly dues (rerunning skips existing dues), collect full or partial payments, apply discounts and print receipts. The same page has collection, arrears and receipt reports and the income and expense ledger. Only administrators can waive a balance. Students see their own statement and receipts at `/student/fees`. Guardians reach a linked child's fees from `/guardian/children/:id/fees`. Both can try the **mock** bKash or Nagad checkout: the test OTP is `123456`, any other code declines, and no real provider is contacted. The pages support English and Bangla (amounts in Bangla digits), mobile layouts and receipt printing. Enable the optional **Fees and accounts** module in school settings; it starts disabled. See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification and limitations.
 
 ## M7 Exams, Marks and Results
 
