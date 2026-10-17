@@ -22,6 +22,7 @@ import { GuardiansPage } from './pages/GuardiansPage'
 import { StudentProfilePage } from './pages/StudentProfilePage'
 import { GuardianChildrenPage } from './pages/GuardianChildrenPage'
 import { RoutinePage } from './pages/RoutinePage'
+import { ExamsPage } from './pages/ExamsPage'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -152,7 +153,7 @@ function StudentAttendanceGate({ kind, permissions, enabled, loading, error }: {
   return kind === 'manage' ? <StudentAttendancePage permissions={permissions} /> : <StudentAttendanceReportPage guardian={kind === 'guardian'} />
 }
 
-function PeopleGate({ kind, permissions, role, enabled, loading, error, routineEnabled = false }: { kind: 'students' | 'guardians' | 'profile' | 'self' | 'children' | 'child'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean; routineEnabled?: boolean }) {
+function PeopleGate({ kind, permissions, role, enabled, loading, error, routineEnabled = false, examsEnabled = false }: { kind: 'students' | 'guardians' | 'profile' | 'self' | 'children' | 'child'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean; routineEnabled?: boolean; examsEnabled?: boolean }) {
   const { t } = useTranslation()
   if (loading) return <p role="status">{t('loadingPermissions')}</p>
   if (error) return <p role="alert">{t('loadPermissionsError')}</p>
@@ -165,7 +166,7 @@ function PeopleGate({ kind, permissions, role, enabled, loading, error, routineE
   if (kind === 'guardians' && canGuardians) return <GuardiansPage canManage={canManageGuardians} />
   if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} />
   if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
-  if (kind === 'children' && role === 'guardian' && permissions?.includes('guardians:read_children')) return <GuardianChildrenPage showAttendance={!!permissions?.includes('attendance:guardians_read_children')} showRoutine={routineEnabled && !!permissions?.includes('routine:read_children')} />
+  if (kind === 'children' && role === 'guardian' && permissions?.includes('guardians:read_children')) return <GuardianChildrenPage showAttendance={!!permissions?.includes('attendance:guardians_read_children')} showRoutine={routineEnabled && !!permissions?.includes('routine:read_children')} showResults={examsEnabled && !!permissions?.includes('exams:read_children')} />
   if (kind === 'child' && role === 'guardian' && permissions?.includes('guardians:read_children')) return <StudentProfilePage mode="child" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
   return <p role="alert">{t('permissionDenied')}</p>
 }
@@ -177,6 +178,15 @@ function RoutineGate({ mode, permissions, role, enabled, loading, error }: { mod
   const required = mode === 'admin' ? 'routine:read' : mode === 'guardian' ? 'routine:read_children' : 'routine:read_self'
   if (!enabled || !permissions?.includes(required) || (mode === 'student' && role !== 'student') || (mode === 'teacher' && role !== 'teacher') || (mode === 'guardian' && role !== 'guardian')) return <p role="alert">{t('permissionDenied')}</p>
   return <RoutinePage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('routine:manage')} />
+}
+
+function ExamsGate({ mode, permissions, role, enabled, loading, error }: { mode: 'admin' | 'student' | 'teacher' | 'guardian'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('examLoading')}</p>
+  if (error) return <p role="alert">{t('examError')}</p>
+  const required = mode === 'admin' ? 'exams:read' : mode === 'teacher' ? 'exams:enter_marks' : mode === 'guardian' ? 'exams:read_children' : 'exams:read_self'
+  if (!enabled || !permissions?.includes(required) || mode !== 'admin' && role !== mode) return <p role="alert">{t('permissionDenied')}</p>
+  return <ExamsPage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('exams:manage')} />
 }
 
 function applyBranding(branding: SchoolBranding | undefined) {
@@ -264,6 +274,10 @@ export default function App() {
   const hasRoutineRead = !!myPermissions.data?.some(permission => ['routine:read', 'routine:read_self', 'routine:read_children'].includes(permission))
   const routineLoading = myPermissions.isPending || (hasRoutineRead && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
   const routineError = myPermissions.isError || myModules.isError || academicNavigation.isError
+  const examsEnabled = myModules.data ? moduleEnabled('examinations') : !!academicNavigation.data?.navigation.some(item => item.key.startsWith('exam_'))
+  const hasExamRead = !!myPermissions.data?.some(permission => ['exams:read', 'exams:enter_marks', 'exams:read_self', 'exams:read_children'].includes(permission))
+  const examsLoading = myPermissions.isPending || (hasExamRead && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
+  const examsError = myPermissions.isError || myModules.isError || academicNavigation.isError
 
   async function setLanguage(language: 'en' | 'bn') {
     localStorage.setItem('flybirds.language', language)
@@ -309,6 +323,9 @@ export default function App() {
                     {myPermissions.data?.includes('routine:read') && routineEnabled && <Link to="/admin/routines" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('routineHeading')}</Link>}
                     {user.role === 'teacher' && myPermissions.data?.includes('routine:read_self') && routineEnabled && <Link to="/teacher/routine" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('classRoutine')}</Link>}
                     {user.role === 'student' && myPermissions.data?.includes('routine:read_self') && routineEnabled && <Link to="/student/routine" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('routineHeading')}</Link>}
+                    {myPermissions.data?.includes('exams:read') && examsEnabled && <Link to="/admin/exams" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('examHeading')}</Link>}
+                    {user.role === 'teacher' && myPermissions.data?.includes('exams:enter_marks') && examsEnabled && <Link to="/teacher/exams" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('examMyMarks')}</Link>}
+                    {user.role === 'student' && myPermissions.data?.includes('exams:read_self') && examsEnabled && <Link to="/student/results" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('examMyResults')}</Link>}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
               </div>
@@ -346,12 +363,16 @@ export default function App() {
           <Route path="/admin/students/:id" element={<ProtectedRoute><PeopleGate kind="profile" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="/admin/guardians" element={<ProtectedRoute><PeopleGate kind="guardians" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="/student/me" element={<ProtectedRoute><PeopleGate kind="self" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
-          <Route path="/guardian/children" element={<ProtectedRoute><PeopleGate kind="children" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} routineEnabled={routineEnabled} /></ProtectedRoute>} />
+          <Route path="/guardian/children" element={<ProtectedRoute><PeopleGate kind="children" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} routineEnabled={routineEnabled} examsEnabled={examsEnabled} /></ProtectedRoute>} />
           <Route path="/guardian/children/:id" element={<ProtectedRoute><PeopleGate kind="child" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="/admin/routines" element={<ProtectedRoute><RoutineGate mode="admin" permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
           <Route path="/teacher/routine" element={<ProtectedRoute><RoutineGate mode="teacher" permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
           <Route path="/student/routine" element={<ProtectedRoute><RoutineGate mode="student" permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
           <Route path="/guardian/children/:id/routine" element={<ProtectedRoute><RoutineGate mode="guardian" permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
+          <Route path="/admin/exams" element={<ProtectedRoute><ExamsGate mode="admin" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+          <Route path="/teacher/exams" element={<ProtectedRoute><ExamsGate mode="teacher" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+          <Route path="/student/results" element={<ProtectedRoute><ExamsGate mode="student" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+          <Route path="/guardian/children/:id/results" element={<ProtectedRoute><ExamsGate mode="guardian" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
