@@ -4,16 +4,28 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 37 verified criteria / 83 total criteria x 100 = **44.6%**.
-- **Current milestone completion:** 5 verified M5 criteria / 5 M5 criteria = **100% locally**.
+- **Overall completion:** 40 verified criteria / 83 total criteria x 100 = **48.2%**.
+- **Current milestone completion:** 3 verified M6 criteria / 3 M6 criteria = **100% locally**.
 
-M0-M4 are complete and merged into main. All five M5 criteria are locally verified on the feature branch.
+M0-M5 are complete and merged into main. All three M6 criteria are locally verified on the feature branch.
 
-## Current Status — M5 Attendance (2026-10-17)
+## Current Status — M6 Routine (2026-10-17)
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Class routines | Weekly session/class/section/subject/teacher periods; administrator CRUD and filters; scoped teacher, student, and linked-guardian views; bilingual printable timetable |
+| Exam routines | Administrator draft and slot CRUD, publish/unpublish, date and relationship checks, published-only student and linked-guardian views, populated printable PDF |
+| Teacher scheduling conflict detection | Transactional serialized writes reject overlapping teacher, room, and section class periods, including sessions with intersecting dates; exam section and room collisions are rejected across sessions |
+
+Branch `feature/m6-routine-management` starts from M5-enabled `origin/main` at `7566209`. Migration `0601_routines.sql` adds `class_routines`, `exam_routines`, and `exam_routine_slots`, with UUID keys, academic and teaching-assignment foreign keys, time checks, unique exam names/subjects, and read indexes. The optional `routine` module starts disabled; enable it in school settings. Grants are `routine:manage` and `routine:read` for administrators, `routine:read` for head teachers, `routine:read_self` for teachers and students, and `routine:read_children` for guardians. Writes also require administrator role. Changes are audited.
+
+Go vet, the full Go suite on a fresh isolated PostgreSQL database, dedicated concurrent conflict/visibility/access tests, OpenAPI route/reference validation, TypeScript and production build, and Edge desktop/mobile browser checks passed. Browser checks covered English admin and Bangla mobile layouts, all four user views, published exam visibility, PDF output, horizontal overflow, and JavaScript errors. The test database and browser fixtures were separate from the application database. Remote CI, production migration, and deployment remain unverified. Overall: **40/83 = 48.2%**; M6: **3/3 = 100% locally**.
+
+## M5 Attendance handoff (2026-10-17)
 
 | Item | Verified status |
 |---|---|
-| Branch | `feature/m5-attendance`, normal merge of M4-enabled `origin/main`; not pushed |
+| Branch | `feature/m5-attendance`, merged into `origin/main` at `7566209` |
 | Schema | `0501_teacher_attendance.sql` and `0502_student_attendance.sql`; versions 1–4, 101–103, 201, 401, 501, 502 applied in a fresh disposable database |
 | Daily student attendance | Complete: assigned teacher/admin entry and correction, section context, duplicate and foreign-key protection |
 | Daily teacher attendance | Complete: existing M5 entry/correction, approved leave, self history, and roster preserved |
@@ -24,7 +36,7 @@ M0-M4 are complete and merged into main. All five M5 criteria are locally verifi
 | Local progress | M5 5/5 = 100%; overall 37/83 = 44.6% |
 | Unverified | Native camera in a physical browser/device, remote CI, production migration and deployment |
 
-See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for permissions, schema rules, test boundaries, and run instructions. M6 has not started.
+See [M5 handoff](M5_ATTENDANCE_HANDOFF.md) for permissions, schema rules, test boundaries, and run instructions.
 
 ## Current Status — Batch B, M4 (2026-10-16)
 

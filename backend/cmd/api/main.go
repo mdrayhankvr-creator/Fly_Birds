@@ -22,6 +22,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/httpapi"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/routine"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/staff"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/users"
@@ -54,6 +55,7 @@ func run(logger *slog.Logger) error {
 	var staffService *staff.Service
 	var attendanceService *attendance.Service
 	var studentAttendanceService *attendance.StudentService
+	var routineService *routine.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -91,6 +93,7 @@ func run(logger *slog.Logger) error {
 		staffService = staff.NewService(staff.NewRepository(db))
 		attendanceService = attendance.NewService(attendance.NewRepository(db))
 		studentAttendanceService = attendance.NewStudentService(attendance.NewStudentRepository(db))
+		routineService = routine.NewService(routine.NewRepository(db))
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -98,7 +101,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithStudentAttendance(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService),
+		Handler:           httpapi.NewRouterWithRoutine(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

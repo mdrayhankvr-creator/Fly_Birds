@@ -140,8 +140,22 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: "student_attendance_self", Name: "My attendance", Path: "/student/attendance"})
 			}
 		}
+		if enabled["routine"] {
+			if allowed["routine:read"] {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "routine_admin", Name: "Routines", Path: "/admin/routines"})
+			}
+			if allowed["routine:read_self"] && user.Role == "teacher" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "routine_teacher", Name: "My teaching routine", Path: "/teacher/routine"})
+			}
+			if allowed["routine:read_self"] && user.Role == "student" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "routine_student", Name: "My routine", Path: "/student/routine"})
+			}
+			if allowed["routine:read_children"] {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "routine_guardian", Name: "Children routines", Path: "/guardian/children"})
+			}
+		}
 		for _, m := range modules {
-			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" {
+			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" && m.Key != "routine" {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: m.Key, Name: m.Name, ComingSoon: true})
 			}
 		}

@@ -250,6 +250,23 @@ export const decideLeave = (token: string, id: string, status: 'approved' | 'rej
 export const getSalaryRecords = (token: string, id: string, params: URLSearchParams) => bearerRequest<Page<SalaryRecord>>(`/staff/employees/${encodeURIComponent(id)}/salaries?${params}`, token)
 export const addSalaryRecord = (token: string, id: string, input: SalaryInput) => bearerRequest<SalaryRecord>(`/staff/employees/${encodeURIComponent(id)}/salaries`, token, json('POST', input))
 
+export type ClassRoutineSlot = { id: string; session_id: string; class_id: string; section_id: string; subject_id: string; teacher_id: string; day_of_week: number; start_time: string; end_time: string; room: string; class_name: string; section_name: string; subject_name: string; subject_name_bn: string; teacher_name: string }
+export type ClassRoutineInput = Pick<ClassRoutineSlot, 'session_id' | 'class_id' | 'section_id' | 'subject_id' | 'teacher_id' | 'day_of_week' | 'start_time' | 'end_time' | 'room'>
+export type ExamRoutineSlot = { id: string; routine_id: string; subject_id: string; subject_name: string; subject_name_bn: string; exam_date: string; start_time: string; end_time: string; room: string }
+export type ExamRoutineSlotInput = Pick<ExamRoutineSlot, 'subject_id' | 'exam_date' | 'start_time' | 'end_time' | 'room'>
+export type ExamRoutine = { id: string; name: string; session_id: string; class_id: string; section_id: string; class_name: string; section_name: string; is_published: boolean; slots: ExamRoutineSlot[] }
+export type ExamRoutineInput = Pick<ExamRoutine, 'name' | 'session_id' | 'class_id' | 'section_id'>
+export const getClassRoutine = (token: string, path: string, params: URLSearchParams) => bearerRequest<Page<ClassRoutineSlot>>(`${path}?${params}`, token)
+export const saveClassRoutineSlot = (token: string, input: ClassRoutineInput, id?: string) => bearerRequest<ClassRoutineSlot>(id ? `/routines/classes/${encodeURIComponent(id)}` : '/routines/classes', token, json(id ? 'PATCH' : 'POST', input))
+export const deleteClassRoutineSlot = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/routines/classes/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
+export const getExamRoutines = (token: string, path: string, params: URLSearchParams) => bearerRequest<Page<ExamRoutine>>(`${path}?${params}`, token)
+export const getExamRoutine = (token: string, path: string) => bearerRequest<ExamRoutine>(path, token)
+export const saveExamRoutine = (token: string, input: ExamRoutineInput, id?: string) => bearerRequest<ExamRoutine>(id ? `/routines/exams/${encodeURIComponent(id)}` : '/routines/exams', token, json(id ? 'PATCH' : 'POST', input))
+export const deleteExamRoutine = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/routines/exams/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
+export const publishExamRoutine = (token: string, id: string, published: boolean) => bearerRequest<ExamRoutine>(`/routines/exams/${encodeURIComponent(id)}/publication`, token, json('PATCH', { published }))
+export const saveExamRoutineSlot = (token: string, id: string, input: ExamRoutineSlotInput, slotId?: string) => bearerRequest<ExamRoutine>(slotId ? `/routines/exams/${encodeURIComponent(id)}/slots/${encodeURIComponent(slotId)}` : `/routines/exams/${encodeURIComponent(id)}/slots`, token, json(slotId ? 'PATCH' : 'POST', input))
+export const deleteExamRoutineSlot = (token: string, id: string, slotId: string) => bearerRequest<{ deleted: boolean }>(`/routines/exams/${encodeURIComponent(id)}/slots/${encodeURIComponent(slotId)}`, token, { method: 'DELETE' })
+
 export type AttendanceSession = { id: string; name: string; start_date: string; end_date: string }
 export type TeacherRosterItem = { employee_id: string; employee_code: string; name_en: string; name_bn: string; record_id: string | null; status: 'present' | 'absent' | 'leave' | null; note: string | null }
 export type TeacherAttendanceRecord = { id: string; session_id: string; employee_id: string; attendance_date: string; status: 'present' | 'absent' | 'leave'; note: string; recorded_by: string; updated_by: string; created_at: string; updated_at: string; session_name: string; employee_code: string; employee_name_en: string; employee_name_bn: string }
