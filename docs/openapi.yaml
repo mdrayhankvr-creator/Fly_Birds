@@ -1271,7 +1271,7 @@ paths:
     get:
       operationId: listOwnResults
       summary: List signed-in student's published report cards
-      description: Requires exams:read_self and examinations module. Drafts are hidden.
+      description: Requires exams:read_self and examinations module. Drafts are hidden. Each subject row includes subject_name and subject_name_bn.
       tags: [exams]
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Published report cards } }

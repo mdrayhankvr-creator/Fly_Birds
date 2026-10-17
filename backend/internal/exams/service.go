@@ -69,6 +69,7 @@ type MarkRow struct {
 	AdmissionNo   string   `json:"admission_no"`
 	RollNo        *int     `json:"roll_no"`
 	SubjectName   string   `json:"subject_name"`
+	SubjectNameBN string   `json:"subject_name_bn"`
 	Marks         *float64 `json:"marks"`
 	Grade         *string  `json:"grade"`
 	GradePoint    *float64 `json:"grade_point"`
