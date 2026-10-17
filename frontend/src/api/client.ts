@@ -267,7 +267,7 @@ export const publishExamRoutine = (token: string, id: string, published: boolean
 export const saveExamRoutineSlot = (token: string, id: string, input: ExamRoutineSlotInput, slotId?: string) => bearerRequest<ExamRoutine>(slotId ? `/routines/exams/${encodeURIComponent(id)}/slots/${encodeURIComponent(slotId)}` : `/routines/exams/${encodeURIComponent(id)}/slots`, token, json(slotId ? 'PATCH' : 'POST', input))
 export const deleteExamRoutineSlot = (token: string, id: string, slotId: string) => bearerRequest<{ deleted: boolean }>(`/routines/exams/${encodeURIComponent(id)}/slots/${encodeURIComponent(slotId)}`, token, { method: 'DELETE' })
 
-export type AttendanceSession = { id: string; name: string; start_date: string; end_date: string }
+export type AttendanceSession = { id: string; name: string; start_date: string; end_date: string; is_active: boolean }
 export type TeacherRosterItem = { employee_id: string; employee_code: string; name_en: string; name_bn: string; record_id: string | null; status: 'present' | 'absent' | 'leave' | null; note: string | null }
 export type TeacherAttendanceRecord = { id: string; session_id: string; employee_id: string; attendance_date: string; status: 'present' | 'absent' | 'leave'; note: string; recorded_by: string; updated_by: string; created_at: string; updated_at: string; session_name: string; employee_code: string; employee_name_en: string; employee_name_bn: string }
 export type TeacherMonthlySummary = { employee_id: string; employee_code: string; name_en: string; name_bn: string; present: number; absent: number; leave: number; total: number }

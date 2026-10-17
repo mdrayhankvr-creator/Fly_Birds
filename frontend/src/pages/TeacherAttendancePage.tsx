@@ -41,7 +41,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
   const sessions = useQuery({ queryKey: ['attendance', 'sessions'], queryFn: () => authorized(token => getAttendanceSessions(token, sessionParams)), retry: false })
   useEffect(() => {
     if (sessionId || !sessions.data?.items.length) return
-    setSessionId(sessions.data.items.find(item => item.start_date <= date && date <= item.end_date)?.id || sessions.data.items[0].id)
+    setSessionId((sessions.data.items.find(item => item.is_active) || sessions.data.items.find(item => item.start_date <= date && date <= item.end_date) || sessions.data.items[0]).id)
   }, [date, sessionId, sessions.data])
   const currentSession: AttendanceSession | undefined = sessions.data?.items.find(item => item.id === sessionId)
   const validDay = !!currentSession && date >= currentSession.start_date && date <= currentSession.end_date

@@ -41,7 +41,9 @@ export function StudentAttendancePage({permissions}:{permissions:string[]}) {
   }
  }
  const sessions=useQuery({queryKey:['attendance','sessions'],queryFn:()=>authorized(token=>getAttendanceSessions(token,new URLSearchParams({page:'1',page_size:'100'}))),retry:false})
- useEffect(()=>{if(!sessionId&&sessions.data?.items.length)setSessionId(sessions.data.items.find(item=>item.start_date<=today&&today<=item.end_date)?.id||sessions.data.items[0].id)},[sessionId,sessions.data])
+ useEffect(()=>{if(!sessionId&&sessions.data?.items.length)setSessionId((sessions.data.items.find(item=>item.is_active)||sessions.data.items.find(item=>item.start_date<=today&&today<=item.end_date)||sessions.data.items[0]).id)},[sessionId,sessions.data])
+ useEffect(()=>{setDrafts({});setPage(1)},[sessionId,sectionId,date])
+ useEffect(()=>setReportPage(1),[sessionId,sectionId,month,search])
  const sections=useQuery({queryKey:['attendance','sections',sessionId],queryFn:()=>authorized(token=>getAttendanceSections(token,sessionId)),enabled:!!sessionId,retry:false})
  useEffect(()=>{if(sections.data&&!sections.data.some(item=>item.id===sectionId))setSectionId(sections.data[0]?.id||'')},[sections.data,sectionId])
  const rosterParams=new URLSearchParams({session_id:sessionId,section_id:sectionId,date,search,page:String(page),page_size:'10'})
