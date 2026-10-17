@@ -1403,6 +1403,298 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Report card }, '404': { description: Result unavailable } }
+  /fees/options:
+    get:
+      operationId: getFeeOptions
+      summary: List sessions, classes, active sections and active fee categories for fee screens
+      description: Requires fees:read and the fees module, so accountants need no academic grants.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Lookup lists }, '403': { description: Permission or module denied } }
+  /fees/students:
+    get:
+      operationId: searchFeeStudents
+      summary: Search students by admission number or name for fee collection
+      description: Requires fees:read and the fees module. Returns minimal identity and class context only.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: section_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Paginated students } }
+  /fees/students/{id}/statement:
+    get:
+      operationId: getStudentFeeStatement
+      summary: Read a student's dues, payments and totals including arrears
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Fee statement, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStatement' } } } }, '404': { description: Unknown student } }
+  /fees/categories:
+    get:
+      operationId: listFeeCategories
+      summary: List fee categories
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated categories } }
+    post:
+      operationId: createFeeCategory
+      summary: Create a monthly or one-time fee category
+      description: Requires fees:manage, admin or accountant role, and the fees module. Codes are unique upper-case identifiers.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeCategoryInput' } } } }
+      responses: { '201': { description: Category created }, '400': { description: Invalid input }, '409': { description: Duplicate code } }
+  /fees/categories/{id}:
+    patch:
+      operationId: updateFeeCategory
+      summary: Rename or deactivate a fee category
+      description: Requires fees:manage and admin or accountant role. Code and frequency are fixed once a structure uses the category.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeCategoryInput' } } } }
+      responses: { '200': { description: Category updated }, '409': { description: Code or frequency in use } }
+  /fees/structures:
+    get:
+      operationId: listFeeStructures
+      summary: List configured fee amounts by session, class and category
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: category_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated structures } }
+    post:
+      operationId: createFeeStructure
+      summary: Configure a fee amount and due day for a session and class
+      description: Requires fees:manage and admin or accountant role. One structure per session, class and category.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStructureInput' } } } }
+      responses: { '201': { description: Structure created }, '400': { description: Invalid context or inactive category }, '409': { description: Duplicate structure } }
+  /fees/structures/{id}:
+    patch:
+      operationId: updateFeeStructure
+      summary: Change a structure amount, due day or active state
+      description: Requires fees:manage and admin or accountant role. Session, class and category are fixed; existing dues keep their snapshot amount.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStructureInput' } } } }
+      responses: { '200': { description: Structure updated }, '409': { description: Context change rejected } }
+  /fees/concessions:
+    get:
+      operationId: listFeeConcessions
+      summary: List standing student concessions
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: student_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated concessions } }
+    post:
+      operationId: saveFeeConcession
+      summary: Create or replace a student's percentage concession for one category
+      description: Requires fees:manage and admin or accountant role. Applies to dues created afterwards and is recorded as a discount adjustment.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeConcessionInput' } } } }
+      responses: { '200': { description: Concession saved }, '400': { description: Invalid input } }
+  /fees/concessions/{id}:
+    delete:
+      operationId: deleteFeeConcession
+      summary: Remove a standing concession
+      description: Requires fees:manage and admin or accountant role. Existing dues are unchanged.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Deleted }, '404': { description: Unknown concession } }
+  /fees/dues:
+    get:
+      operationId: listStudentDues
+      summary: List student dues with balance, status and overdue flag
+      description: Requires fees:read and the fees module. Status overdue means an unpaid balance past its due date (arrears).
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: section_id, in: query, schema: { type: string, format: uuid } }, { name: student_id, in: query, schema: { type: string, format: uuid } }, { name: category_id, in: query, schema: { type: string, format: uuid } }, { name: period, in: query, schema: { type: string, pattern: '^\d{4}-\d{2}$' } }, { name: status, in: query, schema: { type: string, enum: [unpaid, partial, paid, waived, outstanding, overdue] } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated dues } }
+    post:
+      operationId: assignStudentDue
+      summary: Assign one fee structure to one student
+      description: Requires fees:manage and admin or accountant role. The structure must match the student's session and class; monthly fees need a period inside the session.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeDueInput' } } } }
+      responses: { '201': { description: Due created }, '400': { description: Invalid context or period }, '409': { description: Already assigned or inactive structure } }
+  /fees/dues/generate:
+    post:
+      operationId: generateMonthlyDues
+      summary: Generate dues for every active student in a session or class for one month
+      description: Requires fees:manage and admin or accountant role. Rerunning skips dues that already exist.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeGenerateInput' } } } }
+      responses: { '200': { description: Created and skipped counts }, '400': { description: Period outside session } }
+  /fees/dues/{id}:
+    delete:
+      operationId: deleteStudentDue
+      summary: Delete a mistaken due that has no payments
+      description: Requires fees:manage and admin or accountant role.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Deleted }, '409': { description: Payments exist } }
+  /fees/dues/{id}/adjustments:
+    get:
+      operationId: listDueAdjustments
+      summary: List discounts and waivers applied to a due
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Adjustments } }
+    post:
+      operationId: adjustStudentDue
+      summary: Apply a discount or waive the remaining balance
+      description: Requires fees:manage and admin or accountant role. Waivers are administrator-only and write off exactly the remaining balance; discounts cannot exceed it.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeAdjustmentInput' } } } }
+      responses: { '200': { description: Updated due }, '403': { description: Waiver by non-administrator }, '409': { description: Exceeds balance or already settled } }
+  /fees/payments:
+    get:
+      operationId: listFeePayments
+      summary: List receipts by date range, method, class or search
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }, { $ref: '#/components/parameters/FeeMethod' }, { $ref: '#/components/parameters/FeeClass' }, { name: student_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated payments } }
+    post:
+      operationId: recordFeePayment
+      summary: Record a full or partial payment and issue a receipt
+      description: Requires fees:collect and admin or accountant role. The amount settles the oldest selected dues first and cannot exceed their balance. Reusing idempotency_key returns the original receipt with 200; bank, bKash and Nagad references must be unique.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeePaymentInput' } } } }
+      responses: { '201': { description: Receipt issued, content: { application/json: { schema: { $ref: '#/components/schemas/FeeReceipt' } } } }, '200': { description: Idempotent replay of the original receipt }, '409': { description: overpayment or duplicate_payment } }
+  /fees/payments/{id}:
+    get:
+      operationId: getFeeReceipt
+      summary: Read a printable receipt
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Receipt, content: { application/json: { schema: { $ref: '#/components/schemas/FeeReceipt' } } } }, '404': { description: Unknown receipt } }
+  /fees/reports/collections:
+    get:
+      operationId: getFeeCollectionReport
+      summary: Fee collections by method, class, category and day
+      description: Requires fees:read and the fees module. Defaults to the current month; ranges are limited to about two years.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }, { $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { $ref: '#/components/parameters/FeeMethod' }]
+      responses: { '200': { description: Collection report } }
+  /fees/reports/dues:
+    get:
+      operationId: getFeeDueReport
+      summary: Per-student outstanding balances and arrears
+      description: Requires fees:read and the fees module. Sorted by arrears, then balance.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: section_id, in: query, schema: { type: string, format: uuid } }, { name: overdue_only, in: query, schema: { type: boolean } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated due report with totals } }
+  /fees/me:
+    get:
+      operationId: getOwnFeeStatement
+      summary: Read the signed-in student's fee statement
+      description: Requires fees:read_self, student role and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Fee statement, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStatement' } } } }, '404': { description: No linked student } }
+  /fees/me/payments/{id}:
+    get:
+      operationId: getOwnFeeReceipt
+      summary: Read one of the signed-in student's receipts
+      description: Requires fees:read_self and student role. Other students' receipts read as not found.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Receipt }, '404': { description: Not found or not owned } }
+  /fees/children/{studentId}:
+    get:
+      operationId: getChildFeeStatement
+      summary: Read a linked child's fee statement
+      description: Requires fees:read_children, guardian role and a current guardian link.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Fee statement }, '404': { description: Not linked } }
+  /fees/children/{studentId}/payments/{id}:
+    get:
+      operationId: getChildFeeReceipt
+      summary: Read one receipt for a linked child
+      description: Requires fees:read_children, guardian role and a current guardian link.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Receipt }, '404': { description: Not linked or not owned } }
+  /fees/online/intents:
+    post:
+      operationId: startMockMobilePayment
+      summary: Start a mock bKash or Nagad checkout for own or linked child's dues
+      description: Requires fees:pay_online and student or guardian role. Students may omit student_id. The mock gateway never contacts a real provider; the session expires after 15 minutes.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeIntentInput' } } } }
+      responses: { '201': { description: Pending checkout with provider reference }, '404': { description: Not linked }, '409': { description: Amount exceeds outstanding balance } }
+  /fees/online/intents/{id}/confirm:
+    post:
+      operationId: confirmMockMobilePayment
+      summary: Confirm a mock checkout with the provider OTP and receive a receipt
+      description: Requires fees:pay_online and the same payer. The mock gateway accepts only OTP 123456; any other OTP declines and closes the checkout. Repeated confirmation returns the same receipt.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [otp], properties: { otp: { type: string, maxLength: 12 } } } } } }
+      responses: { '200': { description: Receipt }, '409': { description: payment_expired, fee_conflict or overpayment }, '422': { description: payment_declined } }
+  /accounts/entries:
+    get:
+      operationId: listLedgerEntries
+      summary: List income and expense ledger entries
+      description: Requires accounts:read and the fees module. Fee receipts appear as income in category fees.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: type, in: query, schema: { type: string, enum: [income, expense] } }, { name: category, in: query, schema: { type: string } }, { $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated entries } }
+    post:
+      operationId: createLedgerEntry
+      summary: Record a manual income or expense
+      description: Requires accounts:manage and admin or accountant role. Category fees is reserved for receipts; dates cannot be in the future.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LedgerEntryInput' } } } }
+      responses: { '201': { description: Entry recorded }, '400': { description: Invalid category, amount or date } }
+  /accounts/entries/{id}:
+    delete:
+      operationId: deleteLedgerEntry
+      summary: Remove a manual ledger entry
+      description: Requires accounts:manage and admin or accountant role. Fee income linked to a receipt cannot be removed.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Deleted }, '409': { description: Linked to a receipt } }
+  /accounts/summary:
+    get:
+      operationId: getAccountingSummary
+      summary: Income, expense and net by category with outstanding dues and arrears
+      description: Requires accounts:read and the fees module. Defaults to the current month.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }]
+      responses: { '200': { description: Accounting summary } }
 components:
   securitySchemes:
     bearerAuth:
@@ -1417,6 +1709,12 @@ components:
     UserId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     AcademicId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     AcademicStatus: { name: status, in: query, schema: { type: string, enum: [active, inactive] } }
+    FeeId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    FeeSession: { name: session_id, in: query, schema: { type: string, format: uuid } }
+    FeeClass: { name: class_id, in: query, schema: { type: string, format: uuid } }
+    FeeFrom: { name: from, in: query, schema: { type: string, format: date } }
+    FeeTo: { name: to, in: query, schema: { type: string, format: date } }
+    FeeMethod: { name: method, in: query, schema: { type: string, enum: [cash, bank, bkash, nagad] } }
     CSRFToken:
       name: X-CSRF-Token
       in: header
@@ -1476,6 +1774,120 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    FeeCategoryInput:
+      type: object
+      required: [code, name_en, frequency]
+      properties:
+        code: { type: string, pattern: '^[A-Z0-9_-]{2,20}$' }
+        name_en: { type: string, maxLength: 120 }
+        name_bn: { type: string }
+        frequency: { type: string, enum: [monthly, one_time] }
+        is_active: { type: boolean, default: true }
+    FeeStructureInput:
+      type: object
+      required: [session_id, class_id, category_id, amount]
+      properties:
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        category_id: { type: string, format: uuid }
+        amount: { type: number, minimum: 0.01, maximum: 10000000, description: Taka with at most two decimals }
+        due_day: { type: integer, minimum: 1, maximum: 28, default: 10 }
+        is_active: { type: boolean, default: true }
+    FeeConcessionInput:
+      type: object
+      required: [student_id, category_id, percent, reason]
+      properties:
+        student_id: { type: string, format: uuid }
+        category_id: { type: string, format: uuid }
+        percent: { type: number, minimum: 0.01, maximum: 100 }
+        reason: { type: string, maxLength: 240 }
+    FeeDueInput:
+      type: object
+      required: [student_id, structure_id]
+      properties:
+        student_id: { type: string, format: uuid }
+        structure_id: { type: string, format: uuid }
+        period: { type: string, pattern: '^\d{4}-\d{2}$', description: Required for monthly fees; sets the due month for one-time fees }
+    FeeGenerateInput:
+      type: object
+      required: [session_id, period]
+      properties:
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid, description: Omit for every class in the session }
+        period: { type: string, pattern: '^\d{4}-\d{2}$' }
+        include_one_time: { type: boolean, default: false }
+    FeeAdjustmentInput:
+      type: object
+      required: [kind, reason]
+      properties:
+        kind: { type: string, enum: [discount, waiver] }
+        amount: { type: number, description: Required for discounts; ignored for waivers }
+        reason: { type: string, maxLength: 240 }
+    FeePaymentInput:
+      type: object
+      required: [student_id, amount, method, idempotency_key]
+      properties:
+        student_id: { type: string, format: uuid }
+        amount: { type: number, minimum: 0.01 }
+        method: { type: string, enum: [cash, bank, bkash, nagad] }
+        reference: { type: string, maxLength: 80, description: Required except for cash }
+        paid_on: { type: string, format: date, description: Defaults to today in Bangladesh time; cannot be in the future }
+        note: { type: string, maxLength: 240 }
+        idempotency_key: { type: string, format: uuid, description: One key per payment attempt }
+        fee_ids: { type: array, maxItems: 200, items: { type: string, format: uuid }, description: Optional dues to settle; defaults to all outstanding dues, oldest first }
+    FeeIntentInput:
+      type: object
+      required: [provider, amount]
+      properties:
+        student_id: { type: string, format: uuid, description: Required for guardians }
+        provider: { type: string, enum: [bkash, nagad] }
+        amount: { type: number, minimum: 0.01 }
+    LedgerEntryInput:
+      type: object
+      required: [entry_type, category, amount, entry_date, description]
+      properties:
+        entry_type: { type: string, enum: [income, expense] }
+        category: { type: string, enum: [donation, grant, other_income, salary, utilities, supplies, maintenance, transport, events, other_expense] }
+        amount: { type: number, minimum: 0.01 }
+        entry_date: { type: string, format: date }
+        description: { type: string, maxLength: 240 }
+        reference: { type: string, maxLength: 80 }
+    FeeDue:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        student_id: { type: string, format: uuid }
+        period: { type: string, nullable: true }
+        due_date: { type: string, format: date }
+        amount: { type: number }
+        discount_amount: { type: number }
+        paid_amount: { type: number }
+        balance: { type: number }
+        status: { type: string, enum: [unpaid, partial, paid, waived] }
+        overdue: { type: boolean }
+        category_code: { type: string }
+        category_name_en: { type: string }
+        category_name_bn: { type: string }
+    FeeReceipt:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            payment: { type: object, description: Receipt number, student, amount, method, reference, date and collector }
+            allocations: { type: array, items: { type: object, properties: { student_fee_id: { type: string }, amount: { type: number }, category_name_en: { type: string }, period: { type: string, nullable: true } } } }
+            balance_after: { type: number, description: Student's current outstanding balance }
+            replayed: { type: boolean }
+    FeeStatement:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            student: { type: object }
+            dues: { type: array, items: { $ref: '#/components/schemas/FeeDue' } }
+            payments: { type: array, items: { type: object } }
+            totals: { type: object, properties: { charged: { type: number }, discount: { type: number }, paid: { type: number }, balance: { type: number }, overdue: { type: number } } }
     ExamInput:
       type: object
       required: [name, exam_type, session_id, class_id, section_id]

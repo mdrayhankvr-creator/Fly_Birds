@@ -4,10 +4,35 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 48 verified criteria / 83 total criteria x 100 = **57.8%**.
-- **Current milestone completion:** 8 verified M7 criteria / 8 M7 criteria = **100% locally**.
+- **Overall completion:** 54 verified criteria / 83 total criteria x 100 = **65.1%**.
+- **Current milestone completion:** 6 verified M8 criteria / 6 M8 criteria = **100% locally**.
+- **Remaining:** 29 criteria in M9–M13. **Next planned milestone:** M9 Notices and Notifications, only after explicit approval.
 
-M0-M6 are complete and merged into main. All eight M7 criteria are locally verified on the feature branch.
+M0–M7 are complete and merged into main (M7 through PR #10; the M0–M6 QA fixes through PR #11). All six M8 criteria are locally verified on `feature/m8-fees-accounts`, which is not pushed.
+
+## Current Status — M8 Fees and Accounts (2026-10-18)
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Fee structures | Coded monthly or one-time fee categories with English and Bangla names; one amount and due day per session, class and category; session, class and category fixed after creation; later amount changes affect only new dues |
+| Student dues | Rerunnable monthly generation for every active student in a session or class, optional one-time fees, single-student assignment, standing percentage concessions, discounts, administrator-only waivers, deletion only before payment, and status and arrears filters |
+| Payment receipts | Transactional full and partial payments, settling the oldest dues first or selected dues; sequenced `RCT-` receipts; idempotent replay; unique bank and mobile references; overpayment rejected in the service and by a database check; printable bilingual receipt |
+| Mock bKash/Nagad payments | Replaceable `Gateway` interface with a mock provider; students and linked guardians start a 15-minute checkout and confirm with test OTP `123456`; wrong OTP declines; expired, failed and repeated confirmations are handled; the UI labels it as a test |
+| Income and expense tracking | Ledger with fixed income and expense categories; every receipt posts fee income in the same transaction; manual entries can be added and removed, but receipt-linked income cannot |
+| Fee collection reports | Collections by method, class, fee and day; per-student balances and arrears; receipt register; accounting summary with income, expense, net, outstanding dues and arrears |
+
+**Implementation.** Branch `feature/m8-fees-accounts` starts at `origin/main` `32af0480`, after M7 (PR #10) and the QA fixes (PR #11). Migration `0801_fees_accounts.sql` adds `fee_categories`, `fee_structures`, `fee_concessions`, `student_fees`, `fee_adjustments`, `fee_payments`, `fee_payment_allocations`, `online_payment_intents` and `ledger_entries`. They reference the existing users, academic sessions, classes and students; no student or academic record is duplicated. `student_fees.balance` is a generated column, and `student_fees_no_overpayment` keeps `discount + paid <= amount`. Amounts are computed in integer poisha. Payments take a per-student advisory lock and lock the dues `FOR UPDATE`. New grants are `fees:read`, `fees:manage`, `fees:collect`, `accounts:read` and `accounts:manage` for administrators and accountants; `fees:read_self` for students; `fees:read_children` for guardians; and `fees:pay_online` for both. Financial writes also require the administrator or accountant role. The `fees` module still starts disabled. Every change is audited. The dashboard now links Fees and Examinations instead of listing them as Coming Soon.
+
+**Verification (2026-10-18).**
+- **Backend:** `go vet ./...` passed. `go test ./... -count=1` passed without PostgreSQL. On a freshly created disposable PostgreSQL 17 database it passed 50 of 50 top-level tests with none skipped, including `TestOpenAPICoversRegisteredRoutes`.
+- **Repository test:** migration 801 is applied once and reruns cleanly. The test covers generation with concessions, partial and selected-due payments, receipt replay, reused keys, duplicate references, the database balance guard, five concurrent tellers (exactly one succeeds), discounts and waivers, deletion rules, mock checkout (declined, expired, another payer, replay), scoped receipts, reports and ledger reconciliation.
+- **HTTP test:** covers disabled module, 401/403 for every other role, a mistaken teacher `fees:collect` grant that still cannot collect, 415 and unknown-field rejection, and error codes.
+- **Frontend:** `tsc` and the production build passed (Vite still warns that the bundle is over 500 kB, as before M8). `docker compose config --quiet` passed.
+- **Browser:** headless Edge on an isolated database and ports (backend 8091, Vite 5181) passed 26 of 26 checks. It covered English accountant setup, generation, collection, receipt, print-media isolation, overpayment message, reports and ledger at 1280 px; an administrator waiver; and Bangla guardian bKash checkout (declined then approved) and the student statement at 390 px. There was no horizontal overflow and no uncaught JavaScript exception, and teacher and student access to the staff page was denied.
+
+The developer's application database, the QA Compose stack and their volumes were not touched. No demo-school data was modified.
+
+**Not verified / limitations.** No real bKash or Nagad API is integrated (the brief asks for a mock). A browser-generated PDF file was not produced; print-media rendering was verified. Receipts cannot be voided or refunded; a mistaken payment needs a manual correction outside the app. There is no advance credit, so payments above the outstanding balance are rejected. Dates on Bangla screens use Latin digits. Deleting a student who has fee records returns 400 and changes nothing, the same as for students with exam marks, because the financial history is kept. Remote CI, production migration and deployment are unverified.
 
 ## Current Status — M7 Examinations and Results (2026-10-17)
 
