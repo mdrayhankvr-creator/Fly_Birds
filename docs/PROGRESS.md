@@ -8,7 +8,32 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 - **Current milestone completion:** 6 verified M8 criteria / 6 M8 criteria = **100% locally**.
 - **Remaining:** 29 criteria in M9–M13. **Next planned milestone:** M9 Notices and Notifications, only after explicit approval.
 
-M0–M7 are complete and merged into main (M7 through PR #10; the M0–M6 QA fixes through PR #11). All six M8 criteria are locally verified on `feature/m8-fees-accounts`, which is not pushed.
+M0–M8 are complete and merged into main (M7 through PR #10, the M0–M6 QA fixes through PR #11, M8 through PR #12).
+
+## Attendance UX Redesign (2026-10-18)
+
+Branch `feature/attendance-premium-ux` starts at `origin/main` `8916b516`, after M8 was merged. It improves the M5 attendance workflow and adds no roadmap criteria, so the completion percentages are unchanged. It is not pushed.
+
+| Area | Before | After |
+|---|---|---|
+| Marking | A dropdown and a Save button per student; 10 students per page | Full section on one screen, sorted by roll number; one-tap Present, Absent and Late per student; keyboard arrows and P/A/L hotkeys |
+| Saving | One request per student | `PUT /attendance/students/roster` saves the whole class in one transaction; Mark all present; live Present/Absent/Late/Unmarked totals and progress |
+| Unmarked students | Unchanged | Never sent, so never recorded as absent; the save bar states how many stay unmarked |
+| Duplicates and races | A double save returned 409 | Identical marks are no-ops; the save button is guarded; a per-section-day lock serializes roster saves, QR scans and corrections |
+| Corrections | Single-record PATCH | Past dates open in correction mode. Each correction carries the record version, and a change made elsewhere (for example a QR scan) is reported per student instead of overwritten |
+| Unsaved work | Lost silently on date or section change | A confirmation guards date, section and session changes, in-app links and page unload |
+| Reports | Plain text lists | Monthly table with attendance rate, absence-alert tab, and a student/guardian calendar view |
+
+Absence events are still created for absent marks and cancelled by corrections. Monthly reports read the same `student_attendance` table; no table was added or duplicated. Teacher assignment, RBAC and module checks are unchanged. The teacher attendance page uses the same design with its existing APIs.
+
+**Verification.**
+- **Backend:** `go vet ./...` passed. `go test ./...` passed without PostgreSQL. On a freshly created disposable PostgreSQL database it passed 52 of 52 top-level tests with none skipped, including the existing M5 attendance test, the new roster test and the OpenAPI route test. The roster test covers membership, inactive students, future and out-of-session dates, idempotent replay, versioned corrections, stale rejection, QR coexistence, absence events and guardian visibility, five concurrent submissions and monthly totals.
+- **Frontend:** `tsc`, the production build and `docker compose config --quiet` passed.
+- **Browser:** headless Edge on an isolated database and ports (8092/5182) passed 35 of 35 checks. It covered roll order, one-screen roster, Mark all present, absent/late marking, keyboard control, a double-click producing one save, the guardian's Bangla calendar, the admin alert list, a correction cancelling the alert, stale detection and reload, unsaved-change prompts, QR scan and duplicate QR, section switching, the monthly report, Bangla at 390 px, tablet at 820 px, the teacher attendance page, the student report and student access denial. There was no horizontal overflow and no JavaScript exception.
+
+The application database, the QA stacks and demo data were not touched.
+
+**Limitations.** The browser Back button is not intercepted (`BrowserRouter` has no navigation blocker); reloads, tab closes, in-app links and context changes are guarded. Teacher attendance still saves one teacher at a time. A note-only change on an unmarked student is not saved until a status is chosen. Native camera QR scanning was not exercised in headless Edge. Remote CI and deployment are unverified.
 
 ## Current Status — M8 Fees and Accounts (2026-10-18)
 
