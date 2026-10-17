@@ -29,7 +29,8 @@ CREATE TABLE notification_preferences (
 );
 
 -- Outbound SMS log. The only provider is a mock: 'sent_mock' means the mock
--- accepted the message; nothing is ever delivered to a phone.
+-- accepted the message; nothing is ever delivered to a phone. 'cancelled'
+-- marks a queued message whose cause was withdrawn before sending.
 CREATE TABLE sms_messages (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -37,7 +38,7 @@ CREATE TABLE sms_messages (
     category text NOT NULL CHECK (category IN ('notice', 'absence', 'result', 'fee', 'diary')),
     source_key text NOT NULL,
     body text NOT NULL CHECK (octet_length(body) BETWEEN 1 AND 1000),
-    status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent_mock', 'failed')),
+    status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent_mock', 'failed', 'cancelled')),
     provider text NOT NULL DEFAULT 'mock',
     provider_ref text NOT NULL DEFAULT '',
     error text NOT NULL DEFAULT '' CHECK (octet_length(error) <= 500),
