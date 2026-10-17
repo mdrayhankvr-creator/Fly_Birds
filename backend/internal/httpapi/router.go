@@ -166,6 +166,7 @@ func NewRouterWithFees(service *auth.Service, secureCookies bool, grants *rbac.S
 	management.GET("/attendance/students/sections", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.sections)
 	management.GET("/attendance/students/roster", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.roster)
 	management.POST("/attendance/students", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.record)
+	management.PUT("/attendance/students/roster", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.saveRoster)
 	management.POST("/attendance/students/qr", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.scan)
 	management.PATCH("/attendance/students/:id", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.correct)
 	management.GET("/attendance/students/monthly", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.monthly)

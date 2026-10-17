@@ -142,3 +142,23 @@ func (h *studentAttendanceHandler) sections(c *gin.Context) {
 	}
 	success(c, 200, v)
 }
+
+// saveRoster godoc
+// @Summary Record and correct a section's attendance for one day in one transaction
+// @Tags attendance
+// @Router /attendance/students/roster [put]
+func (h *studentAttendanceHandler) saveRoster(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var in attendance.RosterInput
+	if !decodeSchoolJSON(c, 128*1024, &in) {
+		return
+	}
+	v, err := h.service.SaveRoster(c.Request.Context(), attendanceActor(c), in)
+	if err != nil {
+		attendanceError(c, err)
+		return
+	}
+	success(c, http.StatusOK, v)
+}
