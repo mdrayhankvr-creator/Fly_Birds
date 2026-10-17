@@ -87,7 +87,7 @@ export type Role = { id: string; name: string }
 export type Permission = { id: string; description: string }
 export type Page<T> = { items: T[]; total: number; page: number; page_size: number }
 
-async function bearerRequest<T>(path: string, accessToken: string, options: RequestInit = {}): Promise<T> {
+export async function bearerRequest<T>(path: string, accessToken: string, options: RequestInit = {}): Promise<T> {
   const response = await authRequest(path, {
     ...options,
     headers: { Authorization: `Bearer ${accessToken}`, ...options.headers },
@@ -234,7 +234,7 @@ export type EmployeeLeave = { id: string; employee_id: string; starts_on: string
 export type LeaveInput = Pick<EmployeeLeave, 'starts_on' | 'ends_on' | 'leave_type' | 'reason'>
 export type SalaryRecord = { id: string; employee_id: string; effective_on: string; basic_bdt: string; allowance_bdt: string; deduction_bdt: string; note: string }
 export type SalaryInput = Omit<SalaryRecord, 'id' | 'employee_id'>
-const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+export const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 export const getEmployees = (token: string, params: URLSearchParams) => bearerRequest<Page<Employee>>(`/staff/employees?${params}`, token)
 export const getEmployee = (token: string, id: string) => bearerRequest<Employee>(`/staff/employees/${encodeURIComponent(id)}`, token)
 export const getOwnEmployee = (token: string) => bearerRequest<Employee>('/staff/me', token)
