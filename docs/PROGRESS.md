@@ -4,14 +4,31 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 40 verified criteria / 83 total criteria x 100 = **48.2%**.
-- **Current milestone completion:** 3 verified M6 criteria / 3 M6 criteria = **100% locally**.
+- **Overall completion:** 48 verified criteria / 83 total criteria x 100 = **57.8%**.
+- **Current milestone completion:** 8 verified M7 criteria / 8 M7 criteria = **100% locally**.
 
-M0-M5 are complete and merged into main. All three M6 criteria are locally verified on the feature branch.
+M0-M6 are complete and merged into main. All eight M7 criteria are locally verified on the feature branch.
+
+## Current Status — M7 Examinations and Results (2026-10-17)
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Exam management | Session/class/section exam drafts, types, optional matching M6 routine link, mapped subjects, configurable full and pass marks, guarded updates and deletion |
+| Marks entry | Assigned teachers enter and correct only their subjects; administrators can bulk review and correct; atomic 500-entry limit, uniqueness, range checks and per-change audit |
+| Bangladesh GPA calculation | Uses current school grading bands at publication, scales marks to percentage, applies subject pass thresholds, freezes grade and GPA snapshots |
+| Fourth-subject GPA rule | Allows one mapped fourth subject per exam; adds only grade points above 2, divides by required subjects, caps GPA at 5, and fails required subjects consistently |
+| Marksheet generation | Branded English/Bangla student report card with subject marks, grades, grade points, GPA, positions and print layout |
+| Tabulation sheets | Authorized table of result totals, GPA, pass state and merit positions |
+| Class and section merit positions | Ranks published matching exams across sections; re-ranks on publication and return to draft; locks prevent later changes to the group |
+| Result publication | Complete-mark transactional publish, return to draft for corrections, permanent lock, and published-only self and linked-child access |
+
+Branch `feature/m7-exams-results` starts at M6-enabled `origin/main` merge `c26f8e90`. Migration `0701_exams_results.sql` adds `exams`, `exam_subjects`, `exam_marks`, and `exam_results`, with UUIDs, academic and student context foreign keys, unique marks, a marks-range trigger, and result indexes. The existing `examinations` module starts disabled. Grants are `exams:manage`, `exams:read`, `exams:enter_marks`, `exams:read_self`, and `exams:read_children`; writes and publication require administrator or current teacher assignment as appropriate. The migration runner now preserves SQL function bodies and quoted semicolons.
+
+Verification passed: Go vet; full Go suite on a fresh isolated PostgreSQL database; dedicated migration, grading, lifecycle, merit, permission, module and visibility tests; OpenAPI route/reference checks; TypeScript and production build; Edge desktop/mobile role checks in English and Bangla. The report card print stylesheet was visually verified in print media, with only the report card visible. This Edge instance returned “Printing is not available” for its PDF command, so a generated PDF file was not verified. Remote CI, production migration and deployment remain unverified. The test database, test accounts and browser profile were isolated from application data and volumes. Overall **48/83 = 57.8%**; M7 **8/8 = 100% locally**.
 
 ## M0–M6 Full System QA (2026-10-17)
 
-Branch `fix/m0-m6-full-system-qa` starts from `origin/main` at `c26f8e9` (M6 merged). This QA pass adds no roadmap criteria, so the percentages above are unchanged.
+Branch `fix/m0-m6-full-system-qa` starts from `origin/main` at `c26f8e9` (M6 merged). This QA pass adds no roadmap criteria, so it does not change the completion percentages above.
 
 | Defect | Severity | Fix | Regression evidence |
 |---|---|---|---|
@@ -27,7 +44,7 @@ Branch `fix/m0-m6-full-system-qa` starts from `origin/main` at `c26f8e9` (M6 mer
 
 **Known limitation, unchanged.** Corrections keep the section where a record was first stored. If a student later moves to another section, that day's record appears on the new section roster but counts in the original section's monthly totals. This is the documented M5 snapshot behavior.
 
-## Current Status — M6 Routine (2026-10-17)
+## M6 Routine handoff (2026-10-17)
 
 | Brief criterion | Verified implementation |
 |---|---|

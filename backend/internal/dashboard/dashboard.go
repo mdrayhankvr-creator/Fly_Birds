@@ -154,6 +154,20 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: "routine_guardian", Name: "Children routines", Path: "/guardian/children"})
 			}
 		}
+		if enabled["examinations"] {
+			if allowed["exams:read"] {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "exam_admin", Name: "Exams and results", Path: "/admin/exams"})
+			}
+			if allowed["exams:enter_marks"] && user.Role == "teacher" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "exam_teacher", Name: "Assigned exams", Path: "/teacher/exams"})
+			}
+			if allowed["exams:read_self"] && user.Role == "student" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "exam_student", Name: "My results", Path: "/student/results"})
+			}
+			if allowed["exams:read_children"] && user.Role == "guardian" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "exam_guardian", Name: "Children results", Path: "/guardian/children"})
+			}
+		}
 		for _, m := range modules {
 			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" && m.Key != "routine" {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: m.Key, Name: m.Name, ComingSoon: true})

@@ -64,7 +64,7 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 		if readErr != nil {
 			return fmt.Errorf("read migration %d: %w", migrationVersion, readErr)
 		}
-		for _, statement := range strings.Split(string(body), ";") {
+		for _, statement := range sqlStatements(string(body)) {
 			if strings.TrimSpace(statement) == "" {
 				continue
 			}
@@ -80,4 +80,81 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 		return fmt.Errorf("commit migrations: %w", err)
 	}
 	return nil
+}
+
+// sqlStatements keeps PostgreSQL function bodies and quoted values together.
+func sqlStatements(body string) []string {
+	var out []string
+	start := 0
+	quote := byte(0)
+	dollar := ""
+	lineComment, blockComment := false, false
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if lineComment {
+			if c == '\n' {
+				lineComment = false
+			}
+			continue
+		}
+		if blockComment {
+			if c == '*' && i+1 < len(body) && body[i+1] == '/' {
+				blockComment = false
+				i++
+			}
+			continue
+		}
+		if dollar != "" {
+			if strings.HasPrefix(body[i:], dollar) {
+				i += len(dollar) - 1
+				dollar = ""
+			}
+			continue
+		}
+		if quote != 0 {
+			if c == quote {
+				if i+1 < len(body) && body[i+1] == quote {
+					i++
+				} else {
+					quote = 0
+				}
+			}
+			continue
+		}
+		if c == '-' && i+1 < len(body) && body[i+1] == '-' {
+			lineComment = true
+			i++
+			continue
+		}
+		if c == '/' && i+1 < len(body) && body[i+1] == '*' {
+			blockComment = true
+			i++
+			continue
+		}
+		if c == '\'' || c == '"' {
+			quote = c
+			continue
+		}
+		if c == '$' {
+			j := i + 1
+			for j < len(body) && (body[j] == '_' || body[j] >= 'A' && body[j] <= 'Z' || body[j] >= 'a' && body[j] <= 'z' || body[j] >= '0' && body[j] <= '9') {
+				j++
+			}
+			if j < len(body) && body[j] == '$' {
+				dollar = body[i : j+1]
+				i = j
+				continue
+			}
+		}
+		if c == ';' {
+			if statement := strings.TrimSpace(body[start:i]); statement != "" {
+				out = append(out, statement)
+			}
+			start = i + 1
+		}
+	}
+	if statement := strings.TrimSpace(body[start:]); statement != "" {
+		out = append(out, statement)
+	}
+	return out
 }

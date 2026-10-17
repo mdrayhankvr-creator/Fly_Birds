@@ -314,3 +314,22 @@ export const getAbsenceEvents = (token: string, params: URLSearchParams) => bear
 
 export type AttendanceSection = { id: string; name: string; class_name: string; session_id: string }
 export const getAttendanceSections = (token: string, sessionId: string) => bearerRequest<AttendanceSection[]>(`/attendance/students/sections?session_id=${encodeURIComponent(sessionId)}`, token)
+
+export type ResultExam = { id: string; name: string; exam_type: 'class_test'|'half_yearly'|'annual'|'other'; session_id: string; class_id: string; section_id: string; routine_id: string|null; status: 'draft'|'published'|'locked'; session_name: string; class_name: string; section_name: string; subjects: ExamSubject[] }
+export type ResultExamInput = Pick<ResultExam,'name'|'exam_type'|'session_id'|'class_id'|'section_id'|'routine_id'>
+export type ExamSubject = { id: string; exam_id: string; subject_id: string; name_en: string; name_bn: string; full_marks: number; pass_marks: number; is_fourth_subject: boolean }
+export type ExamMarkRow = { exam_subject_id: string; student_id: string; student_name: string; admission_no: string; roll_no: number|null; subject_name: string; marks: number|null; grade: string|null; grade_point: number|null; passed: boolean|null }
+export type ExamResult = { exam_id: string; student_id: string; student_name: string; student_name_bn: string; admission_no: string; roll_no: number|null; total_marks: number; full_marks: number; gpa: number; passed: boolean; class_position: number; section_position: number }
+export type ReportCard = { exam: ResultExam; result: ExamResult; subjects: ExamMarkRow[]; school_name_en: string; school_name_bn: string; logo_url: string }
+export const getResultExams = (token:string,path:string,params:URLSearchParams) => bearerRequest<Page<ResultExam>>(`${path}?${params}`,token)
+export const getResultExam = (token:string,path:string) => bearerRequest<ResultExam>(path,token)
+export const saveResultExam = (token:string,input:ResultExamInput,id?:string) => bearerRequest<ResultExam>(id?`/exams/${encodeURIComponent(id)}`:'/exams',token,json(id?'PATCH':'POST',input))
+export const deleteResultExam = (token:string,id:string) => bearerRequest<{deleted:boolean}>(`/exams/${encodeURIComponent(id)}`,token,{method:'DELETE'})
+export const saveResultSubject = (token:string,examId:string,input:{subject_id:string;full_marks:number;pass_marks:number}) => bearerRequest<ResultExam>(`/exams/${encodeURIComponent(examId)}/subjects`,token,json('POST',input))
+export const deleteResultSubject = (token:string,examId:string,subjectId:string) => bearerRequest<{deleted:boolean}>(`/exams/${encodeURIComponent(examId)}/subjects/${encodeURIComponent(subjectId)}`,token,{method:'DELETE'})
+export const getExamMarksRoster = (token:string,examId:string,teacher:boolean) => bearerRequest<ExamMarkRow[]>(`/exams/${encodeURIComponent(examId)}/${teacher?'assigned-roster':'roster'}`,token)
+export const saveExamMarks = (token:string,examId:string,entries:{exam_subject_id:string;student_id:string;marks:number}[]) => bearerRequest<{saved:number}>(`/exams/${encodeURIComponent(examId)}/marks`,token,json('PUT',{entries}))
+export const setResultExamState = (token:string,examId:string,status:ResultExam['status']) => bearerRequest<ResultExam>(`/exams/${encodeURIComponent(examId)}/state`,token,json('PATCH',{status}))
+export const getExamTabulation = (token:string,examId:string) => bearerRequest<ExamResult[]>(`/exams/${encodeURIComponent(examId)}/tabulation`,token)
+export const getReportCards = (token:string,path:string) => bearerRequest<ReportCard[]>(path,token)
+export const getReportCard = (token:string,path:string) => bearerRequest<ReportCard>(path,token)

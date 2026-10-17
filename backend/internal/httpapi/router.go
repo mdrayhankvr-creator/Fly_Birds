@@ -10,6 +10,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/exams"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/routine"
@@ -80,6 +81,10 @@ func NewRouterWithStudentAttendance(service *auth.Service, secureCookies bool, g
 }
 
 func NewRouterWithRoutine(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service) *gin.Engine {
+	return NewRouterWithExams(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, nil)
+}
+
+func NewRouterWithExams(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -182,6 +187,26 @@ func NewRouterWithRoutine(service *auth.Service, secureCookies bool, grants *rba
 	management.POST("/routines/exams/:id/slots", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.createExamSlot)
 	management.PATCH("/routines/exams/:id/slots/:slotId", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.updateExamSlot)
 	management.DELETE("/routines/exams/:id/slots/:slotId", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.deleteExamSlot)
+	eh := &examHandler{service: examService}
+	management.GET("/exams", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.list)
+	management.POST("/exams", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.save)
+	management.GET("/exams/assigned", RequirePermission(service, "exams:enter_marks"), moduleGuard("examinations"), eh.assigned)
+	management.GET("/exams/assigned/:id", RequirePermission(service, "exams:enter_marks"), moduleGuard("examinations"), eh.assignedExam)
+	management.GET("/exams/me/results", RequirePermission(service, "exams:read_self"), moduleGuard("examinations"), eh.cards)
+	management.GET("/exams/me/results/:examId", RequirePermission(service, "exams:read_self"), moduleGuard("examinations"), eh.card)
+	management.GET("/exams/children/:studentId/results", RequirePermission(service, "exams:read_children"), moduleGuard("examinations"), eh.childCards)
+	management.GET("/exams/children/:studentId/results/:examId", RequirePermission(service, "exams:read_children"), moduleGuard("examinations"), eh.childCard)
+	management.GET("/exams/:id", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.get)
+	management.PATCH("/exams/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.save)
+	management.DELETE("/exams/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.delete)
+	management.POST("/exams/:id/subjects", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.subject)
+	management.DELETE("/exams/:id/subjects/:subjectId", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.deleteSubject)
+	management.GET("/exams/:id/roster", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.roster)
+	management.GET("/exams/:id/assigned-roster", RequirePermission(service, "exams:enter_marks"), moduleGuard("examinations"), eh.assignedRoster)
+	management.PUT("/exams/:id/marks", RequirePermission(service, "exams:enter_marks"), moduleGuard("examinations"), eh.marks)
+	management.PATCH("/exams/:id/state", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.state)
+	management.GET("/exams/:id/tabulation", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.tabulation)
+	management.GET("/exams/:id/results/:studentId", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.adminCard)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")
