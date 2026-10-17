@@ -191,7 +191,8 @@ func TestPostgresFeesLifecycle(t *testing.T) {
 	}
 
 	// The first student owes January tuition 1500, the exam fee 800 and
-	// December 2199 tuition 1500.
+	// December 2199 tuition 1500. Payments settle the oldest first unless
+	// specific dues are selected.
 	firstKey := newKey(t, f.db)
 	receipt, err := svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 1000, Method: "cash", IdempotencyKey: firstKey})
 	if err != nil || receipt.Payment.ReceiptNo == "" || receipt.Replayed || receipt.BalanceAfter != 2800 {
@@ -218,7 +219,16 @@ func TestPostgresFeesLifecycle(t *testing.T) {
 	}
 	_, err = svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 100, Method: "bkash", Reference: "trx" + f.stamp, IdempotencyKey: newKey(t, f.db)})
 	expect(t, err, ErrDuplicate, "duplicate mobile reference")
-	_, err = svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 2500.01, Method: "cash", IdempotencyKey: newKey(t, f.db)})
+	december, _ := svc.ListDues(ctx, Query{StudentID: f.first, Period: "2199-12"})
+	targeted, err := svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 100, Method: "cash", IdempotencyKey: newKey(t, f.db), FeeIDs: []string{december.Items[0].ID}})
+	if err != nil || len(targeted.Allocations) != 1 || targeted.Allocations[0].StudentFeeID != december.Items[0].ID || targeted.Allocations[0].Amount != 100 {
+		t.Fatalf("selected due payment: %+v %v", targeted.Allocations, err)
+	}
+	_, err = svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 10, Method: "cash", IdempotencyKey: newKey(t, f.db), FeeIDs: []string{concessionDue}})
+	expect(t, err, ErrInvalid, "paying another student's due")
+	_, err = svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 1400.01, Method: "cash", IdempotencyKey: newKey(t, f.db), FeeIDs: []string{december.Items[0].ID}})
+	expect(t, err, ErrOverpayment, "overpaying a selected due")
+	_, err = svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 2400.01, Method: "cash", IdempotencyKey: newKey(t, f.db)})
 	expect(t, err, ErrOverpayment, "overpayment")
 	var ledgerRows int64
 	f.db.Table("ledger_entries").Where("payment_id=?", receipt.Payment.ID).Count(&ledgerRows)
@@ -228,14 +238,14 @@ func TestPostgresFeesLifecycle(t *testing.T) {
 	err = f.db.Exec("UPDATE student_fees SET paid_amount=amount+1 WHERE student_id=?", f.first).Error
 	expect(t, dbErr(err), ErrOverpayment, "database balance guard")
 
-	// Five tellers race to collect the same remaining 2500; only one succeeds.
+	// Five tellers race to collect the same remaining 2400; only one succeeds.
 	var wg sync.WaitGroup
 	results := make(chan error, 5)
 	for range 5 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 2500, Method: "cash", IdempotencyKey: newKey(t, f.db)})
+			_, err := svc.RecordPayment(ctx, f.accountant, PaymentInput{StudentID: f.first, Amount: 2400, Method: "cash", IdempotencyKey: newKey(t, f.db)})
 			results <- err
 		}()
 	}
@@ -253,7 +263,7 @@ func TestPostgresFeesLifecycle(t *testing.T) {
 		t.Fatalf("concurrent payments succeeded %d times", succeeded)
 	}
 	statement, err := svc.Statement(ctx, "student", f.studentUser, "")
-	if err != nil || statement.Student.ID != f.first || statement.Totals.Charged != 3800 || statement.Totals.Paid != 3800 || statement.Totals.Balance != 0 || len(statement.Payments) != 3 {
+	if err != nil || statement.Student.ID != f.first || statement.Totals.Charged != 3800 || statement.Totals.Paid != 3800 || statement.Totals.Balance != 0 || len(statement.Payments) != 4 {
 		t.Fatalf("statement: %+v %v", statement.Totals, err)
 	}
 	var paidSum, ledgerSum float64
@@ -336,7 +346,7 @@ func TestPostgresFeesLifecycle(t *testing.T) {
 	// Reports for this class only, so other suites cannot disturb the totals.
 	today := todayDhaka()
 	report, err := svc.Collections(ctx, Query{ClassID: f.class, From: today, To: today})
-	if err != nil || report.Total != 4300 || report.Count != 4 || len(report.ByMethod) != 3 || len(report.ByCategory) != 2 {
+	if err != nil || report.Total != 4300 || report.Count != 5 || len(report.ByMethod) != 3 || len(report.ByCategory) != 2 {
 		t.Fatalf("collections: %+v %v", report, err)
 	}
 	dueReport, err := svc.DueReport(ctx, Query{ClassID: f.class})
