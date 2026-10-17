@@ -9,6 +9,24 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0-M5 are complete and merged into main. All three M6 criteria are locally verified on the feature branch.
 
+## M0–M6 Full System QA (2026-10-17)
+
+Branch `fix/m0-m6-full-system-qa` starts from `origin/main` at `c26f8e9` (M6 merged). This QA pass adds no roadmap criteria, so the percentages above are unchanged.
+
+| Defect | Severity | Fix | Regression evidence |
+|---|---|---|---|
+| Attendance pages defaulted to an inactive session whenever two session date ranges overlapped today; the active section roster then appeared empty | High | `GET /attendance/sessions` returns `is_active` and lists the active session first; student and teacher attendance pages prefer it | `TestPostgresAttendanceSessionsListActiveFirst` failed before the fix and passes after it; the browser default-session checks failed on the previous build and pass now |
+| The student attendance page was stored as double-encoded UTF-8 with a BOM, so it rendered `â€”` and `QA-001 Â· 1` | Medium | Restored `—` and `·`, removed the BOM; no other source file contained the pattern | Browser text checks and a source-wide byte scan |
+| The student page reused teacher wording ("Search teachers", "already recorded for this teacher") | Low | Student-specific English and Bangla strings | Browser label checks in English and Bangla |
+| An unsaved roster status survived date, section, and session changes and could be saved against another day | Medium | Drafts and roster page reset when the session, section, or date changes; monthly paging resets with its filters | Browser draft-isolation check |
+| The student report heading ignored Bangla names | Low | Bangla name is used when Bangla is selected | Bangla student report browser check |
+
+**Verification.** On a fresh isolated PostgreSQL database, `go vet ./...`, `go test ./... -count=1`, and `TestOpenAPICoversRegisteredRoutes` passed. The frontend TypeScript and production build and `docker compose config --quiet` also passed. The live API matrix on the isolated QA stack passed 167 of 167 checks. It covered M0 health and branding; login, role isolation, and module toggles for all six roles; M2 validation and duplicate rules; M3 student and guardian scoping; M4 leave and salary access; M5 roster, QR, corrections, absence-event cancellation and reopening, and reports; and M6 conflicts and exam publication. Headless Edge passed 70 of 70 checks. These covered English admin pages at 1280 px and Bangla pages at 390 px for admin, head teacher, teacher, student, guardian, and accountant, with no mojibake, no horizontal overflow, and no unexpected JavaScript errors.
+
+**Not verified.** Native camera QR scanning, remote CI, production migration, and deployment were not run. The frontend has no unit-test runner, so its fixes are covered by browser checks only.
+
+**Known limitation, unchanged.** Corrections keep the section where a record was first stored. If a student later moves to another section, that day's record appears on the new section roster but counts in the original section's monthly totals. This is the documented M5 snapshot behavior.
+
 ## Current Status — M6 Routine (2026-10-17)
 
 | Brief criterion | Verified implementation |
