@@ -168,8 +168,19 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: "exam_guardian", Name: "Children results", Path: "/guardian/children"})
 			}
 		}
+		if enabled["fees"] {
+			if allowed["fees:read"] {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "fees_admin", Name: "Fees and accounts", Path: "/accounts/fees"})
+			}
+			if allowed["fees:read_self"] && user.Role == "student" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "fees_student", Name: "My fees", Path: "/student/fees"})
+			}
+			if allowed["fees:read_children"] && user.Role == "guardian" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "fees_guardian", Name: "Children fees", Path: "/guardian/children"})
+			}
+		}
 		for _, m := range modules {
-			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" && m.Key != "routine" {
+			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" && m.Key != "routine" && m.Key != "examinations" && m.Key != "fees" {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: m.Key, Name: m.Name, ComingSoon: true})
 			}
 		}
