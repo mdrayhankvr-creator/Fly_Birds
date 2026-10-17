@@ -718,7 +718,7 @@ paths:
       operationId: listAttendanceSessions
       tags: [attendance]
       summary: Search and paginate academic sessions available to attendance users
-      description: Requires attendance:teachers_read_self and the attendance module.
+      description: Requires attendance:teachers_read_self and the attendance module. Items contain id, name, start_date, end_date, and is_active. The active session is listed first, then sessions by descending start date, so overlapping date ranges do not hide the active session.
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
       responses: { '200': { description: Academic session page }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }

@@ -23,7 +23,7 @@ func (r *GormRepository) ListSessions(ctx context.Context, q Query) (Page[Sessio
 	if err := base.Count(&page.Total).Error; err != nil {
 		return Page[Session]{}, err
 	}
-	err := base.Select("id,name,to_char(start_date,'YYYY-MM-DD') AS start_date,to_char(end_date,'YYYY-MM-DD') AS end_date").Order("start_date DESC,id DESC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
+	err := base.Select("id,name,to_char(start_date,'YYYY-MM-DD') AS start_date,to_char(end_date,'YYYY-MM-DD') AS end_date,is_active").Order("is_active DESC,start_date DESC,id DESC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
 	return page, err
 }
 func dbError(err error) error {

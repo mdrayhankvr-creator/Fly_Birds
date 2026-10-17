@@ -40,6 +40,7 @@ type Session struct {
 	Name      string `json:"name"`
 	StartDate string `json:"start_date"`
 	EndDate   string `json:"end_date"`
+	IsActive  bool   `json:"is_active"`
 }
 type RecordInput struct {
 	SessionID      string `json:"session_id"`
