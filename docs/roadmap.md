@@ -10,8 +10,8 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | M3 | Students and guardians | 6/6 merged into main |
 | M4 | Teachers and staff | 4/4 merged into main |
 | M5 | Attendance | 5/5 locally verified and merged into main |
-| M6 | Routine | 3/3 locally verified on feature/m6-routine-management; review and merge pending |
-| M7 | Examinations and results | Not started |
+| M6 | Routine | 3/3 locally verified and merged into main |
+| M7 | Examinations and results | 8/8 locally verified on feature/m7-exams-results; review and merge pending |
 | M8 | Fees and accounts | Not started |
 | M9 | Notices and notifications | Not started |
 | M10 | Admin control center | Not started |

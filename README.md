@@ -1,6 +1,14 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M5 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M6 Routine is complete locally on `feature/m6-routine-management` and awaits review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M6 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M7 Exams and Results is complete locally on `feature/m7-exams-results` and awaits review.
+
+## M7 Exams, Marks and Results
+
+Migration `0701_exams_results.sql` adds exam definitions, mapped subjects, teacher-entered marks and published result snapshots. Exam types are class test, half-yearly, annual and other. A draft may optionally link to an M6 exam routine for the same academic section. Full and pass marks are configured per exam subject; marks cannot exceed full marks. Publication requires every active student in the section to have a mark for every exam subject. Results use the school's current grading bands and Bangladesh fourth-subject bonus rule. Administrators can return published results to draft for correction or lock them permanently. Every marks change and state transition is audited.
+
+Administrators manage exams and tabulation at `/admin/exams`, teachers enter marks for assigned subjects at `/teacher/exams`, students view published report cards at `/student/results`, and guardians open linked children's results from `/guardian/children/:id/results`. Report cards use configured school branding and support English, Bangla, mobile layouts and printing. The optional **Examinations and results** module must be enabled in school settings. Academic, student and staff records must be in place. See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification.
+
+For isolated PostgreSQL tests, set `AUTH_TEST_DATABASE_URL` to a fresh disposable database and run `go vet ./...` and `go test ./... -p 1 -count=1` from `backend/`; run `npm run build` from `frontend/`. Backend startup applies migration 701 after migration 601. These commands do not require changes to the application database.
 
 ## M6 Class and Exam Routines
 
