@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  font-family: Inter, Arial, sans-serif;
+  /* Bangla text can appear in English mode, such as the language switch and Bangla names. */
+  font-family: Inter, "Noto Sans Bengali", Arial, sans-serif;
   font-synthesis: none;
   --brand-primary: #0f766e;
   --brand-secondary: #334155;
