@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Fly_Birds API
-  version: 0.9.0
-  description: M0-M5 APIs, including academic structure, students and guardians, staff management, and student and teacher attendance. Protected module routes check the active session, current role permission, and current database module state. Student and guardian reads scope records to their linked accounts.
+  version: 0.10.0
+  description: M0-M6 APIs, including academic structure, people, staff, attendance, and class and exam routines. Protected routes check current role permissions and module state. Student and guardian reads scope records to their linked accounts.
 servers:
   - url: http://localhost:8080
 paths:
@@ -1068,6 +1068,172 @@ paths:
       description: Administrator only; requires attendance:alerts_read and enabled Attendance module. Events are triggers for later delivery.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Paginated pending absence events } }
+  /routines/classes:
+    get:
+      operationId: listClassRoutines
+      summary: List weekly class periods with session, class, section, search and page filters
+      description: Requires routine:read and the routine module. Administrators and head teachers can read all periods.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated class periods }, '401': { description: Authentication required }, '403': { description: Permission or module denied } }
+    post:
+      operationId: createClassRoutine
+      summary: Create a class period after teacher assignment and overlap checks
+      description: Requires routine:manage, the routine module, and administrator role. Writes are serialized against competing schedule changes.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClassRoutineInput' } } } }
+      responses: { '201': { description: Period created }, '400': { description: Invalid relationship or time }, '409': { description: Teacher, room or section overlap } }
+  /routines/classes/me:
+    get:
+      operationId: getOwnClassRoutine
+      summary: Read own student class or teacher assignment timetable
+      description: Requires routine:read_self and the routine module.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated weekly periods }, '403': { description: Access denied } }
+  /routines/classes/children/{studentId}:
+    get:
+      operationId: getChildClassRoutine
+      summary: Read weekly routine for a linked child
+      description: Requires routine:read_children and the routine module; unlinked children return 404.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Paginated weekly periods }, '404': { description: Child is not linked } }
+  /routines/classes/{id}:
+    patch:
+      operationId: updateClassRoutine
+      summary: Change a class period with conflict checks
+      description: Requires routine:manage and administrator role.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClassRoutineInput' } } } }
+      responses: { '200': { description: Period updated }, '409': { description: Schedule conflict } }
+    delete:
+      operationId: deleteClassRoutine
+      summary: Delete a class period
+      description: Requires routine:manage and administrator role. Writes an audit event.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Period deleted }, '404': { description: Period missing } }
+  /routines/exams:
+    get:
+      operationId: listExamRoutines
+      summary: List exam routine drafts and published schedules
+      description: Requires routine:read and the routine module.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated exam routines } }
+    post:
+      operationId: createExamRoutine
+      summary: Create an unpublished exam routine
+      description: Requires routine:manage and administrator role.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamRoutineInput' } } } }
+      responses: { '201': { description: Draft created }, '409': { description: Duplicate exam name } }
+  /routines/exams/me:
+    get:
+      operationId: getOwnExamRoutines
+      summary: List published exam routines for the signed-in student
+      description: Requires routine:read_self and the routine module. Drafts are hidden.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated published routines } }
+  /routines/exams/me/{id}:
+    get:
+      operationId: getOwnExamRoutine
+      summary: Read a published exam routine for the signed-in student
+      description: Requires routine:read_self and the routine module.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Exam and ordered slots }, '404': { description: Routine unavailable } }
+  /routines/exams/children/{studentId}:
+    get:
+      operationId: getChildExamRoutines
+      summary: List published exam routines for a linked child
+      description: Requires routine:read_children and the routine module.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Paginated published routines }, '404': { description: Child is not linked } }
+  /routines/exams/children/{studentId}/{id}:
+    get:
+      operationId: getChildExamRoutine
+      summary: Read a published exam routine for a linked child
+      description: Requires routine:read_children and the routine module.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }, { name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Exam and ordered slots }, '404': { description: Routine or link unavailable } }
+  /routines/exams/{id}:
+    get:
+      operationId: getExamRoutine
+      summary: Read an exam routine and ordered slots for oversight
+      description: Requires routine:read and the routine module.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Exam and ordered slots }, '404': { description: Routine missing } }
+    patch:
+      operationId: updateExamRoutine
+      summary: Update an unpublished exam routine
+      description: Requires routine:manage and administrator role. A routine with slots cannot move to another section or session.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamRoutineInput' } } } }
+      responses: { '200': { description: Draft updated }, '409': { description: Published or conflicting routine } }
+    delete:
+      operationId: deleteExamRoutine
+      summary: Delete an unpublished exam routine and its slots
+      description: Requires routine:manage and administrator role.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Draft deleted }, '409': { description: Published routine } }
+  /routines/exams/{id}/publication:
+    patch:
+      operationId: publishExamRoutine
+      summary: Publish or unpublish an exam routine
+      description: Requires routine:manage and administrator role. Publication requires at least one exam slot.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [published], properties: { published: { type: boolean } } } } } }
+      responses: { '200': { description: Publication state changed }, '409': { description: Empty draft } }
+  /routines/exams/{id}/slots:
+    post:
+      operationId: createExamRoutineSlot
+      summary: Add a dated subject exam to an unpublished routine
+      description: Requires routine:manage and administrator role. Checks subject mapping, session dates, section and room conflicts.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamRoutineSlotInput' } } } }
+      responses: { '201': { description: Slot created and routine returned }, '409': { description: Schedule conflict } }
+  /routines/exams/{id}/slots/{slotId}:
+    patch:
+      operationId: updateExamRoutineSlot
+      summary: Update a subject exam in an unpublished routine
+      description: Requires routine:manage and administrator role.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: slotId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamRoutineSlotInput' } } } }
+      responses: { '200': { description: Slot updated and routine returned }, '409': { description: Schedule conflict } }
+    delete:
+      operationId: deleteExamRoutineSlot
+      summary: Delete a subject exam from an unpublished routine
+      description: Requires routine:manage and administrator role.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: slotId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Slot deleted }, '409': { description: Published routine } }
 components:
   securitySchemes:
     bearerAuth:
@@ -1141,6 +1307,36 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    ClassRoutineInput:
+      type: object
+      required: [session_id, class_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room]
+      properties:
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        section_id: { type: string, format: uuid }
+        subject_id: { type: string, format: uuid }
+        teacher_id: { type: string, format: uuid }
+        day_of_week: { type: integer, minimum: 0, maximum: 6, description: '0 is Sunday; 6 is Saturday.' }
+        start_time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        end_time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        room: { type: string, minLength: 1, maxLength: 80 }
+    ExamRoutineInput:
+      type: object
+      required: [name, session_id, class_id, section_id]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        section_id: { type: string, format: uuid }
+    ExamRoutineSlotInput:
+      type: object
+      required: [subject_id, exam_date, start_time, end_time, room]
+      properties:
+        subject_id: { type: string, format: uuid }
+        exam_date: { type: string, format: date }
+        start_time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        end_time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        room: { type: string, minLength: 1, maxLength: 80 }
     StudentAttendanceInput:
       type: object
       required: [student_id, attendance_date, status]
