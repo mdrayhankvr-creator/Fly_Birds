@@ -7,6 +7,7 @@ export const studentAttendanceTranslations = {
   studentAttendanceCameraError:'Camera access or QR scanning failed.',studentAttendanceScanned:'Student marked present from QR.',studentAttendanceScanError:'QR entry failed. Check the student, date, assignment, and duplicate status.',
   studentAttendanceSaved:'Student attendance saved.',studentAttendanceEmpty:'No students in this section.',studentAttendancePresent:'Present',studentAttendanceAbsent:'Absent',studentAttendanceLate:'Late',
   studentAttendanceReport:'Student attendance report',studentAttendanceAlerts:'Pending absence alerts',studentAttendanceLinkedGuardians:'Linked guardians',
+  studentAttendanceSearch:'Search students',studentAttendanceDuplicate:'Attendance is already recorded for this student and date.',
  },
  bn: {
   studentAttendanceHeading:'শিক্ষার্থীর উপস্থিতি',studentAttendanceDescription:'নির্ধারিত শ্রেণির শাখায় দৈনিক উপস্থিতি লিখুন।',
@@ -16,5 +17,6 @@ export const studentAttendanceTranslations = {
   studentAttendanceCameraError:'ক্যামেরা বা কিউআর স্ক্যান ব্যর্থ হয়েছে।',studentAttendanceScanned:'কিউআর দিয়ে উপস্থিতি লেখা হয়েছে।',studentAttendanceScanError:'কিউআর উপস্থিতি লেখা যায়নি। শিক্ষার্থী, তারিখ ও দায়িত্ব যাচাই করুন।',
   studentAttendanceSaved:'শিক্ষার্থীর উপস্থিতি সংরক্ষিত হয়েছে।',studentAttendanceEmpty:'এই শাখায় কোনো শিক্ষার্থী নেই।',studentAttendancePresent:'উপস্থিত',studentAttendanceAbsent:'অনুপস্থিত',studentAttendanceLate:'বিলম্বিত',
   studentAttendanceReport:'শিক্ষার্থীর উপস্থিতির প্রতিবেদন',studentAttendanceAlerts:'অপেক্ষমাণ অনুপস্থিতি সতর্কতা',studentAttendanceLinkedGuardians:'সংযুক্ত অভিভাবক',
+  studentAttendanceSearch:'শিক্ষার্থী খুঁজুন',studentAttendanceDuplicate:'এই শিক্ষার্থী ও তারিখের উপস্থিতি আগে থেকেই আছে।',
  }
 }
