@@ -84,7 +84,7 @@ func TestPostgresSchoolConfigurationHTTP(t *testing.T) {
 		if _, err := schoolService.SaveGrading(context.Background(), admin.ID, originalGrades); err != nil {
 			t.Errorf("restore grading: %v", err)
 		}
-		if _, err := schoolService.SetModule(context.Background(), admin.ID, "attendance", originalAttendance); err != nil {
+		if err := db.Exec("UPDATE school_modules SET enabled=? WHERE school_id=1 AND module_key='attendance'", originalAttendance).Error; err != nil {
 			t.Errorf("restore attendance module: %v", err)
 		}
 	})
@@ -210,11 +210,33 @@ func TestPostgresSchoolConfigurationHTTP(t *testing.T) {
 	check("PUT", "/school/modules/authentication", `{"enabled":false}`, adminHeader, 409)
 	check("PUT", "/school/modules/unknown", `{"enabled":true}`, adminHeader, 404)
 	check("PUT", "/school/modules/attendance", `{"enabled":true}`, teacherHeader, 403)
+	// Attendance depends on students and staff (M10). Save their states, prove
+	// the dependency guard, then enable the prerequisites for the toggles below.
+	var prerequisites []struct {
+		ModuleKey string
+		Enabled   bool
+	}
+	if err := db.Table("school_modules").Select("module_key, enabled").Where("school_id=1 AND module_key IN ?", []string{"academics", "students", "staff"}).Scan(&prerequisites).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		for _, p := range prerequisites {
+			_ = db.Exec("UPDATE school_modules SET enabled=? WHERE school_id=1 AND module_key=?", p.Enabled, p.ModuleKey).Error
+		}
+	})
+	if err := db.Exec("UPDATE school_modules SET enabled=false WHERE school_id=1 AND module_key='staff'").Error; err != nil {
+		t.Fatal(err)
+	}
+	check("PUT", "/school/modules/attendance", `{"enabled":true}`, adminHeader, 409)
+	if err := db.Exec("UPDATE school_modules SET enabled=true WHERE school_id=1 AND module_key IN ('academics','students','staff')").Error; err != nil {
+		t.Fatal(err)
+	}
 	check("GET", "/test/attendance", "", adminHeader, 403)
 	check("PUT", "/school/modules/attendance", `{"enabled":true}`, adminHeader, 200)
 	check("GET", "/test/attendance", "", adminHeader, 204)
 	check("GET", "/test/attendance", "", teacherHeader, 204)
 	check("GET", "/test/attendance-management", "", teacherHeader, 403)
+	check("PUT", "/school/modules/students", `{"enabled":false}`, adminHeader, 409)
 	check("PUT", "/school/modules/attendance", `{"enabled":false}`, adminHeader, 200)
 	check("GET", "/test/attendance", "", adminHeader, 403)
 	check("GET", "/test/attendance", "", teacherHeader, 403)

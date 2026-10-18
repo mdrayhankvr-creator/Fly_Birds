@@ -3,6 +3,7 @@ package school
 import (
 	"context"
 	"regexp"
+	"strings"
 )
 
 var actorID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -48,9 +49,16 @@ func (s *Service) Enabled(ctx context.Context, key string) (bool, error) {
 	}
 	return s.repo.ModuleEnabled(ctx, key)
 }
-func (s *Service) SetModule(ctx context.Context, actor, key string, enabled bool) (Module, error) {
+// SetModule enables or disables a module. Without cascade it is refused when
+// prerequisites are off or enabled modules depend on it; with cascade those
+// modules are switched too, in one audited transaction.
+func (s *Service) SetModule(ctx context.Context, actor, key string, enabled, cascade bool) (Module, error) {
 	if !actorID.MatchString(actor) || !ValidModuleKey(key) {
 		return Module{}, ErrInvalid
 	}
-	return s.repo.UpdateModule(ctx, actor, key, enabled)
+	return s.repo.UpdateModule(ctx, actor, key, enabled, cascade)
+}
+
+func containsFold(value, search string) bool {
+	return strings.Contains(strings.ToLower(value), strings.ToLower(search))
 }

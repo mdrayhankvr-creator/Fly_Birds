@@ -24,7 +24,11 @@ func (r *stubRepository) UserRoles(context.Context, string) ([]string, error) {
 	r.called = true
 	return []string{}, nil
 }
-func (r *stubRepository) ReplaceRolePermissions(context.Context, string, string, []string) (Change, error) {
+func (r *stubRepository) Matrix(context.Context) (Matrix, error) { return Matrix{}, nil }
+func (r *stubRepository) History(context.Context, string, int, int) (Page[HistoryItem], error) {
+	return Page[HistoryItem]{}, nil
+}
+func (r *stubRepository) ReplaceRolePermissions(context.Context, string, string, []string, []string) (Change, error) {
 	r.called = true
 	return Change{}, nil
 }
@@ -43,11 +47,11 @@ func TestServiceRejectsInvalidInputBeforeRepository(t *testing.T) {
 		func() error { _, err := svc.RolePermissions(context.Background(), "bad/role"); return err },
 		func() error { _, err := svc.UserRoles(context.Background(), "not-uuid"); return err },
 		func() error {
-			_, err := svc.SetRolePermissions(context.Background(), actor, "teacher", []string{"roles:read", "roles:read"})
+			_, err := svc.SetRolePermissions(context.Background(), actor, "teacher", []string{"roles:read", "roles:read"}, nil)
 			return err
 		},
 		func() error {
-			_, err := svc.SetRolePermissions(context.Background(), actor, "teacher", nil)
+			_, err := svc.SetRolePermissions(context.Background(), actor, "teacher", nil, nil)
 			return err
 		},
 		func() error {

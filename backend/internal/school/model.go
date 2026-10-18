@@ -63,10 +63,16 @@ type GradeBand struct {
 func (GradeBand) TableName() string { return "grading_bands" }
 
 type Module struct {
-	Key     string `json:"key"`
-	Name    string `json:"name"`
-	IsCore  bool   `json:"is_core"`
-	Enabled bool   `json:"enabled"`
+	Key         string   `json:"key"`
+	Name        string   `json:"name"`
+	IsCore      bool     `json:"is_core"`
+	Enabled     bool     `json:"enabled"`
+	DependsOn   []string `json:"depends_on" gorm:"-"`
+	Dependents  []string `json:"dependents" gorm:"-"`
+	DependsJSON string   `json:"-"`
+	UpdatedAt   string   `json:"updated_at"`
+	// Changed lists every module a cascaded update switched, in order.
+	Changed []string `json:"changed,omitempty" gorm:"-"`
 }
 type ModulePage struct {
 	Items    []Module `json:"items"`

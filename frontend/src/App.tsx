@@ -29,6 +29,7 @@ import { NoticesPage } from './pages/NoticesPage'
 import { EventsPage } from './pages/EventsPage'
 import { AdminNotificationsPage, NotificationBell, NotificationsPage } from './pages/NotificationsPage'
 import { AdminDiaryPage, DiaryFeedPage, TeacherDiaryPage } from './pages/DiaryPages'
+import { AdminOverviewPage, AuditLogPage, BackupsPage, DataExportPage, ModulesPage } from './pages/AdminPages'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -95,6 +96,23 @@ function PermissionGate({ permissions, role, loading, error }: { permissions: st
   if (error) return <p role="alert" className="text-rose-700">{t('loadPermissionsError')}</p>
   if (!permissions?.includes('permissions:read')) return <p role="alert" className="text-rose-700">{t('permissionDenied')}</p>
   return <PermissionPage canManage={role === 'admin' && permissions.includes('permissions:manage')} />
+}
+
+// AdminGate guards the M10 control-center pages: administrators only, with
+// the page's own permission; the server enforces the same rules.
+function AdminGate({ kind, permissions, role, loading, error }: { kind: 'overview' | 'audit' | 'exports' | 'backups' | 'modules'; permissions: string[] | undefined; role: string | undefined; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('loadingPermissions')}</p>
+  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  const required = { overview: 'system:read', audit: 'audit:read', exports: 'data:export', backups: 'backups:manage', modules: 'modules:read' }[kind]
+  if (role !== 'admin' || !permissions?.includes(required)) return <p role="alert">{t('permissionDenied')}</p>
+  switch (kind) {
+    case 'overview': return <AdminOverviewPage />
+    case 'audit': return <AuditLogPage />
+    case 'exports': return <DataExportPage />
+    case 'backups': return <BackupsPage />
+    default: return <ModulesPage canManage={permissions.includes('modules:manage')} />
+  }
 }
 
 function SchoolGate({ permissions, loading, error }: { permissions: string[] | undefined; loading: boolean; error: boolean }) {
@@ -353,6 +371,7 @@ export default function App() {
                 {ready && (user
                   ? <><Link to="/account" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('account')}</Link>
                     <Link to="/dashboard" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('dashboardHeading')}</Link>
+                    {user.role === 'admin' && myPermissions.data?.includes('system:read') && <Link to="/admin/control" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('m10ControlCenter')}</Link>}
                     {user.role === 'admin' && myPermissions.data?.includes('users:read') && moduleEnabled('permissions') && <Link to="/admin/users" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_users')}</Link>}
                     {myPermissions.data?.includes('permissions:read') && moduleEnabled('permissions') && <Link to="/admin/permissions" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('permissionEditor')}</Link>}
                     {myPermissions.data?.includes('school_settings:read') && moduleEnabled('school_settings') && <Link to="/admin/school-settings" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('schoolSettings')}</Link>}
@@ -404,6 +423,11 @@ export default function App() {
           <Route path="/dashboard/:role" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><UsersGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/permissions" element={<ProtectedRoute><PermissionGate permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
+          <Route path="/admin/control" element={<ProtectedRoute><AdminGate kind="overview" permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
+          <Route path="/admin/audit" element={<ProtectedRoute><AdminGate kind="audit" permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
+          <Route path="/admin/exports" element={<ProtectedRoute><AdminGate kind="exports" permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
+          <Route path="/admin/backups" element={<ProtectedRoute><AdminGate kind="backups" permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
+          <Route path="/admin/modules" element={<ProtectedRoute><AdminGate kind="modules" permissions={myPermissions.data} role={user?.role} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/school-settings" element={<ProtectedRoute><SchoolGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
           <Route path="/admin/academic/classes" element={<ProtectedRoute><AcademicGate kind="classes" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
           <Route path="/admin/academic/subjects" element={<ProtectedRoute><AcademicGate kind="subjects" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />

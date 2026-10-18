@@ -210,6 +210,21 @@ func TestPostgresCheckpointFourLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var prerequisites []struct {
+		ModuleKey string
+		Enabled   bool
+	}
+	if err := db.Table("school_modules").Select("module_key, enabled").Where("school_id=1 AND module_key IN ?", []string{"academics", "students", "staff"}).Scan(&prerequisites).Error; err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		for _, p := range prerequisites {
+			_ = db.Exec("UPDATE school_modules SET enabled=? WHERE school_id=1 AND module_key=?", p.Enabled, p.ModuleKey).Error
+		}
+	}()
+	if err := db.Exec("UPDATE school_modules SET enabled=true WHERE school_id=1 AND module_key IN ('academics','students','staff')").Error; err != nil {
+		t.Fatal(err)
+	}
 	moduleBody, _ := json.Marshal(map[string]any{"enabled": !attendance})
 	check("PUT", "/school/modules/attendance", string(moduleBody), authorization, 200)
 	originalModuleBody, _ := json.Marshal(map[string]any{"enabled": attendance})

@@ -18,6 +18,12 @@ type Config struct {
 	FileStorageDir string
 	// NotifyInterval is how often notifications are dispatched; 0 disables it.
 	NotifyInterval time.Duration
+	// BackupDir holds backup archives (BACKUP_DIR); keep it off the web root.
+	BackupDir string
+	// BackupRetention is how many completed archives are kept (BACKUP_RETENTION).
+	BackupRetention int
+	// BackupInterval schedules automatic backups (BACKUP_INTERVAL); 0 disables.
+	BackupInterval time.Duration
 }
 
 func Load() (Config, error) {
@@ -61,6 +67,26 @@ func Load() (Config, error) {
 		}
 		notifyInterval = parsed
 	}
+	backupDir := os.Getenv("BACKUP_DIR")
+	if backupDir == "" {
+		backupDir = "data/backups"
+	}
+	retention := 10
+	if raw := os.Getenv("BACKUP_RETENTION"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 365 {
+			return Config{}, fmt.Errorf("BACKUP_RETENTION must be between 1 and 365")
+		}
+		retention = parsed
+	}
+	var backupInterval time.Duration
+	if raw := os.Getenv("BACKUP_INTERVAL"); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil || parsed < 0 || (parsed > 0 && parsed < time.Hour) {
+			return Config{}, fmt.Errorf("BACKUP_INTERVAL must be 0 or a duration of at least 1h")
+		}
+		backupInterval = parsed
+	}
 	return Config{
 		Port:             port,
 		DatabaseURL:      databaseURL,
@@ -69,5 +95,8 @@ func Load() (Config, error) {
 		ShutdownTimeout:  10 * time.Second,
 		FileStorageDir:   storageDir,
 		NotifyInterval:   notifyInterval,
+		BackupDir:        backupDir,
+		BackupRetention:  retention,
+		BackupInterval:   backupInterval,
 	}, nil
 }

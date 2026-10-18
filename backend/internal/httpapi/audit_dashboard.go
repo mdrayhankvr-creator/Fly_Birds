@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +33,7 @@ func (h *auditHandler) events(c *gin.Context) {
 		failure(c, 400, "invalid_request", "invalid sort order")
 		return
 	}
-	value, err := h.service.List(c.Request.Context(), audit.Query{Actor: c.Query("actor"), Action: c.Query("action"), TargetType: c.Query("target_type"), Page: page, PageSize: size, Newest: sort == "newest"})
+	value, err := h.service.List(c.Request.Context(), audit.Query{Actor: c.Query("actor"), Action: c.Query("action"), TargetType: c.Query("target_type"), TargetID: c.Query("target_id"), Outcome: c.Query("outcome"), From: c.Query("from"), To: c.Query("to"), Search: c.Query("search"), Page: page, PageSize: size, Newest: sort == "newest"})
 	if errors.Is(err, audit.ErrInvalid) {
 		failure(c, 400, "invalid_request", "invalid audit filter")
 		return
@@ -65,4 +67,59 @@ func (h *dashboardHandler) get(c *gin.Context) {
 		return
 	}
 	success(c, http.StatusOK, value)
+}
+
+// actions godoc
+// @Summary List recorded audit action names with counts
+// @Tags audit
+// @Router /audit/actions [get]
+func (h *auditHandler) actions(c *gin.Context) {
+	if h.service == nil {
+		failure(c, 503, "audit_unavailable", "audit log requires a database")
+		return
+	}
+	value, err := h.service.Actions(c.Request.Context())
+	if err != nil {
+		failure(c, 500, "internal_error", "internal server error")
+		return
+	}
+	success(c, http.StatusOK, value)
+}
+
+// sensitiveRoutes are administrative endpoints whose refusals are audited.
+var sensitiveRoutes = []string{"/admin/", "/audit/", "/users", "/roles", "/permissions", "/school/settings", "/school/grading", "/school/modules"}
+
+// AuditDenied records 401/403 responses from sensitive administrative routes
+// so attempted misuse is visible in the audit log. It runs before the guards
+// and inspects the final status after them.
+func AuditDenied(service *audit.Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+		status := c.Writer.Status()
+		if service == nil || (status != http.StatusForbidden && status != http.StatusUnauthorized) {
+			return
+		}
+		route := c.FullPath()
+		sensitive := false
+		for _, prefix := range sensitiveRoutes {
+			sensitive = sensitive || strings.HasPrefix(route, prefix)
+		}
+		if !sensitive {
+			return
+		}
+		var actor *string
+		if value, ok := c.Get("auth_user"); ok {
+			if user, valid := value.(auth.User); valid {
+				actor = &user.ID
+			}
+		}
+		if actor == nil {
+			return // unauthenticated probes are not attributable; keep the log meaningful
+		}
+		reason := "forbidden"
+		if status == http.StatusUnauthorized {
+			reason = "unauthorized"
+		}
+		service.Denied(context.WithoutCancel(c.Request.Context()), actor, c.Request.Method, route, reason)
+	}
 }

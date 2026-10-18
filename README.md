@@ -1,6 +1,27 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M8 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M9 Notices, Notifications, Events and the Daily Class Diary are complete locally on `feature/m9-notices-diary` and await review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M9 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M10 Admin Control Center is complete locally on `feature/m10-admin-controls` and awaits review.
+
+## M10 Admin Control Center
+
+Administrators open **Control center** (`/admin/control`) for a school-wide overview and links to every admin area:
+
+- **Audit log** (`/admin/audit`): search and filter all audited actions by person, action, outcome and date. Refused attempts by signed-in users to reach admin routes are logged as `admin.access_denied`.
+- **Data export** (`/admin/exports`): CSV downloads of users, students, guardians, staff, attendance, exam results, fee payments, the ledger and the audit log. Files open with Bangla intact in Excel and LibreOffice, formula-like cells are neutralised, password hashes are never included and every export is audited.
+- **Backups** (`/admin/backups`): take, verify, download and delete full backups (database plus attachments).
+- **Modules** (`/admin/modules`): switch modules on and off with dependency checks; related modules can be switched together.
+- **Permissions** (`/admin/permissions`): grouped, searchable editor with protected admin grants, a review step, stale-save protection, a role comparison matrix and change history.
+
+Migration `1001_admin_control.sql` adds module dependencies, the backup run history and three admin-only permissions (`system:read`, `data:export`, `backups:manage`).
+
+**Backups and restore.**
+- **Storage:** archives (`flybirds-backup-<UTC time>-<id>.tar.gz`) are written to `BACKUP_DIR` (default `data/backups`; in Compose the new `backups_data` volume at `/app/backups`). They contain personal data and password hashes, so copy them off the server and store them encrypted.
+- **Settings:** `BACKUP_RETENTION` (1–365, default 10) archives are kept. `BACKUP_INTERVAL` (`0` = manual only, or a duration of at least `1h`, such as `24h`) schedules automatic backups.
+- **Restore:** run the bundled command against a freshly migrated, empty database of the same schema version. It needs a PostgreSQL superuser and PostgreSQL 15 or later, and refuses a database that already has users unless `-force` is given. Everyone must sign in again afterwards because sessions are not backed up.
+
+```powershell
+docker compose run --rm -v ${PWD}/restore:/restore backend /app/restore-backup -archive /restore/flybirds-backup-....tar.gz -confirm
+```
 
 ## M9 Notices, Notifications, Events and Class Diary
 
@@ -277,6 +298,9 @@ See `.env.example`, `backend/.env.example`, and `frontend/.env.example` for exam
 | `JWT_SIGNING_KEY_B64` | Base64 encoding of at least 32 random signing-key bytes; required when the database is configured | Unset |
 | `AUTH_COOKIE_SECURE` | Set `false` only for local HTTP; keep `true` behind HTTPS | `true` in the backend, `false` in local Compose |
 | `AUTH_TEST_DATABASE_URL` | Fresh, dedicated disposable PostgreSQL database for opt-in authentication, RBAC, school, academic, student, guardian, and attendance integration tests; never point it at the application database | Unset |
+| `BACKUP_DIR` | Directory for backup archives; keep it outside the web root | `data/backups`; `/app/backups` in Compose |
+| `BACKUP_RETENTION` | Completed backup archives to keep (1–365) | `10` |
+| `BACKUP_INTERVAL` | Automatic backup interval (`0` disables; at least `1h`) | `0` |
 | `GIN_MODE` | Gin log mode; Compose sets `release` | Gin default |
 | `VITE_API_BASE_URL` | Browser API path | `/api` |
 | `VITE_API_PROXY_TARGET` | Vite development proxy target | `http://localhost:8080` |

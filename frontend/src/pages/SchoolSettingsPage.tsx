@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   ApiError, getSchoolGrading, getSchoolModules, getSchoolSettings, putSchoolGrading,
-  putSchoolModule, putSchoolSettings, type GradeBand, type SchoolSettingsInput,
+  putSchoolSettings, type GradeBand, type SchoolSettingsInput,
 } from '../api/client'
+import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 
 const colorPattern = /^#[0-9a-fA-F]{6}$/
@@ -36,7 +37,6 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
   const canReadGrading = permissions.includes('grading:read')
   const canEditGrading = permissions.includes('grading:update')
   const canReadModules = permissions.includes('modules:read')
-  const canManageModules = permissions.includes('modules:manage')
 
   async function authorized<T>(request: (token: string) => Promise<T>): Promise<T> {
     if (!accessToken) throw new ApiError(401, 'unauthorized')
@@ -78,12 +78,6 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
     onSuccess: async () => { setError(''); setNotice(t('gradingSaved')); await queryClient.invalidateQueries({ queryKey: ['school', 'grading'] }) },
     onError: () => { setNotice(''); setError(t('schoolSaveError')) },
   })
-  const toggleModule = useMutation({
-    mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) => authorized((token) => putSchoolModule(token, key, enabled)),
-    onSuccess: async () => { setError(''); setNotice(t('moduleSaved')); await queryClient.invalidateQueries({ queryKey: ['school', 'modules'] }) },
-    onError: () => { setNotice(''); setError(t('moduleChangeError')) },
-  })
-
   function setField<Key extends keyof SchoolSettingsInput>(key: Key, value: SchoolSettingsInput[Key]) {
     setDraft((current) => current ? { ...current, [key]: value } : current)
   }
@@ -169,8 +163,9 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
         {canEditGrading && <div className="mt-5 flex flex-wrap gap-3"><button type="submit" disabled={saveGrading.isPending} className="brand-button rounded-lg px-5 py-2.5 font-semibold disabled:opacity-50">{saveGrading.isPending ? t('saving') : t('saveGrading')}</button><button type="button" onClick={resetDrafts} className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold">{t('discardChanges')}</button></div>}
       </form>}
       {canReadModules && modules.data && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-        <h2 className="text-xl font-bold text-slate-900">{t('schoolModules')}</h2><p className="mt-2 text-sm text-slate-600">{t('moduleHelp')} {t('optionalModuleNote')}</p>
-        <ul className="mt-5 grid gap-3 sm:grid-cols-2">{modules.data.items.map((module) => <li key={module.key} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-4"><div><p className="font-semibold text-slate-900">{module.name}</p><p className="text-xs text-slate-600">{module.key} {module.is_core ? `· ${t('coreModule')}` : ''}</p></div><label className="flex items-center gap-2 text-sm font-medium"><span>{module.enabled ? t('enabled') : t('disabled')}</span><input aria-label={module.name} type="checkbox" checked={module.enabled} disabled={module.is_core || !canManageModules || toggleModule.isPending} className="h-5 w-5 accent-[var(--brand-primary)]" onChange={(event) => { const enabled = event.target.checked; if (window.confirm(t('confirmModuleChange', { name: module.name }))) { setError(''); setNotice(''); toggleModule.mutate({ key: module.key, enabled }) } }} /></label></li>)}</ul>
+        <h2 className="text-xl font-bold text-slate-900">{t('schoolModules')}</h2><p className="mt-2 text-sm text-slate-600">{t('m10SettingsModulesMoved')}</p>
+        <ul className="mt-4 flex flex-wrap gap-2">{modules.data.items.map((module) => <li key={module.key} className={`rounded-full px-3 py-1 text-sm font-medium ${module.enabled ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{t(`m10Module_${module.key}`, { defaultValue: module.name })} · {module.enabled ? t('enabled') : t('disabled')}</li>)}</ul>
+        <Link to="/admin/modules" className="brand-button mt-5 inline-block rounded-lg px-5 py-2.5 font-semibold">{t('m10OpenModules')}</Link>
       </section>}
     </>}
   </section>

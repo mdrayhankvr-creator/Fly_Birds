@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/admin"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
@@ -65,6 +66,7 @@ func run(logger *slog.Logger) error {
 	var examService *exams.Service
 	var feeService *fees.Service
 	var comm *httpapi.Communication
+	var adminServices *httpapi.AdminServices
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -115,6 +117,11 @@ func run(logger *slog.Logger) error {
 			Diary:   diary.NewService(diary.NewRepository(db)),
 			Files:   files.NewService(db, store),
 		}
+		backups, err := admin.NewBackups(db, cfg.BackupDir, cfg.FileStorageDir, cfg.BackupRetention)
+		if err != nil {
+			return fmt.Errorf("backup storage: %w", err)
+		}
+		adminServices = &httpapi.AdminServices{Exporter: admin.NewExporter(db), Backups: backups, Overview: admin.NewOverviewReader(db, backups)}
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -122,7 +129,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithCommunication(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm),
+		Handler:           httpapi.NewRouterWithAdmin(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
@@ -130,6 +137,9 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if adminServices != nil && cfg.BackupInterval > 0 {
+		go scheduledBackups(ctx, logger, adminServices.Backups, cfg.BackupInterval)
+	}
 	if comm != nil && cfg.NotifyInterval > 0 {
 		go backgroundWork(ctx, logger, comm, cfg.NotifyInterval)
 	}
@@ -180,6 +190,26 @@ func backgroundWork(ctx context.Context, logger *slog.Logger, comm *httpapi.Comm
 				logger.Info("abandoned uploads removed", "count", removed)
 			}
 			cancel()
+		}
+	}
+}
+
+// scheduledBackups takes an automatic backup every interval; retention pruning
+// happens after each successful archive.
+func scheduledBackups(ctx context.Context, logger *slog.Logger, backups *admin.Backups, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run, err := backups.Create(ctx, nil, "scheduled")
+			if err != nil {
+				logger.Error("scheduled backup failed", "error", err)
+				continue
+			}
+			logger.Info("scheduled backup completed", "id", run.ID, "size_bytes", run.SizeBytes)
 		}
 	}
 }
