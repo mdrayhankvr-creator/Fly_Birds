@@ -96,6 +96,12 @@ func NewRouterWithFees(service *auth.Service, secureCookies bool, grants *rbac.S
 // NewRouterWithCommunication adds the M9 notices, events, notifications and
 // class diary routes; a nil Communication answers them with 503.
 func NewRouterWithCommunication(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication) *gin.Engine {
+	return NewRouterWithAdmin(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, nil)
+}
+
+// NewRouterWithAdmin adds the M10 control-center routes (overview, exports and
+// backups); nil AdminServices answers them with 503.
+func NewRouterWithAdmin(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -121,10 +127,12 @@ func NewRouterWithCommunication(service *auth.Service, secureCookies bool, grant
 	authRoutes.GET("/permissions", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("permissions"), handler.permissions)
 	rbacHandler := &rbacHandler{service: grants}
 	management := router.Group("")
-	management.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service))
+	management.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), AuditDenied(auditService))
 	management.GET("/roles", RequirePermission(service, "roles:read"), moduleGuard("permissions"), rbacHandler.roles)
 	management.GET("/permissions", RequirePermission(service, "permissions:read"), moduleGuard("permissions"), rbacHandler.permissions)
 	management.GET("/roles/:id/permissions", RequirePermission(service, "permissions:read"), moduleGuard("permissions"), rbacHandler.rolePermissions)
+	management.GET("/roles/:id/permissions/history", RequirePermission(service, "permissions:read"), moduleGuard("permissions"), RequireAdministrator(), rbacHandler.history)
+	management.GET("/permissions/matrix", RequirePermission(service, "permissions:read"), moduleGuard("permissions"), RequireAdministrator(), rbacHandler.matrix)
 	management.PUT("/roles/:id/permissions", RequirePermission(service, "permissions:manage"), moduleGuard("permissions"), RequireAdministrator(), rbacHandler.setRolePermissions)
 	management.GET("/users/:id/roles", RequirePermission(service, "roles:read"), moduleGuard("permissions"), rbacHandler.userRoles)
 	management.PUT("/users/:id/roles", RequirePermission(service, "permissions:manage"), moduleGuard("permissions"), RequireAdministrator(), rbacHandler.setUserRoles)
@@ -134,6 +142,8 @@ func NewRouterWithCommunication(service *auth.Service, secureCookies bool, grant
 	management.GET("/users/:id", RequirePermission(service, "users:read"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.get)
 	management.PATCH("/users/:id", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.update)
 	management.PATCH("/users/:id/status", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.status)
+	management.GET("/audit/actions", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{service: auditService}).actions)
+	registerAdmin(management, service, adminServices, moduleGuard("permissions"))
 	management.GET("/audit/events", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{service: auditService}).events)
 	management.GET("/dashboard", RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), (&dashboardHandler{service: dashboardService}).get)
 	sessionsHandler := &academicSessionsHandler{service: sessionService}
@@ -258,7 +268,7 @@ func NewRouterWithCommunication(service *auth.Service, secureCookies bool, grant
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")
-	schoolRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service))
+	schoolRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), AuditDenied(auditService))
 	schoolRoutes.GET("/settings", RequirePermission(service, "school_settings:read"), RequireModule(schoolService, "school_settings"), schoolHandler.settings)
 	schoolRoutes.PUT("/settings", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveSettings)
 	schoolRoutes.GET("/grading", RequirePermission(service, "grading:read"), RequireModule(schoolService, "school_settings"), schoolHandler.grading)

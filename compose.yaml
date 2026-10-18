@@ -26,10 +26,14 @@ services:
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       FILE_STORAGE_DIR: /app/uploads
       NOTIFY_INTERVAL: ${NOTIFY_INTERVAL:-1m}
+      BACKUP_DIR: /app/backups
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-10}
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-0}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     volumes:
       - uploads_data:/app/uploads
+      - backups_data:/app/backups
     depends_on:
       db:
         condition: service_healthy
@@ -48,3 +52,4 @@ services:
 volumes:
   postgres_data:
   uploads_data:
+  backups_data:
