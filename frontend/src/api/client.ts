@@ -335,3 +335,18 @@ export const setResultExamState = (token:string,examId:string,status:ResultExam[
 export const getExamTabulation = (token:string,examId:string) => bearerRequest<ExamResult[]>(`/exams/${encodeURIComponent(examId)}/tabulation`,token)
 export const getReportCards = (token:string,path:string) => bearerRequest<ReportCard[]>(path,token)
 export const getReportCard = (token:string,path:string) => bearerRequest<ReportCard>(path,token)
+
+// Attachments require the bearer token, so they are fetched as blobs rather
+// than linked directly.
+export async function bearerBlob(path: string, accessToken: string): Promise<Blob> {
+  const response = await authRequest(path, { headers: { Authorization: `Bearer ${accessToken}` } })
+  return response.blob()
+}
+
+export async function bearerUpload<T>(path: string, accessToken: string, file: File): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await authRequest(path, { method: 'POST', body: form, headers: { Authorization: `Bearer ${accessToken}` } })
+  const body = await response.json()
+  return body.data as T
+}

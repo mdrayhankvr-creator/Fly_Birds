@@ -90,6 +90,12 @@ func NewRouterWithExams(service *auth.Service, secureCookies bool, grants *rbac.
 }
 
 func NewRouterWithFees(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service) *gin.Engine {
+	return NewRouterWithCommunication(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, nil)
+}
+
+// NewRouterWithCommunication adds the M9 notices, events, notifications and
+// class diary routes; a nil Communication answers them with 503.
+func NewRouterWithCommunication(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -248,6 +254,7 @@ func NewRouterWithFees(service *auth.Service, secureCookies bool, grants *rbac.S
 	management.POST("/accounts/entries", RequirePermission(service, "accounts:manage"), moduleGuard("fees"), feeWriters, fh.saveEntry)
 	management.DELETE("/accounts/entries/:id", RequirePermission(service, "accounts:manage"), moduleGuard("fees"), feeWriters, fh.deleteEntry)
 	management.GET("/accounts/summary", RequirePermission(service, "accounts:read"), moduleGuard("fees"), fh.summary)
+	registerCommunication(management, service, comm, moduleGuard)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")

@@ -1,6 +1,28 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M7 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M8 Fees and Accounts is complete locally on `feature/m8-fees-accounts` and awaits review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M8 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M9 Notices, Notifications, Events and the Daily Class Diary are complete locally on `feature/m9-notices-diary` and await review.
+
+## M9 Notices, Notifications, Events and Class Diary
+
+Migrations `0901`–`0903` add notices, events, in-app notifications with preferences, a mock SMS log, the daily class diary with optional homework submission, and file attachments. They reference the existing academic, student, guardian and staff tables.
+
+- **Notices** (`/notices`) are written in English and Bangla with normal, important or urgent priority, role audiences, optional class/section targets, scheduling, expiry and PDF/image attachments. Each user sees only live notices addressed to them.
+- **The events calendar** (`/events`) shows holidays, exams, meetings and events in month and list views.
+- **Notifications** (bell, `/notifications`) cover notices, absences, published results, overdue fees and diaries. Each category can be switched on or off in-app and by SMS. Administrators can run dispatch and view the SMS log at `/admin/notifications`.
+- **SMS uses a mock provider only.** Nothing is sent to phones and no credentials or charges are involved; the log status is "sent to mock", never "delivered". A real gateway can replace `notify.MockSMS` through the `notify.SMSProvider` interface.
+- **The class diary** works by role:
+  - **Teachers** (`/teacher/diary`) write and publish daily diaries only for their assigned classes and subjects. They can enable homework submission and review submissions.
+  - **Students** (`/student/diary`) and **guardians** (`/guardian/children/:id/diary`, linked children only) browse diaries by date and subject. Students submit homework when it is enabled.
+  - **Administrators** (`/admin/diary`) can require daily publication with a reminder time and track compliance.
+
+Enable the **Notices and notifications** module and, for the diary, the separate **Daily class diary** module in school settings; both start disabled.
+
+**Storage configuration.**
+- **Location:** attachments are stored on disk, not in PostgreSQL, in `FILE_STORAGE_DIR`. The default is `data/uploads` relative to the backend's working directory, which is ignored by Git. In Docker Compose this is the new `uploads_data` volume mounted at `/app/uploads`, so back it up with the database.
+- **Access:** files are served only through authenticated, authorized API routes.
+- **Background work:** `NOTIFY_INTERVAL` (default `1m`, `0` disables) controls background dispatch and the cleanup of abandoned uploads.
+
+See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification and limitations.
 
 ## M8 Fees and Accounts
 

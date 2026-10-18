@@ -4,11 +4,74 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 54 verified criteria / 83 total criteria x 100 = **65.1%**.
-- **Current milestone completion:** 6 verified M8 criteria / 6 M8 criteria = **100% locally**.
-- **Remaining:** 29 criteria in M9–M13. **Next planned milestone:** M9 Notices and Notifications, only after explicit approval.
+- **Overall completion:** 61 verified criteria / 83 total criteria x 100 = **73.5%**.
+- **Current milestone completion:** 7 verified M9 criteria / 7 M9 criteria = **100% locally**. The approved Daily Class Diary extension is also verified; it is outside the brief's 83 criteria and does not change the denominator.
+- **Remaining:** 22 criteria in M10–M13. **Next planned milestone:** M10 Admin Control Center, only after explicit approval.
 
-M0–M8 are complete and merged into main (M7 through PR #10, the M0–M6 QA fixes through PR #11, M8 through PR #12).
+M0–M8 and the attendance UX redesign are merged into main (M7 through PR #10, the M0–M6 QA fixes through PR #11, M8 through PR #12, attendance UX through PR #13). M9 is complete locally on `feature/m9-notices-diary`, which is not pushed.
+
+## Current Status — M9 Notices, Notifications, Events and Class Diary (2026-10-18)
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Notice management | Head teachers and admins create, edit, publish now or schedule, expire, archive and delete drafts. English and Bangla content; normal, important or urgent priority; role audiences with optional class/section targets; up to 10 PDF/JPEG/PNG attachments. Role-scoped feeds show only live notices addressed to the viewer, urgent first |
+| Events calendar | Holidays, examinations, meetings and other events, all-day or timed, with date/time validation, the same audience and target rules, draft/published/cancelled states, and month calendar and list views for every role |
+| Mock SMS provider behind a replaceable interface | `notify.SMSProvider` with a `MockSMS` implementation that never contacts a network; statuses queued, `sent_mock`, failed (after 3 attempts) and cancelled, never "delivered"; admin log with masked numbers |
+| Absence notifications | Pending absence events notify linked guardians in-app and by mock SMS; a correction withdraws the notification and cancels a still-queued SMS |
+| Result notifications | Published or locked exams notify students and linked guardians; returning an exam to draft withdraws them |
+| Fee-due notifications | Overdue fee balances (up to 90 days) notify students and linked guardians, with mock SMS to guardians |
+| Notice notifications | Live notices notify their audience; urgent notices also queue mock SMS to guardians; archiving withdraws unread notifications |
+
+**Daily Class Diary (approved extension).**
+- **Teachers:** one diary per section, subject and day, holding lesson topics, class notes, homework, instructions and PDF/image attachments. Teachers write only for sections of classes and subjects they are assigned in the session containing the date, at most 7 days ahead. They save drafts, publish, and edit or delete only their own diaries.
+- **Students and guardians:** students see published diaries of their current section, and guardians only those of linked children. Both can filter by date range, subject and text.
+- **Homework:** submission is optional per diary. Students may submit text and up to five files only while it is enabled and before any due time, and may resubmit until reviewed. Teachers review against the full section roster.
+- **Admins:** admins enable the separate `diary` module (disabled by default), can require daily publication with a teacher reminder time (no reminder on Fridays), and see compliance and all diaries.
+
+**Notifications.** The in-app inbox has an unread count, read and mark-all-read actions, and per-category in-app and SMS preferences (urgent notices always arrive in-app). Dispatch is idempotent: notifications are unique per user and source fact, and a database try-lock means concurrent runs skip rather than duplicate. Dispatch and abandoned-upload cleanup run every `NOTIFY_INTERVAL` (default 1m; 0 disables), and admins can run dispatch on demand.
+
+**Storage.** Attachments are stored on disk under `FILE_STORAGE_DIR`, not in PostgreSQL, using random 32-hex keys. Client file names never reach the filesystem, and keys are validated before any path is built.
+- **Validation:**
+  - Files are identified by content, never by the declared type.
+  - PDFs (up to 10 MiB) must be complete and are rejected if they contain JavaScript, launch actions, embedded files or rich media. This is a best-effort check, not a full parser.
+  - JPEG and PNG images (up to 5 MiB, at most 6000 px per side) are decoded and re-encoded, which strips metadata.
+- **Downloads:** files are served only after the owning notice, diary or submission authorizes the viewer, with nosniff, no-store and a sandbox Content-Security-Policy.
+- **Uploads:** an upload must be claimed by its own uploader for the matching purpose. Each user may hold at most 30 unattached uploads, and abandoned or removed files are deleted after 24 hours.
+- **Compose:** the stack mounts a new `uploads_data` volume at `/app/uploads`. Existing volumes are unchanged.
+
+**Schema and permissions.**
+- **Migrations:** `0901_files_notices_events.sql`, `0902_notifications_sms.sql` and `0903_class_diary.sql` reference existing users, sessions, classes, sections, class subjects, students and guardians. No academic, staff, student or guardian table is duplicated.
+- **Permissions:**
+  - `notices:read` and `events:read` for every role.
+  - `notices:manage` and `events:manage` for admins and head teachers.
+  - `notifications:read_self` for every role; `notifications:manage` for admins.
+  - `diary:write` for teachers and head teachers; `diary:read` for admins and head teachers.
+  - `diary:read_self` for students; `diary:read_children` for guardians; `diary:manage` for admins.
+- **Modules:** the `notices` module gates notices, events and notifications, and the new `diary` module gates the diary. Every change is audited.
+
+**Verification (2026-10-18).**
+- **Backend:** `go vet ./...` passed. `go test ./...` passed without PostgreSQL. On a freshly created disposable PostgreSQL 17 database it passed 62 of 62 top-level tests with none skipped, including `TestOpenAPICoversRegisteredRoutes`.
+- **Unit tests:** file content detection, active-PDF and spoofed-image rejection, path-safe names and storage keys, notice/event/diary/preference validation, and mock SMS acceptance, retry and failure.
+- **M9 PostgreSQL HTTP test:**
+  - **Notices:** module and role enforcement; draft, scheduled and expired notices; class/section targeting for students, guardians and teachers; attachment headers.
+  - **Events:** visibility and cancellation.
+  - **Notifications:** three concurrent dispatches producing one notification; withdrawal on a corrected absence; preferences; read state; the masked SMS log.
+  - **Diary:** teacher assignment limits, student and guardian scoping, PDF/image validation, enabled/disabled/reviewed homework, reminders and compliance.
+- **Frontend and Compose:** `tsc`, the production build and `docker compose config --quiet` passed.
+- **Browser:** headless Edge on an isolated database, ports (8093/5183) and upload directory passed 31 of 31 checks in two consecutive full runs. It covered head-teacher notice creation with a rejected fake PDF and an accepted PDF, the event time validation, admin dispatch and the mock SMS log, section targeting, the student notice board, bell and inbox and the guardian diary in Bangla at 390 px, teacher diary publication and homework review, student homework submission in Bangla, and admin settings and compliance. There was no horizontal overflow and no JavaScript exception.
+- **Fixes from verification:**
+  - The notification link CHECK used a regex repetition above PostgreSQL's 255 limit; it was fixed before release.
+  - "Publish now" now uses the database clock.
+  - Editor success messages were being cleared by the reopen.
+  - Forms could be submitted while an upload was still running.
+- **Isolation:** the application database, the QA stacks, demo-school data, application volumes and secrets were not touched.
+
+**Not verified / limitations.**
+- **SMS:** no real SMS provider is integrated (by design), and guardians without a linked user account receive no notifications or SMS.
+- **Withdrawals:** fee-due notifications are not withdrawn when the balance is later paid; they describe the state when sent.
+- **Attachments:** PDF screening is heuristic, and attachments are stored on one local volume (no object storage or virus scanning). In the student diary filters, date inputs use the browser's native format.
+- **Diary reminders:** these skip Fridays only; there is no school holiday calendar integration yet.
+- **Not run:** remote CI, production migration and deployment.
 
 ## Attendance UX Redesign (2026-10-18)
 
