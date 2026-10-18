@@ -3,6 +3,7 @@ package attendance
 import (
 	"context"
 	"errors"
+	"strings"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -67,6 +68,16 @@ func syncAbsence(tx *gorm.DB, v StudentRecord) error {
 	return tx.Exec("UPDATE attendance_absence_events SET state='cancelled',updated_at=now() WHERE attendance_id=?", v.ID).Error
 }
 
+// versionExpr renders updated_at with microseconds as an optimistic lock token.
+const versionExpr = `to_char(a.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US')`
+
+// lockSectionDay serializes every write to one section's attendance day, so a
+// roster save, a QR scan and a single correction cannot interleave.
+func lockSectionDay(tx *gorm.DB, sectionID, date string) error {
+	var unused any
+	return tx.Raw("SELECT pg_advisory_xact_lock(502, hashtext(lower(?) || ?))", sectionID, date).Row().Scan(&unused)
+}
+
 const studentRecordSelect = "a.id,a.student_id,a.session_id,a.class_id,a.section_id,to_char(a.attendance_date,'YYYY-MM-DD') AS attendance_date,a.status,a.source,a.note,s.admission_no,s.name_en,s.name_bn"
 
 func studentRecord(tx *gorm.DB, id string) (StudentRecord, error) {
@@ -108,7 +119,7 @@ func (r *StudentGormRepository) StudentRoster(ctx context.Context, actor string,
 	if err = base.Count(&p.Total).Error; err != nil {
 		return p, err
 	}
-	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,s.roll_no,a.id AS record_id,a.status,a.source,a.note").Order("s.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
+	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,s.roll_no,a.id AS record_id,a.status,a.source,a.note,"+versionExpr+" AS version").Order("s.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
 	return p, err
 }
 func (r *StudentGormRepository) RecordStudent(ctx context.Context, actor string, in StudentInput, source string) (StudentRecord, error) {
@@ -125,6 +136,9 @@ func (r *StudentGormRepository) RecordStudent(ctx context.Context, actor string,
 			return err
 		}
 		if err = validateDate(tx, v.SessionID, in.AttendanceDate); err != nil {
+			return err
+		}
+		if err = lockSectionDay(tx, v.SectionID, in.AttendanceDate); err != nil {
 			return err
 		}
 		var active bool
@@ -152,7 +166,13 @@ func (r *StudentGormRepository) RecordStudent(ctx context.Context, actor string,
 func (r *StudentGormRepository) CorrectStudent(ctx context.Context, actor, id string, in StudentCorrection) (StudentRecord, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var before StudentRecord
-		err := tx.Table("student_attendance").Clauses(clause.Locking{Strength: "UPDATE"}).Select("id,student_id,session_id,class_id,to_char(attendance_date,'YYYY-MM-DD') AS attendance_date,status").Where("id=?", id).Take(&before).Error
+		query := "id,student_id,session_id,class_id,section_id,to_char(attendance_date,'YYYY-MM-DD') AS attendance_date,status"
+		err := tx.Table("student_attendance").Select(query).Where("id=?", id).Take(&before).Error
+		if err == nil {
+			if err = lockSectionDay(tx, before.SectionID, before.AttendanceDate); err == nil {
+				err = tx.Table("student_attendance").Clauses(clause.Locking{Strength: "UPDATE"}).Select(query).Where("id=?", id).Take(&before).Error
+			}
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrNotFound
 		}
@@ -295,4 +315,121 @@ func (r *StudentGormRepository) Sections(ctx context.Context, actor, sessionID s
 	}
 	err = base.Select("sec.id,sec.name,c.name AS class_name,sec.session_id").Order("c.display_order,sec.display_order,sec.id").Scan(&out).Error
 	return out, err
+}
+
+// SaveRoster applies one day's marks for a section atomically. New marks need
+// an active student in the section; corrections must name the record and
+// version the client loaded. A mark equal to the stored one is a no-op, so a
+// repeated submission changes nothing. Any stale entry rejects the whole save.
+func (r *StudentGormRepository) SaveRoster(ctx context.Context, actor string, in RosterInput) (RosterResult, error) {
+	var out RosterResult
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var section struct {
+			SessionID string
+			ClassID   string
+			Active    bool
+		}
+		err := tx.Table("academic_sections AS sec").Joins("JOIN academic_classes AS c ON c.id=sec.class_id").Select("sec.session_id,sec.class_id,(sec.is_active AND c.is_active) AS active").Where("sec.id=?", in.SectionID).Take(&section).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if section.SessionID != in.SessionID || !section.Active {
+			return ErrConflict
+		}
+		if err = validateDate(tx, in.SessionID, in.AttendanceDate); err != nil {
+			return err
+		}
+		if err = authorizeClass(tx, actor, in.SessionID, section.ClassID); err != nil {
+			return err
+		}
+		if err = lockSectionDay(tx, in.SectionID, in.AttendanceDate); err != nil {
+			return err
+		}
+		ids := make([]string, 0, len(in.Entries))
+		for _, e := range in.Entries {
+			ids = append(ids, e.StudentID)
+		}
+		var students []struct {
+			ID     string
+			Status string
+		}
+		if err = tx.Table("students").Select("id,status").Where("id IN ? AND session_id=? AND section_id=?", ids, in.SessionID, in.SectionID).Find(&students).Error; err != nil {
+			return err
+		}
+		if len(students) != len(ids) {
+			return ErrConflict
+		}
+		studentStatus := map[string]string{}
+		for _, st := range students {
+			studentStatus[strings.ToLower(st.ID)] = st.Status
+		}
+		var existing []struct {
+			ID        string
+			StudentID string
+			Status    string
+			Note      string
+			Version   string
+		}
+		if err = tx.Table("student_attendance AS a").Clauses(clause.Locking{Strength: "UPDATE"}).Select("a.id,a.student_id,a.status,a.note,"+versionExpr+" AS version").Where("a.session_id=? AND a.attendance_date=? AND a.student_id IN ?", in.SessionID, in.AttendanceDate, ids).Find(&existing).Error; err != nil {
+			return err
+		}
+		current := map[string]int{}
+		for i, row := range existing {
+			current[strings.ToLower(row.StudentID)] = i
+		}
+		stale := []string{}
+		for _, e := range in.Entries {
+			i, found := current[strings.ToLower(e.StudentID)]
+			switch {
+			case found && existing[i].Status == e.Status && existing[i].Note == e.Note:
+				out.Unchanged++
+			case found && (e.RecordID == nil || !strings.EqualFold(*e.RecordID, existing[i].ID) || e.Version != existing[i].Version):
+				stale = append(stale, e.StudentID)
+			case !found && e.RecordID != nil:
+				stale = append(stale, e.StudentID)
+			case found:
+				row := existing[i]
+				if err = tx.Exec("UPDATE student_attendance SET status=?,note=?,updated_by=?,updated_at=clock_timestamp() WHERE id=?", e.Status, e.Note, actor, row.ID).Error; err != nil {
+					return err
+				}
+				if err = syncAbsence(tx, StudentRecord{ID: row.ID, StudentID: row.StudentID, SessionID: in.SessionID, AttendanceDate: in.AttendanceDate, Status: e.Status}); err != nil {
+					return err
+				}
+				if err = audit.Record(tx, &actor, "attendance.student_corrected", "student_attendance", row.ID, map[string]any{"old_status": row.Status, "new_status": e.Status, "via": "roster"}); err != nil {
+					return err
+				}
+				out.Updated++
+			default:
+				if studentStatus[strings.ToLower(e.StudentID)] != "active" {
+					return ErrConflict
+				}
+				var id string
+				if err = tx.Raw("INSERT INTO student_attendance(student_id,session_id,class_id,section_id,attendance_date,status,source,note,recorded_by,updated_by) VALUES (?,?,?,?,?,?,'manual',?,?,?) RETURNING id", e.StudentID, in.SessionID, section.ClassID, in.SectionID, in.AttendanceDate, e.Status, e.Note, actor, actor).Scan(&id).Error; err != nil {
+					return err
+				}
+				if err = syncAbsence(tx, StudentRecord{ID: id, StudentID: e.StudentID, SessionID: in.SessionID, AttendanceDate: in.AttendanceDate, Status: e.Status}); err != nil {
+					return err
+				}
+				if err = audit.Record(tx, &actor, "attendance.student_recorded", "student_attendance", id, map[string]any{"student_id": e.StudentID, "session_id": in.SessionID, "date": in.AttendanceDate, "status": e.Status, "source": "manual", "via": "roster"}); err != nil {
+					return err
+				}
+				out.Created++
+			}
+		}
+		if len(stale) > 0 {
+			return &StaleError{StudentIDs: stale}
+		}
+		return audit.Record(tx, &actor, "attendance.student_roster_saved", "academic_section", in.SectionID, map[string]any{"date": in.AttendanceDate, "created": out.Created, "updated": out.Updated, "unchanged": out.Unchanged})
+	})
+	if err != nil {
+		var stale *StaleError
+		if errors.As(err, &stale) {
+			return RosterResult{}, stale
+		}
+		return RosterResult{}, dbError(err)
+	}
+	return out, nil
 }

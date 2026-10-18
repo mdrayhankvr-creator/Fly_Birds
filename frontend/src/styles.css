@@ -51,4 +51,8 @@
   body:has(.exam-report) .exam-report,
   body:has(.exam-report) .exam-report * { visibility: visible !important; }
   .exam-report { position: absolute; inset: 0; width: 100%; border: 0; box-shadow: none; }
+  body:has(.fee-receipt) * { visibility: hidden !important; }
+  body:has(.fee-receipt) .fee-receipt,
+  body:has(.fee-receipt) .fee-receipt * { visibility: visible !important; }
+  .fee-receipt { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0; box-shadow: none; }
 }

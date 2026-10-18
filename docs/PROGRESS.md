@@ -4,10 +4,123 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 48 verified criteria / 83 total criteria x 100 = **57.8%**.
-- **Current milestone completion:** 8 verified M7 criteria / 8 M7 criteria = **100% locally**.
+- **Overall completion:** 61 verified criteria / 83 total criteria x 100 = **73.5%**.
+- **Current milestone completion:** 7 verified M9 criteria / 7 M9 criteria = **100% locally**. The approved Daily Class Diary extension is also verified; it is outside the brief's 83 criteria and does not change the denominator.
+- **Remaining:** 22 criteria in M10–M13. **Next planned milestone:** M10 Admin Control Center, only after explicit approval.
 
-M0-M6 are complete and merged into main. All eight M7 criteria are locally verified on the feature branch.
+M0–M8 and the attendance UX redesign are merged into main (M7 through PR #10, the M0–M6 QA fixes through PR #11, M8 through PR #12, attendance UX through PR #13). M9 is complete locally on `feature/m9-notices-diary`, which is not pushed.
+
+## Current Status — M9 Notices, Notifications, Events and Class Diary (2026-10-18)
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Notice management | Head teachers and admins create, edit, publish now or schedule, expire, archive and delete drafts. English and Bangla content; normal, important or urgent priority; role audiences with optional class/section targets; up to 10 PDF/JPEG/PNG attachments. Role-scoped feeds show only live notices addressed to the viewer, urgent first |
+| Events calendar | Holidays, examinations, meetings and other events, all-day or timed, with date/time validation, the same audience and target rules, draft/published/cancelled states, and month calendar and list views for every role |
+| Mock SMS provider behind a replaceable interface | `notify.SMSProvider` with a `MockSMS` implementation that never contacts a network; statuses queued, `sent_mock`, failed (after 3 attempts) and cancelled, never "delivered"; admin log with masked numbers |
+| Absence notifications | Pending absence events notify linked guardians in-app and by mock SMS; a correction withdraws the notification and cancels a still-queued SMS |
+| Result notifications | Published or locked exams notify students and linked guardians; returning an exam to draft withdraws them |
+| Fee-due notifications | Overdue fee balances (up to 90 days) notify students and linked guardians, with mock SMS to guardians |
+| Notice notifications | Live notices notify their audience; urgent notices also queue mock SMS to guardians; archiving withdraws unread notifications |
+
+**Daily Class Diary (approved extension).**
+- **Teachers:** one diary per section, subject and day, holding lesson topics, class notes, homework, instructions and PDF/image attachments. Teachers write only for sections of classes and subjects they are assigned in the session containing the date, at most 7 days ahead. They save drafts, publish, and edit or delete only their own diaries.
+- **Students and guardians:** students see published diaries of their current section, and guardians only those of linked children. Both can filter by date range, subject and text.
+- **Homework:** submission is optional per diary. Students may submit text and up to five files only while it is enabled and before any due time, and may resubmit until reviewed. Teachers review against the full section roster.
+- **Admins:** admins enable the separate `diary` module (disabled by default), can require daily publication with a teacher reminder time (no reminder on Fridays), and see compliance and all diaries.
+
+**Notifications.** The in-app inbox has an unread count, read and mark-all-read actions, and per-category in-app and SMS preferences (urgent notices always arrive in-app). Dispatch is idempotent: notifications are unique per user and source fact, and a database try-lock means concurrent runs skip rather than duplicate. Dispatch and abandoned-upload cleanup run every `NOTIFY_INTERVAL` (default 1m; 0 disables), and admins can run dispatch on demand.
+
+**Storage.** Attachments are stored on disk under `FILE_STORAGE_DIR`, not in PostgreSQL, using random 32-hex keys. Client file names never reach the filesystem, and keys are validated before any path is built.
+- **Validation:**
+  - Files are identified by content, never by the declared type.
+  - PDFs (up to 10 MiB) must be complete and are rejected if they contain JavaScript, launch actions, embedded files or rich media. This is a best-effort check, not a full parser.
+  - JPEG and PNG images (up to 5 MiB, at most 6000 px per side) are decoded and re-encoded, which strips metadata.
+- **Downloads:** files are served only after the owning notice, diary or submission authorizes the viewer, with nosniff, no-store and a sandbox Content-Security-Policy.
+- **Uploads:** an upload must be claimed by its own uploader for the matching purpose. Each user may hold at most 30 unattached uploads, and abandoned or removed files are deleted after 24 hours.
+- **Compose:** the stack mounts a new `uploads_data` volume at `/app/uploads`. Existing volumes are unchanged.
+
+**Schema and permissions.**
+- **Migrations:** `0901_files_notices_events.sql`, `0902_notifications_sms.sql` and `0903_class_diary.sql` reference existing users, sessions, classes, sections, class subjects, students and guardians. No academic, staff, student or guardian table is duplicated.
+- **Permissions:**
+  - `notices:read` and `events:read` for every role.
+  - `notices:manage` and `events:manage` for admins and head teachers.
+  - `notifications:read_self` for every role; `notifications:manage` for admins.
+  - `diary:write` for teachers and head teachers; `diary:read` for admins and head teachers.
+  - `diary:read_self` for students; `diary:read_children` for guardians; `diary:manage` for admins.
+- **Modules:** the `notices` module gates notices, events and notifications, and the new `diary` module gates the diary. Every change is audited.
+
+**Verification (2026-10-18).**
+- **Backend:** `go vet ./...` passed. `go test ./...` passed without PostgreSQL. On a freshly created disposable PostgreSQL 17 database it passed 62 of 62 top-level tests with none skipped, including `TestOpenAPICoversRegisteredRoutes`.
+- **Unit tests:** file content detection, active-PDF and spoofed-image rejection, path-safe names and storage keys, notice/event/diary/preference validation, and mock SMS acceptance, retry and failure.
+- **M9 PostgreSQL HTTP test:**
+  - **Notices:** module and role enforcement; draft, scheduled and expired notices; class/section targeting for students, guardians and teachers; attachment headers.
+  - **Events:** visibility and cancellation.
+  - **Notifications:** three concurrent dispatches producing one notification; withdrawal on a corrected absence; preferences; read state; the masked SMS log.
+  - **Diary:** teacher assignment limits, student and guardian scoping, PDF/image validation, enabled/disabled/reviewed homework, reminders and compliance.
+- **Frontend and Compose:** `tsc`, the production build and `docker compose config --quiet` passed.
+- **Browser:** headless Edge on an isolated database, ports (8093/5183) and upload directory passed 31 of 31 checks in two consecutive full runs. It covered head-teacher notice creation with a rejected fake PDF and an accepted PDF, the event time validation, admin dispatch and the mock SMS log, section targeting, the student notice board, bell and inbox and the guardian diary in Bangla at 390 px, teacher diary publication and homework review, student homework submission in Bangla, and admin settings and compliance. There was no horizontal overflow and no JavaScript exception.
+- **Fixes from verification:**
+  - The notification link CHECK used a regex repetition above PostgreSQL's 255 limit; it was fixed before release.
+  - "Publish now" now uses the database clock.
+  - Editor success messages were being cleared by the reopen.
+  - Forms could be submitted while an upload was still running.
+- **Isolation:** the application database, the QA stacks, demo-school data, application volumes and secrets were not touched.
+
+**Not verified / limitations.**
+- **SMS:** no real SMS provider is integrated (by design), and guardians without a linked user account receive no notifications or SMS.
+- **Withdrawals:** fee-due notifications are not withdrawn when the balance is later paid; they describe the state when sent.
+- **Attachments:** PDF screening is heuristic, and attachments are stored on one local volume (no object storage or virus scanning). In the student diary filters, date inputs use the browser's native format.
+- **Diary reminders:** these skip Fridays only; there is no school holiday calendar integration yet.
+- **Not run:** remote CI, production migration and deployment.
+
+## Attendance UX Redesign (2026-10-18)
+
+Branch `feature/attendance-premium-ux` starts at `origin/main` `8916b516`, after M8 was merged. It improves the M5 attendance workflow and adds no roadmap criteria, so the completion percentages are unchanged. It is not pushed.
+
+| Area | Before | After |
+|---|---|---|
+| Marking | A dropdown and a Save button per student; 10 students per page | Full section on one screen, sorted by roll number; one-tap Present, Absent and Late per student; keyboard arrows and P/A/L hotkeys |
+| Saving | One request per student | `PUT /attendance/students/roster` saves the whole class in one transaction; Mark all present; live Present/Absent/Late/Unmarked totals and progress |
+| Unmarked students | Unchanged | Never sent, so never recorded as absent; the save bar states how many stay unmarked |
+| Duplicates and races | A double save returned 409 | Identical marks are no-ops; the save button is guarded; a per-section-day lock serializes roster saves, QR scans and corrections |
+| Corrections | Single-record PATCH | Past dates open in correction mode. Each correction carries the record version, and a change made elsewhere (for example a QR scan) is reported per student instead of overwritten |
+| Unsaved work | Lost silently on date or section change | A confirmation guards date, section and session changes, in-app links and page unload |
+| Reports | Plain text lists | Monthly table with attendance rate, absence-alert tab, and a student/guardian calendar view |
+
+Absence events are still created for absent marks and cancelled by corrections. Monthly reports read the same `student_attendance` table; no table was added or duplicated. Teacher assignment, RBAC and module checks are unchanged. The teacher attendance page uses the same design with its existing APIs.
+
+**Verification.**
+- **Backend:** `go vet ./...` passed. `go test ./...` passed without PostgreSQL. On a freshly created disposable PostgreSQL database it passed 52 of 52 top-level tests with none skipped, including the existing M5 attendance test, the new roster test and the OpenAPI route test. The roster test covers membership, inactive students, future and out-of-session dates, idempotent replay, versioned corrections, stale rejection, QR coexistence, absence events and guardian visibility, five concurrent submissions and monthly totals.
+- **Frontend:** `tsc`, the production build and `docker compose config --quiet` passed.
+- **Browser:** headless Edge on an isolated database and ports (8092/5182) passed 35 of 35 checks. It covered roll order, one-screen roster, Mark all present, absent/late marking, keyboard control, a double-click producing one save, the guardian's Bangla calendar, the admin alert list, a correction cancelling the alert, stale detection and reload, unsaved-change prompts, QR scan and duplicate QR, section switching, the monthly report, Bangla at 390 px, tablet at 820 px, the teacher attendance page, the student report and student access denial. There was no horizontal overflow and no JavaScript exception.
+
+The application database, the QA stacks and demo data were not touched.
+
+**Limitations.** The browser Back button is not intercepted (`BrowserRouter` has no navigation blocker); reloads, tab closes, in-app links and context changes are guarded. Teacher attendance still saves one teacher at a time. A note-only change on an unmarked student is not saved until a status is chosen. Native camera QR scanning was not exercised in headless Edge. Remote CI and deployment are unverified.
+
+## Current Status — M8 Fees and Accounts (2026-10-18)
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Fee structures | Coded monthly or one-time fee categories with English and Bangla names; one amount and due day per session, class and category; session, class and category fixed after creation; later amount changes affect only new dues |
+| Student dues | Rerunnable monthly generation for every active student in a session or class, optional one-time fees, single-student assignment, standing percentage concessions, discounts, administrator-only waivers, deletion only before payment, and status and arrears filters |
+| Payment receipts | Transactional full and partial payments, settling the oldest dues first or selected dues; sequenced `RCT-` receipts; idempotent replay; unique bank and mobile references; overpayment rejected in the service and by a database check; printable bilingual receipt |
+| Mock bKash/Nagad payments | Replaceable `Gateway` interface with a mock provider; students and linked guardians start a 15-minute checkout and confirm with test OTP `123456`; wrong OTP declines; expired, failed and repeated confirmations are handled; the UI labels it as a test |
+| Income and expense tracking | Ledger with fixed income and expense categories; every receipt posts fee income in the same transaction; manual entries can be added and removed, but receipt-linked income cannot |
+| Fee collection reports | Collections by method, class, fee and day; per-student balances and arrears; receipt register; accounting summary with income, expense, net, outstanding dues and arrears |
+
+**Implementation.** Branch `feature/m8-fees-accounts` starts at `origin/main` `32af0480`, after M7 (PR #10) and the QA fixes (PR #11). Migration `0801_fees_accounts.sql` adds `fee_categories`, `fee_structures`, `fee_concessions`, `student_fees`, `fee_adjustments`, `fee_payments`, `fee_payment_allocations`, `online_payment_intents` and `ledger_entries`. They reference the existing users, academic sessions, classes and students; no student or academic record is duplicated. `student_fees.balance` is a generated column, and `student_fees_no_overpayment` keeps `discount + paid <= amount`. Amounts are computed in integer poisha. Payments take a per-student advisory lock and lock the dues `FOR UPDATE`. New grants are `fees:read`, `fees:manage`, `fees:collect`, `accounts:read` and `accounts:manage` for administrators and accountants; `fees:read_self` for students; `fees:read_children` for guardians; and `fees:pay_online` for both. Financial writes also require the administrator or accountant role. The `fees` module still starts disabled. Every change is audited. The dashboard now links Fees and Examinations instead of listing them as Coming Soon.
+
+**Verification (2026-10-18).**
+- **Backend:** `go vet ./...` passed. `go test ./... -count=1` passed without PostgreSQL. On a freshly created disposable PostgreSQL 17 database it passed 50 of 50 top-level tests with none skipped, including `TestOpenAPICoversRegisteredRoutes`.
+- **Repository test:** migration 801 is applied once and reruns cleanly. The test covers generation with concessions, partial and selected-due payments, receipt replay, reused keys, duplicate references, the database balance guard, five concurrent tellers (exactly one succeeds), discounts and waivers, deletion rules, mock checkout (declined, expired, another payer, replay), scoped receipts, reports and ledger reconciliation.
+- **HTTP test:** covers disabled module, 401/403 for every other role, a mistaken teacher `fees:collect` grant that still cannot collect, 415 and unknown-field rejection, and error codes.
+- **Frontend:** `tsc` and the production build passed (Vite still warns that the bundle is over 500 kB, as before M8). `docker compose config --quiet` passed.
+- **Browser:** headless Edge on an isolated database and ports (backend 8091, Vite 5181) passed 26 of 26 checks. It covered English accountant setup, generation, collection, receipt, print-media isolation, overpayment message, reports and ledger at 1280 px; an administrator waiver; and Bangla guardian bKash checkout (declined then approved) and the student statement at 390 px. There was no horizontal overflow and no uncaught JavaScript exception, and teacher and student access to the staff page was denied.
+
+The developer's application database, the QA Compose stack and their volumes were not touched. No demo-school data was modified.
+
+**Not verified / limitations.** No real bKash or Nagad API is integrated (the brief asks for a mock). A browser-generated PDF file was not produced; print-media rendering was verified. Receipts cannot be voided or refunded; a mistaken payment needs a manual correction outside the app. There is no advance credit, so payments above the outstanding balance are rejected. Dates on Bangla screens use Latin digits. Deleting a student who has fee records returns 400 and changes nothing, the same as for students with exam marks, because the financial history is kept. Remote CI, production migration and deployment are unverified.
 
 ## Current Status — M7 Examinations and Results (2026-10-17)
 

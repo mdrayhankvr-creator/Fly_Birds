@@ -11,6 +11,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/exams"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/fees"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/routine"
@@ -85,6 +86,16 @@ func NewRouterWithRoutine(service *auth.Service, secureCookies bool, grants *rba
 }
 
 func NewRouterWithExams(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service) *gin.Engine {
+	return NewRouterWithFees(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, nil)
+}
+
+func NewRouterWithFees(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service) *gin.Engine {
+	return NewRouterWithCommunication(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, nil)
+}
+
+// NewRouterWithCommunication adds the M9 notices, events, notifications and
+// class diary routes; a nil Communication answers them with 503.
+func NewRouterWithCommunication(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -161,6 +172,7 @@ func NewRouterWithExams(service *auth.Service, secureCookies bool, grants *rbac.
 	management.GET("/attendance/students/sections", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.sections)
 	management.GET("/attendance/students/roster", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.roster)
 	management.POST("/attendance/students", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.record)
+	management.PUT("/attendance/students/roster", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.saveRoster)
 	management.POST("/attendance/students/qr", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.scan)
 	management.PATCH("/attendance/students/:id", RequirePermission(service, "attendance:students_manage"), moduleGuard("attendance"), studentAttendance.correct)
 	management.GET("/attendance/students/monthly", RequirePermission(service, "attendance:students_read"), moduleGuard("attendance"), studentAttendance.monthly)
@@ -207,6 +219,42 @@ func NewRouterWithExams(service *auth.Service, secureCookies bool, grants *rbac.
 	management.PATCH("/exams/:id/state", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.state)
 	management.GET("/exams/:id/tabulation", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.tabulation)
 	management.GET("/exams/:id/results/:studentId", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.adminCard)
+	fh := &feeHandler{service: feeService}
+	feeWriters := RequireAnyRole("admin", "accountant")
+	management.GET("/fees/options", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.options)
+	management.GET("/fees/students", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.students)
+	management.GET("/fees/students/:id/statement", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.statement)
+	management.GET("/fees/categories", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.categories)
+	management.POST("/fees/categories", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveCategory)
+	management.PATCH("/fees/categories/:id", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveCategory)
+	management.GET("/fees/structures", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.structures)
+	management.POST("/fees/structures", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveStructure)
+	management.PATCH("/fees/structures/:id", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveStructure)
+	management.GET("/fees/concessions", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.concessions)
+	management.POST("/fees/concessions", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveConcession)
+	management.DELETE("/fees/concessions/:id", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.deleteConcession)
+	management.GET("/fees/dues", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.dues)
+	management.POST("/fees/dues", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.assignDue)
+	management.POST("/fees/dues/generate", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.generateDues)
+	management.DELETE("/fees/dues/:id", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.deleteDue)
+	management.GET("/fees/dues/:id/adjustments", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.adjustments)
+	management.POST("/fees/dues/:id/adjustments", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.adjust)
+	management.GET("/fees/payments", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.payments)
+	management.POST("/fees/payments", RequirePermission(service, "fees:collect"), moduleGuard("fees"), feeWriters, fh.recordPayment)
+	management.GET("/fees/payments/:id", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.receipt)
+	management.GET("/fees/reports/collections", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.collections)
+	management.GET("/fees/reports/dues", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.dueReport)
+	management.GET("/fees/me", RequirePermission(service, "fees:read_self"), moduleGuard("fees"), fh.ownStatement)
+	management.GET("/fees/me/payments/:id", RequirePermission(service, "fees:read_self"), moduleGuard("fees"), fh.ownReceipt)
+	management.GET("/fees/children/:studentId", RequirePermission(service, "fees:read_children"), moduleGuard("fees"), fh.childStatement)
+	management.GET("/fees/children/:studentId/payments/:id", RequirePermission(service, "fees:read_children"), moduleGuard("fees"), fh.childReceipt)
+	management.POST("/fees/online/intents", RequirePermission(service, "fees:pay_online"), moduleGuard("fees"), fh.startOnline)
+	management.POST("/fees/online/intents/:id/confirm", RequirePermission(service, "fees:pay_online"), moduleGuard("fees"), fh.confirmOnline)
+	management.GET("/accounts/entries", RequirePermission(service, "accounts:read"), moduleGuard("fees"), fh.entries)
+	management.POST("/accounts/entries", RequirePermission(service, "accounts:manage"), moduleGuard("fees"), feeWriters, fh.saveEntry)
+	management.DELETE("/accounts/entries/:id", RequirePermission(service, "accounts:manage"), moduleGuard("fees"), feeWriters, fh.deleteEntry)
+	management.GET("/accounts/summary", RequirePermission(service, "accounts:read"), moduleGuard("fees"), fh.summary)
+	registerCommunication(management, service, comm, moduleGuard)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
 	schoolRoutes := router.Group("/school")

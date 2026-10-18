@@ -1,6 +1,34 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M6 are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M7 Exams and Results is complete locally on `feature/m7-exams-results` and awaits review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M8 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M9 Notices, Notifications, Events and the Daily Class Diary are complete locally on `feature/m9-notices-diary` and await review.
+
+## M9 Notices, Notifications, Events and Class Diary
+
+Migrations `0901`–`0903` add notices, events, in-app notifications with preferences, a mock SMS log, the daily class diary with optional homework submission, and file attachments. They reference the existing academic, student, guardian and staff tables.
+
+- **Notices** (`/notices`) are written in English and Bangla with normal, important or urgent priority, role audiences, optional class/section targets, scheduling, expiry and PDF/image attachments. Each user sees only live notices addressed to them.
+- **The events calendar** (`/events`) shows holidays, exams, meetings and events in month and list views.
+- **Notifications** (bell, `/notifications`) cover notices, absences, published results, overdue fees and diaries. Each category can be switched on or off in-app and by SMS. Administrators can run dispatch and view the SMS log at `/admin/notifications`.
+- **SMS uses a mock provider only.** Nothing is sent to phones and no credentials or charges are involved; the log status is "sent to mock", never "delivered". A real gateway can replace `notify.MockSMS` through the `notify.SMSProvider` interface.
+- **The class diary** works by role:
+  - **Teachers** (`/teacher/diary`) write and publish daily diaries only for their assigned classes and subjects. They can enable homework submission and review submissions.
+  - **Students** (`/student/diary`) and **guardians** (`/guardian/children/:id/diary`, linked children only) browse diaries by date and subject. Students submit homework when it is enabled.
+  - **Administrators** (`/admin/diary`) can require daily publication with a reminder time and track compliance.
+
+Enable the **Notices and notifications** module and, for the diary, the separate **Daily class diary** module in school settings; both start disabled.
+
+**Storage configuration.**
+- **Location:** attachments are stored on disk, not in PostgreSQL, in `FILE_STORAGE_DIR`. The default is `data/uploads` relative to the backend's working directory, which is ignored by Git. In Docker Compose this is the new `uploads_data` volume mounted at `/app/uploads`, so back it up with the database.
+- **Access:** files are served only through authenticated, authorized API routes.
+- **Background work:** `NOTIFY_INTERVAL` (default `1m`, `0` disables) controls background dispatch and the cleanup of abandoned uploads.
+
+See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification and limitations.
+
+## M8 Fees and Accounts
+
+Migration `0801_fees_accounts.sql` adds fee categories, session and class fee structures, standing student concessions, dues, discounts and waivers, receipts with payment allocations, mock mobile payments and an income and expense ledger. It uses the existing student and academic tables. Dues store the amount at creation, so later structure changes do not rewrite history. A database check stops any due from being overpaid. Payments run in one transaction, settle the oldest dues first (or the dues you select) and issue a sequenced `RCT-` receipt. Retrying with the same idempotency key returns the original receipt instead of charging again. Bank, bKash and Nagad references must be unique. Every receipt posts fee income to the ledger, and every change is audited.
+
+Administrators and accountants use `/accounts/fees` to set up fees, generate monthly dues (rerunning skips existing dues), collect full or partial payments, apply discounts and print receipts. The same page has collection, arrears and receipt reports and the income and expense ledger. Only administrators can waive a balance. Students see their own statement and receipts at `/student/fees`. Guardians reach a linked child's fees from `/guardian/children/:id/fees`. Both can try the **mock** bKash or Nagad checkout: the test OTP is `123456`, any other code declines, and no real provider is contacted. The pages support English and Bangla (amounts in Bangla digits), mobile layouts and receipt printing. Enable the optional **Fees and accounts** module in school settings; it starts disabled. See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification and limitations.
 
 ## M7 Exams, Marks and Results
 

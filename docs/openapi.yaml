@@ -1020,7 +1020,46 @@ paths:
       operationId: getStudentAttendanceRoster
       description: Requires attendance:students_read and enabled Attendance module; teachers are scoped to assigned classes.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Paginated daily student roster } }
+      responses: { '200': { description: Paginated daily student roster; each marked row includes record_id and an opaque version } }
+    put:
+      operationId: saveStudentAttendanceRoster
+      summary: Record and correct one section's attendance for one day in one transaction
+      description: >-
+        Requires attendance:students_manage, the Attendance module, and administrator role or a teacher assignment to the section's class.
+        Every student must currently belong to the section and session; new marks need an active student; the date must be inside the session and not in the future.
+        Only listed students change, so unmarked students are never recorded as absent. A correction must send the record_id and version from the roster;
+        a mark equal to the stored one is unchanged, so repeated submissions are harmless. Any entry changed by someone else since loading rejects the whole save
+        with 409 attendance_changed and the affected student_ids. Absent marks create pending absence events; other marks cancel them.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id, section_id, attendance_date, entries]
+              properties:
+                session_id: { type: string, format: uuid }
+                section_id: { type: string, format: uuid }
+                attendance_date: { type: string, format: date }
+                entries:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items:
+                    type: object
+                    required: [student_id, status]
+                    properties:
+                      student_id: { type: string, format: uuid }
+                      status: { type: string, enum: [present, absent, late] }
+                      note: { type: string, maxLength: 500 }
+                      record_id: { type: string, format: uuid, nullable: true }
+                      version: { type: string, maxLength: 40 }
+      responses:
+        '200': { description: 'Counts of created, updated and unchanged marks' }
+        '400': { description: Invalid input, duplicate student, or future date }
+        '403': { description: Not assigned to the class }
+        '409': { description: 'attendance_changed (stale entries), attendance_conflict (membership, inactive student or section, date outside session) or duplicate_attendance' }
   /attendance/students:
     post:
       operationId: recordStudentAttendance
@@ -1403,6 +1442,676 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Report card }, '404': { description: Result unavailable } }
+  /fees/options:
+    get:
+      operationId: getFeeOptions
+      summary: List sessions, classes, active sections and active fee categories for fee screens
+      description: Requires fees:read and the fees module, so accountants need no academic grants.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Lookup lists }, '403': { description: Permission or module denied } }
+  /fees/students:
+    get:
+      operationId: searchFeeStudents
+      summary: Search students by admission number or name for fee collection
+      description: Requires fees:read and the fees module. Returns minimal identity and class context only.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: section_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Paginated students } }
+  /fees/students/{id}/statement:
+    get:
+      operationId: getStudentFeeStatement
+      summary: Read a student's dues, payments and totals including arrears
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Fee statement, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStatement' } } } }, '404': { description: Unknown student } }
+  /fees/categories:
+    get:
+      operationId: listFeeCategories
+      summary: List fee categories
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated categories } }
+    post:
+      operationId: createFeeCategory
+      summary: Create a monthly or one-time fee category
+      description: Requires fees:manage, admin or accountant role, and the fees module. Codes are unique upper-case identifiers.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeCategoryInput' } } } }
+      responses: { '201': { description: Category created }, '400': { description: Invalid input }, '409': { description: Duplicate code } }
+  /fees/categories/{id}:
+    patch:
+      operationId: updateFeeCategory
+      summary: Rename or deactivate a fee category
+      description: Requires fees:manage and admin or accountant role. Code and frequency are fixed once a structure uses the category.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeCategoryInput' } } } }
+      responses: { '200': { description: Category updated }, '409': { description: Code or frequency in use } }
+  /fees/structures:
+    get:
+      operationId: listFeeStructures
+      summary: List configured fee amounts by session, class and category
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: category_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated structures } }
+    post:
+      operationId: createFeeStructure
+      summary: Configure a fee amount and due day for a session and class
+      description: Requires fees:manage and admin or accountant role. One structure per session, class and category.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStructureInput' } } } }
+      responses: { '201': { description: Structure created }, '400': { description: Invalid context or inactive category }, '409': { description: Duplicate structure } }
+  /fees/structures/{id}:
+    patch:
+      operationId: updateFeeStructure
+      summary: Change a structure amount, due day or active state
+      description: Requires fees:manage and admin or accountant role. Session, class and category are fixed; existing dues keep their snapshot amount.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStructureInput' } } } }
+      responses: { '200': { description: Structure updated }, '409': { description: Context change rejected } }
+  /fees/concessions:
+    get:
+      operationId: listFeeConcessions
+      summary: List standing student concessions
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: student_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated concessions } }
+    post:
+      operationId: saveFeeConcession
+      summary: Create or replace a student's percentage concession for one category
+      description: Requires fees:manage and admin or accountant role. Applies to dues created afterwards and is recorded as a discount adjustment.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeConcessionInput' } } } }
+      responses: { '200': { description: Concession saved }, '400': { description: Invalid input } }
+  /fees/concessions/{id}:
+    delete:
+      operationId: deleteFeeConcession
+      summary: Remove a standing concession
+      description: Requires fees:manage and admin or accountant role. Existing dues are unchanged.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Deleted }, '404': { description: Unknown concession } }
+  /fees/dues:
+    get:
+      operationId: listStudentDues
+      summary: List student dues with balance, status and overdue flag
+      description: Requires fees:read and the fees module. Status overdue means an unpaid balance past its due date (arrears).
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: section_id, in: query, schema: { type: string, format: uuid } }, { name: student_id, in: query, schema: { type: string, format: uuid } }, { name: category_id, in: query, schema: { type: string, format: uuid } }, { name: period, in: query, schema: { type: string, pattern: '^\d{4}-\d{2}$' } }, { name: status, in: query, schema: { type: string, enum: [unpaid, partial, paid, waived, outstanding, overdue] } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated dues } }
+    post:
+      operationId: assignStudentDue
+      summary: Assign one fee structure to one student
+      description: Requires fees:manage and admin or accountant role. The structure must match the student's session and class; monthly fees need a period inside the session.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeDueInput' } } } }
+      responses: { '201': { description: Due created }, '400': { description: Invalid context or period }, '409': { description: Already assigned or inactive structure } }
+  /fees/dues/generate:
+    post:
+      operationId: generateMonthlyDues
+      summary: Generate dues for every active student in a session or class for one month
+      description: Requires fees:manage and admin or accountant role. Rerunning skips dues that already exist.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeGenerateInput' } } } }
+      responses: { '200': { description: Created and skipped counts }, '400': { description: Period outside session } }
+  /fees/dues/{id}:
+    delete:
+      operationId: deleteStudentDue
+      summary: Delete a mistaken due that has no payments
+      description: Requires fees:manage and admin or accountant role.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Deleted }, '409': { description: Payments exist } }
+  /fees/dues/{id}/adjustments:
+    get:
+      operationId: listDueAdjustments
+      summary: List discounts and waivers applied to a due
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Adjustments } }
+    post:
+      operationId: adjustStudentDue
+      summary: Apply a discount or waive the remaining balance
+      description: Requires fees:manage and admin or accountant role. Waivers are administrator-only and write off exactly the remaining balance; discounts cannot exceed it.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeAdjustmentInput' } } } }
+      responses: { '200': { description: Updated due }, '403': { description: Waiver by non-administrator }, '409': { description: Exceeds balance or already settled } }
+  /fees/payments:
+    get:
+      operationId: listFeePayments
+      summary: List receipts by date range, method, class or search
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }, { $ref: '#/components/parameters/FeeMethod' }, { $ref: '#/components/parameters/FeeClass' }, { name: student_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated payments } }
+    post:
+      operationId: recordFeePayment
+      summary: Record a full or partial payment and issue a receipt
+      description: Requires fees:collect and admin or accountant role. The amount settles the oldest selected dues first and cannot exceed their balance. Reusing idempotency_key returns the original receipt with 200; bank, bKash and Nagad references must be unique.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeePaymentInput' } } } }
+      responses: { '201': { description: Receipt issued, content: { application/json: { schema: { $ref: '#/components/schemas/FeeReceipt' } } } }, '200': { description: Idempotent replay of the original receipt }, '409': { description: overpayment or duplicate_payment } }
+  /fees/payments/{id}:
+    get:
+      operationId: getFeeReceipt
+      summary: Read a printable receipt
+      description: Requires fees:read and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Receipt, content: { application/json: { schema: { $ref: '#/components/schemas/FeeReceipt' } } } }, '404': { description: Unknown receipt } }
+  /fees/reports/collections:
+    get:
+      operationId: getFeeCollectionReport
+      summary: Fee collections by method, class, category and day
+      description: Requires fees:read and the fees module. Defaults to the current month; ranges are limited to about two years.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }, { $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { $ref: '#/components/parameters/FeeMethod' }]
+      responses: { '200': { description: Collection report } }
+  /fees/reports/dues:
+    get:
+      operationId: getFeeDueReport
+      summary: Per-student outstanding balances and arrears
+      description: Requires fees:read and the fees module. Sorted by arrears, then balance.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: section_id, in: query, schema: { type: string, format: uuid } }, { name: overdue_only, in: query, schema: { type: boolean } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated due report with totals } }
+  /fees/me:
+    get:
+      operationId: getOwnFeeStatement
+      summary: Read the signed-in student's fee statement
+      description: Requires fees:read_self, student role and the fees module.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Fee statement, content: { application/json: { schema: { $ref: '#/components/schemas/FeeStatement' } } } }, '404': { description: No linked student } }
+  /fees/me/payments/{id}:
+    get:
+      operationId: getOwnFeeReceipt
+      summary: Read one of the signed-in student's receipts
+      description: Requires fees:read_self and student role. Other students' receipts read as not found.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Receipt }, '404': { description: Not found or not owned } }
+  /fees/children/{studentId}:
+    get:
+      operationId: getChildFeeStatement
+      summary: Read a linked child's fee statement
+      description: Requires fees:read_children, guardian role and a current guardian link.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Fee statement }, '404': { description: Not linked } }
+  /fees/children/{studentId}/payments/{id}:
+    get:
+      operationId: getChildFeeReceipt
+      summary: Read one receipt for a linked child
+      description: Requires fees:read_children, guardian role and a current guardian link.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Receipt }, '404': { description: Not linked or not owned } }
+  /fees/online/intents:
+    post:
+      operationId: startMockMobilePayment
+      summary: Start a mock bKash or Nagad checkout for own or linked child's dues
+      description: Requires fees:pay_online and student or guardian role. Students may omit student_id. The mock gateway never contacts a real provider; the session expires after 15 minutes.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeIntentInput' } } } }
+      responses: { '201': { description: Pending checkout with provider reference }, '404': { description: Not linked }, '409': { description: Amount exceeds outstanding balance } }
+  /fees/online/intents/{id}/confirm:
+    post:
+      operationId: confirmMockMobilePayment
+      summary: Confirm a mock checkout with the provider OTP and receive a receipt
+      description: Requires fees:pay_online and the same payer. The mock gateway accepts only OTP 123456; any other OTP declines and closes the checkout. Repeated confirmation returns the same receipt.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [otp], properties: { otp: { type: string, maxLength: 12 } } } } } }
+      responses: { '200': { description: Receipt }, '409': { description: payment_expired, fee_conflict or overpayment }, '422': { description: payment_declined } }
+  /accounts/entries:
+    get:
+      operationId: listLedgerEntries
+      summary: List income and expense ledger entries
+      description: Requires accounts:read and the fees module. Fee receipts appear as income in category fees.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: type, in: query, schema: { type: string, enum: [income, expense] } }, { name: category, in: query, schema: { type: string } }, { $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated entries } }
+    post:
+      operationId: createLedgerEntry
+      summary: Record a manual income or expense
+      description: Requires accounts:manage and admin or accountant role. Category fees is reserved for receipts; dates cannot be in the future.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LedgerEntryInput' } } } }
+      responses: { '201': { description: Entry recorded }, '400': { description: Invalid category, amount or date } }
+  /accounts/entries/{id}:
+    delete:
+      operationId: deleteLedgerEntry
+      summary: Remove a manual ledger entry
+      description: Requires accounts:manage and admin or accountant role. Fee income linked to a receipt cannot be removed.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      responses: { '200': { description: Deleted }, '409': { description: Linked to a receipt } }
+  /accounts/summary:
+    get:
+      operationId: getAccountingSummary
+      summary: Income, expense and net by category with outstanding dues and arrears
+      description: Requires accounts:read and the fees module. Defaults to the current month.
+      tags: [accounts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }]
+      responses: { '200': { description: Accounting summary } }
+  /notices:
+    get:
+      operationId: listNoticeFeed
+      summary: "Live notices addressed to the signed-in user, urgent first"
+      description: "Requires notices:read. Requires the notices module. Students and guardians see class/section-targeted notices only for their (linked) class; teachers for classes they teach."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated feed }, '403': { description: Permission, role or module denied } }
+    post:
+      operationId: createNotice
+      summary: "Create a draft notice"
+      description: "Requires notices:manage and admin or head teacher role. Requires the notices module. Audience roles, optional class/section targets, priority, expiry and up to 10 attachment ids from the author's own uploads."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoticeInput' } } } }
+      responses: { '201': { description: Draft notice }, '400': { description: Invalid input or attachment }, '403': { description: Permission, role or module denied } }
+  /notices/manage:
+    get:
+      operationId: listManagedNotices
+      summary: "All notices with status filter (draft, published, scheduled, expired, archived)"
+      description: "Requires notices:manage. Requires the notices module."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated notices }, '403': { description: Permission, role or module denied } }
+  /notices/files:
+    post:
+      operationId: uploadNoticeFile
+      summary: "Upload a PDF, JPEG or PNG for a notice"
+      description: "Requires notices:manage and admin or head teacher role. Type is detected from content; PDFs up to 10 MiB without active content, images up to 5 MiB re-encoded to strip metadata."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Upload id }, '413': { description: Too large }, '415': { description: Unsupported type }, '403': { description: Permission, role or module denied } }
+  /notices/{id}:
+    get:
+      operationId: getNotice
+      summary: "Read one notice"
+      description: "Requires notices:read. Managers see any notice; others only live notices addressed to them."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Notice }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+    patch:
+      operationId: updateNotice
+      summary: "Edit a draft or published notice"
+      description: "Requires notices:manage and admin or head teacher role. Archived notices cannot change."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoticeInput' } } } }
+      responses: { '200': { description: Notice }, '409': { description: Archived }, '403': { description: Permission, role or module denied } }
+    delete:
+      operationId: deleteNotice
+      summary: "Delete a draft notice"
+      description: "Requires notices:manage and admin or head teacher role."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '409': { description: Not a draft }, '403': { description: Permission, role or module denied } }
+  /notices/{id}/publish:
+    post:
+      operationId: publishNotice
+      summary: "Publish now or schedule a notice"
+      description: "Requires notices:manage and admin or head teacher role. Optional RFC 3339 publish_at schedules it; expiry must be later."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { publish_at: { type: string, format: date-time, nullable: true } } } } } }
+      responses: { '200': { description: Notice }, '403': { description: Permission, role or module denied } }
+  /notices/{id}/archive:
+    post:
+      operationId: archiveNotice
+      summary: "Archive a notice"
+      description: "Requires notices:manage and admin or head teacher role. Unread notifications for it are withdrawn on the next dispatch."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Notice }, '403': { description: Permission, role or module denied } }
+  /notices/{id}/files/{fileId}:
+    get:
+      operationId: getNoticeFile
+      summary: "Download a notice attachment"
+      description: "Requires notices:read and visibility of the notice. Served with nosniff, no-store and a sandbox CSP; ?download=1 forces a download."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: File }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+  /events:
+    get:
+      operationId: listEvents
+      summary: "Events overlapping from..to (at most 400 days)"
+      description: "Requires events:read. Requires the notices module. Others see published and cancelled events addressed to them; managers add manage=1 to include drafts."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Events }, '403': { description: Permission, role or module denied } }
+    post:
+      operationId: createEvent
+      summary: "Create a draft event"
+      description: "Requires events:manage and admin or head teacher role. Kinds holiday, exam, meeting, event, other; all-day or timed; end not before start."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EventInput' } } } }
+      responses: { '201': { description: Event }, '403': { description: Permission, role or module denied } }
+  /events/{id}:
+    patch:
+      operationId: updateEvent
+      summary: "Edit an event"
+      description: "Requires events:manage and admin or head teacher role."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EventInput' } } } }
+      responses: { '200': { description: Event }, '403': { description: Permission, role or module denied } }
+    delete:
+      operationId: deleteEvent
+      summary: "Delete a draft event"
+      description: "Requires events:manage and admin or head teacher role."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '403': { description: Permission, role or module denied } }
+  /events/{id}/publish:
+    post:
+      operationId: publishEvent
+      summary: "Publish a draft or cancelled event"
+      description: "Requires events:manage and admin or head teacher role."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Event }, '403': { description: Permission, role or module denied } }
+  /events/{id}/cancel:
+    post:
+      operationId: cancelEvent
+      summary: "Cancel a published event"
+      description: "Requires events:manage and admin or head teacher role. Cancelled events stay visible as cancelled."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Event }, '403': { description: Permission, role or module denied } }
+  /notifications:
+    get:
+      operationId: listNotifications
+      summary: "Own notifications, unread first, with the unread count"
+      description: "Requires notifications:read_self. Requires the notices module. unread=1 lists unread only; withdrawn notifications are hidden."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Inbox }, '403': { description: Permission, role or module denied } }
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      summary: "Mark all own notifications read"
+      description: "Requires notifications:read_self."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Count }, '403': { description: Permission, role or module denied } }
+  /notifications/preferences:
+    get:
+      operationId: getNotificationPreferences
+      summary: "Own in-app and SMS preferences per category"
+      description: "Requires notifications:read_self. Categories notice, absence, result, fee, diary; defaults are on."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Preferences }, '403': { description: Permission, role or module denied } }
+    put:
+      operationId: saveNotificationPreferences
+      summary: "Save own preferences"
+      description: "Requires notifications:read_self. Urgent notices are always delivered in-app."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { type: object, properties: { category: { type: string }, in_app: { type: boolean }, sms: { type: boolean } } } } } } } } }
+      responses: { '200': { description: Preferences }, '403': { description: Permission, role or module denied } }
+  /notifications/dispatch:
+    post:
+      operationId: dispatchNotifications
+      summary: "Run notification dispatch now"
+      description: "Requires notifications:manage and administrator role. Idempotent: creates due notifications, withdraws corrected ones and hands queued SMS to the mock provider. The background worker runs the same step every NOTIFY_INTERVAL."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Dispatch counts }, '403': { description: Permission, role or module denied } }
+  /notifications/sms:
+    get:
+      operationId: listMockSMS
+      summary: "Mock SMS log with masked numbers"
+      description: "Requires notifications:manage and administrator role. status sent_mock means the mock provider accepted the message; no SMS is delivered to a phone."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated log with counts }, '403': { description: Permission, role or module denied } }
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      summary: "Mark one own notification read"
+      description: "Requires notifications:read_self. Other users' notifications read as not found."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Read }, '404': { description: Not found }, '403': { description: Permission, role or module denied } }
+  /diary/assignments:
+    get:
+      operationId: listDiaryAssignments
+      summary: "Sections and subjects the teacher may write for, with that day's diary status"
+      description: "Requires diary:write. Requires the diary module. Based on active teacher assignments in the active session."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Assignments }, '403': { description: Permission, role or module denied } }
+  /diary/teaching:
+    get:
+      operationId: listOwnDiaries
+      summary: "The teacher's own diaries"
+      description: "Requires diary:write. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated diaries }, '403': { description: Permission, role or module denied } }
+  /diary:
+    post:
+      operationId: createDiary
+      summary: "Create a draft diary"
+      description: "Requires diary:write and teacher or head teacher role. The teacher must be assigned to the section's class and the subject in the session; the date must be inside the session and at most 7 days ahead. One diary per section, subject and day."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DiaryInput' } } } }
+      responses: { '201': { description: Draft }, '403': { description: Not assigned }, '409': { description: Already exists } }
+  /diary/files:
+    post:
+      operationId: uploadDiaryFile
+      summary: "Upload a PDF or image for a diary"
+      description: "Requires diary:write and teacher or head teacher role. Same validation as notice files."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Upload id }, '413': { description: Too large }, '415': { description: Unsupported type }, '403': { description: Permission, role or module denied } }
+  /diary/me:
+    get:
+      operationId: listOwnClassDiary
+      summary: "Published diaries of the student's current section"
+      description: "Requires diary:read_self and student role. Requires the diary module. Filters from, to, subject_id, search."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated diaries }, '403': { description: Permission, role or module denied } }
+  /diary/children/{studentId}:
+    get:
+      operationId: listChildClassDiary
+      summary: "Published diaries of a linked child's section"
+      description: "Requires diary:read_children and guardian role. Unlinked students read as not found."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Paginated diaries }, '404': { description: Not linked }, '403': { description: Permission, role or module denied } }
+  /diary/all:
+    get:
+      operationId: listAllDiaries
+      summary: "All diaries for oversight"
+      description: "Requires diary:read. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated diaries }, '403': { description: Permission, role or module denied } }
+  /diary/compliance:
+    get:
+      operationId: getDiaryCompliance
+      summary: "Diary status per assigned section and subject for a date"
+      description: "Requires diary:read. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Rows }, '403': { description: Permission, role or module denied } }
+  /diary/settings:
+    get:
+      operationId: getDiarySettings
+      summary: "Daily publication settings"
+      description: "Requires diary:manage. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Settings }, '403': { description: Permission, role or module denied } }
+    put:
+      operationId: saveDiarySettings
+      summary: "Require daily publication and set the teacher reminder time"
+      description: "Requires diary:manage and administrator role. Reminders go to teachers with unpublished diaries after reminder_time (Bangladesh time), except Fridays."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [daily_required, reminder_time], properties: { daily_required: { type: boolean }, reminder_time: { type: string, example: '16:00' } } } } } }
+      responses: { '200': { description: Settings }, '403': { description: Permission, role or module denied } }
+  /diary/homework/files:
+    post:
+      operationId: uploadHomeworkFile
+      summary: "Upload a homework file"
+      description: "Requires diary:read_self and student role. Same validation as other attachments."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Upload id }, '403': { description: Permission, role or module denied } }
+  /diary/submissions/{id}/review:
+    patch:
+      operationId: reviewHomework
+      summary: "Mark a submission reviewed with a note"
+      description: "Requires diary:write and teacher or head teacher role; only the diary author. Reviewed submissions can no longer be changed by the student."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { note: { type: string, maxLength: 2000 } } } } } }
+      responses: { '200': { description: Submission }, '403': { description: Permission, role or module denied } }
+  /diary/submissions/{id}/files/{fileId}:
+    get:
+      operationId: getHomeworkFile
+      summary: "Download a homework file"
+      description: "Requires Any diary permission; allowed for the student, linked guardians, the diary author and oversight."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: File }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+  /diary/{id}:
+    get:
+      operationId: getDiary
+      summary: "Read one diary"
+      description: "Requires Any diary permission. Authors and oversight see any status; students and guardians only published diaries of the (linked) student's section (guardians may pass student_id)."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Diary }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+    patch:
+      operationId: updateDiary
+      summary: "Edit own diary content, submission settings and files"
+      description: "Requires diary:write and teacher or head teacher role; author only, while still assigned."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DiaryInput' } } } }
+      responses: { '200': { description: Diary }, '403': { description: No longer assigned } }
+    delete:
+      operationId: deleteDiary
+      summary: "Delete own draft diary"
+      description: "Requires diary:write and teacher or head teacher role."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '409': { description: Published }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/publish:
+    post:
+      operationId: publishDiary
+      summary: "Publish own diary"
+      description: "Requires diary:write and teacher or head teacher role. Needs some content."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Diary }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/files/{fileId}:
+    get:
+      operationId: getDiaryFile
+      summary: "Download a diary attachment"
+      description: "Requires Any diary permission and visibility of the diary."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: File }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/submissions:
+    get:
+      operationId: listHomeworkSubmissions
+      summary: "Section roster with each student's submission"
+      description: "Requires diary:write (author) or diary:read."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Submissions; status missing for non-submitters }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/submission:
+    get:
+      operationId: getOwnHomework
+      summary: "The student's own submission"
+      description: "Requires diary:read_self."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Submission }, '404': { description: None }, '403': { description: Permission, role or module denied } }
+    put:
+      operationId: submitHomework
+      summary: "Submit or replace homework"
+      description: "Requires diary:read_self and student role. Only when the diary is published, submission is enabled, any due time has not passed and the work is not yet reviewed. Text and/or up to 5 own homework uploads."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { answer_text: { type: string, maxLength: 10000 }, file_ids: { type: array, maxItems: 5, items: { type: string, format: uuid } } } } } } }
+      responses: { '200': { description: Submission }, '409': { description: submission_closed or already reviewed }, '403': { description: Permission, role or module denied } }
 components:
   securitySchemes:
     bearerAuth:
@@ -1417,6 +2126,12 @@ components:
     UserId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     AcademicId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     AcademicStatus: { name: status, in: query, schema: { type: string, enum: [active, inactive] } }
+    FeeId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    FeeSession: { name: session_id, in: query, schema: { type: string, format: uuid } }
+    FeeClass: { name: class_id, in: query, schema: { type: string, format: uuid } }
+    FeeFrom: { name: from, in: query, schema: { type: string, format: date } }
+    FeeTo: { name: to, in: query, schema: { type: string, format: date } }
+    FeeMethod: { name: method, in: query, schema: { type: string, enum: [cash, bank, bkash, nagad] } }
     CSRFToken:
       name: X-CSRF-Token
       in: header
@@ -1476,6 +2191,162 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    NoticeInput:
+      type: object
+      required: [title_en, audience_roles]
+      properties:
+        title_en: { type: string, maxLength: 200 }
+        title_bn: { type: string }
+        body_en: { type: string }
+        body_bn: { type: string, description: At least one body is required }
+        priority: { type: string, enum: [normal, important, urgent] }
+        audience_roles: { type: array, minItems: 1, items: { type: string, enum: [head_teacher, teacher, student, guardian, accountant] } }
+        targets: { type: array, maxItems: 50, items: { type: object, required: [class_id], properties: { class_id: { type: string, format: uuid }, section_id: { type: string, format: uuid, nullable: true } } } }
+        expires_at: { type: string, format: date-time, nullable: true }
+        file_ids: { type: array, maxItems: 10, items: { type: string, format: uuid } }
+    EventInput:
+      type: object
+      required: [title_en, kind, starts_on, ends_on, audience_roles]
+      properties:
+        title_en: { type: string, maxLength: 200 }
+        title_bn: { type: string }
+        description_en: { type: string }
+        description_bn: { type: string }
+        kind: { type: string, enum: [holiday, exam, meeting, event, other] }
+        starts_on: { type: string, format: date }
+        ends_on: { type: string, format: date }
+        start_time: { type: string, example: '09:00', nullable: true }
+        end_time: { type: string, example: '11:00', nullable: true }
+        location: { type: string }
+        audience_roles: { type: array, items: { type: string } }
+        targets: { type: array, items: { type: object, properties: { class_id: { type: string, format: uuid }, section_id: { type: string, format: uuid, nullable: true } } } }
+    DiaryInput:
+      type: object
+      properties:
+        section_id: { type: string, format: uuid, description: Required on create }
+        subject_id: { type: string, format: uuid, description: Required on create }
+        diary_date: { type: string, format: date, description: Required on create }
+        lesson_topics: { type: string }
+        class_notes: { type: string }
+        homework: { type: string }
+        instructions: { type: string }
+        submission_enabled: { type: boolean, default: false }
+        submission_due_at: { type: string, format: date-time, nullable: true, description: Only with submission_enabled }
+        file_ids: { type: array, maxItems: 10, items: { type: string, format: uuid } }
+    FeeCategoryInput:
+      type: object
+      required: [code, name_en, frequency]
+      properties:
+        code: { type: string, pattern: '^[A-Z0-9_-]{2,20}$' }
+        name_en: { type: string, maxLength: 120 }
+        name_bn: { type: string }
+        frequency: { type: string, enum: [monthly, one_time] }
+        is_active: { type: boolean, default: true }
+    FeeStructureInput:
+      type: object
+      required: [session_id, class_id, category_id, amount]
+      properties:
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        category_id: { type: string, format: uuid }
+        amount: { type: number, minimum: 0.01, maximum: 10000000, description: Taka with at most two decimals }
+        due_day: { type: integer, minimum: 1, maximum: 28, default: 10 }
+        is_active: { type: boolean, default: true }
+    FeeConcessionInput:
+      type: object
+      required: [student_id, category_id, percent, reason]
+      properties:
+        student_id: { type: string, format: uuid }
+        category_id: { type: string, format: uuid }
+        percent: { type: number, minimum: 0.01, maximum: 100 }
+        reason: { type: string, maxLength: 240 }
+    FeeDueInput:
+      type: object
+      required: [student_id, structure_id]
+      properties:
+        student_id: { type: string, format: uuid }
+        structure_id: { type: string, format: uuid }
+        period: { type: string, pattern: '^\d{4}-\d{2}$', description: Required for monthly fees; sets the due month for one-time fees }
+    FeeGenerateInput:
+      type: object
+      required: [session_id, period]
+      properties:
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid, description: Omit for every class in the session }
+        period: { type: string, pattern: '^\d{4}-\d{2}$' }
+        include_one_time: { type: boolean, default: false }
+    FeeAdjustmentInput:
+      type: object
+      required: [kind, reason]
+      properties:
+        kind: { type: string, enum: [discount, waiver] }
+        amount: { type: number, description: Required for discounts; ignored for waivers }
+        reason: { type: string, maxLength: 240 }
+    FeePaymentInput:
+      type: object
+      required: [student_id, amount, method, idempotency_key]
+      properties:
+        student_id: { type: string, format: uuid }
+        amount: { type: number, minimum: 0.01 }
+        method: { type: string, enum: [cash, bank, bkash, nagad] }
+        reference: { type: string, maxLength: 80, description: Required except for cash }
+        paid_on: { type: string, format: date, description: Defaults to today in Bangladesh time; cannot be in the future }
+        note: { type: string, maxLength: 240 }
+        idempotency_key: { type: string, format: uuid, description: One key per payment attempt }
+        fee_ids: { type: array, maxItems: 200, items: { type: string, format: uuid }, description: Optional dues to settle; defaults to all outstanding dues, oldest first }
+    FeeIntentInput:
+      type: object
+      required: [provider, amount]
+      properties:
+        student_id: { type: string, format: uuid, description: Required for guardians }
+        provider: { type: string, enum: [bkash, nagad] }
+        amount: { type: number, minimum: 0.01 }
+    LedgerEntryInput:
+      type: object
+      required: [entry_type, category, amount, entry_date, description]
+      properties:
+        entry_type: { type: string, enum: [income, expense] }
+        category: { type: string, enum: [donation, grant, other_income, salary, utilities, supplies, maintenance, transport, events, other_expense] }
+        amount: { type: number, minimum: 0.01 }
+        entry_date: { type: string, format: date }
+        description: { type: string, maxLength: 240 }
+        reference: { type: string, maxLength: 80 }
+    FeeDue:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        student_id: { type: string, format: uuid }
+        period: { type: string, nullable: true }
+        due_date: { type: string, format: date }
+        amount: { type: number }
+        discount_amount: { type: number }
+        paid_amount: { type: number }
+        balance: { type: number }
+        status: { type: string, enum: [unpaid, partial, paid, waived] }
+        overdue: { type: boolean }
+        category_code: { type: string }
+        category_name_en: { type: string }
+        category_name_bn: { type: string }
+    FeeReceipt:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            payment: { type: object, description: Receipt number, student, amount, method, reference, date and collector }
+            allocations: { type: array, items: { type: object, properties: { student_fee_id: { type: string }, amount: { type: number }, category_name_en: { type: string }, period: { type: string, nullable: true } } } }
+            balance_after: { type: number, description: Student's current outstanding balance }
+            replayed: { type: boolean }
+    FeeStatement:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            student: { type: object }
+            dues: { type: array, items: { $ref: '#/components/schemas/FeeDue' } }
+            payments: { type: array, items: { type: object } }
+            totals: { type: object, properties: { charged: { type: number }, discount: { type: number }, paid: { type: number }, balance: { type: number }, overdue: { type: number } } }
     ExamInput:
       type: object
       required: [name, exam_type, session_id, class_id, section_id]

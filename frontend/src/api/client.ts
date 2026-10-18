@@ -13,7 +13,7 @@ export type AuthSession = {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string) {
+  constructor(public status: number, public code: string, public details?: Record<string, unknown>) {
     super(code)
   }
 }
@@ -35,7 +35,7 @@ async function authRequest(path: string, options: RequestInit): Promise<Response
   })
   if (!response.ok) {
     const body = await response.json().catch(() => null)
-    throw new ApiError(response.status, body?.error?.code || 'request_failed')
+    throw new ApiError(response.status, body?.error?.code || 'request_failed', body?.error)
   }
   return response
 }
@@ -87,7 +87,7 @@ export type Role = { id: string; name: string }
 export type Permission = { id: string; description: string }
 export type Page<T> = { items: T[]; total: number; page: number; page_size: number }
 
-async function bearerRequest<T>(path: string, accessToken: string, options: RequestInit = {}): Promise<T> {
+export async function bearerRequest<T>(path: string, accessToken: string, options: RequestInit = {}): Promise<T> {
   const response = await authRequest(path, {
     ...options,
     headers: { Authorization: `Bearer ${accessToken}`, ...options.headers },
@@ -234,7 +234,7 @@ export type EmployeeLeave = { id: string; employee_id: string; starts_on: string
 export type LeaveInput = Pick<EmployeeLeave, 'starts_on' | 'ends_on' | 'leave_type' | 'reason'>
 export type SalaryRecord = { id: string; employee_id: string; effective_on: string; basic_bdt: string; allowance_bdt: string; deduction_bdt: string; note: string }
 export type SalaryInput = Omit<SalaryRecord, 'id' | 'employee_id'>
-const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+export const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 export const getEmployees = (token: string, params: URLSearchParams) => bearerRequest<Page<Employee>>(`/staff/employees?${params}`, token)
 export const getEmployee = (token: string, id: string) => bearerRequest<Employee>(`/staff/employees/${encodeURIComponent(id)}`, token)
 export const getOwnEmployee = (token: string) => bearerRequest<Employee>('/staff/me', token)
@@ -299,12 +299,14 @@ export async function getHealth(signal?: AbortSignal): Promise<string> {
   return body.data.status
 }
 export type StudentAttendanceRecord = { id: string; student_id: string; session_id: string; class_id: string; section_id: string; attendance_date: string; status: 'present' | 'absent' | 'late'; source: 'manual' | 'qr'; note: string; name_en: string; name_bn: string; admission_no: string }
-export type StudentAttendanceRosterItem = { student_id: string; admission_no: string; name_en: string; name_bn: string; roll_no: number | null; record_id: string | null; status: StudentAttendanceRecord['status'] | null; source: StudentAttendanceRecord['source'] | null; note: string | null }
+export type StudentAttendanceRosterItem = { student_id: string; admission_no: string; name_en: string; name_bn: string; roll_no: number | null; record_id: string | null; status: StudentAttendanceRecord['status'] | null; source: StudentAttendanceRecord['source'] | null; note: string | null; version: string | null }
 export type StudentAttendanceSummary = { student_id: string; admission_no: string; name_en: string; name_bn: string; present: number; absent: number; late: number; total: number }
 export type StudentAttendanceReport = { student: StudentAttendanceSummary; items: StudentAttendanceRecord[] }
 export type AbsenceEvent = { id: string; student_id: string; attendance_date: string; state: 'pending' | 'cancelled'; name_en: string; guardian_count: number }
 export const getStudentAttendanceRoster = (token: string, params: URLSearchParams) => bearerRequest<Page<StudentAttendanceRosterItem>>(`/attendance/students/roster?${params}`, token)
 export const recordStudentAttendance = (token: string, input: { student_id: string; attendance_date: string; status: StudentAttendanceRecord['status']; note: string }) => bearerRequest<StudentAttendanceRecord>('/attendance/students', token, json('POST', input))
+export type StudentRosterEntry = { student_id: string; status: StudentAttendanceRecord['status']; note: string; record_id: string | null; version: string }
+export const saveStudentAttendanceRoster = (token: string, input: { session_id: string; section_id: string; attendance_date: string; entries: StudentRosterEntry[] }) => bearerRequest<{ created: number; updated: number; unchanged: number }>('/attendance/students/roster', token, json('PUT', input))
 export const scanStudentAttendance = (token: string, input: { payload: string; attendance_date: string }) => bearerRequest<StudentAttendanceRecord>('/attendance/students/qr', token, json('POST', input))
 export const correctStudentAttendance = (token: string, id: string, input: { status: StudentAttendanceRecord['status']; note: string }) => bearerRequest<StudentAttendanceRecord>(`/attendance/students/${encodeURIComponent(id)}`, token, json('PATCH', input))
 export const getStudentAttendanceMonthly = (token: string, params: URLSearchParams) => bearerRequest<Page<StudentAttendanceSummary>>(`/attendance/students/monthly?${params}`, token)
@@ -333,3 +335,18 @@ export const setResultExamState = (token:string,examId:string,status:ResultExam[
 export const getExamTabulation = (token:string,examId:string) => bearerRequest<ExamResult[]>(`/exams/${encodeURIComponent(examId)}/tabulation`,token)
 export const getReportCards = (token:string,path:string) => bearerRequest<ReportCard[]>(path,token)
 export const getReportCard = (token:string,path:string) => bearerRequest<ReportCard>(path,token)
+
+// Attachments require the bearer token, so they are fetched as blobs rather
+// than linked directly.
+export async function bearerBlob(path: string, accessToken: string): Promise<Blob> {
+  const response = await authRequest(path, { headers: { Authorization: `Bearer ${accessToken}` } })
+  return response.blob()
+}
+
+export async function bearerUpload<T>(path: string, accessToken: string, file: File): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await authRequest(path, { method: 'POST', body: form, headers: { Authorization: `Bearer ${accessToken}` } })
+  const body = await response.json()
+  return body.data as T
+}

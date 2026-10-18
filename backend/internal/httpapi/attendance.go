@@ -40,7 +40,10 @@ func (h *attendanceHandler) available(c *gin.Context) bool {
 	return false
 }
 func attendanceError(c *gin.Context, err error) {
+	var stale *attendance.StaleError
 	switch {
+	case errors.As(err, &stale):
+		c.JSON(409, gin.H{"error": gin.H{"code": "attendance_changed", "message": "attendance changed since it was loaded; reload and review", "student_ids": stale.StudentIDs}})
 	case errors.Is(err, attendance.ErrInvalid):
 		failure(c, 400, "invalid_request", "invalid attendance input")
 	case errors.Is(err, attendance.ErrNotFound):
