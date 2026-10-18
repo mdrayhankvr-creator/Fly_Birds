@@ -16,7 +16,7 @@ type Repository interface {
 	ReplaceGrading(context.Context, string, []GradeBand) ([]GradeBand, error)
 	Modules(context.Context, string, int, int) (ModulePage, error)
 	ModuleEnabled(context.Context, string) (bool, error)
-	UpdateModule(context.Context, string, string, bool) (Module, error)
+	UpdateModule(context.Context, string, string, bool, bool) (Module, error)
 }
 type GormRepository struct{ db *gorm.DB }
 
@@ -120,57 +120,6 @@ func (r *GormRepository) ReplaceGrading(ctx context.Context, actor string, bands
 			return err
 		}
 		return audit.Record(tx, &actor, "school.grading_updated", "grading_scheme", schemeID, map[string]any{"band_count": len(updated)})
-	})
-	return updated, err
-}
-func (r *GormRepository) Modules(ctx context.Context, search string, page, size int) (ModulePage, error) {
-	q := r.db.WithContext(ctx).Table("module_definitions AS d").Joins("JOIN school_modules AS m ON m.module_key = d.key AND m.school_id = ?", SingleSchoolID)
-	if search != "" {
-		q = q.Where("d.key ILIKE ? OR d.name ILIKE ?", "%"+search+"%", "%"+search+"%")
-	}
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return ModulePage{}, err
-	}
-	items := []Module{}
-	err := q.Select("d.key,d.name,d.is_core,m.enabled").Order("d.key").Limit(size).Offset((page - 1) * size).Scan(&items).Error
-	return ModulePage{Items: items, Total: total, Page: page, PageSize: size}, err
-}
-func moduleIn(tx *gorm.DB, key string) (Module, error) {
-	var module Module
-	result := tx.Table("module_definitions AS d").Joins("JOIN school_modules AS m ON m.module_key = d.key AND m.school_id = ?", SingleSchoolID).
-		Select("d.key,d.name,d.is_core,m.enabled").Where("d.key = ?", key).Take(&module)
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return Module{}, ErrNotFound
-	}
-	return module, result.Error
-}
-func (r *GormRepository) ModuleEnabled(ctx context.Context, key string) (bool, error) {
-	module, err := moduleIn(r.db.WithContext(ctx), key)
-	return module.Enabled, err
-}
-func (r *GormRepository) UpdateModule(ctx context.Context, actor, key string, enabled bool) (Module, error) {
-	var updated Module
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := schoolLock(tx); err != nil {
-			return err
-		}
-		if err := schoolGuard(tx, actor, "modules:manage"); err != nil {
-			return err
-		}
-		module, err := moduleIn(tx, key)
-		if err != nil {
-			return err
-		}
-		if module.IsCore && !enabled {
-			return ErrCoreModule
-		}
-		if err := tx.Table("school_modules").Where("school_id = ? AND module_key = ?", SingleSchoolID, key).Updates(map[string]any{"enabled": enabled, "updated_at": time.Now().UTC()}).Error; err != nil {
-			return err
-		}
-		updated = module
-		updated.Enabled = enabled
-		return audit.Record(tx, &actor, "school.module_updated", "module", key, map[string]any{"before_enabled": module.Enabled, "after_enabled": enabled})
 	})
 	return updated, err
 }

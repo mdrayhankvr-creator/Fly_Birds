@@ -19,6 +19,7 @@ type gradingRequest struct {
 }
 type moduleRequest struct {
 	Enabled *bool `json:"enabled"`
+	Cascade bool  `json:"cascade"`
 }
 
 func (h *schoolHandler) available(c *gin.Context) bool {
@@ -29,7 +30,10 @@ func (h *schoolHandler) available(c *gin.Context) bool {
 	return false
 }
 func schoolError(c *gin.Context, err error) {
+	var deps *school.DependencyError
 	switch {
+	case errors.As(err, &deps):
+		c.JSON(409, gin.H{"error": gin.H{"code": "module_dependencies", "message": "module dependencies not satisfied", "kind": deps.Kind, "modules": deps.Modules}})
 	case errors.Is(err, school.ErrInvalid):
 		failure(c, 400, "invalid_request", "invalid school configuration")
 	case errors.Is(err, school.ErrNotFound):
@@ -203,7 +207,7 @@ func (h *schoolHandler) saveModule(c *gin.Context) {
 		return
 	}
 	actor := c.MustGet("auth_user").(auth.User)
-	value, err := h.service.SetModule(c.Request.Context(), actor.ID, c.Param("key"), *input.Enabled)
+	value, err := h.service.SetModule(c.Request.Context(), actor.ID, c.Param("key"), *input.Enabled, input.Cascade)
 	if err != nil {
 		schoolError(c, err)
 		return
