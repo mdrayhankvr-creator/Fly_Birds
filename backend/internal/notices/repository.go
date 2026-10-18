@@ -257,13 +257,17 @@ func (r *GormRepository) Publish(ctx context.Context, actor, id string, at *time
 		if status == "archived" {
 			return ErrConflict
 		}
-		if err := tx.Exec("UPDATE notices SET status='published',publish_at=?,updated_by=?,updated_at=now() WHERE id=?", at.UTC(), actor, id).Error; err != nil {
+		var when any
+		if at != nil {
+			when = at.UTC()
+		}
+		if err := tx.Exec("UPDATE notices SET status='published',publish_at=COALESCE(?::timestamptz, now()),updated_by=?,updated_at=now() WHERE id=?", when, actor, id).Error; err != nil {
 			return dbErr(err)
 		}
 		if out, err = r.get(tx, actor, id, true); err != nil {
 			return err
 		}
-		return audit.Record(tx, &actor, "notice.published", "notice", id, map[string]any{"publish_at": at.UTC().Format(time.RFC3339)})
+		return audit.Record(tx, &actor, "notice.published", "notice", id, map[string]any{"publish_at": out.PublishAt})
 	})
 	return out, dbErr(err)
 }

@@ -156,16 +156,14 @@ func (s *Service) Save(ctx context.Context, actor, id string, in NoticeInput) (N
 	return s.repo.Save(ctx, actor, id, in)
 }
 
-// Publish makes a notice visible at publish_at (now when omitted). A future
-// time schedules it; the feed and notifications wait until then.
+// Publish makes a notice visible at publish_at. When omitted the database
+// clock is used, the same clock feeds and dispatch compare against, so a
+// notice published "now" is live immediately even if server clocks differ.
+// A future time schedules it.
 func (s *Service) Publish(ctx context.Context, actor, id string, in PublishInput) (Notice, error) {
 	at, ok := parseTime(in.PublishAt)
 	if !validID(actor) || !validID(id) || !ok {
 		return Notice{}, ErrInvalid
-	}
-	if at == nil {
-		now := s.now()
-		at = &now
 	}
 	return s.repo.Publish(ctx, actor, id, at)
 }
