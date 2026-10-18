@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getMyChildren, getMyGuardian } from '../api/client'
 import { usePeopleApi } from './peopleShared'
 
-export function GuardianChildrenPage({ showAttendance = false, showRoutine = false, showResults = false, showFees = false }: { showAttendance?: boolean; showRoutine?: boolean; showResults?: boolean; showFees?: boolean }) {
+export function GuardianChildrenPage({ showAttendance = false, showRoutine = false, showResults = false, showFees = false, showDiary = false }: { showAttendance?: boolean; showRoutine?: boolean; showResults?: boolean; showFees?: boolean; showDiary?: boolean }) {
   const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
   const guardian = useQuery({ queryKey: ['people', 'my-guardian'], queryFn: () => authorized(token => getMyGuardian(token)), retry: false })
@@ -15,5 +15,6 @@ export function GuardianChildrenPage({ showAttendance = false, showRoutine = fal
     {showRoutine && children.data && children.data.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold">{t('routineHeading')}</h2><ul className="mt-3 space-y-2">{children.data.map(child => <li key={child.id}><Link className="font-semibold text-teal-800 underline" to={`/guardian/children/${child.id}/routine`}>{i18n.language === 'bn' && child.name_bn ? child.name_bn : child.name_en}</Link></li>)}</ul></section>}
     {showResults && children.data && children.data.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold">{t('examChildResults')}</h2><ul className="mt-3 space-y-2">{children.data.map(child => <li key={child.id}><Link className="font-semibold text-teal-800 underline" to={`/guardian/children/${child.id}/results`}>{i18n.language === 'bn' && child.name_bn ? child.name_bn : child.name_en}</Link></li>)}</ul></section>}
     {showFees && children.data && children.data.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold">{t('feeChildFees')}</h2><ul className="mt-3 space-y-2">{children.data.map(child => <li key={child.id}><Link className="font-semibold text-teal-800 underline" to={`/guardian/children/${child.id}/fees`}>{i18n.language === 'bn' && child.name_bn ? child.name_bn : child.name_en}</Link></li>)}</ul></section>}
+    {showDiary && children.data && children.data.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-bold">{t('m9ChildDiary')}</h2><ul className="mt-3 space-y-2">{children.data.map(child => <li key={child.id}><Link className="font-semibold text-teal-800 underline" to={`/guardian/children/${child.id}/diary`}>{i18n.language === 'bn' && child.name_bn ? child.name_bn : child.name_en}</Link></li>)}</ul></section>}
   </div>
 }
