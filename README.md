@@ -1,6 +1,25 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M10 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M11 Analytics and Reports is complete locally on `feature/m11-analytics-reports` and awaits review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M11 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M12 UI and Product Polish is complete locally on `feature/m12-premium-ui-ux` and awaits review.
+
+## M12 Interface and Demo School
+
+- **Layout:** signed-in users get a sidebar with grouped navigation (collapsible on desktop, a drawer on phones) and a top bar with the page location, language switch, notifications and their account menu. The sidebar shows only what the user's role, permissions and enabled modules allow.
+- **Home dashboards:** every role lands on its own dashboard, built from live school data.
+- **Branding:** the school's colours from school settings brand the whole interface. Readable text colours are derived automatically, and the dark dashboard theme covers every screen.
+
+### Demo school
+
+Load a fictional demo school for training or review, preferably into a separate database. The seed only adds records and remembers what it created, so running it again changes nothing that already exists:
+
+```powershell
+docker compose run --rm -e DEMO_PASSWORD backend /app/seed-demo -confirm
+```
+
+- **Accounts:** eight accounts are created at `demo.flybirds.test`: `demo.admin`, `demo.head`, `demo.teacher` (plus `demo.teacher2` and `demo.teacher3`), `demo.accounts`, `demo.student` and `demo.guardian`. They use the password in `DEMO_PASSWORD` (12–72 bytes), or one typed at the prompt.
+- **Session:** the seed uses the active academic session, or creates the current year's.
+- **Existing data:** it leaves existing classes, subjects and settings alone.
+- **Before going live:** remove the demo accounts before a real school uses the database.
 
 ## M11 Analytics and Reports
 

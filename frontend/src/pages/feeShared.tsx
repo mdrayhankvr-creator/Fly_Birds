@@ -5,8 +5,8 @@ import { ApiError } from '../api/client'
 import { searchFeeStudents, type FeeDue, type FeeReceipt, type FeeStatement, type FeeStudent } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
 
-export const feeField = 'mt-1 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-teal-700'
-export const feeButton = 'rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50'
+export const feeField = 'mt-1 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-[var(--brand-primary)]'
+export const feeButton = 'rounded-lg bg-[var(--brand-primary)] px-4 py-2 font-semibold text-[var(--brand-on)] disabled:opacity-50'
 export const feeSecondary = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50'
 export const feeCard = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
 
@@ -95,7 +95,7 @@ export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent)
     <label className="block text-sm font-semibold">{label ?? t('feeFindStudent')}<input className={feeField} value={search} placeholder={t('feeFindStudentHint')} onChange={e => setSearch(e.target.value)} /></label>
     {students.isError && <p role="alert" className="mt-2 text-sm text-rose-700">{t('feeErrGeneric')}</p>}
     {students.data && (students.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-600">{t('feeNoStudents')}</p> :
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{students.data.items.map(s => <li key={s.id}><button type="button" className="w-full rounded-lg border p-3 text-left hover:border-teal-700" onClick={() => { onPick(s); setSearch('') }}>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{students.data.items.map(s => <li key={s.id}><button type="button" className="w-full rounded-lg border p-3 text-left hover:border-[var(--brand-primary)]" onClick={() => { onPick(s); setSearch('') }}>
         <strong>{name(s.name_en, s.name_bn)}</strong><span className="block text-xs text-slate-600">{s.admission_no} · {s.class_name} / {s.section_name} · {s.session_name}</span></button></li>)}</ul>)}
   </div>
 }
@@ -158,7 +158,7 @@ export function PaymentsList({ payments, onOpen }: { payments: FeeStatement['pay
   if (payments.length === 0) return <p className="mt-3 text-slate-600">{t('feeNoPayments')}</p>
   return <TableWrap><thead><tr className="border-b bg-slate-50"><th className="p-2">{t('feeReceiptNo')}</th><th className="p-2">{t('feePaidOn')}</th><th className="p-2">{t('feeMethod')}</th><th className="p-2 text-right">{t('feeAmount')}</th><th className="p-2 print:hidden"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
     <tbody>{payments.map(p => <tr key={p.id} className="border-b"><td className="p-2 font-mono">{p.receipt_no}</td><td className="p-2">{p.paid_on}</td><td className="p-2">{t(`feeMethod_${p.method}`)}</td><td className="p-2 text-right">{money(p.amount)}</td>
-      <td className="p-2 print:hidden"><button type="button" className="font-semibold text-teal-800 underline" onClick={() => onOpen(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody>
+      <td className="p-2 print:hidden"><button type="button" className="font-semibold text-[var(--brand-ink)] underline" onClick={() => onOpen(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody>
   </TableWrap>
 }
 

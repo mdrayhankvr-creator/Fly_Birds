@@ -1,3 +1,4 @@
+import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -89,8 +90,8 @@ export function EventsPage({ canManage }: { canManage: boolean }) {
       <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
         <button type="submit" className={ui.secondary} disabled={busy}>{t('m9Save')}</button>
         {(!current || current.status !== 'published') && <button type="button" className={ui.primary} disabled={busy || !form.title_en || form.audience_roles.length === 0} onClick={() => void run(async () => { const saved = await authorized(token => saveEvent(token, payload(), current?.id)); return authorized(token => setEventStatus(token, saved.id, 'publish')) }, 'm9PublishedOk')}>{t('m9Publish')}</button>}
-        {current?.status === 'published' && <button type="button" className={ui.secondary} disabled={busy} onClick={() => { if (window.confirm(t('m9ConfirmCancelEvent'))) void run(() => authorized(token => setEventStatus(token, current.id, 'cancel')), 'm9CancelledOk') }}>{t('m9CancelEvent')}</button>}
-        {current?.status === 'draft' && <button type="button" className={`${ui.secondary} text-rose-700`} disabled={busy} onClick={() => { if (window.confirm(t('m9ConfirmDelete'))) void run(() => authorized(token => deleteEvent(token, current.id)), 'm9DeletedOk', true) }}>{t('m9Delete')}</button>}
+        {current?.status === 'published' && <button type="button" className={ui.secondary} disabled={busy} onClick={async () => { if ((await confirmAction(t('m9ConfirmCancelEvent')))) void run(() => authorized(token => setEventStatus(token, current.id, 'cancel')), 'm9CancelledOk') }}>{t('m9CancelEvent')}</button>}
+        {current?.status === 'draft' && <button type="button" className={`${ui.secondary} text-rose-700`} disabled={busy} onClick={async () => { if ((await confirmAction(t('m9ConfirmDelete')))) void run(() => authorized(token => deleteEvent(token, current.id)), 'm9DeletedOk', true) }}>{t('m9Delete')}</button>}
         <button type="button" className={ui.secondary} onClick={() => setEditing(null)}>{t('m9Close')}</button>
       </div>
     </form>}

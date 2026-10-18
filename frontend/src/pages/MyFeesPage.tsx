@@ -59,7 +59,7 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
         <fieldset className="text-sm font-semibold"><legend>{t('feeProvider')}</legend><div className="mt-2 flex gap-4">{(['bkash', 'nagad'] as const).map(p => <label key={p} className="flex items-center gap-2 font-normal"><input type="radio" name="provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />{t(`feeMethod_${p}`)}</label>)}</div></fieldset>
         <label className="text-sm font-semibold">{t('feeAmount')}<input type="number" inputMode="decimal" min="0.01" max={balance} step="0.01" className={feeField} value={amount} placeholder={balance.toFixed(2)} onChange={e => setAmount(e.target.value)} /></label>
         <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{t('feeContinue')}</button></div>
-      </form> : <form onSubmit={confirm} className="mt-3 space-y-3 rounded-xl border-2 border-dashed border-teal-700 p-4">
+      </form> : <form onSubmit={confirm} className="mt-3 space-y-3 rounded-xl border-2 border-dashed border-[var(--brand-primary)] p-4">
         <p className="font-semibold">{t(`feeMethod_${intent.provider}`)} · {money(intent.amount)}</p>
         <p className="text-sm">{t('feeProviderRef')}: <span className="break-all font-mono">{intent.provider_ref}</span> · {t('feeExpiresAt', { time: intent.expires_at.slice(11, 16) })}</p>
         <label className="block max-w-xs text-sm font-semibold">{t('feeOtp')}<input required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,8}" maxLength={8} className={feeField} value={otp} onChange={e => setOtp(e.target.value)} /></label>

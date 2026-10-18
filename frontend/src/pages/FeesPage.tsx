@@ -1,3 +1,4 @@
+import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +17,7 @@ export function FeesPage({ access }: { access: FeeAccess }) {
   const tabs: Tab[] = ['collect', 'dues', 'setup', 'reports', ...(access.canReadAccounts ? ['ledger' as const] : [])]
   return <div className="space-y-5">
     <header className={`${feeCard} print:hidden`}><h1 className="text-2xl font-bold">{t('feeHeading')}</h1><p className="mt-2 text-slate-600">{t('feeIntro')}</p>
-      <nav className="mt-4 flex flex-wrap gap-2" aria-label={t('feeHeading')}>{tabs.map(key => <button key={key} type="button" aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${tab === key ? 'bg-teal-700 text-white' : 'border border-slate-300 text-slate-700'}`}>{t(`feeTab_${key}`)}</button>)}</nav>
+      <nav className="mt-4 flex flex-wrap gap-2" aria-label={t('feeHeading')}>{tabs.map(key => <button key={key} type="button" aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${tab === key ? 'bg-[var(--brand-primary)] text-[var(--brand-on)]' : 'border border-slate-300 text-slate-700'}`}>{t(`feeTab_${key}`)}</button>)}</nav>
     </header>
     {options.isPending ? <p role="status">{t('feeLoading')}</p> : options.isError ? <p role="alert" className="text-rose-700">{t('feeErrGeneric')}</p> : <>
       {tab === 'collect' && <CollectPanel access={access} options={options.data} />}
@@ -133,7 +134,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
     if (done) setAdjusting(null)
   }
   async function remove(due: FeeDue) {
-    if (window.confirm(t('feeConfirmDeleteDue'))) await action.run(() => authorized(token => deleteFeeDue(token, due.id)), t('feeDeleted'))
+    if ((await confirmAction(t('feeConfirmDeleteDue')))) await action.run(() => authorized(token => deleteFeeDue(token, due.id)), t('feeDeleted'))
   }
 
   return <div className="space-y-5">

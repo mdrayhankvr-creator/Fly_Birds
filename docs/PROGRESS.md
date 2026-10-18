@@ -4,11 +4,74 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 71 verified criteria / 83 total criteria x 100 = **85.5%**.
-- **Current milestone completion:** 5 verified M11 criteria / 5 M11 criteria = **100% locally**.
-- **Remaining:** 12 criteria in M12–M13. **Next planned milestone:** M12 UI and Product Polish, only after explicit approval.
+- **Overall completion:** 76 verified criteria / 83 total criteria x 100 = **91.6%**.
+- **Current milestone completion:** 5 verified M12 criteria / 5 M12 criteria = **100% locally**.
+- **Remaining:** 7 criteria in M13. **Next planned milestone:** M13 Final Release, only after explicit approval.
 
-M0–M10, the attendance UX redesign and the M0–M7 system audit are merged into main (M10 through PR #16, the audit through PR #15). M11 is complete locally on `feature/m11-analytics-reports`, which is not pushed.
+M0–M11 are merged into main (M11 through PR #17). M12 is complete locally on `feature/m12-premium-ui-ux`, which is not pushed.
+
+## Current Status — M12 UI and Product Polish (2026-10-19)
+
+M12 is a frontend redesign plus a demo seed. It kept every API contract and the reliable business logic; the only backend additions are the demo seed and its record table.
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Responsive user interface | New application shell for signed-in users: a persistent, grouped sidebar built from the user's live permissions, role and enabled modules (collapsible on desktop, remembered per browser, scrolls the current page into view); a mobile drawer with Escape, focus and scroll lock; and a top bar with breadcrumb, language switch, notifications and an accessible user menu. Role home dashboards replace the old foundation dashboard. Every page renders inside the shell, and the M10 chip navigation it duplicated was removed. Checked at 1366, 820 and 390 px: 52 page and viewport combinations with no horizontal overflow |
+| Complete Bangla/English translations | 1,716 keys in each language, including about 140 new shell, navigation, landing, login and dashboard strings, with proper plural forms for count phrases. Visible milestone jargon ("M3", "API status") was replaced. No raw translation keys appear on any of 52 swept page and viewport combinations in English and Bangla. Bangla uses Noto Sans Bengali with a larger line height, plus Bangla digits and dates |
+| White-label theme verification | The school's colours drive the whole interface through brand tokens. `applyBranding` derives `--brand-ink` (darkened until it reaches 4.5:1 or better on its own tint) and `--brand-on` (white or near-black on brand fills). Every hard-coded teal class (23 files) moved to these tokens, and dark-theme overrides now cover the shell, hovers, status tints and default borders. The server already refuses brand colours below 4.5:1 on white |
+| Empty and error states | Dashboard widgets show skeletons while loading. They report an unavailable module, missing access or a failed request in plain words instead of a number, and show friendly empty states for no notices, events, diary entries, classes, receipts or assignments. An accessible confirmation dialog replaces `window.confirm` on 13 actions in 10 screens. The admin routine page asks for a section instead of crowding every timetable together |
+| Idempotent demo data seeding | `seed-demo -confirm` (included in the backend image) creates a fictional demo school: 8 role accounts, 3 classes with 6 sections, 36 students and guardians, routines, published half-yearly results, three months of fees and receipts, 35 days of attendance up to yesterday (Fridays off), staff attendance, notices, events, diary entries and expenses. Every created row is recorded in `demo_records` (migration `1201`). Reruns reuse those records, so nothing is duplicated, and they never update or delete rows the seed did not create. Existing classes or subject codes of the same name get a "(Demo)" or `DEMO-` variant, and the school name and colours change only while they are still the untouched default |
+
+**Role dashboards (real data only).**
+- **Admin:** school figures from analytics, an attendance trend, needs-attention insights, system health, latest notices, upcoming events and quick access. With analytics off, it falls back to control-center figures.
+- **Head teacher:** the same academic view without money.
+- **Teacher:** today's classes, with the current period highlighted; assigned classes and subjects; 30-day attendance and alerts for their classes; and Take attendance and Write diary actions.
+- **Student:** 30-day and session attendance, latest result and GPA, fees due, alert, today's classes, recent diary, notices and events.
+- **Guardian:** a child selector, the chosen child's summary and direct links to that child's attendance, results, routine, fees and diary, plus that child's classes today and diary.
+- **Accountant:** collected today and over the last 12 months, outstanding and overdue, recent receipts and overdue aging.
+- **All roles:** each card appears only when the server-computed navigation says the module and permission allow it.
+
+**Design system.**
+- **Components:** the inline SVG icon set, `AppShell`, the navigation model and context, `ConfirmHost`/`confirmAction`, and the dashboard building blocks (Panel, Metric, empty, unavailable and loading states). The existing `ui` tokens, `Notice`, `Tabs`, `Pager`, `StatusBadge`, `PageHeader` and the chart components remain in use.
+- **Global CSS:** brand tokens, an app surface and quiet table rows. Default borders are a soft slate, because Tailwind v4 draws bare borders in the text colour and some older screens relied on the old default.
+- **Behaviour:** reduced motion honoured globally, a skip link, a print layout without the shell, and a redesigned login (show or hide password, help text) and public landing page.
+
+**Attendance UX (verified in a running browser).**
+- **Workflow:** the merged roll-wise roster is unchanged apart from three colour tokens. In headless Edge as the demo teacher:
+  - the Class Six A roster lists 6 students in roll order, all unmarked, each with one-tap Present, Absent and Late;
+  - Mark all present sets the counters to 6 present and 0 unmarked;
+  - tapping Absent and Late updates the counters live, with announced selected states;
+  - the A hotkey marks a focused row absent;
+  - Save reports "6 new", the server holds 4 present, 1 absent and 1 late, and the marks persist after reload.
+- **Unmarked and conflicts:** in Section B, marking two students left the other four unmarked rather than absent. When another device recorded a mark first, saving was refused with a clear message and the other device's mark was kept.
+- **Mobile:** at 390 px the roster has no overflow and the tap targets are at least 40 px tall.
+
+**Verification (2026-10-19).**
+- **Backend:** `go vet ./...` passed. On a freshly created disposable PostgreSQL 17 database, `go test ./... -p 1 -count=1` passed 83 of 83 top-level tests and 17 of 17 subtests, with none failed or skipped, across all 20 packages with tests (8 have none).
+  - **New seed test:** it works in its own new database containing a school class "Class Six", a subject code "BAN" and a custom school name. It refuses a short password, seeds, and reseeds with identical counts in 24 tables and nothing created. The school's rows, name and existing account are untouched, the demo password is not reset, results are published, today's register is open, the guardian has two children and there are no Friday marks. A next-day run adds only the missing day.
+  - **Image:** the backend Docker image built with `seed-demo` included.
+- **Frontend and Compose:** `tsc`, the production build, `npm run check:i18n` (1,716 English and 1,716 Bangla keys) and `docker compose config --quiet` passed.
+- **Browser:** headless Edge with reduced motion, against an isolated database seeded by `seed-demo`, backend 8095 and Vite 5195.
+  - **Suite:** 105 of 105 checks passed in two consecutive runs.
+  - **Public pages and sign-in:** landing (no invented figures), login (show password, wrong password, redirect).
+  - **Roles:** for each of the six, the dashboard loads, the sidebar offers its modules and hides the rest, direct URLs to forbidden pages are refused, and dashboard figures match the API.
+  - **Shell:** breadcrumb, persisted collapse, user menu and Escape, reduced motion, skip link, and the confirmation dialog (focus on Cancel, Escape cancels with no change).
+  - **Attendance and language:** the attendance workflow above; Bangla with Bangla digits and switching back to English.
+  - **Accessibility basics on 22 pages:** named controls, labelled fields, image alt text, unique ids, an h1 and the page language.
+- **White-label:** 23 of 23 checks across blue, teal, purple, amber and dark themes. The active navigation, primary buttons and brand links all reach at least 4.5:1 (lowest 4.82:1), and the server refuses a pale yellow brand colour.
+- **Visual review:** screenshots of every role dashboard, 43 module pages, the drawer, the attendance roster and the dark theme were inspected. They are kept outside the repository in a temporary review folder. Issues found and fixed:
+  - **Screenshots:** a truncated school name, the "1 students" plurals, wrong event-kind keys, a crowded all-sections timetable, dark default borders and an unstyled pager on exams, a clipped grading editor at 390 px, pale status tints in the dark theme, the active item hidden in the sidebar, milestone jargon and invented figures on the landing page.
+  - **Access message:** the module-disabled message was shown instead of permission denied on the Students and Guardians pages.
+  - **Seed:** a mismatch between the teacher's subject and the diary.
+- **Isolation:** the application database, Demo School, Docker volumes, uploads, backups and Joy's QA environments were not touched. The main application containers remain stopped from the earlier Docker crash, and nothing was started against their data.
+
+**Not verified / limitations.**
+- **Older screens:** they keep their own layouts inside the new shell and design tokens; they were harmonised, not rebuilt. Column sorting was not added to existing tables. Feedback uses the existing inline notices; there is no separate toast system.
+- **Navigation guard:** the attendance page keeps the browser's native confirm for leaving with unsaved marks, because link interception must be synchronous.
+- **Date inputs:** these use the browser's native format.
+- **Accessibility:** automated basics and contrast measurements only; no full screen-reader audit was done. Tablet was checked for the dashboards at 820 px.
+- **Demo seed:** it needs a PostgreSQL account that can create users and rows. Demo accounts use the `demo.flybirds.test` domain; remove them before a real school goes live.
+- **Not run:** remote CI and deployment.
 
 ## Current Status — M11 Analytics and Reports (2026-10-19)
 

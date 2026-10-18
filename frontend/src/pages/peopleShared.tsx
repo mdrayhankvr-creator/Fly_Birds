@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 
-export const peopleField = 'mt-1 min-w-0 w-full max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-teal-700 focus:outline-none'
+export const peopleField = 'mt-1 min-w-0 w-full max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-[var(--brand-primary)] focus:outline-none'
 
 export function usePeopleApi() {
   const { accessToken, renew, expire } = useAuth()

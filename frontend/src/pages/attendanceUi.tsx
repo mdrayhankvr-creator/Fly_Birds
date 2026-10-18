@@ -6,9 +6,9 @@ export const ui = {
   card: 'min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]',
   field: 'mt-1.5 block w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--brand-primary)_18%,transparent)] disabled:bg-slate-50 disabled:text-slate-500',
   label: 'block text-xs font-semibold uppercase tracking-wide text-slate-500',
-  primary: 'inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50',
+  primary: 'inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-on)] shadow-sm transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50',
   secondary: 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50',
-  ghost: 'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-[var(--brand-primary)] hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]',
+  ghost: 'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-[var(--brand-ink)] hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]',
 }
 
 export type Tone = 'present' | 'absent' | 'late' | 'leave' | 'unmarked'
@@ -22,7 +22,7 @@ export const tones: Record<Tone, { solid: string; soft: string; dot: string; tex
 
 export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) {
   return <header className="flex flex-wrap items-end justify-between gap-4 print:hidden">
-    <div className="min-w-0">{eyebrow && <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--brand-primary)]">{eyebrow}</p>}
+    <div className="min-w-0">{eyebrow && <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--brand-ink)]">{eyebrow}</p>}
       <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
       {description && <p className="mt-1.5 max-w-2xl text-sm text-slate-600 sm:text-base">{description}</p>}</div>
     {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -104,5 +104,5 @@ export function Pager({ page, total, size, onPage, previous, next, label }: { pa
 
 export function Avatar({ name }: { name: string }) {
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => [...part][0]).join('').toUpperCase()
-  return <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_12%,white)] text-sm font-bold text-[var(--brand-primary)]">{initials}</span>
+  return <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_12%,white)] text-sm font-bold text-[var(--brand-ink)]">{initials}</span>
 }

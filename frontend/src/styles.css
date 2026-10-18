@@ -1,44 +1,103 @@
 @import "tailwindcss";
 
+/* Tailwind v4 draws bare `border` in the current text colour; older screens
+   rely on the v3 default, so borders default to a soft slate everywhere. */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: #e2e8f0; }
+  [data-theme="dark"] *, [data-theme="dark"] ::after, [data-theme="dark"] ::before { border-color: #334155; }
+}
+
 :root {
   /* Bangla text can appear in English mode, such as the language switch and Bangla names. */
   font-family: Inter, "Noto Sans Bengali", Arial, sans-serif;
   font-synthesis: none;
-  --brand-primary: #0f766e;
-  --brand-secondary: #334155;
+  -webkit-font-smoothing: antialiased;
+  /* applyBranding overrides these with the school's colours and derives
+     --brand-ink (readable brand text) and --brand-on (text on brand fills). */
+  --brand-primary: #1d4ed8;
+  --brand-ink: #1d4ed8;
+  --brand-on: #ffffff;
+  --brand-secondary: #0f172a;
+  --brand-soft: color-mix(in srgb, var(--brand-primary) 9%, white);
+  --app-surface: #f5f7fb;
 }
 
 :root:lang(bn) {
-  font-family: "Noto Sans Bengali", sans-serif;
+  font-family: "Noto Sans Bengali", Inter, sans-serif;
+  /* Bangla glyphs need a little more line height to stay readable. */
+  line-height: 1.6;
 }
 
-.brand-text { color: var(--brand-primary); }
-.brand-button { background-color: var(--brand-primary); color: #fff; }
-.brand-button:hover { filter: brightness(0.9); }
-.brand-button:focus-visible { outline: 2px solid var(--brand-secondary); outline-offset: 2px; }
-.bg-teal-700,
-.hover\:bg-teal-800:hover { background-color: var(--brand-primary); }
-.text-teal-700,
-.text-teal-800,
-.hover\:text-teal-700:hover { color: var(--brand-primary); }
-.accent-teal-700 { accent-color: var(--brand-primary); }
+body { background-color: var(--app-surface); color: #0f172a; }
+::selection { background: color-mix(in srgb, var(--brand-primary) 22%, white); }
 
-[data-theme="dark"] { color-scheme: dark; }
+.brand-text { color: var(--brand-ink); }
+.brand-button { background-color: var(--brand-primary); color: var(--brand-on); }
+.brand-button:hover { filter: brightness(0.92); }
+.brand-button:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+
+/* Application shell (M12). */
+.shell-root { background-color: var(--app-surface); }
+.shell-sidebar { background-color: #ffffff; }
+.shell-topbar { background-color: rgb(255 255 255 / 0.9); backdrop-filter: saturate(1.4) blur(8px); }
+.shell-nav-active { background-color: var(--brand-soft); color: var(--brand-ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--brand-primary); }
+.shell-mark, .shell-avatar { background-color: var(--brand-soft); color: var(--brand-ink); }
+.shell-lang-on { background-color: var(--brand-primary); color: var(--brand-on); }
+.login-panel { background: linear-gradient(155deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 62%, #0f172a)); color: var(--brand-on); }
+
+/* Tables inside cards: quiet headers and comfortable rows everywhere. */
+main table thead th { font-weight: 600; }
+main table tbody tr { transition: background-color 120ms; }
+main table tbody tr:hover { background-color: #f8fafc; }
+
+[data-theme="dark"] { color-scheme: dark; --brand-soft: color-mix(in srgb, var(--brand-primary) 26%, #111c2e); --app-surface: #0b1424; }
+[data-theme="dark"] body { color: #e2e8f0; }
+[data-theme="dark"] .shell-sidebar { background-color: #111c2e; }
+[data-theme="dark"] .shell-topbar { background-color: rgb(17 28 46 / 0.92); }
+[data-theme="dark"] .shell-nav-active,
+[data-theme="dark"] .shell-mark,
+[data-theme="dark"] .shell-avatar,
+[data-theme="dark"] .brand-text,
+[data-theme="dark"] .text-\[var\(--brand-ink\)\] { color: #e2e8f0; }
 [data-theme="dark"] .bg-slate-50 { background-color: #0b1424; }
 [data-theme="dark"] .bg-white { background-color: #172337; }
+[data-theme="dark"] .bg-slate-100,
+[data-theme="dark"] .hover\:bg-slate-100:hover,
+[data-theme="dark"] .hover\:bg-slate-50:hover { background-color: #1e2b42; }
+[data-theme="dark"] main table tbody tr:hover { background-color: #1a2740; }
 [data-theme="dark"] .text-slate-900 { color: #f8fafc; }
 [data-theme="dark"] .text-slate-800,
 [data-theme="dark"] .text-slate-700,
 [data-theme="dark"] .text-slate-600 { color: #cbd5e1; }
+[data-theme="dark"] .text-slate-500 { color: #94a3b8; }
 [data-theme="dark"] .border-slate-100,
 [data-theme="dark"] .border-slate-200,
-[data-theme="dark"] .border-slate-300 { border-color: #475569; }
-[data-theme="dark"] .brand-text { color: #f8fafc; }
-[data-theme="dark"] .text-teal-700,
-[data-theme="dark"] .text-teal-800,
-[data-theme="dark"] .hover\:text-teal-700:hover { color: #f8fafc; }
+[data-theme="dark"] .border-slate-200\/80,
+[data-theme="dark"] .border-slate-300,
+[data-theme="dark"] .divide-slate-100 > * { border-color: #334155; }
 [data-theme="dark"] input,
-[data-theme="dark"] select { background-color: #0f1b2e; color: #f8fafc; }
+[data-theme="dark"] select,
+[data-theme="dark"] textarea { background-color: #0f1b2e; color: #f8fafc; }
+
+/* Status tints keep their meaning on the dark surface. */
+[data-theme="dark"] .bg-rose-50 { background-color: rgb(244 63 94 / 0.14); }
+[data-theme="dark"] .bg-amber-50 { background-color: rgb(245 158 11 / 0.14); }
+[data-theme="dark"] .bg-emerald-50 { background-color: rgb(16 185 129 / 0.14); }
+[data-theme="dark"] .bg-sky-50 { background-color: rgb(14 165 233 / 0.14); }
+[data-theme="dark"] .text-rose-700, [data-theme="dark"] .text-rose-800, [data-theme="dark"] .text-rose-900 { color: #fda4af; }
+[data-theme="dark"] .text-amber-700, [data-theme="dark"] .text-amber-800, [data-theme="dark"] .text-amber-900 { color: #fcd34d; }
+[data-theme="dark"] .text-emerald-700, [data-theme="dark"] .text-emerald-800, [data-theme="dark"] .text-emerald-900 { color: #6ee7b7; }
+[data-theme="dark"] .text-sky-800, [data-theme="dark"] .text-sky-900 { color: #7dd3fc; }
+[data-theme="dark"] .border-rose-200 { border-color: rgb(244 63 94 / 0.35); }
+[data-theme="dark"] .border-amber-200 { border-color: rgb(245 158 11 / 0.35); }
+[data-theme="dark"] .border-emerald-200 { border-color: rgb(16 185 129 / 0.35); }
+[data-theme="dark"] .border-sky-200 { border-color: rgb(14 165 233 / 0.35); }
+.shell-sidebar nav { scrollbar-width: thin; }
+
+/* Respect reduced-motion preferences across the app. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
 
 [data-theme-preview] { background-color: #f8fafc; color: #0f172a; }
 /* Chart tokens (M11): categorical slots 1-2 of the validated reference
@@ -61,6 +120,8 @@
   body:has(.fee-receipt) .fee-receipt * { visibility: visible !important; }
   .fee-receipt { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0; box-shadow: none; }
   body:has(.analytics-print) header, body:has(.analytics-print) nav, body:has(.analytics-print) .print\:hidden { display: none !important; }
+  .shell-root > div { padding-left: 0 !important; }
+  .shell-root main { max-width: none; padding: 0; }
   .analytics-print { box-shadow: none !important; border: 0 !important; }
   .analytics-print table { font-size: 10pt; }
 }

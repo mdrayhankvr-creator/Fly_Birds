@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, getAcademicClasses, getAcademicSections, getAcademicSessions, saveAcademicSection, type AcademicSection, type AcademicSectionInput } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 
-const field = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-teal-700 focus:outline-none'
+const field = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-[var(--brand-primary)] focus:outline-none'
 const emptyForm: AcademicSectionInput = { session_id: '', class_id: '', name: '', code: '', display_order: 0, is_active: true }
 
 export function SectionsPage({ canManage }: { canManage: boolean }) {
@@ -63,13 +63,13 @@ export function SectionsPage({ canManage }: { canManage: boolean }) {
 
   return <div className="space-y-6">
     <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-sm font-bold uppercase tracking-widest text-teal-700">{t('academicStructure')}</p>
+      <p className="text-sm font-bold uppercase tracking-widest text-[var(--brand-ink)]">{t('academicStructure')}</p>
       <h1 className="mt-2 text-3xl font-bold text-slate-900">{t('sectionsHeading')}</h1>
       <p className="mt-2 text-slate-600">{t('sectionsDescription')}</p>
       <nav className="mt-5 flex flex-wrap gap-2" aria-label={t('academicStructure')}>
-        <Link to="/admin/academic/sessions" className="rounded-lg bg-teal-50 px-4 py-2 font-semibold text-teal-800">{t('academicSessions')}</Link>
-        <Link to="/admin/academic/classes" className="rounded-lg bg-teal-50 px-4 py-2 font-semibold text-teal-800">{t('classesHeading')}</Link>
-        <Link to="/admin/academic/subjects" className="rounded-lg bg-teal-50 px-4 py-2 font-semibold text-teal-800">{t('subjectsHeading')}</Link>
+        <Link to="/admin/academic/sessions" className="rounded-lg bg-[var(--brand-soft)] px-4 py-2 font-semibold text-[var(--brand-ink)]">{t('academicSessions')}</Link>
+        <Link to="/admin/academic/classes" className="rounded-lg bg-[var(--brand-soft)] px-4 py-2 font-semibold text-[var(--brand-ink)]">{t('classesHeading')}</Link>
+        <Link to="/admin/academic/subjects" className="rounded-lg bg-[var(--brand-soft)] px-4 py-2 font-semibold text-[var(--brand-ink)]">{t('subjectsHeading')}</Link>
       </nav>
     </header>
     {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-800">{error}</p>}
@@ -82,7 +82,7 @@ export function SectionsPage({ canManage }: { canManage: boolean }) {
           <label className="text-sm font-semibold">{t('sectionSession')}<select className={field} value={sessionFilter} onChange={(e) => { setSessionFilter(e.target.value); setPage(1) }}><option value="">{t('sectionAllSessions')}</option>{sessions.data?.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="text-sm font-semibold">{t('sectionClass')}<select className={field} value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setPage(1) }}><option value="">{t('sectionAllClasses')}</option>{classes.data?.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         </div>
-        {listing.isPending ? <p role="status" className="mt-4">{t('academicLoading')}</p> : listing.isError ? <p role="alert" className="mt-4 text-rose-700">{t('academicLoadError')}</p> : listing.data.items.length === 0 ? <p className="mt-4 text-slate-600">{t('academicEmpty')}</p> : <ul className="mt-4 space-y-2">{listing.data.items.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="font-semibold text-slate-900">{item.name} <span className="font-normal text-slate-500">({item.code})</span></p><p className="text-sm text-slate-600">{item.session_name} · {item.class_name} · {t('displayOrder')}: {item.display_order} · {t(item.is_active ? 'active' : 'inactive')}</p></div>{canManage && <button type="button" className="rounded-lg px-3 py-2 font-semibold text-teal-800 hover:bg-teal-50" onClick={() => edit(item)}>{t('edit')}</button>}</li>)}</ul>}
+        {listing.isPending ? <p role="status" className="mt-4">{t('academicLoading')}</p> : listing.isError ? <p role="alert" className="mt-4 text-rose-700">{t('academicLoadError')}</p> : listing.data.items.length === 0 ? <p className="mt-4 text-slate-600">{t('academicEmpty')}</p> : <ul className="mt-4 space-y-2">{listing.data.items.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="font-semibold text-slate-900">{item.name} <span className="font-normal text-slate-500">({item.code})</span></p><p className="text-sm text-slate-600">{item.session_name} · {item.class_name} · {t('displayOrder')}: {item.display_order} · {t(item.is_active ? 'active' : 'inactive')}</p></div>{canManage && <button type="button" className="rounded-lg px-3 py-2 font-semibold text-[var(--brand-ink)] hover:bg-[var(--brand-soft)]" onClick={() => edit(item)}>{t('edit')}</button>}</li>)}</ul>}
         <div className="mt-5 flex items-center justify-between gap-3 text-sm"><button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t('previous')}</button><span>{t('pageOf', { page, total: pages })}</span><button type="button" className="rounded-lg border px-3 py-2 disabled:opacity-40" disabled={page >= pages} onClick={() => setPage(page + 1)}>{t('next')}</button></div>
       </section>
       {canManage && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label={t('academicEditor')}>
@@ -95,7 +95,7 @@ export function SectionsPage({ canManage }: { canManage: boolean }) {
           <label className="block text-sm font-semibold">{t('sectionCode')}<input required maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_-]*" className={field} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
           <label className="block text-sm font-semibold">{t('displayOrder')}<input required type="number" min="0" max="100000" className={field} value={form.display_order} onChange={(e) => setForm({ ...form, display_order: Number(e.target.value) })} /></label>
           <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />{t('active')}</label>
-          <div className="flex flex-wrap gap-2"><button disabled={busy} className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{t('saveChanges')}</button>{editingId && <button type="button" className="rounded-lg border px-4 py-2" onClick={() => { setEditingId(''); setForm(emptyForm) }}>{t('cancel')}</button>}</div>
+          <div className="flex flex-wrap gap-2"><button disabled={busy} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 font-semibold text-[var(--brand-on)] disabled:opacity-50">{t('saveChanges')}</button>{editingId && <button type="button" className="rounded-lg border px-4 py-2" onClick={() => { setEditingId(''); setForm(emptyForm) }}>{t('cancel')}</button>}</div>
         </form>
         {(sessions.data && sessions.data.total > 100 || classes.data && classes.data.total > 100) && <p className="mt-3 text-sm text-amber-700">{t('sectionOptionsLimit')}</p>}
       </section>}

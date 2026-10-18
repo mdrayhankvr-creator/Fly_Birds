@@ -199,7 +199,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
     </section>
 
     <Tabs label={t('studentAttendanceHeading')} value={tab} onChange={value => setTab(value)} items={[
-      { value: 'daily', label: t('attendanceDaily'), badge: dirty ? <span className="rounded-full bg-[var(--brand-primary)] px-1.5 text-xs text-white">{changed.length}</span> : undefined },
+      { value: 'daily', label: t('attendanceDaily'), badge: dirty ? <span className="rounded-full bg-[var(--brand-primary)] px-1.5 text-xs text-[var(--brand-on)]">{changed.length}</span> : undefined },
       { value: 'monthly', label: t('attendanceMonthly') },
       ...(canAlerts ? [{ value: 'alerts' as Tab, label: t('studentAttendanceAlerts') }] : []),
     ]} />
@@ -236,7 +236,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
               <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={t('attnProgress', { marked, total: items.length })}>
                 {(['present', 'late', 'absent'] as const).map(s => <div key={s} className={tones[s].dot} style={{ width: `${(counts[s] / items.length) * 100}%` }} />)}</div></div>
             <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label={t('attnFilter')}>{filters.map(f => <button key={f.value} type="button" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${filter === f.value ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>{f.label} <span className="tabular-nums opacity-80">{f.count}</span></button>)}</div>
+              <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label={t('attnFilter')}>{filters.map(f => <button key={f.value} type="button" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${filter === f.value ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-[var(--brand-on)]' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>{f.label} <span className="tabular-nums opacity-80">{f.count}</span></button>)}</div>
               <label className="sr-only" htmlFor="attn-search">{t('studentAttendanceSearch')}</label>
               <input id="attn-search" type="search" className={`${ui.field} mt-0 lg:max-w-xs`} placeholder={t('attnSearchPlaceholder')} value={search} onChange={event => setSearch(event.target.value)} />
             </div>
@@ -260,7 +260,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
                     <div className="min-w-0"><p className="truncate font-semibold text-slate-900">{display}</p>
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span>{item.admission_no}</span>
                         {item.status && !draft && <StatusBadge tone={item.status}>{t('attnSaved')}{item.source === 'qr' ? ' · QR' : ''}</StatusBadge>}
-                        {draft && <span className="font-semibold text-[var(--brand-primary)]">{item.record_id ? t('attnCorrection') : t('attnUnsaved')}</span>}
+                        {draft && <span className="font-semibold text-[var(--brand-ink)]">{item.record_id ? t('attnCorrection') : t('attnUnsaved')}</span>}
                         {isStale && <StatusBadge tone="late">{t('attnChangedElsewhere')}</StatusBadge>}</p></div>
                   </div>
                   <div className="flex items-center gap-2 md:shrink-0">

@@ -1,3 +1,4 @@
+import { confirmAction } from '../components/ConfirmDialog'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -109,7 +110,7 @@ function DiaryEditor({ assignment, date, onSaved }: { assignment: DiaryAssignmen
       <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
         <button type="submit" className={ui.secondary} disabled={busy || uploading}>{diary?.status === 'published' ? t('m9SaveChanges') : t('m9SaveDraft')}</button>
         {diary?.status !== 'published' && <button type="button" className={ui.primary} disabled={busy || uploading || empty} onClick={() => void publish()}>{t('m9PublishDiary')}</button>}
-        {diary?.status === 'draft' && <button type="button" className={`${ui.secondary} text-rose-700`} disabled={busy} onClick={() => { if (window.confirm(t('m9ConfirmDelete'))) void run(async () => { await authorized(token => deleteDiary(token, diary.id)); setDiaryId(null); setForm(emptyInput); setFiles([]) }, 'm9DeletedOk') }}>{t('m9Delete')}</button>}
+        {diary?.status === 'draft' && <button type="button" className={`${ui.secondary} text-rose-700`} disabled={busy} onClick={async () => { if ((await confirmAction(t('m9ConfirmDelete')))) void run(async () => { await authorized(token => deleteDiary(token, diary.id)); setDiaryId(null); setForm(emptyInput); setFiles([]) }, 'm9DeletedOk') }}>{t('m9Delete')}</button>}
       </div>
       {empty && diary?.status !== 'published' && <p className="text-xs text-slate-500">{t('m9PublishNeedsContent')}</p>}
     </form>
