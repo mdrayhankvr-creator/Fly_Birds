@@ -145,17 +145,17 @@ paths:
     put:
       operationId: replaceRolePermissions
       summary: Replace all grants for one role
-      description: Requires permissions:manage and an administrator account. Valid IDs are unique. The admin role must retain auth:read_self and permissions:manage. Changes are atomic and effective for active sessions.
+      description: Requires permissions:manage and an administrator account. Valid IDs are unique. The admin role must retain auth:read_self and permissions:manage. Changes are atomic and effective for active sessions. Optional expected_ids (the grants the editor loaded) makes the save fail with 409 permissions_changed if another administrator changed the role meanwhile.
       tags: [authorization]
       security: [{ bearerAuth: [] }]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IDListRequest' } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [ids], additionalProperties: false, properties: { ids: { type: array, items: { type: string } }, expected_ids: { type: array, items: { type: string } } } } } } }
       responses:
         '200': { $ref: '#/components/responses/IDList' }
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/LastAdmin' }
+        '409': { description: protected grant or permissions_changed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /users/{id}/roles:
     parameters: [{ $ref: '#/components/parameters/UserId' }]
@@ -260,17 +260,17 @@ paths:
     put:
       operationId: setSchoolModule
       summary: Enable or disable an optional module
-      description: Requires an active administrator with modules:manage. Core modules cannot be disabled. Status is read from PostgreSQL on each module-protected request.
+      description: Requires an active administrator with modules:manage. Core modules cannot be disabled. Enabling needs every module in depends_on enabled and disabling is refused while enabled modules depend on it (409 module_dependencies with kind requires or required_by and the blocking modules). With cascade true those modules are switched too, in one transaction, each change audited. Status is read from PostgreSQL on each module-protected request.
       tags: [school]
       security: [{ bearerAuth: [] }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], additionalProperties: false, properties: { enabled: { type: boolean } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], additionalProperties: false, properties: { enabled: { type: boolean }, cascade: { type: boolean, default: false } } } } } }
       responses:
         '200': { description: Updated module, content: { application/json: { schema: { $ref: '#/components/schemas/ModuleResponse' } } } }
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: Core module cannot be disabled, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: core_module, or module_dependencies with kind and modules, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /users:
     get:
       operationId: listUsers
@@ -358,12 +358,17 @@ paths:
       operationId: listAuditEvents
       tags: [audit]
       summary: Read audit events
-      description: Requires active admin, audit:read, and the permissions module. Sort is newest or oldest by timestamp and event ID. There are no audit mutation endpoints.
+      description: Requires active admin, audit:read, and the permissions module. Sort is newest or oldest by timestamp and event ID. Items include the actor's name, email and role. There are no audit mutation endpoints. Refused requests to administrative routes by signed-in users are recorded with outcome denied and action admin.access_denied.
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: actor, in: query, schema: { type: string, format: uuid } }
         - { name: action, in: query, schema: { type: string } }
         - { name: target_type, in: query, schema: { type: string } }
+        - { name: target_id, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: outcome, in: query, schema: { type: string, enum: [success, denied] } }
+        - { name: from, in: query, schema: { type: string, format: date }, description: Bangladesh date }
+        - { name: to, in: query, schema: { type: string, format: date }, description: Bangladesh date }
+        - { name: search, in: query, schema: { type: string, maxLength: 100 }, description: Matches action, target id and actor name or email }
         - { name: sort, in: query, schema: { type: string, enum: [newest, oldest], default: newest } }
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
@@ -2112,6 +2117,102 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { answer_text: { type: string, maxLength: 10000 }, file_ids: { type: array, maxItems: 5, items: { type: string, format: uuid } } } } } } }
       responses: { '200': { description: Submission }, '409': { description: submission_closed or already reviewed }, '403': { description: Permission, role or module denied } }
+  /audit/actions:
+    get:
+      operationId: listAuditActions
+      tags: [audit]
+      summary: Recorded audit action names with counts for filtering
+      description: Requires active admin, audit:read and the permissions module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Action counts }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /permissions/matrix:
+    get:
+      operationId: getPermissionMatrix
+      tags: [authorization]
+      summary: Every role (with active user count), permission (with group) and grant, plus protected grants
+      description: Requires active admin and permissions:read. Protected grants (admin auth:read_self and permissions:manage) cannot be removed.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Permission matrix }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /roles/{id}/permissions/history:
+    get:
+      operationId: getRolePermissionHistory
+      tags: [authorization]
+      summary: Saved permission changes for a role as additions and removals, newest first
+      description: Requires active admin and permissions:read. Built from permissions.replace audit events.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RoleId' }, { name: page, in: query, schema: { type: integer, minimum: 1 } }, { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }]
+      responses: { '200': { description: Paginated history }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Administrator control center summary
+      description: Requires active admin and system:read. Users by role, locked accounts, active students, guardians and staff, modules, fees outstanding and overdue, exams, mock SMS queue, attachments, audit activity and denied attempts in the last day, last backup, schema version and database size.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Overview }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /admin/exports:
+    get:
+      operationId: listExportDatasets
+      tags: [admin]
+      summary: Exportable datasets with row counts
+      description: Requires active admin and data:export. Ranged datasets (student_attendance, fee_payments, ledger, audit_log) report counts for from..to (up to 400 days) and -1 without a valid range.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: from, in: query, schema: { type: string, format: date } }, { name: to, in: query, schema: { type: string, format: date } }]
+      responses: { '200': { description: Datasets }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /admin/exports/{dataset}:
+    get:
+      operationId: exportDataset
+      tags: [admin]
+      summary: Download one dataset as CSV
+      description: Requires active admin and data:export. UTF-8 with a byte order mark; cells starting with = + - @ tab or carriage return are prefixed with an apostrophe to prevent spreadsheet formula injection. Password hashes, sessions and file contents are never exported. Every export is audited (data.exported).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: dataset, in: path, required: true, schema: { type: string, enum: [users, students, guardians, staff, student_attendance, exam_results, fee_payments, ledger, audit_log] } }
+        - { name: from, in: query, schema: { type: string, format: date }, description: Required for ranged datasets }
+        - { name: to, in: query, schema: { type: string, format: date }, description: Required for ranged datasets }
+      responses: { '200': { description: CSV file, content: { text/csv: { schema: { type: string } } } }, '400': { description: Missing or invalid range }, '404': { description: Unknown dataset } }
+  /admin/backups:
+    get:
+      operationId: listBackups
+      tags: [admin]
+      summary: Backup runs, newest first, with the retention count
+      description: Requires active admin and backups:manage.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated backup runs } }
+    post:
+      operationId: createBackup
+      tags: [admin]
+      summary: Take a consistent backup now
+      description: Requires active admin and backups:manage. Copies every table except auth_sessions in one read-only REPEATABLE READ snapshot plus sequence values and attachments into a .tar.gz with a SHA-256 manifest under BACKUP_DIR, then prunes archives beyond BACKUP_RETENTION. Archives contain personal data and password hashes and must be stored securely. Restore with the restore-backup command.
+      security: [{ bearerAuth: [] }]
+      responses: { '201': { description: Completed run }, '409': { description: backup_running } }
+  /admin/backups/{id}:
+    delete:
+      operationId: deleteBackup
+      tags: [admin]
+      summary: Delete a backup archive
+      description: Requires active admin and backups:manage. The run stays in the history as deleted.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '404': { description: Unknown or already deleted } }
+  /admin/backups/{id}/verify:
+    post:
+      operationId: verifyBackup
+      tags: [admin]
+      summary: Re-check an archive's checksum and every manifest entry
+      description: Requires active admin and backups:manage. Audited as backup.verified.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Verification result } }
+  /admin/backups/{id}/download:
+    get:
+      operationId: downloadBackup
+      tags: [admin]
+      summary: Download a backup archive
+      description: Requires active admin and backups:manage. Audited as backup.downloaded.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Archive, content: { application/gzip: { schema: { type: string, format: binary } } } }, '404': { description: Unavailable } }
 components:
   securitySchemes:
     bearerAuth:
