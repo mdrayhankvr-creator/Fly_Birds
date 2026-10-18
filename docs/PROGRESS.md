@@ -26,6 +26,23 @@ Branch `feature/m7-exams-results` starts at M6-enabled `origin/main` merge `c26f
 
 Verification passed: Go vet; full Go suite on a fresh isolated PostgreSQL database; dedicated migration, grading, lifecycle, merit, permission, module and visibility tests; OpenAPI route/reference checks; TypeScript and production build; Edge desktop/mobile role checks in English and Bangla. The report card print stylesheet was visually verified in print media, with only the report card visible. This Edge instance returned “Printing is not available” for its PDF command, so a generated PDF file was not verified. Remote CI, production migration and deployment remain unverified. The test database, test accounts and browser profile were isolated from application data and volumes. Overall **48/83 = 57.8%**; M7 **8/8 = 100% locally**.
 
+## M0–M7 Comprehensive QA, Security and Performance Audit (2026-10-18)
+
+Branch `test/comprehensive-system-audit` audited M0–M7 on an isolated stack with 500 students, 500 guardians, 50 staff, 10,000 attendance records and 2,500 exam marks. The audit adds no roadmap criteria; completion stays at **48/83 = 57.8%**.
+
+It fixed connection-pool churn (throughput up to 4×, p95 192 → 41 ms on a mixed burst) and HTTP 500s from NUL input. It also added edge login throttling and anti-framing headers. Three i18n defects were fixed (raw translation keys, English subject names on Bangla report cards, and a missing Bengali font fallback), and a test-isolation issue was resolved. Regression tests cover each fix.
+
+Final results:
+
+- Full Go suite on fresh PostgreSQL: PASS. Race detector: no data races.
+- OpenAPI, TypeScript, build and `check:i18n`: PASS.
+- Migrations (fresh and M6 → M7 upgrade), backup and restore: PASS.
+- Live checks: security 109/110 (throttling verified at the edge), concurrency 30/30, functional 39/39.
+- Real browser: 149/149. axe: 0 WCAG A/AA violations in 40 scans. Real English and Bangla PDFs inspected.
+- Not tested: camera QR scanning, remote CI and deployment.
+
+See the [audit report](QA_AUDIT_M0_M7.md).
+
 ## M0–M6 Full System QA (2026-10-17)
 
 Branch `fix/m0-m6-full-system-qa` starts from `origin/main` at `c26f8e9` (M6 merged). This QA pass adds no roadmap criteria, so it does not change the completion percentages above.
