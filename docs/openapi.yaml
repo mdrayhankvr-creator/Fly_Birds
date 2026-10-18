@@ -1734,6 +1734,384 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/FeeFrom' }, { $ref: '#/components/parameters/FeeTo' }]
       responses: { '200': { description: Accounting summary } }
+  /notices:
+    get:
+      operationId: listNoticeFeed
+      summary: "Live notices addressed to the signed-in user, urgent first"
+      description: "Requires notices:read. Requires the notices module. Students and guardians see class/section-targeted notices only for their (linked) class; teachers for classes they teach."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated feed }, '403': { description: Permission, role or module denied } }
+    post:
+      operationId: createNotice
+      summary: "Create a draft notice"
+      description: "Requires notices:manage and admin or head teacher role. Requires the notices module. Audience roles, optional class/section targets, priority, expiry and up to 10 attachment ids from the author's own uploads."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoticeInput' } } } }
+      responses: { '201': { description: Draft notice }, '400': { description: Invalid input or attachment }, '403': { description: Permission, role or module denied } }
+  /notices/manage:
+    get:
+      operationId: listManagedNotices
+      summary: "All notices with status filter (draft, published, scheduled, expired, archived)"
+      description: "Requires notices:manage. Requires the notices module."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated notices }, '403': { description: Permission, role or module denied } }
+  /notices/files:
+    post:
+      operationId: uploadNoticeFile
+      summary: "Upload a PDF, JPEG or PNG for a notice"
+      description: "Requires notices:manage and admin or head teacher role. Type is detected from content; PDFs up to 10 MiB without active content, images up to 5 MiB re-encoded to strip metadata."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Upload id }, '413': { description: Too large }, '415': { description: Unsupported type }, '403': { description: Permission, role or module denied } }
+  /notices/{id}:
+    get:
+      operationId: getNotice
+      summary: "Read one notice"
+      description: "Requires notices:read. Managers see any notice; others only live notices addressed to them."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Notice }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+    patch:
+      operationId: updateNotice
+      summary: "Edit a draft or published notice"
+      description: "Requires notices:manage and admin or head teacher role. Archived notices cannot change."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoticeInput' } } } }
+      responses: { '200': { description: Notice }, '409': { description: Archived }, '403': { description: Permission, role or module denied } }
+    delete:
+      operationId: deleteNotice
+      summary: "Delete a draft notice"
+      description: "Requires notices:manage and admin or head teacher role."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '409': { description: Not a draft }, '403': { description: Permission, role or module denied } }
+  /notices/{id}/publish:
+    post:
+      operationId: publishNotice
+      summary: "Publish now or schedule a notice"
+      description: "Requires notices:manage and admin or head teacher role. Optional RFC 3339 publish_at schedules it; expiry must be later."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { publish_at: { type: string, format: date-time, nullable: true } } } } } }
+      responses: { '200': { description: Notice }, '403': { description: Permission, role or module denied } }
+  /notices/{id}/archive:
+    post:
+      operationId: archiveNotice
+      summary: "Archive a notice"
+      description: "Requires notices:manage and admin or head teacher role. Unread notifications for it are withdrawn on the next dispatch."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Notice }, '403': { description: Permission, role or module denied } }
+  /notices/{id}/files/{fileId}:
+    get:
+      operationId: getNoticeFile
+      summary: "Download a notice attachment"
+      description: "Requires notices:read and visibility of the notice. Served with nosniff, no-store and a sandbox CSP; ?download=1 forces a download."
+      tags: [notices]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: File }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+  /events:
+    get:
+      operationId: listEvents
+      summary: "Events overlapping from..to (at most 400 days)"
+      description: "Requires events:read. Requires the notices module. Others see published and cancelled events addressed to them; managers add manage=1 to include drafts."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Events }, '403': { description: Permission, role or module denied } }
+    post:
+      operationId: createEvent
+      summary: "Create a draft event"
+      description: "Requires events:manage and admin or head teacher role. Kinds holiday, exam, meeting, event, other; all-day or timed; end not before start."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EventInput' } } } }
+      responses: { '201': { description: Event }, '403': { description: Permission, role or module denied } }
+  /events/{id}:
+    patch:
+      operationId: updateEvent
+      summary: "Edit an event"
+      description: "Requires events:manage and admin or head teacher role."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EventInput' } } } }
+      responses: { '200': { description: Event }, '403': { description: Permission, role or module denied } }
+    delete:
+      operationId: deleteEvent
+      summary: "Delete a draft event"
+      description: "Requires events:manage and admin or head teacher role."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '403': { description: Permission, role or module denied } }
+  /events/{id}/publish:
+    post:
+      operationId: publishEvent
+      summary: "Publish a draft or cancelled event"
+      description: "Requires events:manage and admin or head teacher role."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Event }, '403': { description: Permission, role or module denied } }
+  /events/{id}/cancel:
+    post:
+      operationId: cancelEvent
+      summary: "Cancel a published event"
+      description: "Requires events:manage and admin or head teacher role. Cancelled events stay visible as cancelled."
+      tags: [events]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Event }, '403': { description: Permission, role or module denied } }
+  /notifications:
+    get:
+      operationId: listNotifications
+      summary: "Own notifications, unread first, with the unread count"
+      description: "Requires notifications:read_self. Requires the notices module. unread=1 lists unread only; withdrawn notifications are hidden."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Inbox }, '403': { description: Permission, role or module denied } }
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      summary: "Mark all own notifications read"
+      description: "Requires notifications:read_self."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Count }, '403': { description: Permission, role or module denied } }
+  /notifications/preferences:
+    get:
+      operationId: getNotificationPreferences
+      summary: "Own in-app and SMS preferences per category"
+      description: "Requires notifications:read_self. Categories notice, absence, result, fee, diary; defaults are on."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Preferences }, '403': { description: Permission, role or module denied } }
+    put:
+      operationId: saveNotificationPreferences
+      summary: "Save own preferences"
+      description: "Requires notifications:read_self. Urgent notices are always delivered in-app."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { type: object, properties: { category: { type: string }, in_app: { type: boolean }, sms: { type: boolean } } } } } } } } }
+      responses: { '200': { description: Preferences }, '403': { description: Permission, role or module denied } }
+  /notifications/dispatch:
+    post:
+      operationId: dispatchNotifications
+      summary: "Run notification dispatch now"
+      description: "Requires notifications:manage and administrator role. Idempotent: creates due notifications, withdraws corrected ones and hands queued SMS to the mock provider. The background worker runs the same step every NOTIFY_INTERVAL."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Dispatch counts }, '403': { description: Permission, role or module denied } }
+  /notifications/sms:
+    get:
+      operationId: listMockSMS
+      summary: "Mock SMS log with masked numbers"
+      description: "Requires notifications:manage and administrator role. status sent_mock means the mock provider accepted the message; no SMS is delivered to a phone."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated log with counts }, '403': { description: Permission, role or module denied } }
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      summary: "Mark one own notification read"
+      description: "Requires notifications:read_self. Other users' notifications read as not found."
+      tags: [notifications]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Read }, '404': { description: Not found }, '403': { description: Permission, role or module denied } }
+  /diary/assignments:
+    get:
+      operationId: listDiaryAssignments
+      summary: "Sections and subjects the teacher may write for, with that day's diary status"
+      description: "Requires diary:write. Requires the diary module. Based on active teacher assignments in the active session."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Assignments }, '403': { description: Permission, role or module denied } }
+  /diary/teaching:
+    get:
+      operationId: listOwnDiaries
+      summary: "The teacher's own diaries"
+      description: "Requires diary:write. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated diaries }, '403': { description: Permission, role or module denied } }
+  /diary:
+    post:
+      operationId: createDiary
+      summary: "Create a draft diary"
+      description: "Requires diary:write and teacher or head teacher role. The teacher must be assigned to the section's class and the subject in the session; the date must be inside the session and at most 7 days ahead. One diary per section, subject and day."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DiaryInput' } } } }
+      responses: { '201': { description: Draft }, '403': { description: Not assigned }, '409': { description: Already exists } }
+  /diary/files:
+    post:
+      operationId: uploadDiaryFile
+      summary: "Upload a PDF or image for a diary"
+      description: "Requires diary:write and teacher or head teacher role. Same validation as notice files."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Upload id }, '413': { description: Too large }, '415': { description: Unsupported type }, '403': { description: Permission, role or module denied } }
+  /diary/me:
+    get:
+      operationId: listOwnClassDiary
+      summary: "Published diaries of the student's current section"
+      description: "Requires diary:read_self and student role. Requires the diary module. Filters from, to, subject_id, search."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated diaries }, '403': { description: Permission, role or module denied } }
+  /diary/children/{studentId}:
+    get:
+      operationId: listChildClassDiary
+      summary: "Published diaries of a linked child's section"
+      description: "Requires diary:read_children and guardian role. Unlinked students read as not found."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Paginated diaries }, '404': { description: Not linked }, '403': { description: Permission, role or module denied } }
+  /diary/all:
+    get:
+      operationId: listAllDiaries
+      summary: "All diaries for oversight"
+      description: "Requires diary:read. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Paginated diaries }, '403': { description: Permission, role or module denied } }
+  /diary/compliance:
+    get:
+      operationId: getDiaryCompliance
+      summary: "Diary status per assigned section and subject for a date"
+      description: "Requires diary:read. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Rows }, '403': { description: Permission, role or module denied } }
+  /diary/settings:
+    get:
+      operationId: getDiarySettings
+      summary: "Daily publication settings"
+      description: "Requires diary:manage. Requires the diary module."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Settings }, '403': { description: Permission, role or module denied } }
+    put:
+      operationId: saveDiarySettings
+      summary: "Require daily publication and set the teacher reminder time"
+      description: "Requires diary:manage and administrator role. Reminders go to teachers with unpublished diaries after reminder_time (Bangladesh time), except Fridays."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [daily_required, reminder_time], properties: { daily_required: { type: boolean }, reminder_time: { type: string, example: '16:00' } } } } } }
+      responses: { '200': { description: Settings }, '403': { description: Permission, role or module denied } }
+  /diary/homework/files:
+    post:
+      operationId: uploadHomeworkFile
+      summary: "Upload a homework file"
+      description: "Requires diary:read_self and student role. Same validation as other attachments."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Upload id }, '403': { description: Permission, role or module denied } }
+  /diary/submissions/{id}/review:
+    patch:
+      operationId: reviewHomework
+      summary: "Mark a submission reviewed with a note"
+      description: "Requires diary:write and teacher or head teacher role; only the diary author. Reviewed submissions can no longer be changed by the student."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { note: { type: string, maxLength: 2000 } } } } } }
+      responses: { '200': { description: Submission }, '403': { description: Permission, role or module denied } }
+  /diary/submissions/{id}/files/{fileId}:
+    get:
+      operationId: getHomeworkFile
+      summary: "Download a homework file"
+      description: "Requires Any diary permission; allowed for the student, linked guardians, the diary author and oversight."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: File }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+  /diary/{id}:
+    get:
+      operationId: getDiary
+      summary: "Read one diary"
+      description: "Requires Any diary permission. Authors and oversight see any status; students and guardians only published diaries of the (linked) student's section (guardians may pass student_id)."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Diary }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+    patch:
+      operationId: updateDiary
+      summary: "Edit own diary content, submission settings and files"
+      description: "Requires diary:write and teacher or head teacher role; author only, while still assigned."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DiaryInput' } } } }
+      responses: { '200': { description: Diary }, '403': { description: No longer assigned } }
+    delete:
+      operationId: deleteDiary
+      summary: "Delete own draft diary"
+      description: "Requires diary:write and teacher or head teacher role."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '409': { description: Published }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/publish:
+    post:
+      operationId: publishDiary
+      summary: "Publish own diary"
+      description: "Requires diary:write and teacher or head teacher role. Needs some content."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Diary }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/files/{fileId}:
+    get:
+      operationId: getDiaryFile
+      summary: "Download a diary attachment"
+      description: "Requires Any diary permission and visibility of the diary."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: fileId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: File }, '404': { description: Not visible }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/submissions:
+    get:
+      operationId: listHomeworkSubmissions
+      summary: "Section roster with each student's submission"
+      description: "Requires diary:write (author) or diary:read."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Submissions; status missing for non-submitters }, '403': { description: Permission, role or module denied } }
+  /diary/{id}/submission:
+    get:
+      operationId: getOwnHomework
+      summary: "The student's own submission"
+      description: "Requires diary:read_self."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Submission }, '404': { description: None }, '403': { description: Permission, role or module denied } }
+    put:
+      operationId: submitHomework
+      summary: "Submit or replace homework"
+      description: "Requires diary:read_self and student role. Only when the diary is published, submission is enabled, any due time has not passed and the work is not yet reviewed. Text and/or up to 5 own homework uploads."
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { answer_text: { type: string, maxLength: 10000 }, file_ids: { type: array, maxItems: 5, items: { type: string, format: uuid } } } } } } }
+      responses: { '200': { description: Submission }, '409': { description: submission_closed or already reviewed }, '403': { description: Permission, role or module denied } }
 components:
   securitySchemes:
     bearerAuth:
@@ -1813,6 +2191,48 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    NoticeInput:
+      type: object
+      required: [title_en, audience_roles]
+      properties:
+        title_en: { type: string, maxLength: 200 }
+        title_bn: { type: string }
+        body_en: { type: string }
+        body_bn: { type: string, description: At least one body is required }
+        priority: { type: string, enum: [normal, important, urgent] }
+        audience_roles: { type: array, minItems: 1, items: { type: string, enum: [head_teacher, teacher, student, guardian, accountant] } }
+        targets: { type: array, maxItems: 50, items: { type: object, required: [class_id], properties: { class_id: { type: string, format: uuid }, section_id: { type: string, format: uuid, nullable: true } } } }
+        expires_at: { type: string, format: date-time, nullable: true }
+        file_ids: { type: array, maxItems: 10, items: { type: string, format: uuid } }
+    EventInput:
+      type: object
+      required: [title_en, kind, starts_on, ends_on, audience_roles]
+      properties:
+        title_en: { type: string, maxLength: 200 }
+        title_bn: { type: string }
+        description_en: { type: string }
+        description_bn: { type: string }
+        kind: { type: string, enum: [holiday, exam, meeting, event, other] }
+        starts_on: { type: string, format: date }
+        ends_on: { type: string, format: date }
+        start_time: { type: string, example: '09:00', nullable: true }
+        end_time: { type: string, example: '11:00', nullable: true }
+        location: { type: string }
+        audience_roles: { type: array, items: { type: string } }
+        targets: { type: array, items: { type: object, properties: { class_id: { type: string, format: uuid }, section_id: { type: string, format: uuid, nullable: true } } } }
+    DiaryInput:
+      type: object
+      properties:
+        section_id: { type: string, format: uuid, description: Required on create }
+        subject_id: { type: string, format: uuid, description: Required on create }
+        diary_date: { type: string, format: date, description: Required on create }
+        lesson_topics: { type: string }
+        class_notes: { type: string }
+        homework: { type: string }
+        instructions: { type: string }
+        submission_enabled: { type: boolean, default: false }
+        submission_due_at: { type: string, format: date-time, nullable: true, description: Only with submission_enabled }
+        file_ids: { type: array, maxItems: 10, items: { type: string, format: uuid } }
     FeeCategoryInput:
       type: object
       required: [code, name_en, frequency]
