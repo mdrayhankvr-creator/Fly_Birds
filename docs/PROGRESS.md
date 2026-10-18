@@ -4,11 +4,54 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 61 verified criteria / 83 total criteria x 100 = **73.5%**.
-- **Current milestone completion:** 7 verified M9 criteria / 7 M9 criteria = **100% locally**. The approved Daily Class Diary extension is also verified; it is outside the brief's 83 criteria and does not change the denominator.
-- **Remaining:** 22 criteria in M10–M13. **Next planned milestone:** M10 Admin Control Center, only after explicit approval.
+- **Overall completion:** 66 verified criteria / 83 total criteria x 100 = **79.5%**.
+- **Current milestone completion:** 5 verified M10 criteria / 5 M10 criteria = **100% locally**.
+- **Remaining:** 17 criteria in M11–M13. **Next planned milestone:** M11 Analytics, only after explicit approval.
 
-M0–M8 and the attendance UX redesign are merged into main (M7 through PR #10, the M0–M6 QA fixes through PR #11, M8 through PR #12, attendance UX through PR #13). M9 is complete locally on `feature/m9-notices-diary`, which is not pushed.
+M0–M9 and the attendance UX redesign are merged into main (M9 through PR #14). M10 is complete locally on `feature/m10-admin-controls`, which is not pushed.
+
+## Current Status — M10 Admin Control Center (2026-10-18)
+
+M10 extends the M1 settings, RBAC, module and audit foundations instead of replacing them. No table is recreated, and the existing `/roles`, `/permissions`, `/school/modules` and `/audit/events` routes keep their contracts, with optional additions only.
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Audit log viewer | `/admin/audit` lists events with the actor's name, email and role. It filters by action (with counts from `GET /audit/actions`), outcome, Bangladesh date range and an escaped text search over action, target and person, with expandable metadata, newest/oldest order and paging. Signed-in users refused (401/403) by administrative routes are now recorded as `admin.access_denied` with method, route and reason only. The log stays append-only |
+| Data export | `/admin/exports` streams nine CSV datasets: users, students, guardians, staff, student attendance, exam results, fee payments, ledger and audit log. Dated datasets need a range of at most 400 days. Files are UTF-8 with a BOM so Bangla opens correctly in spreadsheets, and cells starting with `= + - @`, tab or CR get a leading `'` against formula injection. Password hashes, sessions and file contents are never exported, and every export is audited as `data.exported` |
+| Backup | `/admin/backups` takes a consistent backup: one read-only REPEATABLE READ snapshot of every table except `auth_sessions`, plus sequence values and all attachments, in a `.tar.gz` with a SHA-256 manifest under `BACKUP_DIR` (outside the database and web root). Only one backup runs at a time, the newest `BACKUP_RETENTION` (default 10) archives are kept, and `BACKUP_INTERVAL` can schedule them. Admins verify, download and delete archives, each audited. The `restore-backup` command restores an archive into a migrated database of the same schema version and refuses a database that already has users unless `-force` is given |
+| Permission editor improvements | `/admin/permissions` groups permissions by area with search and per-group select/clear, locks the protected admin grants and shows each role's active users. Changes are reviewed as additions and removals before saving. Stale saves are refused (`expected_ids` → 409 `permissions_changed`), so two administrators cannot overwrite each other. A role comparison matrix (`GET /permissions/matrix`) and a per-role history of additions and removals from the audit log (`GET /roles/{id}/permissions/history`) were added |
+| Module management | `/admin/modules` shows every module with what it needs and what uses it. Migration `1001` records the dependencies: students and staff need academics; attendance, examinations and diary need students and staff; routine needs academics and staff; fees needs students. The API refuses a change that breaks a dependency with 409 `module_dependencies`. With `cascade`, the related modules switch in one transaction and each change is audited. School settings now link to this page instead of duplicating the toggles |
+
+**Control center.** `/admin/control` summarises accounts by role, deactivated accounts, active students, guardians and staff, enabled modules, outstanding and overdue fees, published and draft exams, the mock SMS queue, attachment storage, database size and schema version, audit activity and refused admin requests in the last 24 hours, the last backup and recent events. Each figure links to its area and comes from the database.
+
+**Security.** Every M10 route requires an active administrator plus the route's permission: `system:read`, `data:export` or `backups:manage` (new, granted to admins only), or the existing `audit:read`, `permissions:read` or `modules:read`/`modules:manage`. Head teachers, accountants and teachers get 403 on every control-center route even when granted the permission, and the refusal is audited.
+
+**Schema.** `1001_admin_control.sql` adds `module_definitions.depends_on`, the `backup_runs` table (a unique partial index allows one running backup), an audit target index and the three permissions. It is idempotent and changes no existing data.
+
+**Verification (2026-10-18).**
+- **Backend:** `go vet ./...` passed. On a freshly created disposable PostgreSQL 17 database, `go test ./... -p 1` passed in all 18 packages with `AUTH_TEST_DATABASE_URL` set, including `TestOpenAPICoversRegisteredRoutes` and every M0–M9 integration test. Tests that enabled a module without its prerequisites were adapted.
+- **Unit tests:** module dependency planning (requires, required-by and cascade), CSV formula neutralisation, export range limits and safe file names.
+- **M10 PostgreSQL HTTP test:**
+  - **Authorization:** 401 without a session and 403 for head teachers, accountants and teachers on all ten control-center routes, with the refusals recorded and searchable.
+  - **Audit and overview:** filter validation, wildcard escaping and overview figures.
+  - **Exports:** BOM, Bangla, formula neutralisation, no password hashes, range limits and auditing.
+  - **Backups:** create, concurrent-run refusal, verify, download checksum, tamper detection, retention pruning and delete.
+  - **Restore drill:** restore into a separate, freshly migrated database, comparing row counts, Bangla text and attachments; refusal over existing data and across schema versions.
+  - **Permissions and modules:** matrix, protected grants, stale-save refusal and history; dependency refusal and cascade in both directions.
+- **Frontend and Compose:** `tsc`, the production build and `docker compose config --quiet` passed. The backend Docker image build (which now also builds `restore-backup` and creates `/app/backups`) was **not verified**: Docker Desktop stopped during the build and then reported that it was unable to start, and it was not restarted because other stacks share it.
+- **Browser:** headless Edge on an isolated database, ports (8093/5193) and upload and backup directories.
+  - **Main run:** 40 of 42 checks passed. The two failures were the headless browser not saving downloads from an isolated profile.
+  - **Export bytes:** a follow-up run captured the exported file in the page and passed 4 of 4 (BOM, Bangla, neutralised formulas, no password column).
+  - **Coverage:** control center; module cascade prompts in both directions and the core-module lock; protected grants, permission search, review, stale-save refusal and reload, history and matrix; denied-request filtering and details, text search and date validation; exports and range limits; backup create, verify and delete; the settings link; head-teacher denial on every admin page; and all six admin pages in Bangla at 390 px. There was no horizontal overflow and no JavaScript exception.
+- **Fixes from verification:** unranged export counts passed unused date parameters and failed with 500; export file names now ignore invalid ranges; the audit sort control no longer stretches across the filter bar.
+- **Isolation:** the application database, QA stacks, demo-school data, application volumes and secrets were not touched.
+
+**Not verified / limitations.**
+- **Restore** is a server-operator command, not a browser action, by design. It needs a PostgreSQL superuser (the Compose database user is one) and PostgreSQL 15 or later. Restoring into a live database was not exercised; the drill used a separate database.
+- **Backups** are written to one local volume (`backups_data`). Off-site copies, encryption at rest and storage quotas are the operator's responsibility.
+- **Exports** are CSV only (no Excel or PDF), and each file covers at most 400 days.
+- **Denied-access logging** records signed-in users only; anonymous probes are not logged. Module dependencies are set by the migration and are not editable in the UI.
+- **Not run:** remote CI, production migration and deployment.
 
 ## Current Status — M9 Notices, Notifications, Events and Class Diary (2026-10-18)
 
