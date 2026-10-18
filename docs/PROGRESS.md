@@ -29,7 +29,7 @@ M10 extends the M1 settings, RBAC, module and audit foundations instead of repla
 **Schema.** `1001_admin_control.sql` adds `module_definitions.depends_on`, the `backup_runs` table (a unique partial index allows one running backup), an audit target index and the three permissions. It is idempotent and changes no existing data.
 
 **Verification (2026-10-18).**
-- **Backend:** `go vet ./...` passed. On a freshly created disposable PostgreSQL 17 database, `go test ./... -p 1` passed in all 18 packages with `AUTH_TEST_DATABASE_URL` set, including `TestOpenAPICoversRegisteredRoutes` and every M0–M9 integration test. Tests that enabled a module without its prerequisites were adapted.
+- **Backend:** `go vet ./...` passed. In a final run on 2026-10-19 against a freshly created disposable PostgreSQL 17.11 database, `go test ./... -p 1 -count=1` passed 68 of 68 top-level tests and 17 of 17 subtests, with none failed or skipped. All 18 packages with tests passed (7 packages have no test files). This includes `TestPostgresM10AdminControls`, `TestOpenAPICoversRegisteredRoutes` and every M0–M9 integration test. Tests that enabled a module without its prerequisites were adapted.
 - **Unit tests:** module dependency planning (requires, required-by and cascade), CSV formula neutralisation, export range limits and safe file names.
 - **M10 PostgreSQL HTTP test:**
   - **Authorization:** 401 without a session and 403 for head teachers, accountants and teachers on all ten control-center routes, with the refusals recorded and searchable.
@@ -38,7 +38,7 @@ M10 extends the M1 settings, RBAC, module and audit foundations instead of repla
   - **Backups:** create, concurrent-run refusal, verify, download checksum, tamper detection, retention pruning and delete.
   - **Restore drill:** restore into a separate, freshly migrated database, comparing row counts, Bangla text and attachments; refusal over existing data and across schema versions.
   - **Permissions and modules:** matrix, protected grants, stale-save refusal and history; dependency refusal and cascade in both directions.
-- **Frontend and Compose:** `tsc`, the production build and `docker compose config --quiet` passed. The backend Docker image build (which now also builds `restore-backup` and creates `/app/backups`) was **not verified**: Docker Desktop stopped during the build and then reported that it was unable to start, and it was not restarted because other stacks share it.
+- **Frontend and Compose:** `tsc`, the production build and `docker compose config --quiet` passed. The backend Docker image (Docker Engine 29.7.2) built successfully on 2026-10-19. It contains `api`, `create-user` and `restore-backup`, runs as the non-root `app` user, and has `/app/backups` and `/app/uploads` owned by that user; `restore-backup` refuses to run without `DATABASE_URL`, `-archive` and `-confirm`. The image was built only as a check and was then removed.
 - **Browser:** headless Edge on an isolated database, ports (8093/5193) and upload and backup directories.
   - **Main run:** 40 of 42 checks passed. The two failures were the headless browser not saving downloads from an isolated profile.
   - **Export bytes:** a follow-up run captured the exported file in the page and passed 4 of 4 (BOM, Bangla, neutralised formulas, no password column).
