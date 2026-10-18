@@ -12,8 +12,8 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | M5 | Attendance | 5/5 locally verified and merged into main |
 | M6 | Routine | 3/3 locally verified and merged into main |
 | M7 | Examinations and results | 8/8 locally verified and merged into main |
-| M8 | Fees and accounts | 6/6 locally verified on feature/m8-fees-accounts; review and merge pending |
-| M9 | Notices and notifications | Not started |
+| M8 | Fees and accounts | 6/6 locally verified and merged into main |
+| M9 | Notices and notifications | 7/7 locally verified on feature/m9-notices-diary, plus the approved Daily Class Diary extension; review and merge pending |
 | M10 | Admin control center | Not started |
 | M11 | Analytics | Not started |
 | M12 | UI and product polish | Not started |
