@@ -30,6 +30,7 @@ import { EventsPage } from './pages/EventsPage'
 import { AdminNotificationsPage, NotificationBell, NotificationsPage } from './pages/NotificationsPage'
 import { AdminDiaryPage, DiaryFeedPage, TeacherDiaryPage } from './pages/DiaryPages'
 import { AdminOverviewPage, AuditLogPage, BackupsPage, DataExportPage, ModulesPage } from './pages/AdminPages'
+import { AnalyticsPage, ChildrenProgressPage, MyProgressPage, ReportsPage, StaffStudentPage } from './pages/AnalyticsPages'
 
 function HealthCard() {
   const { t } = useTranslation()
@@ -247,6 +248,28 @@ function FeesGate({ mode, permissions, role, enabled, loading, error }: { mode: 
   return <FeesPage access={{ role: role ?? '', canManage: writer && permissions.includes('fees:manage'), canCollect: writer && permissions.includes('fees:collect'), canReadAccounts: permissions.includes('accounts:read'), canManageAccounts: writer && permissions.includes('accounts:manage') }} />
 }
 
+// AnalyticsGate guards the M11 pages. The server enforces the same rules and
+// narrows teacher, student and guardian data to their own records.
+function AnalyticsGate({ kind, permissions, role, enabled, loading, error }: { kind: 'school' | 'teacher' | 'reports' | 'student' | 'guardian' | 'staff-student'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <p role="status">{t('m11Eyebrow')}…</p>
+  if (error) return <p role="alert">{t('m11ErrGeneric')}</p>
+  const has = (p: string) => !!permissions?.includes(p)
+  const access = { school: has('analytics:read'), teacher: has('analytics:read_assigned'), finance: has('analytics:finance'), manage: has('analytics:manage') && role === 'admin' }
+  const allowed = enabled && ({
+    school: access.school || access.finance, teacher: access.teacher && !access.school, reports: access.school || access.teacher || access.finance,
+    student: has('analytics:read_self') && role === 'student', guardian: has('analytics:read_children') && role === 'guardian', 'staff-student': access.school || access.teacher,
+  } as Record<string, boolean>)[kind]
+  if (!allowed) return <p role="alert">{t(enabled ? 'permissionDenied' : 'm11ErrModule')}</p>
+  switch (kind) {
+    case 'reports': return <ReportsPage access={access} />
+    case 'student': return <MyProgressPage />
+    case 'guardian': return <ChildrenProgressPage />
+    case 'staff-student': return <StaffStudentPage />
+    default: return <AnalyticsPage access={kind === 'teacher' ? { ...access, school: false, finance: false } : access} />
+  }
+}
+
 function applyBranding(branding: SchoolBranding | undefined) {
   const root = document.documentElement
   const validColor = (value: string | undefined) => value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null
@@ -290,7 +313,7 @@ export default function App() {
   })
   const academicNavigation = useQuery({
     queryKey: ['dashboard', user?.id],
-    enabled: !!accessToken && !!myPermissions.data?.some((permission) => ['academics:read', 'academic_sessions:read', 'students:read', 'guardians:read', 'students:read_self', 'guardians:read_children', 'staff:read', 'staff:read_self', 'attendance:teachers_read', 'attendance:teachers_read_self', 'attendance:students_read', 'attendance:students_read_self', 'attendance:guardians_read_children', 'routine:read', 'routine:read_self', 'routine:read_children', 'fees:read', 'fees:read_self', 'fees:read_children', 'notices:read', 'events:read', 'notifications:read_self', 'diary:write', 'diary:read', 'diary:read_self', 'diary:read_children'].includes(permission)) && !myPermissions.data?.includes('modules:read'),
+    enabled: !!accessToken && !!myPermissions.data?.some((permission) => ['academics:read', 'academic_sessions:read', 'students:read', 'guardians:read', 'students:read_self', 'guardians:read_children', 'staff:read', 'staff:read_self', 'attendance:teachers_read', 'attendance:teachers_read_self', 'attendance:students_read', 'attendance:students_read_self', 'attendance:guardians_read_children', 'routine:read', 'routine:read_self', 'routine:read_children', 'fees:read', 'fees:read_self', 'fees:read_children', 'notices:read', 'events:read', 'notifications:read_self', 'diary:write', 'diary:read', 'diary:read_self', 'diary:read_children', 'analytics:read', 'analytics:read_assigned', 'analytics:finance', 'analytics:read_self', 'analytics:read_children'].includes(permission)) && !myPermissions.data?.includes('modules:read'),
     retry: false,
     refetchInterval: 15_000,
     queryFn: async () => {
@@ -342,6 +365,8 @@ export default function App() {
   const feesError = myPermissions.isError || myModules.isError || academicNavigation.isError
   const noticesEnabled = myModules.data ? moduleEnabled('notices') : !!academicNavigation.data?.navigation.some(item => item.key === 'notices' || item.key === 'events')
   const diaryEnabled = myModules.data ? moduleEnabled('diary') : !!academicNavigation.data?.navigation.some(item => item.key.startsWith('diary_'))
+  const analyticsEnabled = myModules.data ? moduleEnabled('analytics') : !!academicNavigation.data?.navigation.some(item => item.key.startsWith('analytics') || item.key === 'reports')
+  const analyticsLoading = myPermissions.isPending || (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending && academicNavigation.fetchStatus !== 'idle')
   const commLoading = myPermissions.isPending || (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending && academicNavigation.fetchStatus !== 'idle')
   const commError = myPermissions.isError || myModules.isError || academicNavigation.isError
 
@@ -401,6 +426,11 @@ export default function App() {
                     {myPermissions.data?.includes('diary:read') && diaryEnabled && <Link to="/admin/diary" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('m9DiaryOversight')}</Link>}
                     {user.role === 'student' && myPermissions.data?.includes('diary:read_self') && diaryEnabled && <Link to="/student/diary" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('m9MyDiary')}</Link>}
                     {user.role === 'admin' && myPermissions.data?.includes('notifications:manage') && noticesEnabled && <Link to="/admin/notifications" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('m9Delivery')}</Link>}
+                    {analyticsEnabled && (myPermissions.data?.includes('analytics:read') || myPermissions.data?.includes('analytics:finance')) && <Link to="/analytics" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_analytics')}</Link>}
+                    {analyticsEnabled && !myPermissions.data?.includes('analytics:read') && myPermissions.data?.includes('analytics:read_assigned') && <Link to="/teacher/analytics" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_analytics_teacher')}</Link>}
+                    {analyticsEnabled && myPermissions.data?.some(p => p === 'analytics:read' || p === 'analytics:read_assigned' || p === 'analytics:finance') && <Link to="/reports" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_reports')}</Link>}
+                    {analyticsEnabled && user.role === 'student' && myPermissions.data?.includes('analytics:read_self') && <Link to="/student/progress" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_analytics_student')}</Link>}
+                    {analyticsEnabled && user.role === 'guardian' && myPermissions.data?.includes('analytics:read_children') && <Link to="/guardian/progress" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('nav_analytics_guardian')}</Link>}
                     {myPermissions.data?.includes('notifications:read_self') && noticesEnabled && <NotificationBell />}
                     <button type="button" onClick={() => void handleLogout()} className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signOut')}</button></>
                   : <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-teal-700">{t('signIn')}</Link>)}
@@ -465,6 +495,12 @@ export default function App() {
           <Route path="/accounts/fees" element={<ProtectedRoute><FeesGate mode="staff" permissions={myPermissions.data} role={user?.role} enabled={feesEnabled} loading={feesLoading} error={feesError} /></ProtectedRoute>} />
           <Route path="/student/fees" element={<ProtectedRoute><FeesGate mode="student" permissions={myPermissions.data} role={user?.role} enabled={feesEnabled} loading={feesLoading} error={feesError} /></ProtectedRoute>} />
           <Route path="/guardian/children/:id/fees" element={<ProtectedRoute><FeesGate mode="guardian" permissions={myPermissions.data} role={user?.role} enabled={feesEnabled} loading={feesLoading} error={feesError} /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><AnalyticsGate kind="school" permissions={myPermissions.data} role={user?.role} enabled={analyticsEnabled} loading={analyticsLoading} error={myPermissions.isError || myModules.isError || academicNavigation.isError} /></ProtectedRoute>} />
+          <Route path="/teacher/analytics" element={<ProtectedRoute><AnalyticsGate kind="teacher" permissions={myPermissions.data} role={user?.role} enabled={analyticsEnabled} loading={analyticsLoading} error={myPermissions.isError || myModules.isError || academicNavigation.isError} /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><AnalyticsGate kind="reports" permissions={myPermissions.data} role={user?.role} enabled={analyticsEnabled} loading={analyticsLoading} error={myPermissions.isError || myModules.isError || academicNavigation.isError} /></ProtectedRoute>} />
+          <Route path="/student/progress" element={<ProtectedRoute><AnalyticsGate kind="student" permissions={myPermissions.data} role={user?.role} enabled={analyticsEnabled} loading={analyticsLoading} error={myPermissions.isError || myModules.isError || academicNavigation.isError} /></ProtectedRoute>} />
+          <Route path="/guardian/progress" element={<ProtectedRoute><AnalyticsGate kind="guardian" permissions={myPermissions.data} role={user?.role} enabled={analyticsEnabled} loading={analyticsLoading} error={myPermissions.isError || myModules.isError || academicNavigation.isError} /></ProtectedRoute>} />
+          <Route path="/analytics/students/:id" element={<ProtectedRoute><AnalyticsGate kind="staff-student" permissions={myPermissions.data} role={user?.role} enabled={analyticsEnabled} loading={analyticsLoading} error={myPermissions.isError || myModules.isError || academicNavigation.isError} /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
