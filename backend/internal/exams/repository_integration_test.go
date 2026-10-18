@@ -150,6 +150,11 @@ func TestPostgresExamLifecycle(t *testing.T) {
 	if err != nil || !card.Result.Passed || card.Result.GPA != 5 || len(card.Subjects) != 3 {
 		t.Fatalf("student card: %+v %v", card, err)
 	}
+	for _, s := range card.Subjects {
+		if s.SubjectNameBN != "বিষয়" {
+			t.Fatalf("report card lacks Bangla subject name: %+v", s)
+		}
+	}
 	second, err := svc.Card(ctx, "admin", admin, student2, exam.ID)
 	if err != nil || second.Result.Passed || second.Result.GPA != 0 {
 		t.Fatalf("failed student: %+v %v", second.Result, err)

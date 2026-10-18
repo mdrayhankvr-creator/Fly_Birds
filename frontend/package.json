@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
+    "check:i18n": "node --test scripts/check-i18n.test.mjs && node scripts/check-i18n.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

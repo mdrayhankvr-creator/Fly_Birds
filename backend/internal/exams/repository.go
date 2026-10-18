@@ -234,7 +234,7 @@ func (r *GormRepository) Roster(ctx context.Context, examID, actor, scope string
 	if scope == "teacher" {
 		q = q.Where("EXISTS (SELECT 1 FROM employees emp JOIN teacher_assignments ta ON ta.employee_id=emp.id WHERE emp.user_id=? AND emp.is_active AND ta.session_id=? AND ta.class_id=? AND ta.subject_id=es.subject_id)", actor, e.SessionID, e.ClassID)
 	}
-	err = q.Select("es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,m.marks,m.grade,m.grade_point,m.passed").Order("s.roll_no NULLS LAST,s.admission_no,sub.code").Find(&rows).Error
+	err = q.Select("es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed").Order("s.roll_no NULLS LAST,s.admission_no,sub.code").Find(&rows).Error
 	return rows, err
 }
 func (r *GormRepository) SaveMarks(ctx context.Context, actor, role, examID string, entries []MarkInput) error {
@@ -514,7 +514,7 @@ func (r *GormRepository) Card(ctx context.Context, scope, actor, studentID, exam
 	if err != nil {
 		return Card{}, dbErr(err)
 	}
-	err = tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Select("m.exam_subject_id,m.student_id,sub.name_en AS subject_name,m.marks,m.grade,m.grade_point,m.passed").Where("m.exam_id=? AND m.student_id=?", examID, studentID).Order("sub.code").Find(&card.Subjects).Error
+	err = tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Select("m.exam_subject_id,m.student_id,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed").Where("m.exam_id=? AND m.student_id=?", examID, studentID).Order("sub.code").Find(&card.Subjects).Error
 	if err != nil {
 		return Card{}, err
 	}

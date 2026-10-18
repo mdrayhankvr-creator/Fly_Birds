@@ -1,6 +1,7 @@
 package people
 
 import (
+	"context"
 	"errors"
 	"testing"
 )
@@ -36,5 +37,12 @@ func TestGuardianAndQueryValidation(t *testing.T) {
 	}
 	if validQuery(Query{Page: 1, PageSize: 101}) || validQuery(Query{Page: 0, PageSize: 10}) || validQuery(Query{Page: 1, PageSize: 10, SectionID: "bad"}) {
 		t.Fatal("accepted invalid pagination or filter")
+	}
+}
+func TestImportCSVRejectsNUL(t *testing.T) {
+	s := NewService(nil)
+	body := []byte("admission_no,name_en,name_bn,date_of_birth,roll_no,status\nA-1,Nul\x00Name,,2014-01-20,1,active\n")
+	if _, err := s.ImportCSV(context.Background(), Actor{ID: testUUID, Role: "admin"}, testUUID, testUUID, testUUID, body); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("NUL CSV: got %v, want invalid", err)
 	}
 }

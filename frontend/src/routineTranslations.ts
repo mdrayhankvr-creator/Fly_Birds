@@ -1,5 +1,6 @@
 export const routineTranslations = {
   en: {
+    actions: 'Actions', delete: 'Delete',
     routineHeading: 'Routine management', routineDescription: 'Weekly classes and exam timetables for your school.', classRoutine: 'Class routine', examRoutine: 'Exam routine', weeklyTimetable: 'Weekly timetable',
     routineTeacher: 'Teacher', routineDay: 'Day', routineStart: 'Start time', routineEnd: 'End time', routineTime: 'Time', routineRoom: 'Room', routineDate: 'Exam date', routineExamName: 'Exam name',
     routineDay0: 'Sunday', routineDay1: 'Monday', routineDay2: 'Tuesday', routineDay3: 'Wednesday', routineDay4: 'Thursday', routineDay5: 'Friday', routineDay6: 'Saturday',
@@ -9,6 +10,7 @@ export const routineTranslations = {
     publishRoutine: 'Publish', unpublishRoutine: 'Unpublish', printRoutine: 'Print', newRoutine: 'New routine', selectOption: 'Select…', allSessions: 'All sessions', allClasses: 'All classes', allSections: 'All sections',
   },
   bn: {
+    actions: 'কাজ', delete: 'মুছুন',
     routineHeading: 'রুটিন ব্যবস্থাপনা', routineDescription: 'বিদ্যালয়ের সাপ্তাহিক ক্লাস ও পরীক্ষার সময়সূচি।', classRoutine: 'ক্লাস রুটিন', examRoutine: 'পরীক্ষার রুটিন', weeklyTimetable: 'সাপ্তাহিক সময়সূচি',
     routineTeacher: 'শিক্ষক', routineDay: 'বার', routineStart: 'শুরুর সময়', routineEnd: 'শেষের সময়', routineTime: 'সময়', routineRoom: 'কক্ষ', routineDate: 'পরীক্ষার তারিখ', routineExamName: 'পরীক্ষার নাম',
     routineDay0: 'রবিবার', routineDay1: 'সোমবার', routineDay2: 'মঙ্গলবার', routineDay3: 'বুধবার', routineDay4: 'বৃহস্পতিবার', routineDay5: 'শুক্রবার', routineDay6: 'শনিবার',
