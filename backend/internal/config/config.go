@@ -14,6 +14,10 @@ type Config struct {
 	JWTSigningKey    []byte
 	AuthCookieSecure bool
 	ShutdownTimeout  time.Duration
+	// FileStorageDir holds uploaded attachments (FILE_STORAGE_DIR).
+	FileStorageDir string
+	// NotifyInterval is how often notifications are dispatched; 0 disables it.
+	NotifyInterval time.Duration
 }
 
 func Load() (Config, error) {
@@ -45,11 +49,25 @@ func Load() (Config, error) {
 		}
 		cookieSecure = parsed
 	}
+	storageDir := os.Getenv("FILE_STORAGE_DIR")
+	if storageDir == "" {
+		storageDir = "data/uploads"
+	}
+	notifyInterval := time.Minute
+	if raw := os.Getenv("NOTIFY_INTERVAL"); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil || parsed < 0 || (parsed > 0 && parsed < 10*time.Second) {
+			return Config{}, fmt.Errorf("NOTIFY_INTERVAL must be 0 or a duration of at least 10s")
+		}
+		notifyInterval = parsed
+	}
 	return Config{
 		Port:             port,
 		DatabaseURL:      databaseURL,
 		JWTSigningKey:    signingKey,
 		AuthCookieSecure: cookieSecure,
 		ShutdownTimeout:  10 * time.Second,
+		FileStorageDir:   storageDir,
+		NotifyInterval:   notifyInterval,
 	}, nil
 }

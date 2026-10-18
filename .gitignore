@@ -9,3 +9,6 @@ coverage/
 # Editor and operating system files
 .DS_Store
 .vscode/
+
+# Local attachment storage (FILE_STORAGE_DIR default)
+backend/data/

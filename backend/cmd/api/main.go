@@ -18,10 +18,14 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/config"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/diary"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/exams"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/fees"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/files"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/httpapi"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/notices"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/notify"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/routine"
@@ -60,6 +64,7 @@ func run(logger *slog.Logger) error {
 	var routineService *routine.Service
 	var examService *exams.Service
 	var feeService *fees.Service
+	var comm *httpapi.Communication
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -100,6 +105,16 @@ func run(logger *slog.Logger) error {
 		routineService = routine.NewService(routine.NewRepository(db))
 		examService = exams.NewService(exams.NewRepository(db))
 		feeService = fees.NewService(fees.NewRepository(db), fees.MockGateway{})
+		store, err := files.NewLocalStore(cfg.FileStorageDir)
+		if err != nil {
+			return fmt.Errorf("file storage: %w", err)
+		}
+		comm = &httpapi.Communication{
+			Notices: notices.NewService(notices.NewRepository(db)),
+			Notify:  notify.NewService(notify.NewRepository(db), notify.MockSMS{}),
+			Diary:   diary.NewService(diary.NewRepository(db)),
+			Files:   files.NewService(db, store),
+		}
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -107,13 +122,17 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithFees(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService),
+		Handler:           httpapi.NewRouterWithCommunication(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if comm != nil && cfg.NotifyInterval > 0 {
+		go backgroundWork(ctx, logger, comm, cfg.NotifyInterval)
+	}
 
 	serveResult := make(chan error, 1)
 	go func() { serveResult <- server.ListenAndServe() }()
@@ -136,5 +155,31 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		return nil
+	}
+}
+
+// backgroundWork dispatches notifications (which also hands queued SMS to the
+// mock provider) and removes abandoned uploads on a fixed interval.
+func backgroundWork(ctx context.Context, logger *slog.Logger, comm *httpapi.Communication, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runCtx, cancel := context.WithTimeout(ctx, interval)
+			if result, err := comm.Notify.Dispatch(runCtx); err != nil {
+				logger.Error("notification dispatch failed", "error", err)
+			} else if !result.Skipped && !result.Disabled {
+				logger.Info("notifications dispatched", "created", result.Created, "withdrawn", result.Withdrawn, "sms_sent_mock", result.SMSSentMock, "sms_failed", result.SMSFailed)
+			}
+			if removed, err := comm.Files.Cleanup(runCtx); err != nil {
+				logger.Error("upload cleanup failed", "error", err)
+			} else if removed > 0 {
+				logger.Info("abandoned uploads removed", "count", removed)
+			}
+			cancel()
+		}
 	}
 }
