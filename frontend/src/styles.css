@@ -41,6 +41,11 @@
 [data-theme="dark"] select { background-color: #0f1b2e; color: #f8fafc; }
 
 [data-theme-preview] { background-color: #f8fafc; color: #0f172a; }
+/* Chart tokens (M11): categorical slots 1-2 of the validated reference
+   palette, with separate dark-surface steps. Text never uses these. */
+.viz { --viz-1: #2a78d6; --viz-2: #eb6834; --viz-grid: #e2e8f0; --viz-axis: #94a3b8; --viz-track: #eef2f7; --viz-surface: #ffffff; }
+[data-theme="dark"] .viz { --viz-1: #3987e5; --viz-2: #d95926; --viz-grid: #334155; --viz-axis: #64748b; --viz-track: #24324a; --viz-surface: #172337; }
+
 [data-theme-preview="dark"] { background-color: #0b1424; color: #f8fafc; }
 @media print {
   body:has(.student-card) * { visibility: hidden !important; }
@@ -55,4 +60,7 @@
   body:has(.fee-receipt) .fee-receipt,
   body:has(.fee-receipt) .fee-receipt * { visibility: visible !important; }
   .fee-receipt { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0; box-shadow: none; }
+  body:has(.analytics-print) header, body:has(.analytics-print) nav, body:has(.analytics-print) .print\:hidden { display: none !important; }
+  .analytics-print { box-shadow: none !important; border: 0 !important; }
+  .analytics-print table { font-size: 10pt; }
 }

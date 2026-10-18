@@ -13,6 +13,7 @@ import (
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/admin"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/analytics"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
@@ -67,6 +68,7 @@ func run(logger *slog.Logger) error {
 	var feeService *fees.Service
 	var comm *httpapi.Communication
 	var adminServices *httpapi.AdminServices
+	var analyticsService *analytics.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -122,6 +124,7 @@ func run(logger *slog.Logger) error {
 			return fmt.Errorf("backup storage: %w", err)
 		}
 		adminServices = &httpapi.AdminServices{Exporter: admin.NewExporter(db), Backups: backups, Overview: admin.NewOverviewReader(db, backups)}
+		analyticsService = analytics.NewService(analytics.NewRepository(db))
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -129,7 +132,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithAdmin(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices),
+		Handler:           httpapi.NewRouterWithAnalytics(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

@@ -1,6 +1,26 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M9 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M10 Admin Control Center is complete locally on `feature/m10-admin-controls` and awaits review.
+Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M10 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M11 Analytics and Reports is complete locally on `feature/m11-analytics-reports` and awaits review.
+
+## M11 Analytics and Reports
+
+Enable the **Analytics** module (it needs Students and guardians). Analytics reads the existing attendance, examination, fee and people records directly, so there is nothing to import or recalculate.
+
+- **School analytics** (`/analytics`, administrators and head teachers): an overview with "needs attention" items, plus tabs for:
+  - attendance trends by class, section and date;
+  - pass rates, GPA distribution and subject performance;
+  - fees, dues, income and expenses (finance roles only);
+  - at-risk and dropout alerts;
+  - a comparison of recent sessions.
+- **Accountants** see the fees tab; **teachers** use `/teacher/analytics`, limited to their assigned classes and subjects.
+- **Reports** (`/reports`): student and teacher attendance, exam results, fee balances and student alerts, each printable and downloadable as CSV. Downloads are audited.
+- **Progress pages:** students see `/student/progress`, guardians `/guardian/progress` (linked children only) and staff `/analytics/students/{id}`.
+- **Alerts** follow clear rules rather than predictions:
+  - **Dropout:** a run of absences, or no presence while the class is taking attendance.
+  - **At risk:** low attendance, a failed latest exam or a low GPA.
+  - **Thresholds:** administrators adjust them on the Student alerts tab.
+
+Migration `1101_analytics.sql` adds the threshold settings, six analytics permissions and two indexes. See [OpenAPI](docs/openapi.yaml) for the `/analytics/*` routes and [Progress](docs/PROGRESS.md) for the rules, verification and limitations.
 
 ## M10 Admin Control Center
 

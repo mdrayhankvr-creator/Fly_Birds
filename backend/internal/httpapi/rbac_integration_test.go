@@ -75,10 +75,17 @@ func TestPostgresRBACLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var teacherGrants []string
+	if err := db.Raw("SELECT permission_id FROM role_permissions WHERE role_id = 'teacher'").Scan(&teacherGrants).Error; err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
 		_ = db.Exec("DELETE FROM users WHERE id IN (?, ?)", admin.ID, teacher.ID).Error
-		_ = db.Exec("DELETE FROM role_permissions WHERE role_id = 'teacher' AND permission_id <> 'auth:read_self'").Error
-		_ = db.Exec("INSERT INTO role_permissions (role_id,permission_id) VALUES ('teacher','auth:read_self') ON CONFLICT DO NOTHING").Error
+		// Restore the teacher grants exactly as they were, so later tests see the migrated defaults.
+		_ = db.Exec("DELETE FROM role_permissions WHERE role_id = 'teacher'").Error
+		for _, grant := range teacherGrants {
+			_ = db.Exec("INSERT INTO role_permissions (role_id,permission_id) VALUES ('teacher', ?) ON CONFLICT DO NOTHING", grant).Error
+		}
 	})
 	router := NewRouterWithAuth(service, true, rbac.NewService(rbac.NewRepository(db)))
 	login := func(email string) string {

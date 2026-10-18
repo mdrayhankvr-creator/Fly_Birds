@@ -2213,6 +2213,158 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Archive, content: { application/gzip: { schema: { type: string, format: binary } } } }, '404': { description: Unavailable } }
+  /analytics/options:
+    get:
+      operationId: getAnalyticsOptions
+      tags: [analytics]
+      summary: Filter choices for analytics
+      description: Requires any of analytics:read, analytics:read_assigned or analytics:finance and the analytics module. Sessions, the selected session (default the active one), classes and sections (only assigned classes for analytics:read_assigned), published exams (academic viewers only), enabled modules, alert thresholds and today's date in Asia/Dhaka.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsSession' }]
+      responses: { '200': { description: Options }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /analytics/overview:
+    get:
+      operationId: getAnalyticsOverview
+      tags: [analytics]
+      summary: School-wide analytics headline
+      description: Requires analytics:read and the analytics module. Students by status and class, active teachers, non-teaching staff and guardians; today's student and teacher attendance and the last 30 days (attendance module); result summary (examinations module); at-risk and dropout counts; fee summary only when the viewer also holds analytics:finance and fees is enabled. Sections for disabled modules are null.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsSession' }]
+      responses: { '200': { description: Overview }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /analytics/attendance:
+    get:
+      operationId: getAttendanceAnalytics
+      tags: [analytics]
+      summary: Student attendance trend and breakdown
+      description: Requires analytics:read (all classes) or analytics:read_assigned (only classes assigned to the teacher in the session; another class is 403), plus the analytics and attendance modules. Defaults to the last 30 days; ranges are at most 400 days and may not end after today. Rate is (present + late) / marked, null when nothing was marked. Groups by class, or by section when class_id or section_id is given. School-scope viewers also receive school-wide teacher attendance, where rate is present / (present + absent) and leave is excluded.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsSession' }, { $ref: '#/components/parameters/AnalyticsClass' }, { $ref: '#/components/parameters/AnalyticsSection' }, { $ref: '#/components/parameters/AnalyticsFrom' }, { $ref: '#/components/parameters/AnalyticsTo' }, { $ref: '#/components/parameters/AnalyticsGroup' }]
+      responses: { '200': { description: Attendance analytics }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /analytics/exams:
+    get:
+      operationId: getExamAnalytics
+      tags: [analytics]
+      summary: Pass rates, GPA distribution and subject performance
+      description: Requires analytics:read or analytics:read_assigned (assigned classes; subject figures only for assigned subjects), plus the analytics and examinations modules. Uses published and locked exams only. Pass rate is passed / results. The GPA distribution maps each overall GPA to the school's configured grading bands; failed results count in the lowest band. At most 60 exams are listed, newest first.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsSession' }, { $ref: '#/components/parameters/AnalyticsClass' }, { $ref: '#/components/parameters/AnalyticsSection' }, { $ref: '#/components/parameters/AnalyticsExam' }, { $ref: '#/components/parameters/AnalyticsExamType' }]
+      responses: { '200': { description: Examination analytics }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /analytics/fees:
+    get:
+      operationId: getFeeAnalytics
+      tags: [analytics]
+      summary: Fee collection, dues, income and expenses
+      description: Requires analytics:finance plus the analytics and fees modules. Defaults to the first day of the month eleven months ago through today (at most 400 days). Billed figures use dues falling due in the range; collected uses payments received in the range against the session's dues; outstanding, overdue, aging buckets and the ten largest overdue balances are as of today. Ledger income and expense are school-wide and ignore class_id.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsSession' }, { $ref: '#/components/parameters/AnalyticsClass' }, { $ref: '#/components/parameters/AnalyticsFrom' }, { $ref: '#/components/parameters/AnalyticsTo' }]
+      responses: { '200': { description: Fee analytics }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /analytics/sessions:
+    get:
+      operationId: compareAnalyticsSessions
+      tags: [analytics]
+      summary: Compare the eight most recent academic sessions
+      description: Requires analytics:read and the analytics module. Active students, attendance rate, published exams, pass rate and average GPA per session; net billed, collected and collection rate only for viewers who also hold analytics:finance.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Session comparison }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /analytics/risks:
+    get:
+      operationId: listStudentAlerts
+      tags: [analytics]
+      summary: At-risk and dropout alerts
+      description: Requires analytics:read or analytics:read_assigned (assigned classes only) and the analytics module. Rule-based, not predicted. Dropout - the latest absences form an unbroken run of at least consecutive_absences, or no presence within inactivity_days while the section was marked on at least min_marked_days days (students admitted inside that window are skipped). At risk - attendance below attendance_threshold percent over attendance_window_days with at least min_marked_days marked, a failed latest exam, or a latest GPA below gpa_threshold. Attendance rules need the attendance module and exam rules the examinations module. Dropout alerts come first, then the lowest attendance.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsSession' }, { $ref: '#/components/parameters/AnalyticsClass' }, { $ref: '#/components/parameters/AnalyticsSection' }, { name: level, in: query, schema: { type: string, enum: [at_risk, dropout] } }, { name: reason, in: query, schema: { type: string, enum: [low_attendance, low_gpa, failed_exam, consecutive_absences, no_recent_presence] } }, { $ref: '#/components/parameters/Page' }, { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }]
+      responses: { '200': { description: Alerts page with summary and thresholds }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /analytics/settings:
+    get:
+      operationId: getAnalyticsSettings
+      tags: [analytics]
+      summary: Alert thresholds
+      description: Requires analytics:read or analytics:read_assigned and the analytics module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Thresholds }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveAnalyticsSettings
+      tags: [analytics]
+      summary: Change alert thresholds
+      description: Requires an active administrator with analytics:manage and the analytics module. attendance_threshold 1-100, attendance_window_days 7-120, min_marked_days 1-60 and not above the window, gpa_threshold 0-5, consecutive_absences 2-60, inactivity_days 7-120. Audited as analytics.settings_updated.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [attendance_threshold, attendance_window_days, min_marked_days, gpa_threshold, consecutive_absences, inactivity_days]
+              properties:
+                attendance_threshold: { type: number, minimum: 1, maximum: 100 }
+                attendance_window_days: { type: integer, minimum: 7, maximum: 120 }
+                min_marked_days: { type: integer, minimum: 1, maximum: 60 }
+                gpa_threshold: { type: number, minimum: 0, maximum: 5 }
+                consecutive_absences: { type: integer, minimum: 2, maximum: 60 }
+                inactivity_days: { type: integer, minimum: 7, maximum: 120 }
+      responses: { '200': { description: Saved thresholds }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /analytics/students/{id}:
+    get:
+      operationId: getStudentAnalytics
+      tags: [analytics]
+      summary: One student's academic summary for staff
+      description: Requires analytics:read (any student) or analytics:read_assigned (only students whose current class is assigned to the teacher; others are 404) and the analytics module. Session and last-30-day attendance, monthly trend and the last 14 marks; published results with grades and the latest exam's subjects; the student's alert; fee balance only for analytics:finance viewers.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Student summary }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /analytics/me:
+    get:
+      operationId: getMyAnalytics
+      tags: [analytics]
+      summary: Own academic summary
+      description: Requires the student role, analytics:read_self and the analytics module. Reads only the student record linked to the signed-in account. Fee balance is included when the student also holds fees:read_self and fees is enabled.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Student summary }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /analytics/children:
+    get:
+      operationId: listChildrenAnalytics
+      tags: [analytics]
+      summary: Linked children's academic summaries
+      description: Requires the guardian role, analytics:read_children and the analytics module. Only children linked to the signed-in guardian (at most 20). Fee balances need fees:read_children.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Child summaries }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /analytics/children/{studentId}:
+    get:
+      operationId: getChildAnalytics
+      tags: [analytics]
+      summary: One linked child's academic summary
+      description: Requires the guardian role, analytics:read_children and the analytics module. A student not linked to the guardian is 404.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Student summary }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /analytics/reports:
+    get:
+      operationId: listAnalyticsReports
+      tags: [analytics]
+      summary: Available reports
+      description: Requires any of analytics:read, analytics:read_assigned or analytics:finance and the analytics module. Each report names its access rule (academic, school or finance), source module, whether it takes a date range, and its columns.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Report definitions }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /analytics/reports/{report}:
+    get:
+      operationId: getAnalyticsReport
+      tags: [analytics]
+      summary: One page of a report
+      description: Requires the analytics module, the report's source module and its access rule - student_attendance, exam_results and risks need analytics:read or analytics:read_assigned (assigned classes only); teacher_attendance needs analytics:read; fee_balances needs analytics:finance. Ranged reports default to the last 30 days. Rows are strings in the order of columns.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsReport' }, { $ref: '#/components/parameters/AnalyticsSession' }, { $ref: '#/components/parameters/AnalyticsClass' }, { $ref: '#/components/parameters/AnalyticsSection' }, { $ref: '#/components/parameters/AnalyticsExam' }, { $ref: '#/components/parameters/AnalyticsFrom' }, { $ref: '#/components/parameters/AnalyticsTo' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Report page }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /analytics/reports/{report}/csv:
+    get:
+      operationId: exportAnalyticsReport
+      tags: [analytics]
+      summary: Download a whole report as CSV
+      description: Same access as the report page. Up to 20000 rows, UTF-8 with a byte order mark; cells starting with = + - @ tab or carriage return are prefixed with an apostrophe. X-Total-Rows gives the full row count. Audited as analytics.exported with the report and filters.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AnalyticsReport' }, { $ref: '#/components/parameters/AnalyticsSession' }, { $ref: '#/components/parameters/AnalyticsClass' }, { $ref: '#/components/parameters/AnalyticsSection' }, { $ref: '#/components/parameters/AnalyticsExam' }, { $ref: '#/components/parameters/AnalyticsFrom' }, { $ref: '#/components/parameters/AnalyticsTo' }]
+      responses: { '200': { description: CSV file, content: { text/csv: { schema: { type: string } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
 components:
   securitySchemes:
     bearerAuth:
@@ -2233,6 +2385,15 @@ components:
     FeeFrom: { name: from, in: query, schema: { type: string, format: date } }
     FeeTo: { name: to, in: query, schema: { type: string, format: date } }
     FeeMethod: { name: method, in: query, schema: { type: string, enum: [cash, bank, bkash, nagad] } }
+    AnalyticsSession: { name: session_id, in: query, schema: { type: string, format: uuid }, description: Defaults to the active session, else the most recent }
+    AnalyticsClass: { name: class_id, in: query, schema: { type: string, format: uuid } }
+    AnalyticsSection: { name: section_id, in: query, schema: { type: string, format: uuid }, description: Must belong to the session (and to class_id when both are given) }
+    AnalyticsExam: { name: exam_id, in: query, schema: { type: string, format: uuid } }
+    AnalyticsExamType: { name: exam_type, in: query, schema: { type: string, enum: [class_test, half_yearly, annual, other] } }
+    AnalyticsFrom: { name: from, in: query, schema: { type: string, format: date } }
+    AnalyticsTo: { name: to, in: query, schema: { type: string, format: date }, description: Defaults to today (Asia/Dhaka); may not be in the future }
+    AnalyticsGroup: { name: group, in: query, schema: { type: string, enum: [day, week, month] }, description: Default daily up to 62 days, weekly up to 190, else monthly; daily allows at most 93 days }
+    AnalyticsReport: { name: report, in: path, required: true, schema: { type: string, enum: [student_attendance, teacher_attendance, exam_results, fee_balances, risks] } }
     CSRFToken:
       name: X-CSRF-Token
       in: header

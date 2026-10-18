@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError, getDashboard } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import { DashboardAnalytics } from './AnalyticsPages'
 
 const roleKeys = ['admin', 'head_teacher', 'teacher', 'student', 'guardian', 'accountant']
 
@@ -45,6 +46,7 @@ export function DashboardPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-600">{t('schoolCompleteness')}</p><p className="mt-2 text-3xl font-bold text-slate-900">{data.summary.school_fields_complete}/{data.summary.school_fields_total}</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-600">{t('usersByRole')}</p><ul className="mt-2 space-y-1 text-sm">{data.summary.by_role.map((entry) => <li key={entry.role}>{t(`role_${entry.role}`)}: {entry.count}</li>)}</ul></div>
       </section>}
+      <DashboardAnalytics navigation={data.navigation.filter(item => !item.coming_soon).map(item => item.key)} />
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-semibold text-slate-900">{t('yourWorkspace')}</h2><p className="mt-2 text-slate-600">{t('futureModulesNote')}</p><div className="mt-4 flex flex-wrap gap-2">{data.navigation.filter((item) => item.coming_soon).map((item) => <span key={item.key} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{t(`module_${item.key}`, { defaultValue: item.name })} · {t('comingSoon')}</span>)}</div></section>
     </div>
   </div>

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/analytics"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
@@ -102,6 +103,12 @@ func NewRouterWithCommunication(service *auth.Service, secureCookies bool, grant
 // NewRouterWithAdmin adds the M10 control-center routes (overview, exports and
 // backups); nil AdminServices answers them with 503.
 func NewRouterWithAdmin(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices) *gin.Engine {
+	return NewRouterWithAnalytics(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, nil)
+}
+
+// NewRouterWithAnalytics adds the M11 analytics and report routes; a nil
+// analytics service answers them with 503.
+func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices, analyticsService *analytics.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -144,6 +151,7 @@ func NewRouterWithAdmin(service *auth.Service, secureCookies bool, grants *rbac.
 	management.PATCH("/users/:id/status", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.status)
 	management.GET("/audit/actions", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{service: auditService}).actions)
 	registerAdmin(management, service, adminServices, moduleGuard("permissions"))
+	registerAnalytics(management, service, analyticsService, schoolService, moduleGuard)
 	management.GET("/audit/events", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{service: auditService}).events)
 	management.GET("/dashboard", RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), (&dashboardHandler{service: dashboardService}).get)
 	sessionsHandler := &academicSessionsHandler{service: sessionService}
