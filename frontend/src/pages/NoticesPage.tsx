@@ -67,6 +67,7 @@ function NoticeManager() {
   const [expires, setExpires] = useState('')
   const [scheduleAt, setScheduleAt] = useState('')
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const params = new URLSearchParams({ page: String(page), page_size: '10', ...(status ? { status } : {}) })
   const list = useQuery({ queryKey: ['m9', 'notices-managed', params.toString()], queryFn: () => authorized(token => getManagedNotices(token, params)), retry: false })
@@ -81,9 +82,9 @@ function NoticeManager() {
     try {
       const result = await task()
       await client.invalidateQueries({ queryKey: ['m9'] })
-      setMessage({ tone: 'success', text: t(success) })
       if (close) setEditing(null)
       else if (result && typeof result === 'object' && 'id' in result) open(result as Notice)
+      setMessage({ tone: 'success', text: t(success) })
     } catch (cause) { setMessage({ tone: 'error', text: errorText(cause) }) } finally { setBusy(false) }
   }
   const current = editing && editing !== 'new' ? editing : null
@@ -115,11 +116,11 @@ function NoticeManager() {
       <RolePicker value={form.audience_roles} onChange={roles => setForm({ ...form, audience_roles: roles })} />
       <TargetPicker value={form.targets} onChange={targets => setForm({ ...form, targets })} />
       <div><p className={ui.label}>{t('m9Attachments')}</p><AttachmentList items={files} pathFor={f => current && current.attachments.some(a => a.id === f.id) ? `/notices/${current.id}/files/${f.id}` : ''} onRemove={id => setFiles(files.filter(f => f.id !== id))} />
-        <div className="mt-2"><FileUploader path="/notices/files" max={10 - files.length} onUploaded={f => setFiles(prev => [...prev, f])} /></div></div>
+        <div className="mt-2"><FileUploader path="/notices/files" max={10 - files.length} onBusy={setUploading} onUploaded={f => setFiles(prev => [...prev, f])} /></div></div>
       <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap gap-2">
-          <button type="submit" className={ui.secondary} disabled={busy || current?.status === 'archived'}>{t('m9SaveDraft')}</button>
-          <button type="button" className={ui.primary} disabled={busy || current?.status === 'archived' || !form.title_en || form.audience_roles.length === 0} onClick={() => void saveAndPublish(null)}>{current?.status === 'published' ? t('m9SaveAndKeepLive') : t('m9PublishNow')}</button>
+          <button type="submit" className={ui.secondary} disabled={busy || uploading || current?.status === 'archived'}>{t('m9SaveDraft')}</button>
+          <button type="button" className={ui.primary} disabled={busy || uploading || current?.status === 'archived' || !form.title_en || form.audience_roles.length === 0} onClick={() => void saveAndPublish(null)}>{current?.status === 'published' ? t('m9SaveAndKeepLive') : t('m9PublishNow')}</button>
           <button type="button" className={ui.secondary} onClick={() => setEditing(null)}>{t('m9Close')}</button>
         </div>
         <div className="flex flex-wrap items-end gap-2">

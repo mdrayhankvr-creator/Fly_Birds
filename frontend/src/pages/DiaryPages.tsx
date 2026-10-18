@@ -71,6 +71,7 @@ function DiaryEditor({ assignment, date, onSaved }: { assignment: DiaryAssignmen
   const [files, setFiles] = useState<Attachment[]>([])
   const [due, setDue] = useState('')
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const diary = existing.data
   useEffect(() => {
@@ -100,14 +101,14 @@ function DiaryEditor({ assignment, date, onSaved }: { assignment: DiaryAssignmen
         {sections.map(s => <Field key={s.key} label={t(s.label)}><textarea rows={s.key === 'class_notes' ? 5 : 3} className={ui.field} value={form[s.key]} placeholder={t(`${s.label}Hint`)} onChange={e => setForm({ ...form, [s.key]: e.target.value })} /></Field>)}
       </div>
       <div><p className={ui.label}>{t('m9Attachments')}</p><AttachmentList items={files} pathFor={f => diaryId && diary?.attachments.some(a => a.id === f.id) ? `/diary/${diaryId}/files/${f.id}` : ''} onRemove={id => setFiles(files.filter(f => f.id !== id))} />
-        <div className="mt-2"><FileUploader path="/diary/files" max={10 - files.length} onUploaded={f => setFiles(prev => [...prev, f])} /></div></div>
+        <div className="mt-2"><FileUploader path="/diary/files" max={10 - files.length} onBusy={setUploading} onUploaded={f => setFiles(prev => [...prev, f])} /></div></div>
       <fieldset className="rounded-xl border border-slate-200 p-4"><legend className="px-1 text-sm font-semibold">{t('m9HomeworkSubmission')}</legend>
         <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1" checked={form.submission_enabled} onChange={e => setForm({ ...form, submission_enabled: e.target.checked })} /><span><span className="font-medium">{t('m9AllowSubmission')}</span><span className="block text-xs text-slate-500">{t('m9AllowSubmissionHint')}</span></span></label>
         {form.submission_enabled && <div className="mt-3 max-w-xs"><Field label={t('m9DueAt')}><input type="datetime-local" className={ui.field} value={due} onChange={e => setDue(e.target.value)} /></Field></div>}
       </fieldset>
       <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-        <button type="submit" className={ui.secondary} disabled={busy}>{diary?.status === 'published' ? t('m9SaveChanges') : t('m9SaveDraft')}</button>
-        {diary?.status !== 'published' && <button type="button" className={ui.primary} disabled={busy || empty} onClick={() => void publish()}>{t('m9PublishDiary')}</button>}
+        <button type="submit" className={ui.secondary} disabled={busy || uploading}>{diary?.status === 'published' ? t('m9SaveChanges') : t('m9SaveDraft')}</button>
+        {diary?.status !== 'published' && <button type="button" className={ui.primary} disabled={busy || uploading || empty} onClick={() => void publish()}>{t('m9PublishDiary')}</button>}
         {diary?.status === 'draft' && <button type="button" className={`${ui.secondary} text-rose-700`} disabled={busy} onClick={() => { if (window.confirm(t('m9ConfirmDelete'))) void run(async () => { await authorized(token => deleteDiary(token, diary.id)); setDiaryId(null); setForm(emptyInput); setFiles([]) }, 'm9DeletedOk') }}>{t('m9Delete')}</button>}
       </div>
       {empty && diary?.status !== 'published' && <p className="text-xs text-slate-500">{t('m9PublishNeedsContent')}</p>}
@@ -200,6 +201,7 @@ function HomeworkPanel({ diary }: { diary: Diary }) {
   const [text, setText] = useState('')
   const [files, setFiles] = useState<Attachment[]>([])
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const sub = mine.data
   const canEdit = diary.submission_open && sub?.status !== 'reviewed'
@@ -219,8 +221,8 @@ function HomeworkPanel({ diary }: { diary: Diary }) {
     {open ? <form onSubmit={submit} className="space-y-3">
       <Field label={t('m9YourAnswer')}><textarea rows={4} className={ui.field} maxLength={10000} value={text} onChange={e => setText(e.target.value)} /></Field>
       <AttachmentList items={files} pathFor={f => sub?.files.some(x => x.id === f.id) ? `/diary/submissions/${sub.id}/files/${f.id}` : ''} onRemove={id => setFiles(files.filter(f => f.id !== id))} />
-      <FileUploader path="/diary/homework/files" max={5 - files.length} onUploaded={f => setFiles(prev => [...prev, f])} />
-      <div className="flex gap-2"><button type="submit" className={ui.primary} disabled={busy || (!text.trim() && files.length === 0)}>{busy ? t('m9Submitting') : t('m9SubmitHomework')}</button><button type="button" className={ui.secondary} onClick={() => setOpen(false)}>{t('m9Cancel')}</button></div>
+      <FileUploader path="/diary/homework/files" max={5 - files.length} onBusy={setUploading} onUploaded={f => setFiles(prev => [...prev, f])} />
+      <div className="flex gap-2"><button type="submit" className={ui.primary} disabled={busy || uploading || (!text.trim() && files.length === 0)}>{busy ? t('m9Submitting') : t('m9SubmitHomework')}</button><button type="button" className={ui.secondary} onClick={() => setOpen(false)}>{t('m9Cancel')}</button></div>
     </form> : canEdit ? <button type="button" className={`${ui.secondary} ${sub ? 'mt-2' : ''}`} onClick={start}>{sub ? t('m9EditSubmission') : t('m9SubmitHomework')}</button> : !sub && <p className="text-sm text-slate-500">{t('m9SubmissionClosedHint')}</p>}
   </div>
 }

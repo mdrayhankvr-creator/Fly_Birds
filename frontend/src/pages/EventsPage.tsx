@@ -52,9 +52,9 @@ export function EventsPage({ canManage }: { canManage: boolean }) {
     try {
       const result = await task()
       await client.invalidateQueries({ queryKey: ['m9', 'events'] })
-      setMessage({ tone: 'success', text: t(success) })
       if (close) setEditing(null)
       else if (result && typeof result === 'object' && 'id' in result) open(result as SchoolEvent)
+      setMessage({ tone: 'success', text: t(success) })
     } catch (cause) { setMessage({ tone: 'error', text: errorText(cause) }) } finally { setBusy(false) }
   }
   const current = editing && editing !== 'new' ? editing : null

@@ -86,7 +86,7 @@ export function AttachmentList({ items, pathFor, onRemove }: { items: Attachment
   </li>)}</ul>{error && <p role="alert" className="mt-1 text-sm text-rose-700">{error}</p>}</div>
 }
 
-export function FileUploader({ path, onUploaded, disabled, max }: { path: '/notices/files' | '/diary/files' | '/diary/homework/files'; onUploaded: (file: Attachment) => void; disabled?: boolean; max: number }) {
+export function FileUploader({ path, onUploaded, onBusy, disabled, max }: { path: '/notices/files' | '/diary/files' | '/diary/homework/files'; onUploaded: (file: Attachment) => void; onBusy?: (busy: boolean) => void; disabled?: boolean; max: number }) {
   const { t } = useTranslation()
   const authorized = useApi()
   const errorText = useErrorText()
@@ -95,11 +95,11 @@ export function FileUploader({ path, onUploaded, disabled, max }: { path: '/noti
   const [error, setError] = useState('')
   async function pick(list: FileList | null) {
     if (!list) return
-    setBusy(true); setError('')
+    setBusy(true); onBusy?.(true); setError('')
     for (const file of Array.from(list).slice(0, max)) {
       try { onUploaded(await authorized(token => uploadFile(token, path, file))) } catch (cause) { setError(`${file.name}: ${errorText(cause)}`) }
     }
-    setBusy(false)
+    setBusy(false); onBusy?.(false)
     if (input.current) input.current.value = ''
   }
   return <div>
