@@ -191,7 +191,7 @@ const reminder = `SELECT e.user_id AS user_id, 'diary_reminder:' || ?::text AS s
 FROM teacher_assignments a
 JOIN employees e ON e.id = a.employee_id AND e.is_active AND e.user_id IS NOT NULL
 JOIN users u ON u.id = e.user_id AND u.is_active
-JOIN academic_sessions se ON se.id = a.session_id AND se.is_active AND ?::date BETWEEN se.start_date AND se.end_date
+JOIN academic_sessions se ON se.id = a.session_id AND ?::date BETWEEN se.start_date AND se.end_date
 JOIN academic_sections sec ON sec.session_id = a.session_id AND sec.class_id = a.class_id AND sec.is_active
 WHERE NOT EXISTS (SELECT 1 FROM class_diaries d WHERE d.section_id = sec.id AND d.subject_id = a.subject_id AND d.diary_date = ?::date AND d.status = 'published')
 GROUP BY e.user_id`

@@ -22,8 +22,8 @@ type Attachment struct {
 	Size        int    `json:"size"`
 }
 
-// Assignment is one section and subject a teacher may write for, with the
-// status of that day's diary.
+// Assignment is one section and subject a teacher may write for on a day,
+// from the session whose dates contain it, with that day's diary status.
 type Assignment struct {
 	SessionID     string  `json:"session_id"`
 	SessionName   string  `json:"session_name"`

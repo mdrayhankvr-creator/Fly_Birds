@@ -9,7 +9,7 @@ CREATE TABLE notifications (
     title_bn text NOT NULL DEFAULT '' CHECK (octet_length(title_bn) <= 900),
     body_en text NOT NULL DEFAULT '' CHECK (octet_length(body_en) <= 1000),
     body_bn text NOT NULL DEFAULT '' CHECK (octet_length(body_bn) <= 3000),
-    link text NOT NULL DEFAULT '' CHECK (link = '' OR link ~ '^/[A-Za-z0-9/_?=&.-]{0,300}$'),
+    link text NOT NULL DEFAULT '' CHECK (link = '' OR link ~ '^/[A-Za-z0-9/_?=&.-]{0,250}$'),
     urgent boolean NOT NULL DEFAULT false,
     read_at timestamptz,
     withdrawn_at timestamptz,

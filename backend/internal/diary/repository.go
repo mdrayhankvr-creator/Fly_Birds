@@ -131,12 +131,12 @@ func (r *GormRepository) Assignments(ctx context.Context, actor, date string) ([
   sub.id AS subject_id, sub.name_en AS subject_name_en, sub.name_bn AS subject_name_bn, d.id AS diary_id, d.status AS diary_status
 FROM teacher_assignments a
 JOIN employees e ON e.id = a.employee_id AND e.is_active AND e.user_id = ?
-JOIN academic_sessions se ON se.id = a.session_id AND se.is_active
+JOIN academic_sessions se ON se.id = a.session_id AND ?::date BETWEEN se.start_date AND se.end_date
 JOIN academic_classes c ON c.id = a.class_id
 JOIN academic_sections sec ON sec.session_id = a.session_id AND sec.class_id = a.class_id AND sec.is_active
 JOIN academic_subjects sub ON sub.id = a.subject_id
 LEFT JOIN class_diaries d ON d.section_id = sec.id AND d.subject_id = a.subject_id AND d.diary_date = ?::date
-ORDER BY c.display_order, c.name, sec.display_order, sec.name, sub.code`, actor, date).Scan(&out).Error
+ORDER BY c.display_order, c.name, sec.display_order, sec.name, sub.code`, actor, date, date).Scan(&out).Error
 	return out, err
 }
 
@@ -626,7 +626,7 @@ func (r *GormRepository) Compliance(ctx context.Context, date string) ([]Complia
   string_agg(DISTINCT e.name_en, ', ') AS teachers, max(d.status) AS diary_status
 FROM teacher_assignments a
 JOIN employees e ON e.id = a.employee_id AND e.is_active
-JOIN academic_sessions se ON se.id = a.session_id AND se.is_active AND ?::date BETWEEN se.start_date AND se.end_date
+JOIN academic_sessions se ON se.id = a.session_id AND ?::date BETWEEN se.start_date AND se.end_date
 JOIN academic_classes c ON c.id = a.class_id
 JOIN academic_sections sec ON sec.session_id = a.session_id AND sec.class_id = a.class_id AND sec.is_active
 JOIN academic_subjects sub ON sub.id = a.subject_id
