@@ -13,6 +13,7 @@ import { routineTranslations } from './routineTranslations'
 import { examTranslations } from './examTranslations'
 import { feeTranslations } from './feeTranslations'
 import { commTranslations } from './commTranslations'
+import { adminTranslations } from './adminTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -160,5 +161,7 @@ i18n.addResourceBundle('en', 'translation', feeTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', feeTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', commTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', commTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', adminTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', adminTranslations.bn, true, true)
 
 export default i18n
