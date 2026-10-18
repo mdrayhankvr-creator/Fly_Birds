@@ -201,8 +201,25 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: "diary_guardian", Name: "Children diary", Path: "/guardian/children"})
 			}
 		}
+		if enabled["analytics"] {
+			if allowed["analytics:read"] || allowed["analytics:finance"] {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "analytics", Name: "Analytics", Path: "/analytics"})
+			}
+			if allowed["analytics:read_assigned"] && !allowed["analytics:read"] && (user.Role == "teacher" || user.Role == "head_teacher") {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "analytics_teacher", Name: "Class analytics", Path: "/teacher/analytics"})
+			}
+			if allowed["analytics:read"] || allowed["analytics:read_assigned"] || allowed["analytics:finance"] {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "reports", Name: "Reports", Path: "/reports"})
+			}
+			if allowed["analytics:read_self"] && user.Role == "student" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "analytics_student", Name: "My progress", Path: "/student/progress"})
+			}
+			if allowed["analytics:read_children"] && user.Role == "guardian" {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "analytics_guardian", Name: "Children progress", Path: "/guardian/progress"})
+			}
+		}
 		for _, m := range modules {
-			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" && m.Key != "routine" && m.Key != "examinations" && m.Key != "fees" && m.Key != "notices" && m.Key != "diary" {
+			if m.Enabled && !m.IsCore && m.Key != "academics" && m.Key != "staff" && m.Key != "students" && m.Key != "attendance" && m.Key != "routine" && m.Key != "examinations" && m.Key != "fees" && m.Key != "notices" && m.Key != "diary" && m.Key != "analytics" {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: m.Key, Name: m.Name, ComingSoon: true})
 			}
 		}
