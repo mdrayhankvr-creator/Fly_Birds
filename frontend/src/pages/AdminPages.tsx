@@ -10,23 +10,6 @@ import {
 import { EmptyState, Notice, PageHeader, Pager, Skeleton, ui } from './attendanceUi'
 import { shiftDay, todayDhaka, useApi, useDhakaFormat } from './commShared'
 
-// Admin sections share one sub-navigation so the control center reads as a
-// single area rather than scattered pages.
-const sections = [
-  { path: '/admin/control', key: 'm10NavOverview' }, { path: '/admin/audit', key: 'm10NavAudit' }, { path: '/admin/exports', key: 'm10NavExports' },
-  { path: '/admin/backups', key: 'm10NavBackups' }, { path: '/admin/modules', key: 'm10NavModules' }, { path: '/admin/permissions', key: 'm10NavPermissions' },
-  { path: '/admin/users', key: 'm10NavUsers' }, { path: '/admin/school-settings', key: 'm10NavSettings' },
-]
-
-export function AdminNav() {
-  const { t } = useTranslation()
-  const { pathname } = useLocation()
-  return <nav aria-label={t('m10AdminSections')} className="-mx-1 flex gap-1 overflow-x-auto pb-1 print:hidden">
-    {sections.map(s => <Link key={s.path} to={s.path} aria-current={pathname === s.path ? 'page' : undefined}
-      className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${pathname === s.path ? 'bg-[var(--brand-primary)] text-white shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'}`}>{t(s.key)}</Link>)}
-  </nav>
-}
-
 function useAdminError() {
   const { t } = useTranslation()
   return (cause: unknown) => t(cause instanceof ApiError && cause.status === 403 ? 'm10ErrForbidden' : 'm10ErrGeneric')
@@ -35,7 +18,6 @@ function useAdminError() {
 function Shell({ title, description, actions, children }: { title: string; description: string; actions?: ReactNode; children: ReactNode }) {
   const { t } = useTranslation()
   return <section className="space-y-6">
-    <AdminNav />
     <PageHeader eyebrow={t('m10Eyebrow')} title={title} description={description} actions={actions} />
     {children}
   </section>
@@ -171,7 +153,7 @@ function AuditRow({ event }: { event: AuditItem }) {
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1"><code className="break-all font-mono text-sm font-semibold text-slate-900">{event.action}</code>
         <span className="text-sm text-slate-600">{event.target_type}{event.target_id ? `: ${event.target_id}` : ''}</span></p>
       <p className="mt-0.5 text-sm text-slate-700">{event.actor_name || t('m10System')}{event.actor_role && <span className="text-slate-500"> · {t(`m10Role_${event.actor_role}`, { defaultValue: event.actor_role })}</span>}{event.actor_email && event.actor_email !== event.actor_name && <span className="break-all text-slate-500"> · {event.actor_email}</span>}</p>
-      {metadata && <details className="mt-1 text-sm"><summary className="cursor-pointer font-semibold text-[var(--brand-primary)]">{t('m10Details')}</summary>
+      {metadata && <details className="mt-1 text-sm"><summary className="cursor-pointer font-semibold text-[var(--brand-ink)]">{t('m10Details')}</summary>
         <pre className="mt-1 max-h-64 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-800">{metadata}</pre></details>}
     </div>
     <div className="sm:justify-self-end"><OutcomeBadge outcome={event.outcome} /></div>

@@ -5,7 +5,6 @@ import { ApiError } from '../api/client'
 import { getPermissionHistory, getPermissionMatrix, saveRolePermissions, type MatrixPermission } from '../api/admin'
 import { EmptyState, Notice, PageHeader, Pager, Skeleton, Tabs, ui } from './attendanceUi'
 import { useApi, useDhakaFormat } from './commShared'
-import { AdminNav } from './AdminPages'
 
 type View = 'edit' | 'matrix' | 'history'
 
@@ -69,7 +68,6 @@ export function PermissionPage({ canManage }: { canManage: boolean }) {
   const groups = matrix.data ? groupPermissions(matrix.data.permissions, search) : []
 
   return <section className="space-y-6">
-    <AdminNav />
     <PageHeader eyebrow={t('m10Eyebrow')} title={t('m10PermTitle')} description={t('m10PermIntro')} />
     {!canManage && <Notice tone="info">{t('m10ReadOnlyPerms')}</Notice>}
     {matrix.isPending && <Skeleton rows={5} />}
@@ -78,7 +76,7 @@ export function PermissionPage({ canManage }: { canManage: boolean }) {
       <Tabs label={t('m10PermTitle')} value={view} onChange={setView} items={[{ value: 'edit', label: t('m10TabEdit') }, { value: 'matrix', label: t('m10TabMatrix') }, { value: 'history', label: t('m10TabHistory') }]} />
       {view !== 'matrix' && <div role="radiogroup" aria-label={t('roles')} className="flex flex-wrap gap-2">
         {matrix.data.roles.map(r => <button key={r.id} type="button" role="radio" aria-checked={role === r.id} onClick={() => selectRole(r.id)}
-          className={`rounded-xl px-3.5 py-2 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${role === r.id ? 'bg-[var(--brand-primary)] text-white shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
+          className={`rounded-xl px-3.5 py-2 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${role === r.id ? 'bg-[var(--brand-primary)] text-[var(--brand-on)] shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
           <span className="block font-semibold">{roleName(r.id)}</span>
           <span className={`block text-xs ${role === r.id ? 'text-white/85' : 'text-slate-500'}`}>{t('m10ActiveUsers', { count: r.active_users, n: f.number(r.active_users) })} · {f.number(matrix.data.grants[r.id]?.length ?? 0)}</span></button>)}
       </div>}

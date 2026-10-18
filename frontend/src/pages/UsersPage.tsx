@@ -1,3 +1,4 @@
+import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -66,12 +67,12 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
     if (!selectedId || !edit) return
     void run(() => authorized((token) => updateUser(token, selectedId, edit)))
   }
-  function changeStatus(user: ManagedUser) {
-    if (!window.confirm(t(user.is_active ? 'confirmDeactivate' : 'confirmActivate', { name: user.display_name }))) return
+  async function changeStatus(user: ManagedUser) {
+    if (!(await confirmAction(t(user.is_active ? 'confirmDeactivate' : 'confirmActivate', { name: user.display_name })))) return
     void run(() => authorized((token) => setUserStatus(token, user.id, !user.is_active)))
   }
-  function changeRole(user: ManagedUser) {
-    if (!window.confirm(t('confirmRole', { name: user.display_name, role: chosenRole }))) return
+  async function changeRole(user: ManagedUser) {
+    if (!(await confirmAction(t('confirmRole', { name: user.display_name, role: chosenRole })))) return
     void run(() => authorized((token) => setUserRole(token, user.id, chosenRole)))
   }
 
@@ -95,7 +96,7 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
         <label className="text-sm font-semibold text-slate-700">{t('role')}<select className={inputClass} value={roleFilter} onChange={(e) => { setPage(1); setRoleFilter(e.target.value) }}><option value="">{t('allRoles')}</option>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>
         <label className="text-sm font-semibold text-slate-700">{t('status')}<select className={inputClass} value={statusFilter} onChange={(e) => { setPage(1); setStatusFilter(e.target.value) }}><option value="">{t('allStatuses')}</option><option value="active">{t('active')}</option><option value="inactive">{t('inactive')}</option></select></label>
       </div>
-      {users.isPending ? <p role="status" className="mt-5">{t('loadingUsers')}</p> : users.isError ? <p role="alert" className="mt-5 text-rose-700">{t('loadUsersError')}</p> : users.data.items.length === 0 ? <p className="mt-5 text-slate-600">{t('noUsers')}</p> : <div className="mt-5 w-full overflow-x-auto"><table className="min-w-[38rem] w-full text-left text-sm"><thead className="border-b text-slate-600"><tr><th className="p-2">{t('displayName')}</th><th className="p-2">{t('email')}</th><th className="p-2">{t('role')}</th><th className="p-2">{t('status')}</th><th className="p-2">{t('details')}</th></tr></thead><tbody>{users.data.items.map((user) => <tr key={user.id} className="border-b last:border-0"><td className="p-2">{user.display_name}</td><td className="p-2">{user.email}</td><td className="p-2">{t(`role_${user.role}`)}</td><td className="p-2">{t(user.is_active ? 'active' : 'inactive')}</td><td className="p-2"><button className="font-semibold text-teal-700 underline" onClick={() => selectUser(user)}>{t('view')}</button></td></tr>)}</tbody></table></div>}
+      {users.isPending ? <p role="status" className="mt-5">{t('loadingUsers')}</p> : users.isError ? <p role="alert" className="mt-5 text-rose-700">{t('loadUsersError')}</p> : users.data.items.length === 0 ? <p className="mt-5 text-slate-600">{t('noUsers')}</p> : <div className="mt-5 w-full overflow-x-auto"><table className="min-w-[38rem] w-full text-left text-sm"><thead className="border-b text-slate-600"><tr><th className="p-2">{t('displayName')}</th><th className="p-2">{t('email')}</th><th className="p-2">{t('role')}</th><th className="p-2">{t('status')}</th><th className="p-2">{t('details')}</th></tr></thead><tbody>{users.data.items.map((user) => <tr key={user.id} className="border-b last:border-0"><td className="p-2">{user.display_name}</td><td className="p-2">{user.email}</td><td className="p-2">{t(`role_${user.role}`)}</td><td className="p-2">{t(user.is_active ? 'active' : 'inactive')}</td><td className="p-2"><button className="font-semibold text-[var(--brand-ink)] underline" onClick={() => selectUser(user)}>{t('view')}</button></td></tr>)}</tbody></table></div>}
       <div className="mt-5 flex items-center justify-between gap-2 text-sm"><button disabled={page <= 1 || users.isPending} onClick={() => setPage(page - 1)} className="rounded border px-3 py-2 disabled:opacity-40">{t('previous')}</button><span>{t('pageOf', { page, total: Math.max(1, Math.ceil((users.data?.total || 0) / 10)) })}</span><button disabled={users.isPending || !users.data || page * 10 >= users.data.total} onClick={() => setPage(page + 1)} className="rounded border px-3 py-2 disabled:opacity-40">{t('next')}</button></div>
     </section>
     {selectedId && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-xl font-semibold text-slate-900">{t('userDetails')}</h2>

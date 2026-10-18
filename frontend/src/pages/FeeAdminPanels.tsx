@@ -1,3 +1,4 @@
+import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -60,7 +61,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
       {categories.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : allCategories.length === 0 ? <p className="mt-3 text-slate-600">{t('feeNoCategories')}</p> :
         <TableWrap><thead><tr className="border-b bg-slate-50"><th className="p-2">{t('feeCode')}</th><th className="p-2">{t('feeName')}</th><th className="p-2">{t('feeFrequency')}</th><th className="p-2">{t('feeStatus')}</th>{access.canManage && <th className="p-2"><span className="sr-only">{t('feeActions')}</span></th>}</tr></thead>
           <tbody>{allCategories.map(c => <tr key={c.id} className="border-b"><td className="p-2 font-mono">{c.code}</td><td className="p-2">{name(c.name_en, c.name_bn)}</td><td className="p-2">{t(`feeFrequency_${c.frequency}`)}</td><td className="p-2">{t(c.is_active ? 'feeActive' : 'feeInactive')}</td>
-            {access.canManage && <td className="p-2"><button type="button" className="font-semibold text-teal-800 underline" onClick={() => { setCategoryId(c.id); setCategory({ code: c.code, name_en: c.name_en, name_bn: c.name_bn, frequency: c.frequency, is_active: c.is_active }) }}>{t('feeEdit')}</button></td>}</tr>)}</tbody></TableWrap>}
+            {access.canManage && <td className="p-2"><button type="button" className="font-semibold text-[var(--brand-ink)] underline" onClick={() => { setCategoryId(c.id); setCategory({ code: c.code, name_en: c.name_en, name_bn: c.name_bn, frequency: c.frequency, is_active: c.is_active }) }}>{t('feeEdit')}</button></td>}</tr>)}</tbody></TableWrap>}
     </section>
 
     <section className={feeCard}><h2 className="text-xl font-bold">{t('feeStructures')}</h2><p className="mt-1 text-sm text-slate-600">{t('feeStructuresHint')}</p>
@@ -77,7 +78,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
       {structures.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : !structures.data?.items.length ? <p className="mt-3 text-slate-600">{t('feeNoStructures')}</p> :
         <TableWrap><thead><tr className="border-b bg-slate-50"><th className="p-2">{t('feeSession')}</th><th className="p-2">{t('feeClass')}</th><th className="p-2">{t('feeCategory')}</th><th className="p-2 text-right">{t('feeAmount')}</th><th className="p-2">{t('feeDueDay')}</th><th className="p-2">{t('feeStatus')}</th>{access.canManage && <th className="p-2"><span className="sr-only">{t('feeActions')}</span></th>}</tr></thead>
           <tbody>{structures.data.items.map(s => <tr key={s.id} className="border-b"><td className="p-2">{s.session_name}</td><td className="p-2">{s.class_name}</td><td className="p-2">{name(s.category_name_en, s.category_name_bn)} <span className="text-xs text-slate-500">({t(`feeFrequency_${s.frequency}`)})</span></td><td className="p-2 text-right">{money(s.amount)}</td><td className="p-2">{s.due_day}</td><td className="p-2">{t(s.is_active ? 'feeActive' : 'feeInactive')}</td>
-            {access.canManage && <td className="p-2"><button type="button" className="font-semibold text-teal-800 underline" onClick={() => { setStructureId(s.id); setStructure({ session_id: s.session_id, class_id: s.class_id, category_id: s.category_id, amount: s.amount, due_day: s.due_day, is_active: s.is_active }) }}>{t('feeEdit')}</button></td>}</tr>)}</tbody></TableWrap>}
+            {access.canManage && <td className="p-2"><button type="button" className="font-semibold text-[var(--brand-ink)] underline" onClick={() => { setStructureId(s.id); setStructure({ session_id: s.session_id, class_id: s.class_id, category_id: s.category_id, amount: s.amount, due_day: s.due_day, is_active: s.is_active }) }}>{t('feeEdit')}</button></td>}</tr>)}</tbody></TableWrap>}
     </section>
 
     <section className={feeCard}><h2 className="text-xl font-bold">{t('feeConcessions')}</h2><p className="mt-1 text-sm text-slate-600">{t('feeConcessionsHint')}</p>
@@ -104,7 +105,7 @@ function Breakdown({ title, buckets, label }: { title: string; buckets: FeeBucke
   const max = Math.max(1, ...buckets.map(b => b.total))
   return <div><h3 className="font-bold">{title}</h3>{buckets.length === 0 ? <p className="mt-2 text-sm text-slate-600">{t('feeNoData')}</p> :
     <ul className="mt-2 space-y-2">{buckets.map(b => <li key={b.key} className="text-sm"><div className="flex justify-between gap-2"><span className="min-w-0 truncate">{label(b)}</span><span className="whitespace-nowrap font-semibold">{money(b.total)} <span className="font-normal text-slate-500">({b.count})</span></span></div>
-      <div className="mt-1 h-2 rounded bg-slate-100" aria-hidden="true"><div className="h-2 rounded bg-teal-600" style={{ width: `${(b.total / max) * 100}%` }} /></div></li>)}</ul>}</div>
+      <div className="mt-1 h-2 rounded bg-slate-100" aria-hidden="true"><div className="h-2 rounded bg-[var(--brand-primary)]" style={{ width: `${(b.total / max) * 100}%` }} /></div></li>)}</ul>}</div>
 }
 
 export function FeeReportsPanel({ options }: { options: FeeOptions }) {
@@ -172,7 +173,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
       {payments.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : payments.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : payments.data.items.length === 0 ? <p className="mt-3 text-slate-600">{t('feeNoPayments')}</p> : <>
         <TableWrap><thead><tr className="border-b bg-slate-50"><th className="p-2">{t('feeReceiptNo')}</th><th className="p-2">{t('feePaidOn')}</th><th className="p-2">{t('feeStudent')}</th><th className="p-2">{t('feeMethod')}</th><th className="p-2 text-right">{t('feeAmount')}</th><th className="p-2"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
           <tbody>{payments.data.items.map(p => <tr key={p.id} className="border-b"><td className="p-2 font-mono">{p.receipt_no}</td><td className="p-2">{p.paid_on}</td><td className="p-2">{name(p.student_name, p.student_name_bn)}<span className="block text-xs text-slate-600">{p.admission_no} · {p.class_name}</span></td><td className="p-2">{t(`feeMethod_${p.method}`)}</td><td className="p-2 text-right">{money(p.amount)}</td>
-            <td className="p-2"><button type="button" className="font-semibold text-teal-800 underline" onClick={() => void open(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody></TableWrap>
+            <td className="p-2"><button type="button" className="font-semibold text-[var(--brand-ink)] underline" onClick={() => void open(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody></TableWrap>
         <Pager page={paymentPage} total={payments.data.total} size={20} onPage={setPaymentPage} />
       </>}
     </section>
@@ -233,7 +234,7 @@ export function LedgerPanel({ canManage }: { canManage: boolean }) {
         <TableWrap><thead><tr className="border-b bg-slate-50"><th className="p-2">{t('ledgerDate')}</th><th className="p-2">{t('ledgerType')}</th><th className="p-2">{t('feeCategory')}</th><th className="p-2">{t('ledgerDescription')}</th><th className="p-2 text-right">{t('feeAmount')}</th><th className="p-2">{t('ledgerBy')}</th>{canManage && <th className="p-2"><span className="sr-only">{t('feeActions')}</span></th>}</tr></thead>
           <tbody>{entries.data.items.map(e => <tr key={e.id} className="border-b"><td className="whitespace-nowrap p-2">{e.entry_date}</td><td className="p-2">{t(e.entry_type === 'income' ? 'ledgerIncome' : 'ledgerExpense')}</td><td className="p-2">{categoryLabel(e.category)}</td><td className="p-2">{e.description}{e.reference && <span className="block text-xs text-slate-500">{e.reference}</span>}</td>
             <td className={`p-2 text-right font-semibold ${e.entry_type === 'expense' ? 'text-rose-700' : 'text-emerald-800'}`}>{e.entry_type === 'expense' ? '−' : '+'}{money(e.amount)}</td><td className="p-2">{e.created_by_name}</td>
-            {canManage && <td className="p-2">{e.payment_id ? <span className="text-xs text-slate-500">{t('ledgerFromReceipt')}</span> : <button type="button" className="font-semibold text-rose-700 underline" onClick={() => { if (window.confirm(t('ledgerConfirmDelete'))) void action.run(() => authorized(token => deleteLedgerEntry(token, e.id)), t('feeDeleted')) }}>{t('feeDelete')}</button>}</td>}</tr>)}</tbody></TableWrap>
+            {canManage && <td className="p-2">{e.payment_id ? <span className="text-xs text-slate-500">{t('ledgerFromReceipt')}</span> : <button type="button" className="font-semibold text-rose-700 underline" onClick={async () => { if ((await confirmAction(t('ledgerConfirmDelete')))) void action.run(() => authorized(token => deleteLedgerEntry(token, e.id)), t('feeDeleted')) }}>{t('feeDelete')}</button>}</td>}</tr>)}</tbody></TableWrap>
         <Pager page={page} total={entries.data.total} size={20} onPage={setPage} />
       </>}
     </section>

@@ -1,3 +1,4 @@
+import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -88,8 +89,8 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
     setForm({ name: session.name, start_date: session.start_date, end_date: session.end_date })
     setError(''); setMessage('')
   }
-  function activation(session: AcademicSession) {
-    if (!window.confirm(t(session.is_active ? 'confirmSessionDeactivate' : 'confirmSessionActivate', { name: session.name }))) return
+  async function activation(session: AcademicSession) {
+    if (!(await confirmAction(t(session.is_active ? 'confirmSessionDeactivate' : 'confirmSessionActivate', { name: session.name })))) return
     void run(() => authorized((token) => setAcademicSessionActive(token, session.id, !session.is_active)))
   }
 

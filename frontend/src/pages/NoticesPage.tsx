@@ -1,3 +1,4 @@
+import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -126,8 +127,8 @@ function NoticeManager() {
         <div className="flex flex-wrap items-end gap-2">
           <Field label={t('m9ScheduleFor')}><input type="datetime-local" className={ui.field} value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} /></Field>
           <button type="button" className={ui.secondary} disabled={busy || !scheduleAt || current?.status === 'archived'} onClick={() => void saveAndPublish(localToIso(scheduleAt))}>{t('m9Schedule')}</button>
-          {current && current.status !== 'archived' && <button type="button" className={ui.secondary} disabled={busy} onClick={() => { if (window.confirm(t('m9ConfirmArchive'))) void run(() => authorized(token => archiveNotice(token, current.id)), 'm9ArchivedOk', true) }}>{t('m9Archive')}</button>}
-          {current?.status === 'draft' && <button type="button" className={`${ui.secondary} text-rose-700`} disabled={busy} onClick={() => { if (window.confirm(t('m9ConfirmDelete'))) void run(() => authorized(token => deleteNotice(token, current.id)), 'm9DeletedOk', true) }}>{t('m9Delete')}</button>}
+          {current && current.status !== 'archived' && <button type="button" className={ui.secondary} disabled={busy} onClick={async () => { if ((await confirmAction(t('m9ConfirmArchive')))) void run(() => authorized(token => archiveNotice(token, current.id)), 'm9ArchivedOk', true) }}>{t('m9Archive')}</button>}
+          {current?.status === 'draft' && <button type="button" className={`${ui.secondary} text-rose-700`} disabled={busy} onClick={async () => { if ((await confirmAction(t('m9ConfirmDelete')))) void run(() => authorized(token => deleteNotice(token, current.id)), 'm9DeletedOk', true) }}>{t('m9Delete')}</button>}
         </div>
       </div>
     </form> : <div className="flex flex-wrap items-center justify-between gap-3">
