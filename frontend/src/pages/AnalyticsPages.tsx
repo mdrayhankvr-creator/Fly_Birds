@@ -14,7 +14,7 @@ import { BarList, ColumnChart, LineChart, Meter } from './analyticsCharts'
 
 // ---------- formatting ----------
 
-function useFmt() {
+export function useFmt() {
   const { i18n } = useTranslation()
   const locale = i18n.language === 'bn' ? 'bn-BD' : 'en-GB'
   const num = (n: number, digits = 0) => new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n)
@@ -146,9 +146,9 @@ function OverviewTab({ session, onOpen }: { session: string; onOpen: (tab: TabKe
   if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />
   const d = q.data
   const insights: { tone: 'warning' | 'info' | 'success'; text: string; tab: TabKey }[] = []
-  if (d.risks && d.risks.dropout > 0) insights.push({ tone: 'warning', text: t('m11InsightDropout', { n: f.num(d.risks.dropout) }), tab: 'alerts' })
-  if (d.risks && d.risks.at_risk > 0) insights.push({ tone: 'info', text: t('m11InsightAtRisk', { n: f.num(d.risks.at_risk) }), tab: 'alerts' })
-  if (d.today_students && d.active_students > 0 && d.today_students.marked < d.active_students) insights.push({ tone: 'info', text: t('m11InsightUnmarked', { n: f.num(d.active_students - d.today_students.marked) }), tab: 'attendance' })
+  if (d.risks && d.risks.dropout > 0) insights.push({ tone: 'warning', text: t('m11InsightDropout', { n: f.num(d.risks.dropout), count: d.risks.dropout }), tab: 'alerts' })
+  if (d.risks && d.risks.at_risk > 0) insights.push({ tone: 'info', text: t('m11InsightAtRisk', { n: f.num(d.risks.at_risk), count: d.risks.at_risk }), tab: 'alerts' })
+  if (d.today_students && d.active_students > 0 && d.today_students.marked < d.active_students) insights.push({ tone: 'info', text: t('m11InsightUnmarked', { n: f.num(d.active_students - d.today_students.marked), count: d.active_students - d.today_students.marked }), tab: 'attendance' })
   if (d.fees && d.fees.overdue > 0) insights.push({ tone: 'warning', text: t('m11InsightOverdue', { amount: f.money(d.fees.overdue) }), tab: 'fees' })
   if (d.results && d.results.pass_rate !== null && d.results.pass_rate < 80) insights.push({ tone: 'info', text: t('m11InsightPassRate', { rate: f.pct(d.results.pass_rate) }), tab: 'results' })
   return <div className="space-y-5">
@@ -268,7 +268,7 @@ function FeesTab({ filter }: { filter: Filter }) {
       <Kpi label={t('m11Collected')} value={f.money(s.collected)} hint={t('m11InRange')} />
       <Kpi label={t('m11CollectionRate')} value={f.pct(s.collection_rate)} meter={s.collection_rate} hint={t('m11CollectionRule', { paid: f.money(s.paid_against_billed), billed: f.money(s.net_billed) })} />
       <Kpi label={t('m11Outstanding')} value={f.money(s.outstanding)} hint={t('m11AsOfToday')} />
-      <Kpi label={t('m11Overdue')} value={f.money(s.overdue)} tone={s.overdue ? 'alert' : undefined} hint={t('m11OverdueStudents', { n: f.num(s.overdue_students) })} />
+      <Kpi label={t('m11Overdue')} value={f.money(s.overdue)} tone={s.overdue ? 'alert' : undefined} hint={t('m11OverdueStudents', { n: f.num(s.overdue_students), count: s.overdue_students })} />
       <Kpi label={t('m11Billed')} value={f.money(s.net_billed)} hint={t('m11Discounts', { amount: f.money(s.discounts) })} />
       <Kpi label={t('m11Income')} value={f.money(s.income)} hint={t('m11SchoolWide')} />
       <Kpi label={t('m11Expense')} value={f.money(s.expense)} hint={t('m11SchoolWide')} />
@@ -284,10 +284,10 @@ function FeesTab({ filter }: { filter: Filter }) {
           series={[{ key: 'income', label: t('m11Income'), values: d.months.map(m => m.income) }, { key: 'expense', label: t('m11Expense'), values: d.months.map(m => m.expense) }]} />
       </Card>
       <Card title={t('m11ByMethod')}>
-        <BarList title={t('m11ByMethod')} empty={t('m11NoFees')} items={d.methods.map(m => ({ key: m.method, label: t(`m11Method_${m.method}`), value: m.amount, display: f.money(m.amount), hint: t('m11Receipts', { n: f.num(m.receipts) }) }))} />
+        <BarList title={t('m11ByMethod')} empty={t('m11NoFees')} items={d.methods.map(m => ({ key: m.method, label: t(`m11Method_${m.method}`), value: m.amount, display: f.money(m.amount), hint: t('m11Receipts', { n: f.num(m.receipts), count: m.receipts }) }))} />
       </Card>
       <Card title={t('m11Aging')}>
-        <BarList title={t('m11Aging')} empty={t('m11NoFees')} items={d.aging.map(a => ({ key: a.bucket, label: t(`m11Aging_${a.bucket}`), value: a.amount, display: f.money(a.amount), hint: t('m11StudentsN', { n: f.num(a.students) }) }))} />
+        <BarList title={t('m11Aging')} empty={t('m11NoFees')} items={d.aging.map(a => ({ key: a.bucket, label: t(`m11Aging_${a.bucket}`), value: a.amount, display: f.money(a.amount), hint: t('m11StudentsN', { n: f.num(a.students), count: a.students }) }))} />
       </Card>
       <Card title={t('m11ClassCollection')}>
         <BarList title={t('m11ClassCollection')} max={100} empty={t('m11NoFees')} items={d.classes.map(c => ({ key: c.id, label: c.name, value: c.rate, display: f.pct(c.rate), hint: t('m11ClassFeeHint', { paid: f.money(c.paid), billed: f.money(c.net_billed), due: f.money(c.outstanding) }) }))} />
@@ -468,7 +468,7 @@ export function ReportsPage({ access }: { access: AnalyticsAccess }) {
       {!modulesOn ? <Notice tone="info">{t('m11ModuleOff')}</Notice> : !active.session_id ? <EmptyState title={t('m11NoSession')} /> : report.isPending ? <Skeleton rows={6} /> : report.isError ? <Failure error={report.error} retry={() => void report.refetch()} /> :
         <section className={`${ui.card} p-4`}>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-base font-semibold text-slate-900">{t(`m11Report_${key}`)}</h2>
-            <p className="text-sm text-slate-600">{t('m11Rows', { n: report.data.total })}{report.data.filter.from && ` · ${report.data.filter.from} – ${report.data.filter.to}`}</p></div>
+            <p className="text-sm text-slate-600">{t('m11Rows', { n: report.data.total, count: report.data.total })}{report.data.filter.from && ` · ${report.data.filter.from} – ${report.data.filter.to}`}</p></div>
           {report.data.rows.length === 0 ? <EmptyState title={t('m11NoData')}>{t('m11NoReportRows')}</EmptyState> : <ReportTable columns={report.data.columns} rows={report.data.rows} />}
           <Pager page={page} total={report.data.total} size={report.data.page_size} onPage={setPage} previous={t('m11Previous')} next={t('m11Next')} label={t('m11Pages')} />
         </section>}
@@ -518,8 +518,8 @@ export function StudentSummaryView({ data }: { data: StudentSummary }) {
       <ul className="mt-1 list-disc pl-5">{data.alert.reasons.map(r => <li key={r}>{t(`m11ReasonExplain_${r}`, { n: f.num(data.settings.consecutive_absences), days: f.num(data.settings.inactivity_days), rate: f.num(data.settings.attendance_threshold), window: f.num(data.settings.attendance_window_days), gpa: f.gpa(data.settings.gpa_threshold) })}</li>)}</ul>
       <p className="mt-1">{t('m11AlertAdvice')}</p></Notice>}
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Kpi label={t('m11SessionAttendance')} value={f.pct(a?.session.rate)} meter={a?.session.rate} hint={a ? t('m11DaysMarked', { n: f.num(a.session.marked) }) : t('m11ModuleOffShort')} />
-      <Kpi label={t('m11Last30')} value={f.pct(a?.last_30_days.rate)} meter={a?.last_30_days.rate} hint={a ? t('m11AbsentDays', { n: f.num(a.last_30_days.absent) }) : undefined} />
+      <Kpi label={t('m11SessionAttendance')} value={f.pct(a?.session.rate)} meter={a?.session.rate} hint={a ? t('m11DaysMarked', { n: f.num(a.session.marked), count: a.session.marked }) : t('m11ModuleOffShort')} />
+      <Kpi label={t('m11Last30')} value={f.pct(a?.last_30_days.rate)} meter={a?.last_30_days.rate} hint={a ? t('m11AbsentDays', { n: f.num(a.last_30_days.absent), count: a.last_30_days.absent }) : undefined} />
       <Kpi label={t('m11LatestResult')} value={latest ? `${latest.grade} · ${f.gpa(latest.gpa)}` : '—'} hint={latest ? latest.name : t('m11NoResultsYet')} tone={latest && !latest.passed ? 'alert' : undefined} />
       {data.fees ? <Kpi label={t('m11FeesDue')} value={f.money(data.fees.outstanding)} tone={data.fees.overdue > 0 ? 'alert' : undefined} hint={data.fees.overdue > 0 ? t('m11OverdueAmount', { amount: f.money(data.fees.overdue) }) : data.fees.next_due ? t('m11NextDue', { date: f.fullDay(data.fees.next_due) }) : t('m11NothingDue')} />
         : latest ? <Kpi label={t('m11Position')} value={f.num(latest.section_position)} hint={t('m11ClassPosition', { n: f.num(latest.class_position) })} /> : null}
