@@ -76,7 +76,9 @@ func guard(tx *gorm.DB, actor string) error {
 }
 func lockUpdates(tx *gorm.DB) error { return tx.Exec("SELECT pg_advisory_xact_lock(?)", 517002).Error }
 
-func (r *GormRepository) ReplaceRolePermissions(ctx context.Context, actor, role string, ids []string) (Change, error) {
+// ReplaceRolePermissions swaps a role's grants. When expected is non-nil the
+// current grants must equal it, otherwise ErrStale protects a newer edit.
+func (r *GormRepository) ReplaceRolePermissions(ctx context.Context, actor, role string, ids, expected []string) (Change, error) {
 	change := Change{ActorID: actor, TargetID: role}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockUpdates(tx); err != nil {
@@ -105,6 +107,9 @@ func (r *GormRepository) ReplaceRolePermissions(ctx context.Context, actor, role
 			return err
 		}
 		change.Before = before
+		if expected != nil && !sameSet(before, expected) {
+			return ErrStale
+		}
 		// The management gateway requires the admin role. Removing its grant would
 		// lock out every administrator, including currently active ones.
 		if role == "admin" {

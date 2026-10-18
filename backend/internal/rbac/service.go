@@ -42,7 +42,9 @@ type Repository interface {
 	ListPermissions(context.Context, string, int, int) ([]Permission, int64, error)
 	RolePermissions(context.Context, string) ([]string, error)
 	UserRoles(context.Context, string) ([]string, error)
-	ReplaceRolePermissions(context.Context, string, string, []string) (Change, error)
+	ReplaceRolePermissions(context.Context, string, string, []string, []string) (Change, error)
+	Matrix(context.Context) (Matrix, error)
+	History(context.Context, string, int, int) (Page[HistoryItem], error)
 	ReplaceUserRole(context.Context, string, string, string) (Change, error)
 }
 
@@ -82,8 +84,8 @@ func (s *Service) UserRoles(ctx context.Context, user string) ([]string, error) 
 	}
 	return s.repo.UserRoles(ctx, user)
 }
-func (s *Service) SetRolePermissions(ctx context.Context, actor, role string, ids []string) (Change, error) {
-	if !uuid.MatchString(actor) || !identifier.MatchString(role) || ids == nil || len(ids) > 200 {
+func (s *Service) SetRolePermissions(ctx context.Context, actor, role string, ids, expected []string) (Change, error) {
+	if !uuid.MatchString(actor) || !identifier.MatchString(role) || ids == nil || len(ids) > 200 || len(expected) > 200 {
 		return Change{}, ErrInvalid
 	}
 	seen := map[string]bool{}
@@ -93,7 +95,26 @@ func (s *Service) SetRolePermissions(ctx context.Context, actor, role string, id
 		}
 		seen[id] = true
 	}
-	return s.repo.ReplaceRolePermissions(ctx, actor, role, ids)
+	for _, id := range expected {
+		if !identifier.MatchString(id) {
+			return Change{}, ErrInvalid
+		}
+	}
+	return s.repo.ReplaceRolePermissions(ctx, actor, role, ids, expected)
+}
+
+// Matrix returns every role, permission and grant for the permission editor.
+func (s *Service) Matrix(ctx context.Context) (Matrix, error) { return s.repo.Matrix(ctx) }
+
+// History lists saved permission changes for one role, newest first.
+func (s *Service) History(ctx context.Context, role string, page, size int) (Page[HistoryItem], error) {
+	if !identifier.MatchString(role) {
+		return Page[HistoryItem]{}, ErrInvalid
+	}
+	if err := validatePage(page, size); err != nil {
+		return Page[HistoryItem]{}, err
+	}
+	return s.repo.History(ctx, role, page, size)
 }
 func (s *Service) SetUserRoles(ctx context.Context, actor, user string, ids []string) (Change, error) {
 	if !uuid.MatchString(actor) || !uuid.MatchString(user) || len(ids) != 1 || !identifier.MatchString(ids[0]) {

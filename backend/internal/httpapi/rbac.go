@@ -16,6 +16,8 @@ import (
 type rbacHandler struct{ service *rbac.Service }
 type assignments struct {
 	IDs []string `json:"ids"`
+	// Expected optionally carries the grants the editor loaded (role permissions only).
+	Expected []string `json:"expected_ids"`
 }
 
 func RequireAdministrator() gin.HandlerFunc {
@@ -49,6 +51,8 @@ func rbacError(c *gin.Context, err error) {
 		failure(c, 404, "not_found", "resource not found")
 	case errors.Is(err, rbac.ErrForbidden):
 		failure(c, 403, "forbidden", "permission denied")
+	case errors.Is(err, rbac.ErrStale):
+		failure(c, 409, "permissions_changed", "permissions changed since they were loaded; reload and review")
 	case errors.Is(err, rbac.ErrLastAdmin):
 		failure(c, 409, "last_admin", "an authorized administrator must remain")
 	default:
@@ -73,24 +77,29 @@ func pageParams(c *gin.Context) (string, int, int, error) {
 	return c.Query("search"), page, size, nil
 }
 func decodeAssignments(c *gin.Context) ([]string, bool) {
+	body, ok := decodeAssignmentBody(c)
+	return body.IDs, ok
+}
+
+func decodeAssignmentBody(c *gin.Context) (assignments, bool) {
 	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil || media != "application/json" {
 		failure(c, 415, "unsupported_media_type", "application/json is required")
-		return nil, false
+		return assignments{}, false
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 16*1024))
 	decoder.DisallowUnknownFields()
 	var body assignments
 	if decoder.Decode(&body) != nil {
 		failure(c, 400, "invalid_request", "a list of ids is required")
-		return nil, false
+		return body, false
 	}
 	var extra any
 	if decoder.Decode(&extra) != io.EOF {
 		failure(c, 400, "invalid_request", "one JSON object is required")
-		return nil, false
+		return body, false
 	}
-	return body.IDs, true
+	return body, true
 }
 
 // roles godoc
@@ -159,12 +168,12 @@ func (h *rbacHandler) setRolePermissions(c *gin.Context) {
 	if !h.available(c) {
 		return
 	}
-	ids, ok := decodeAssignments(c)
+	body, ok := decodeAssignmentBody(c)
 	if !ok {
 		return
 	}
 	actor := c.MustGet("auth_user").(auth.User)
-	change, err := h.service.SetRolePermissions(c.Request.Context(), actor.ID, c.Param("id"), ids)
+	change, err := h.service.SetRolePermissions(c.Request.Context(), actor.ID, c.Param("id"), body.IDs, body.Expected)
 	if err != nil {
 		rbacError(c, err)
 		return
@@ -207,4 +216,44 @@ func (h *rbacHandler) setUserRoles(c *gin.Context) {
 		return
 	}
 	success(c, 200, change.After)
+}
+
+// matrix godoc
+// @Summary Read every role, permission and grant with protected grants
+// @Tags authorization
+// @Router /permissions/matrix [get]
+func (h *rbacHandler) matrix(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	value, err := h.service.Matrix(c.Request.Context())
+	if err != nil {
+		rbacError(c, err)
+		return
+	}
+	success(c, 200, value)
+}
+
+// history godoc
+// @Summary List saved permission changes for a role
+// @Tags authorization
+// @Router /roles/{id}/permissions/history [get]
+func (h *rbacHandler) history(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	_, page, size, err := pageParams(c)
+	if c.Query("page_size") == "" {
+		size = 20
+	}
+	if err != nil {
+		rbacError(c, rbac.ErrInvalid)
+		return
+	}
+	value, err := h.service.History(c.Request.Context(), c.Param("id"), page, size)
+	if err != nil {
+		rbacError(c, err)
+		return
+	}
+	success(c, 200, value)
 }
