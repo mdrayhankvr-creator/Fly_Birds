@@ -4,11 +4,73 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 66 verified criteria / 83 total criteria x 100 = **79.5%**.
-- **Current milestone completion:** 5 verified M10 criteria / 5 M10 criteria = **100% locally**.
-- **Remaining:** 17 criteria in M11–M13. **Next planned milestone:** M11 Analytics, only after explicit approval.
+- **Overall completion:** 71 verified criteria / 83 total criteria x 100 = **85.5%**.
+- **Current milestone completion:** 5 verified M11 criteria / 5 M11 criteria = **100% locally**.
+- **Remaining:** 12 criteria in M12–M13. **Next planned milestone:** M12 UI and Product Polish, only after explicit approval.
 
-M0–M9 and the attendance UX redesign are merged into main (M9 through PR #14). M10 is complete locally on `feature/m10-admin-controls`, which is not pushed.
+M0–M10, the attendance UX redesign and the M0–M7 system audit are merged into main (M10 through PR #16, the audit through PR #15). M11 is complete locally on `feature/m11-analytics-reports`, which is not pushed.
+
+## Current Status — M11 Analytics and Reports (2026-10-19)
+
+M11 reads the existing attendance, examination, fee, student, guardian and staff tables; it stores no copy of them. Every figure is computed in PostgreSQL on request. Every query is limited to the selected session and, where dated, to a range of at most 400 days. Alert lists and reports are paged.
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Attendance analytics | Student attendance rate ((present + late) / marked), marks, present, late and absent for any session, class, section and date range. The default is the last 30 days, never reaching back before the session start. The trend is daily up to 62 days, weekly up to 190 and monthly beyond, with breakdowns by class, or by section once a class is chosen. School-wide teacher attendance is shown too; its rate is present / (present + absent), with leave excluded |
+| Pass-rate charts | Published and locked exams only: pass rate, average GPA, GPA 5.00 count and failures. The GPA distribution follows the school's configured grading bands, and failed results count in the lowest band. Pass rates are shown per exam, per subject (with average mark %) and per class or section. Filters cover session, class, section, exam and exam type |
+| Fee collection analytics | For any range (default: the current and previous eleven months, never before the session start) and class: billed after discounts, paid against those dues, collection rate, payments received, outstanding, overdue and overdue students. Charts show billed and collected by month, collections by payment method, overdue amounts by age (0–30, 31–60, 61–90, 90+ days), collection rate per class and the ten largest overdue balances. Ledger income, expenses and net are labelled school-wide, because the ledger has no class |
+| At-risk student alerts | Rule-based, not predicted. A student is at risk when attendance is below `attendance_threshold`% (default 75) over `attendance_window_days` (30) with at least `min_marked_days` (5) marks, when the latest published exam was failed, or when the latest GPA is below `gpa_threshold` (2.00). Attendance rules apply only while the attendance module is on, exam rules only while examinations is on |
+| Dropout alerts | A dropout alert fires for an unbroken run of `consecutive_absences` (5) latest absences, or for no presence in `inactivity_days` (21) while the student's section kept taking attendance on at least `min_marked_days` days; students admitted inside that window are skipped. Dropout alerts are listed first, then the lowest attendance. Administrators change the thresholds on the alerts tab, and each change is audited |
+
+**Pages and role dashboards.**
+- **School analytics (`/analytics`):** Overview, Attendance, Results, Fees and accounts, Student alerts and Sessions tabs, shown according to the viewer's permissions. The overview gives headline figures and actionable "needs attention" items (dropout alerts, unmarked attendance today, overdue fees, a low pass rate) that open the relevant tab. Sessions compares the eight most recent sessions.
+- **Class analytics (`/teacher/analytics`):** attendance, results and alerts for the teacher's assigned classes; subject figures cover only assigned subjects.
+- **Reports (`/reports`):** student attendance, teacher attendance, exam results, fee balances and student alerts as paged tables, with print styling and CSV download (UTF-8 BOM, formula-like cells neutralised, up to 20,000 rows, audited as `analytics.exported`).
+- **Progress pages:** `/student/progress` for students, `/guardian/progress` for linked children only, and `/analytics/students/{id}` for staff. Each shows session and 30-day attendance, a monthly trend, the last 14 days, published results with grades and positions, the latest exam's subjects, fee balance when the viewer may see fees, and the student's alert explained in plain words.
+- **Dashboards:** each role's dashboard shows an analytics card: school at a glance (admin, head teacher), fees at a glance (accountant), my classes (teacher), my progress (student) and children's progress (guardian). Header and dashboard navigation link to the pages.
+- **Design:** the charts are dependency-free SVG with thin marks, a recessive grid, hover tooltips and a hidden data table for screen readers. Colours come from the validated reference palette, with dark-theme steps. The pages are bilingual with Bangla digits, and every view has loading, error, empty and module-off states. The full M12 redesign was not started.
+
+**Security and record visibility.**
+- **Permissions:** migration `1101_analytics.sql` adds `analytics:read` (admin, head teacher), `analytics:read_assigned` (teacher), `analytics:finance` (admin, accountant), `analytics:read_self` (student), `analytics:read_children` (guardian) and `analytics:manage` (admin).
+- **Modules:** every route requires the `analytics` module, which now depends on `students`, plus each source module (attendance, examinations, fees).
+- **Teachers:** teacher scope is enforced in SQL against the teacher's own assignments in the selected session. Another class is 403, and a student outside the teacher's classes is 404.
+- **Students and guardians:** students read only their linked record, and guardians only linked children (anyone else is 404).
+- **Fees:** fee figures appear only for `analytics:finance`; head teachers and teachers get 403 on fee analytics and fee reports, and their overview and session comparison omit money.
+
+**Schema.** `1101_analytics.sql` adds the one-row `analytics_settings` table (thresholds with database range checks), two indexes for school-wide aggregation, the six permissions and their default grants. It changes no existing data.
+
+**Verification (2026-10-19).**
+- **Backend:** `go vet ./...` passed. On a freshly created disposable PostgreSQL 17.11 database, `go test ./... -p 1 -count=1` passed 82 of 82 top-level tests and 17 of 17 subtests, with none failed or skipped. All 19 packages with tests passed (7 have no test files). This includes `TestPostgresM11Analytics`, `TestOpenAPICoversRegisteredRoutes` and every M0–M10 integration test.
+- **Unit tests:** percentages and empty denominators, range defaults and the 400-day limit, trend grouping, grade mapping with default and custom bands, the distribution, threshold validation, and each alert rule at its boundaries and with modules switched off.
+- **M11 PostgreSQL HTTP test (isolated fixture):**
+  - **Accuracy:** every figure is compared with values computed from the fixture's source records. That covers attendance totals, the daily trend, class and section groups, and date, class and section filters. It also covers pass rate, average GPA, distribution, subject pass rates and averages, and the exam filter, so a draft exam is ignored. Fee checks cover billed, discounts, collection rate, collected, outstanding, overdue, aging, methods, the top overdue order, monthly sums, class filter and ledger totals. The exact alert set, reasons, order, paging and filters are checked as well.
+  - **Isolation:** teacher scope (attendance, subjects, alerts, options, students, exam report) and student and guardian scope are checked, as are finance-only access and head-teacher omissions.
+  - **Modules, validation and empty data:** module gates, validation (bad IDs, ranges, future dates, section/class mismatch, paging limits), empty sessions and the default fee range are checked.
+  - **Reports and settings:** report paging and CSV (BOM, Bangla, neutralised formula, audit) are checked. Thresholds are admin-only, validated, audited and take effect.
+  - **Navigation:** navigation per role, with and without the module, is checked.
+- **Frontend and Compose:** `tsc`, the production build, `npm run check:i18n` (1,562 English and 1,562 Bangla keys) and a check of all 290 analytics keys, including template-built ones, passed. `docker compose config --quiet` passed.
+- **Browser:** headless Edge drove an isolated database, backend (8094) and Vite (5194), seeded with 36 students, 30 days of attendance, published results, three months of fees and staff attendance. It passed **68 of 68 checks** in two consecutive full runs:
+  - **Admin:** overview figures match the API; the chart tooltip shows on hover; class filters regroup the data; pass rate and collected match the API; alert filters and threshold editing work.
+  - **Pages:** staff student page, session comparison, empty-session state, reports with CSV bytes checked in the page, print button and module-off message.
+  - **Roles:** head-teacher, teacher, accountant, student and guardian scoping, including an unlinked guardian.
+  - **Layout:** Bangla at 390 px for six pages and three tabs with no horizontal overflow and no untranslated keys; desktop layout; no JavaScript exception.
+- **Fixes from verification:**
+  - GORM's named parameters fail silently when a statement contains `::` casts, so analytics binds them positionally.
+  - Embedded scan structs were not populated.
+  - Dashboard links were evaluated before the module map was built.
+  - Default ranges started before the session.
+  - Negative amounts showed the sign after the currency symbol.
+  - The last two axis labels overlapped.
+  - The existing RBAC integration test left the teacher role stripped of its grants, breaking later tests on a reused database; it now restores the previous grants.
+- **Isolation:** tests and browser runs used a disposable PostgreSQL container and temporary directories. The application database, Demo School, Docker volumes, backups, uploads and QA stacks were not touched.
+
+**Not verified / limitations.**
+- **Alerts** are explainable rules, not predictions (machine-learning prediction is future work). They read current enrolment, so students who moved session are judged in their current session only, and Friday or holiday gaps are not modelled beyond "days attendance was taken".
+- **Teacher scope** follows class-level assignments, as M4 does: a teacher assigned to a class sees all its sections.
+- **Sessions:** the comparison counts the students currently enrolled in each session; past enrolment history is not stored by M3.
+- **Ledger** figures are school-wide. Reports are CSV and print; there is no PDF or Excel export. Report CSVs stop at 20,000 rows (the total is sent in `X-Total-Rows`).
+- **Performance:** checked on fixture-sized data only; very large schools were not load-tested.
+- **Not run:** remote CI, production migration and deployment.
 
 ## Current Status — M10 Admin Control Center (2026-10-18)
 
