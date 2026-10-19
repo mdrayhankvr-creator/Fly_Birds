@@ -1,7 +1,7 @@
 // Minimal headless Chromium/Edge driver over the Chrome DevTools Protocol.
 // No dependencies: Node 22's built-in fetch and WebSocket are enough.
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -68,7 +68,9 @@ export async function launch({ base, shots, port = 9341 }) {
       await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode })
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode })
     },
-    close() { ws.close(); edge.kill() },
+    // Each launch gets a throwaway browser profile (hundreds of MB once pages
+    // have loaded); delete it when the browser exits so runs do not fill the disk.
+    close() { edge.once('exit', () => rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })); ws.close(); edge.kill() },
   }
   return b
 }
