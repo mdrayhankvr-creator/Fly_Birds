@@ -150,5 +150,5 @@ export function useNumber() {
 
 export function Avatar({ name }: { name: string }) {
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => [...part][0]).join('').toUpperCase()
-  return <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_12%,white)] text-sm font-bold text-[var(--brand-ink)]">{initials}</span>
+  return <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-sm font-bold text-[var(--brand-ink)]">{initials}</span>
 }

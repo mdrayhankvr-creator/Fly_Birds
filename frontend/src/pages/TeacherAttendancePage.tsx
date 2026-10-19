@@ -103,7 +103,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
           const display = name(item.name_en, item.name_bn)
           const status = draft?.status ?? item.status ?? ''
           const dirty = !!draft && (draft.status !== (item.status ?? '') || draft.note !== (item.note ?? ''))
-          return <li key={item.employee_id} className={`rounded-xl px-2 py-3 sm:px-3 ${dirty ? 'bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)]' : ''}`}>
+          return <li key={item.employee_id} className={`rounded-xl px-2 py-3 sm:px-3 ${dirty ? 'bg-[var(--brand-soft)]' : ''}`}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-3"><Avatar name={item.name_en} /><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{display}</p>
                 <p className="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span>{item.employee_code}</span>{item.status ? <StatusBadge tone={item.status}>{t('attnSaved')} · {statusLabel(item.status)}</StatusBadge> : <StatusBadge tone="unmarked">{t('attendanceUnmarked')}</StatusBadge>}</p></div></div>

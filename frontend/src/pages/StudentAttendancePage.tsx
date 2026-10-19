@@ -251,7 +251,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
               const isStale = stale.includes(item.student_id.toLowerCase())
               const display = name(item.name_en, item.name_bn)
               const noteValue = draft?.note ?? item.note ?? ''
-              return <li key={item.student_id} className={`relative rounded-xl px-2 py-3 sm:px-3 ${isStale ? 'bg-amber-50' : draft ? 'bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)]' : ''}`}>
+              return <li key={item.student_id} className={`relative rounded-xl px-2 py-3 sm:px-3 ${isStale ? 'bg-amber-50' : draft ? 'bg-[var(--brand-soft)]' : ''}`}>
                 {draft && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-full bg-[var(--brand-primary)]" />}
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                   <div className="flex min-w-0 flex-1 items-center gap-3">

@@ -102,6 +102,21 @@ main table tbody tr:hover { background-color: #f8fafc; }
 [data-theme="dark"] .border-amber-200 { border-color: rgb(245 158 11 / 0.35); }
 [data-theme="dark"] .border-emerald-200 { border-color: rgb(16 185 129 / 0.35); }
 [data-theme="dark"] .border-sky-200 { border-color: rgb(14 165 233 / 0.35); }
+/* Badge tints, emphasis borders and translucent panels on the dark surface. */
+[data-theme="dark"] .bg-emerald-100 { background-color: rgb(16 185 129 / 0.2); }
+[data-theme="dark"] .bg-rose-100 { background-color: rgb(244 63 94 / 0.2); }
+[data-theme="dark"] .bg-sky-100 { background-color: rgb(14 165 233 / 0.2); }
+[data-theme="dark"] .bg-amber-100 { background-color: rgb(245 158 11 / 0.2); }
+[data-theme="dark"] .bg-violet-100 { background-color: rgb(139 92 246 / 0.22); }
+[data-theme="dark"] .bg-slate-200 { background-color: #24324a; }
+[data-theme="dark"] .bg-white\/95 { background-color: rgb(23 35 55 / 0.95); }
+[data-theme="dark"] .border-emerald-300 { border-color: rgb(16 185 129 / 0.45); }
+[data-theme="dark"] .border-rose-300 { border-color: rgb(244 63 94 / 0.45); }
+[data-theme="dark"] .border-sky-300 { border-color: rgb(14 165 233 / 0.45); }
+[data-theme="dark"] .border-amber-300 { border-color: rgb(245 158 11 / 0.45); }
+[data-theme="dark"] .border-violet-300 { border-color: rgb(139 92 246 / 0.45); }
+[data-theme="dark"] .text-sky-700 { color: #7dd3fc; }
+[data-theme="dark"] .text-violet-900 { color: #c4b5fd; }
 .shell-sidebar nav { scrollbar-width: thin; }
 
 /* Respect reduced-motion preferences across the app. */

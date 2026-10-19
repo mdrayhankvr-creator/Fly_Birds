@@ -459,7 +459,7 @@ export function ReportsPage({ access }: { access: AnalyticsAccess }) {
     {defs.isPending || options.isPending ? <Skeleton rows={3} /> : defs.isError ? <Failure error={defs.error} /> : options.isError ? <Failure error={options.error} /> : allowed.length === 0 ? <Notice tone="info">{t('m11NoReports')}</Notice> : <>
       <div role="radiogroup" aria-label={t('m11ChooseReport')} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 print:hidden">
         {allowed.map(r => <button key={r.key} type="button" role="radio" aria-checked={r.key === key} onClick={() => { setChosen(r.key); setPage(1); setMessage(null) }}
-          className={`rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${r.key === key ? 'border-[var(--brand-primary)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+          className={`rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${r.key === key ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
           <span className="block text-sm font-semibold text-slate-900">{t(`m11Report_${r.key}`)}</span><span className="mt-0.5 block text-xs text-slate-600">{t(`m11Report_${r.key}_desc`)}</span></button>)}
       </div>
       {options.data && def && <FilterBar options={options.data} filter={active} onChange={next => { setFilter(next); setPage(1) }}
@@ -568,7 +568,7 @@ export function ChildrenProgressPage() {
     {q.isPending ? <Skeleton rows={4} /> : q.isError ? <Failure error={q.error} retry={() => void q.refetch()} /> : items.length === 0 ? <EmptyState title={t('m11NoChildren')}>{t('m11NoChildrenHint')}</EmptyState> : <>
       {items.length > 1 && <div role="radiogroup" aria-label={t('m11ChooseChild')} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {items.map(c => <button key={c.student.id} type="button" role="radio" aria-checked={c.student.id === current?.student.id} onClick={() => setSelected(c.student.id)}
-          className={`rounded-xl border p-3 text-left ${c.student.id === current?.student.id ? 'border-[var(--brand-primary)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]' : 'border-slate-200 bg-white'}`}>
+          className={`rounded-xl border p-3 text-left ${c.student.id === current?.student.id ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200 bg-white'}`}>
           <span className="block font-semibold text-slate-900">{local(c.student.name_en, c.student.name_bn)}</span>
           <span className="text-xs text-slate-600">{c.student.class_name} · {t('m11Last30Short', { rate: f.pct(c.attendance?.last_30_days.rate) })}</span>
           {c.alert && <span className="mt-1 block"><StatusBadge tone="late">{t('m11NeedsAttention')}</StatusBadge></span>}</button>)}

@@ -135,7 +135,7 @@ export function RolePicker({ value, onChange }: { value: AudienceRole[]; onChang
   return <fieldset><legend className={ui.label}>{t('m9Audience')}</legend>
     <div className="mt-2 flex flex-wrap gap-2">
       <button type="button" className={ui.ghost} onClick={() => onChange(value.length === audienceRoles.length ? [] : [...audienceRoles])}>{t(value.length === audienceRoles.length ? 'm9ClearAll' : 'm9Everyone')}</button>
-      {audienceRoles.map(role => <label key={role} className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${value.includes(role) ? 'border-[var(--brand-primary)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] font-semibold' : 'border-slate-200'}`}>
+      {audienceRoles.map(role => <label key={role} className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${value.includes(role) ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)] font-semibold' : 'border-slate-200'}`}>
         <input type="checkbox" className="accent-[var(--brand-primary)]" checked={value.includes(role)} onChange={e => onChange(e.target.checked ? [...value, role] : value.filter(r => r !== role))} />{t(`role_${role}`)}</label>)}
     </div></fieldset>
 }
