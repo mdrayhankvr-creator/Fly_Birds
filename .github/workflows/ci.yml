@@ -13,16 +13,36 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: flybirds_ci
+          POSTGRES_PASSWORD: flybirds_ci
+          POSTGRES_DB: flybirds_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flybirds_ci -d flybirds_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      # A disposable database for the PostgreSQL integration tests.
+      AUTH_TEST_DATABASE_URL: postgres://flybirds_ci:flybirds_ci@localhost:5432/flybirds_ci?sslmode=disable
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: Format
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: Vet
         run: go vet ./...
-      - name: Test
-        run: go test ./...
+      - name: Unit and PostgreSQL integration tests
+        # -p 1: packages share the one test database.
+        run: go test ./... -p 1 -count=1
+      - name: Known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   frontend:
     runs-on: ubuntu-latest
@@ -40,5 +60,45 @@ jobs:
         run: npm ci
       - name: Translation keys
         run: npm run check:i18n
-      - name: Build
+      - name: Type check and build
         run: npm run build
+      - name: Dependency audit
+        run: npm audit --omit=dev
+
+  release-stack:
+    # Builds the production images and drives the real stack in a browser.
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Development Compose file is valid
+        run: docker compose config --quiet
+      - name: Write a throwaway school environment
+        run: |
+          cp deploy/school.env.example deploy/ci.env
+          sed -i "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=ci/; s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=/" deploy/ci.env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" deploy/ci.env
+          sed -i "s|^JWT_SIGNING_KEY_B64=.*|JWT_SIGNING_KEY_B64=$(openssl rand -base64 32)|" deploy/ci.env
+          sed -i "s/^BACKUP_INTERVAL=.*/BACKUP_INTERVAL=0/" deploy/ci.env
+      - name: Build and start the production stack
+        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml up -d --build --wait
+      - name: Smoke checks
+        run: |
+          curl -fsS http://localhost:8081/ > /dev/null
+          curl -fsS http://localhost:8081/api/readyz
+          curl -fsS -D - -o /dev/null http://localhost:8081/ | grep -i "content-security-policy"
+      - name: Seed the demo school
+        env:
+          DEMO_PASSWORD: CiDemoPassword!2026
+        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml exec -T -e DEMO_PASSWORD backend /app/seed-demo -confirm
+      - name: Browser suite
+        env:
+          E2E_BASE_URL: http://localhost:8081
+          DEMO_PASSWORD: CiDemoPassword!2026
+        run: node e2e/suite.mjs && node e2e/whitelabel.mjs
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml logs --tail 200
