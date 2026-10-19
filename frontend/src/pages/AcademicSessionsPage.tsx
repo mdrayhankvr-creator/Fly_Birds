@@ -8,9 +8,10 @@ import {
   type AcademicSession, type AcademicSessionInput,
 } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import { ui, PageHeader, LinkTabs } from './attendanceUi'
 
 const emptyForm: AcademicSessionInput = { name: '', start_date: '', end_date: '' }
-const fieldClass = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-[var(--brand-primary)] focus:outline-none'
+const fieldClass = ui.field
 
 function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -95,10 +96,11 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
   }
 
   return <div className="space-y-8">
-    <header><h1 className="text-3xl font-bold text-slate-900">{t('academicSessions')}</h1><p className="mt-2 text-slate-600">{t('academicSessionsDescription')}</p></header>
+    <PageHeader eyebrow={t('academicStructure')} title={t('academicSessions')} description={t('academicSessionsDescription')} />
+    <LinkTabs label={t('academicStructure')} items={[{ to: '/admin/academic/sessions', label: t('academicSessions') }, { to: '/admin/academic/classes', label: t('classesHeading') }, { to: '/admin/academic/sections', label: t('sectionsHeading') }, { to: '/admin/academic/subjects', label: t('subjectsHeading') }]} />
     {message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-900">{message}</p>}
-    {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-800">{error}</p>}
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label={t('currentSession')}>
+    {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
+    <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('currentSession')}>
       <h2 className="text-lg font-semibold text-slate-900">{t('currentSession')}</h2>
       {current.isPending ? <p role="status" className="mt-2 text-slate-600">{t('loadingSessions')}</p> :
         current.isError ? <p role="alert" className="mt-2 text-rose-700">{current.error instanceof ApiError && current.error.code === 'module_disabled' ? t('academicModuleDisabled') : t('loadSessionsError')}</p> :
@@ -106,14 +108,14 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
     </section>
     {(canCreate || (canUpdate && editing)) && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
       <h2 className="text-xl font-semibold text-slate-900 sm:col-span-3">{t(editing ? 'editSession' : 'createSession')}</h2>
-      <label className="text-sm font-semibold text-slate-700">{t('sessionName')}<input className={fieldClass} required maxLength={9} placeholder="2026–2027" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-      <label className="text-sm font-semibold text-slate-700">{t('startDate')}<input className={fieldClass} type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></label>
-      <label className="text-sm font-semibold text-slate-700">{t('endDate')}<input className={fieldClass} type="date" required min={form.start_date} value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></label>
+      <label className={ui.label}>{t('sessionName')}<input className={fieldClass} required maxLength={9} placeholder="2026–2027" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+      <label className={ui.label}>{t('startDate')}<input className={fieldClass} type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></label>
+      <label className={ui.label}>{t('endDate')}<input className={fieldClass} type="date" required min={form.start_date} value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></label>
       <p className="text-sm text-slate-600 sm:col-span-3">{t('sessionNameHint')}</p>
-      <div className="flex flex-wrap gap-2 sm:col-span-3"><button disabled={busy} className="brand-bg rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-50">{t(editing ? 'saveChanges' : 'createSession')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyForm) }} className="rounded-lg border px-4 py-2 font-semibold">{t('cancel')}</button>}</div>
+      <div className="flex flex-wrap gap-2 sm:col-span-3"><button disabled={busy} className={ui.primary}>{t(editing ? 'saveChanges' : 'createSession')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyForm) }} className="rounded-lg border px-4 py-2 font-semibold">{t('cancel')}</button>}</div>
     </form>}
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-xl font-semibold text-slate-900">{t('sessionList')}</h2>
+    <section className={`${ui.card} p-4 sm:p-6`}>
+      <h2 className={ui.sectionTitle}>{t('sessionList')}</h2>
       <label className="mt-4 block max-w-sm text-sm font-semibold text-slate-700">{t('search')}<input className={fieldClass} value={search} maxLength={100} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></label>
       {sessions.isPending ? <p role="status" className="mt-5">{t('loadingSessions')}</p> :
         sessions.isError ? <p role="alert" className="mt-5 text-rose-700">{sessions.error instanceof ApiError && sessions.error.code === 'module_disabled' ? t('academicModuleDisabled') : t('loadSessionsError')}</p> :
@@ -123,7 +125,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
               <p className="mt-2 text-sm text-slate-600">{session.start_date} → {session.end_date}</p>
               <div className="mt-4 flex flex-wrap gap-2">{canUpdate && <button type="button" onClick={() => edit(session)} className="rounded-lg border px-3 py-2 text-sm font-semibold">{t('editSession')}</button>}{canActivate && <button type="button" disabled={busy} onClick={() => activation(session)} className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50">{t(session.is_active ? 'deactivate' : 'activate')}</button>}</div>
             </article>)}</div>}
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-sm"><button type="button" disabled={page <= 1 || sessions.isPending} onClick={() => setPage(page - 1)} className="rounded border px-3 py-2 disabled:opacity-40">{t('previous')}</button><span>{t('pageOf', { page, total: Math.max(1, Math.ceil((sessions.data?.total || 0) / 10)) })}</span><button type="button" disabled={sessions.isPending || !sessions.data || page * 10 >= sessions.data.total} onClick={() => setPage(page + 1)} className="rounded border px-3 py-2 disabled:opacity-40">{t('next')}</button></div>
+      {(sessions.data?.total || 0) > 10 && <div className="mt-5 border-t border-slate-100 pt-4 flex flex-wrap items-center justify-between gap-2 text-sm"><button type="button" disabled={page <= 1 || sessions.isPending} onClick={() => setPage(page - 1)} className={ui.secondary}>{t('previous')}</button><span>{t('pageOf', { page, total: Math.max(1, Math.ceil((sessions.data?.total || 0) / 10)) })}</span><button type="button" disabled={sessions.isPending || !sessions.data || page * 10 >= sessions.data.total} onClick={() => setPage(page + 1)} className={ui.secondary}>{t('next')}</button></div>}
     </section>
   </div>
 }

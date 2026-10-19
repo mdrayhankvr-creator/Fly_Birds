@@ -1,10 +1,18 @@
 @import "tailwindcss";
 
+/* Slate 500 carries secondary text on tinted surfaces as well as white;
+   one step darker than the default keeps it at 4.5:1 or better on all of them. */
+@theme {
+  --color-slate-500: #5a6a80;
+}
+
 /* Tailwind v4 draws bare `border` in the current text colour; older screens
    rely on the v3 default, so borders default to a soft slate everywhere. */
 @layer base {
   *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: #e2e8f0; }
   [data-theme="dark"] *, [data-theme="dark"] ::after, [data-theme="dark"] ::before { border-color: #334155; }
+  /* Table rows highlight on hover so long rows are easy to follow. */
+  main table tbody tr:hover { background-color: #f8fafc; }
 }
 
 :root {
@@ -65,6 +73,8 @@ main table tbody tr:hover { background-color: #f8fafc; }
 [data-theme="dark"] .hover\:bg-slate-100:hover,
 [data-theme="dark"] .hover\:bg-slate-50:hover { background-color: #1e2b42; }
 [data-theme="dark"] main table tbody tr:hover { background-color: #1a2740; }
+[data-theme="dark"] .ring-slate-200 { --tw-ring-color: #334155; }
+[data-theme="dark"] .hover\:bg-rose-50:hover { background-color: rgb(244 63 94 / 0.14); }
 [data-theme="dark"] .text-slate-900 { color: #f8fafc; }
 [data-theme="dark"] .text-slate-800,
 [data-theme="dark"] .text-slate-700,
@@ -92,6 +102,21 @@ main table tbody tr:hover { background-color: #f8fafc; }
 [data-theme="dark"] .border-amber-200 { border-color: rgb(245 158 11 / 0.35); }
 [data-theme="dark"] .border-emerald-200 { border-color: rgb(16 185 129 / 0.35); }
 [data-theme="dark"] .border-sky-200 { border-color: rgb(14 165 233 / 0.35); }
+/* Badge tints, emphasis borders and translucent panels on the dark surface. */
+[data-theme="dark"] .bg-emerald-100 { background-color: rgb(16 185 129 / 0.2); }
+[data-theme="dark"] .bg-rose-100 { background-color: rgb(244 63 94 / 0.2); }
+[data-theme="dark"] .bg-sky-100 { background-color: rgb(14 165 233 / 0.2); }
+[data-theme="dark"] .bg-amber-100 { background-color: rgb(245 158 11 / 0.2); }
+[data-theme="dark"] .bg-violet-100 { background-color: rgb(139 92 246 / 0.22); }
+[data-theme="dark"] .bg-slate-200 { background-color: #24324a; }
+[data-theme="dark"] .bg-white\/95 { background-color: rgb(23 35 55 / 0.95); }
+[data-theme="dark"] .border-emerald-300 { border-color: rgb(16 185 129 / 0.45); }
+[data-theme="dark"] .border-rose-300 { border-color: rgb(244 63 94 / 0.45); }
+[data-theme="dark"] .border-sky-300 { border-color: rgb(14 165 233 / 0.45); }
+[data-theme="dark"] .border-amber-300 { border-color: rgb(245 158 11 / 0.45); }
+[data-theme="dark"] .border-violet-300 { border-color: rgb(139 92 246 / 0.45); }
+[data-theme="dark"] .text-sky-700 { color: #7dd3fc; }
+[data-theme="dark"] .text-violet-900 { color: #c4b5fd; }
 .shell-sidebar nav { scrollbar-width: thin; }
 
 /* Respect reduced-motion preferences across the app. */

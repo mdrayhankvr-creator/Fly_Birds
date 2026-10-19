@@ -90,6 +90,8 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
   const schoolName = branding ? (i18n.language === 'bn' ? branding.name_bn : branding.name_en) : t('appName')
   const current = activeItem(groups, pathname)
   const currentGroup = current ? groups.find(g => g.items.includes(current)) : undefined
+  // Pages that are not in the sidebar still get a meaningful title.
+  const fallbackCrumb = pathname === '/account' ? 'accountHeading' : pathname.startsWith('/analytics/students/') ? 'm11StudentProgress' : ''
   useEffect(() => { setDrawer(false) }, [pathname])
   useEffect(() => {
     if (!drawer) return
@@ -135,7 +137,7 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
           <span className="lg:hidden">{brand(true)}</span>
           <nav aria-label={t('m12Breadcrumb')} className="min-w-0"><ol className="flex min-w-0 items-center gap-1.5 text-sm">
             {currentGroup && currentGroup.key !== 'overview' && <li className="hidden shrink-0 items-center gap-1.5 text-slate-500 sm:flex">{t(currentGroup.label)}<Icon name="chevronRight" className="h-3.5 w-3.5" /></li>}
-            <li className="min-w-0 truncate font-semibold text-slate-900 sm:text-base" aria-current="page">{current ? t(current.label) : schoolName}</li>
+            <li className="min-w-0 truncate font-semibold text-slate-900 sm:text-base" aria-current="page">{current ? t(current.label) : fallbackCrumb ? t(fallbackCrumb) : schoolName}</li>
           </ol></nav>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">

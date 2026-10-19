@@ -1,7 +1,7 @@
 // Minimal headless Chromium/Edge driver over the Chrome DevTools Protocol.
 // No dependencies: Node 22's built-in fetch and WebSocket are enough.
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -68,9 +68,20 @@ export async function launch({ base, shots, port = 9341 }) {
       await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode })
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode })
     },
-    close() { ws.close(); edge.kill() },
+    // Each launch gets a throwaway browser profile (hundreds of MB once pages
+    // have loaded); delete it when the browser exits so runs do not fill the disk.
+    close() { edge.once('exit', () => void removeProfile(profile)); ws.close(); edge.kill() },
   }
   return b
+}
+
+// Chrome's helper processes can keep writing to the profile for a moment after
+// the main process exits, so retry; cleanup must never fail a test run.
+async function removeProfile(dir) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try { rmSync(dir, { recursive: true, force: true }); return } catch { await sleep(250) }
+  }
+  console.warn(`warning: could not remove browser profile ${dir}`)
 }
 
 export function reporter() {
@@ -78,6 +89,6 @@ export function reporter() {
   return {
     results,
     check(name, ok, detail = '') { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`) },
-    save(path) { writeFileSync(path, JSON.stringify(results, null, 1)); const p = results.filter(r => r.ok).length; console.log(`\n${p} of ${results.length} checks passed`) },
+    save(path) { writeFileSync(path, JSON.stringify(results, null, 1)); const p = results.filter(r => r.ok).length; console.log(`\n${p} of ${results.length} checks passed`); if (p < results.length) process.exitCode = 1 },
   }
 }

@@ -54,7 +54,7 @@ function InboxPanel() {
     </div>
     {inbox.isPending ? <Skeleton rows={4} /> : inbox.isError ? <Banner tone="error">{t('m9ErrGeneric')}</Banner> : inbox.data.items.length === 0 ? <EmptyState title={t('m9NoNotifications')} /> : <>
       <ul className="divide-y divide-slate-100">{inbox.data.items.map(n => <li key={n.id}>
-        <button type="button" onClick={() => void open(n)} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-slate-50 ${n.read ? '' : 'bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)]'}`}>
+        <button type="button" onClick={() => void open(n)} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-slate-50 ${n.read ? '' : 'bg-[var(--brand-soft)]'}`}>
           <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base">{categoryIcon[n.category]}</span>
           <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><span className={`font-semibold ${n.read ? 'text-slate-700' : 'text-slate-900'}`}>{local(n.title_en, n.title_bn)}</span>
             {n.urgent && <span className="rounded-full bg-rose-600 px-2 text-xs font-bold text-white">{t('m9Priority_urgent')}</span>}{!n.read && <span className="sr-only">{t('m9Unread')}</span>}</span>

@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '../api/client'
 import { searchFeeStudents, type FeeDue, type FeeReceipt, type FeeStatement, type FeeStudent } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
+import { ui } from './attendanceUi'
 
-export const feeField = 'mt-1 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-[var(--brand-primary)]'
-export const feeButton = 'rounded-lg bg-[var(--brand-primary)] px-4 py-2 font-semibold text-[var(--brand-on)] disabled:opacity-50'
-export const feeSecondary = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50'
-export const feeCard = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
+export const feeField = ui.field
+export const feeButton = ui.primary
+export const feeSecondary = ui.secondary
+export const feeCard = `${ui.card} p-4 sm:p-6`
 
 export function useMoney() {
   const { i18n } = useTranslation()
@@ -61,13 +62,14 @@ export function useFeeError() {
 
 export function Notice({ error, message }: { error: string; message: string }) {
   if (!error && !message) return null
-  return <p role={error ? 'alert' : 'status'} className={`rounded-lg p-3 print:hidden ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error || message}</p>
+  return <p role={error ? 'alert' : 'status'} className={`rounded-xl border px-4 py-3 text-sm print:hidden ${error ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>{error || message}</p>
 }
 
 export function Pager({ page, total, size, onPage }: { page: number; total: number; size: number; onPage: (page: number) => void }) {
   const { t } = useTranslation()
   const pages = Math.max(1, Math.ceil(total / size))
-  return <div className="mt-3 flex flex-wrap items-center gap-2 text-sm print:hidden">
+  if (pages <= 1) return null
+  return <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 text-sm print:hidden">
     <button type="button" className={feeSecondary} disabled={page <= 1} onClick={() => onPage(page - 1)}>{t('feePrev')}</button>
     <span>{t('feePageOf', { page, pages })}</span>
     <button type="button" className={feeSecondary} disabled={page >= pages} onClick={() => onPage(page + 1)}>{t('feeNext')}</button>
@@ -92,10 +94,10 @@ export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent)
   const params = new URLSearchParams({ page: '1', page_size: '8', search })
   const students = useQuery({ queryKey: ['fees', 'students', search], enabled: search.trim().length >= 2, queryFn: () => authorized(token => searchFeeStudents(token, params)), retry: false })
   return <div>
-    <label className="block text-sm font-semibold">{label ?? t('feeFindStudent')}<input className={feeField} value={search} placeholder={t('feeFindStudentHint')} onChange={e => setSearch(e.target.value)} /></label>
+    <label className={ui.label}>{label ?? t('feeFindStudent')}<input className={feeField} value={search} placeholder={t('feeFindStudentHint')} onChange={e => setSearch(e.target.value)} /></label>
     {students.isError && <p role="alert" className="mt-2 text-sm text-rose-700">{t('feeErrGeneric')}</p>}
     {students.data && (students.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-600">{t('feeNoStudents')}</p> :
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{students.data.items.map(s => <li key={s.id}><button type="button" className="w-full rounded-lg border p-3 text-left hover:border-[var(--brand-primary)]" onClick={() => { onPick(s); setSearch('') }}>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{students.data.items.map(s => <li key={s.id}><button type="button" className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-[var(--brand-primary)] hover:bg-[var(--brand-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" onClick={() => { onPick(s); setSearch('') }}>
         <strong>{name(s.name_en, s.name_bn)}</strong><span className="block text-xs text-slate-600">{s.admission_no} · {s.class_name} / {s.section_name} · {s.session_name}</span></button></li>)}</ul>)}
   </div>
 }
@@ -110,7 +112,7 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
   return <article className="fee-receipt rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8" lang={i18n.language}>
     <header className="flex flex-wrap items-center gap-4 border-b pb-4">
       {receipt.logo_url && <img src={receipt.logo_url} alt="" className="h-14 w-14 object-contain" />}
-      <div className="min-w-0 flex-1"><p className="text-xl font-bold">{school}</p>{(receipt.address || receipt.phone) && <p className="text-sm text-slate-600">{[receipt.address, receipt.phone].filter(Boolean).join(' · ')}</p>}<h2 className="mt-1 text-lg font-semibold">{t('feeReceiptTitle')}</h2></div>
+      <div className="min-w-0 flex-1"><p className={ui.sectionTitle}>{school}</p>{(receipt.address || receipt.phone) && <p className="text-sm text-slate-600">{[receipt.address, receipt.phone].filter(Boolean).join(' · ')}</p>}<h2 className="mt-1 text-lg font-semibold">{t('feeReceiptTitle')}</h2></div>
       <div className="text-right text-sm"><p className="font-mono text-base font-bold">{p.receipt_no}</p><p>{t('feePaidOn')}: {p.paid_on}</p></div>
     </header>
     {receipt.replayed && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-900 print:hidden">{t('feeReplayed')}</p>}
@@ -120,9 +122,9 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
       <div><dt className="text-slate-500">{t('feeMethod')}</dt><dd>{t(`feeMethod_${p.method}`)}{p.source === 'online' ? ` · ${t('feeOnline')}` : ''}</dd></div>
       {p.reference && <div><dt className="text-slate-500">{t('feeReference')}</dt><dd className="break-all font-mono">{p.reference}</dd></div>}
     </dl>
-    <TableWrap><thead><tr className="border-b bg-slate-50"><th className="p-2">{t('feeCategory')}</th><th className="p-2">{t('feePeriod')}</th><th className="p-2">{t('feeDueDate')}</th><th className="p-2 text-right">{t('feeAmount')}</th></tr></thead>
-      <tbody>{receipt.allocations.map(a => <tr key={a.student_fee_id} className="border-b"><td className="p-2">{name(a.category_name_en, a.category_name_bn)}</td><td className="p-2">{month(a.period)}</td><td className="p-2">{a.due_date}</td><td className="p-2 text-right">{money(a.amount)}</td></tr>)}</tbody>
-      <tfoot><tr className="font-bold"><td className="p-2" colSpan={3}>{t('feeTotalPaid')}</td><td className="p-2 text-right">{money(p.amount)}</td></tr></tfoot>
+    <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
+      <tbody>{receipt.allocations.map(a => <tr key={a.student_fee_id} className="border-b border-slate-100"><td className="px-3 py-2.5">{name(a.category_name_en, a.category_name_bn)}</td><td className="px-3 py-2.5">{month(a.period)}</td><td className="px-3 py-2.5">{a.due_date}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(a.amount)}</td></tr>)}</tbody>
+      <tfoot><tr className="font-bold"><td className="px-3 py-2.5" colSpan={3}>{t('feeTotalPaid')}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td></tr></tfoot>
     </TableWrap>
     <div className="mt-4 flex flex-wrap justify-between gap-2 text-sm"><p>{t('feeBalanceAfter')}: <strong>{money(receipt.balance_after)}</strong></p>{p.received_by_name && <p>{t('feeReceivedBy')}: {p.received_by_name}</p>}</div>
     {p.note && <p className="mt-2 text-sm text-slate-600">{p.note}</p>}
@@ -143,12 +145,12 @@ export function DuesTable({ dues, selectable, selected, onToggle, actions }: { d
   const month = useMonthLabel()
   const name = useLocalName()
   if (dues.length === 0) return <p className="mt-3 text-slate-600">{t('feeNoDues')}</p>
-  return <TableWrap><thead><tr className="border-b bg-slate-50">{selectable && <th className="p-2"><span className="sr-only">{t('feeSelect')}</span></th>}<th className="p-2">{t('feeCategory')}</th><th className="p-2">{t('feePeriod')}</th><th className="p-2">{t('feeDueDate')}</th><th className="p-2 text-right">{t('feeAmount')}</th><th className="p-2 text-right">{t('feeDiscount')}</th><th className="p-2 text-right">{t('feePaid')}</th><th className="p-2 text-right">{t('feeBalance')}</th><th className="p-2">{t('feeStatus')}</th>{actions && <th className="p-2 print:hidden">{t('feeActions')}</th>}</tr></thead>
+  return <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">{selectable && <th className="px-3 py-2.5"><span className="sr-only">{t('feeSelect')}</span></th>}<th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeDiscount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feePaid')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeBalance')}</th><th className="px-3 py-2.5">{t('feeStatus')}</th>{actions && <th className="px-3 py-2.5 print:hidden">{t('feeActions')}</th>}</tr></thead>
     <tbody>{dues.map(d => <tr key={d.id} className="border-b align-top">
-      {selectable && <td className="p-2">{d.balance > 0 && <input type="checkbox" aria-label={`${t('feeSelect')} ${name(d.category_name_en, d.category_name_bn)} ${d.due_date}`} checked={selected?.includes(d.id) ?? false} onChange={() => onToggle?.(d.id)} />}</td>}
-      <td className="p-2">{name(d.category_name_en, d.category_name_bn)}</td><td className="p-2">{month(d.period)}</td><td className="p-2 whitespace-nowrap">{d.due_date}</td>
-      <td className="p-2 text-right">{money(d.amount)}</td><td className="p-2 text-right">{money(d.discount_amount)}</td><td className="p-2 text-right">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}</td>
-      <td className="p-2"><StatusBadge due={d} /></td>{actions && <td className="p-2 print:hidden">{actions(d)}</td>}</tr>)}</tbody>
+      {selectable && <td className="px-3 py-2.5">{d.balance > 0 && <input type="checkbox" aria-label={`${t('feeSelect')} ${name(d.category_name_en, d.category_name_bn)} ${d.due_date}`} checked={selected?.includes(d.id) ?? false} onChange={() => onToggle?.(d.id)} />}</td>}
+      <td className="px-3 py-2.5">{name(d.category_name_en, d.category_name_bn)}</td><td className="px-3 py-2.5">{month(d.period)}</td><td className="p-2 whitespace-nowrap">{d.due_date}</td>
+      <td className="px-3 py-2.5 text-right tabular-nums">{money(d.amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.discount_amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}</td>
+      <td className="px-3 py-2.5"><StatusBadge due={d} /></td>{actions && <td className="px-3 py-2.5 print:hidden">{actions(d)}</td>}</tr>)}</tbody>
   </TableWrap>
 }
 
@@ -156,9 +158,9 @@ export function PaymentsList({ payments, onOpen }: { payments: FeeStatement['pay
   const { t } = useTranslation()
   const money = useMoney()
   if (payments.length === 0) return <p className="mt-3 text-slate-600">{t('feeNoPayments')}</p>
-  return <TableWrap><thead><tr className="border-b bg-slate-50"><th className="p-2">{t('feeReceiptNo')}</th><th className="p-2">{t('feePaidOn')}</th><th className="p-2">{t('feeMethod')}</th><th className="p-2 text-right">{t('feeAmount')}</th><th className="p-2 print:hidden"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
-    <tbody>{payments.map(p => <tr key={p.id} className="border-b"><td className="p-2 font-mono">{p.receipt_no}</td><td className="p-2">{p.paid_on}</td><td className="p-2">{t(`feeMethod_${p.method}`)}</td><td className="p-2 text-right">{money(p.amount)}</td>
-      <td className="p-2 print:hidden"><button type="button" className="font-semibold text-[var(--brand-ink)] underline" onClick={() => onOpen(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody>
+  return <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeReceiptNo')}</th><th className="px-3 py-2.5">{t('feePaidOn')}</th><th className="px-3 py-2.5">{t('feeMethod')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 print:hidden"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
+    <tbody>{payments.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
+      <td className="px-3 py-2.5 print:hidden"><button type="button" className={ui.link} onClick={() => onOpen(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody>
   </TableWrap>
 }
 

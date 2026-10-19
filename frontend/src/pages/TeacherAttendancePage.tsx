@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, correctTeacherAttendance, getAttendanceSessions, getOwnTeacherAttendance, getOwnTeacherMonthly, getTeacherMonthlyReport, getTeacherRoster, recordTeacherAttendance, type AttendanceSession, type TeacherRosterItem } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { Avatar, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, tones, ui, type SegmentOption } from './attendanceUi'
+import { useDhakaFormat } from './commShared'
 
 const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 type Status = 'present' | 'absent' | 'leave'
@@ -13,6 +14,7 @@ const sessionParams = new URLSearchParams({ page: '1', page_size: '100' })
 export function TeacherAttendancePage({ permissions, own = false }: { permissions: string[]; own?: boolean }) {
   const { t, i18n } = useTranslation()
   const { accessToken, renew, expire } = useAuth()
+  const fmt = useDhakaFormat()
   const cache = useQueryClient()
   const [sessionId, setSessionId] = useState('')
   const [date, setDate] = useState(today)
@@ -76,6 +78,13 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
   }
   const pager = (current: number, total: number, set: (page: number) => void) => <Pager page={current} total={total} size={10} onPage={set} previous={t('attendancePrevious')} next={t('attendanceNext')} label={t('attendancePage')} />
 
+  // Someone with the permission but no linked staff profile has no attendance
+  // to show; explain that once instead of failing every panel.
+  const noProfile = own && [history.error, ownMonth.error].some(e => e instanceof ApiError && e.status === 404)
+  if (noProfile) return <div className="space-y-5">
+    <PageHeader eyebrow={t('attnEyebrow')} title={t('attendanceMyHeading')} description={t('attendanceMyDescription')} />
+    <EmptyState icon="user" title={t('staffProfileMissing')}>{t('uxStaffMissingHint')}</EmptyState>
+  </div>
   return <div className="space-y-5">
     <PageHeader eyebrow={t('attnEyebrow')} title={t(own ? 'attendanceMyHeading' : 'attendanceHeading')} description={t(own ? 'attendanceMyDescription' : 'attendanceDescription')} />
     {message && <Notice tone="success">{t(message)}</Notice>}{error && <Notice tone="error">{t(error)}</Notice>}
@@ -90,13 +99,13 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
 
     {!own && sessionId && <section className={`${ui.card} p-2 sm:p-3`} aria-labelledby="teacher-roster-heading">
       <h2 id="teacher-roster-heading" className="px-2 pt-2 text-lg font-bold sm:px-3">{t('attendanceDaily')}</h2>
-      {!validDay ? <div className="p-3"><Notice tone="warning">{t('attendanceInvalidDate')}</Notice></div> : roster.isPending ? <div className="p-2"><Skeleton /></div> : roster.isError ? <p role="alert" className="p-3 text-rose-700">{t('attendanceLoadError')}</p> : !roster.data?.items.length ? <div className="p-3"><EmptyState title={t('attendanceNoTeachers')} /></div> : <>
+      {!validDay ? <div className="p-3"><Notice tone="warning">{t('attendanceInvalidDate')}</Notice></div> : roster.isPending ? <div className="px-3 py-2.5"><Skeleton /></div> : roster.isError ? <p role="alert" className="p-3 text-rose-700">{t('attendanceLoadError')}</p> : !roster.data?.items.length ? <div className="p-3"><EmptyState title={t('attendanceNoTeachers')} /></div> : <>
         <ul className="mt-2 divide-y divide-slate-100">{roster.data.items.map(item => {
           const draft = drafts[item.employee_id]
           const display = name(item.name_en, item.name_bn)
           const status = draft?.status ?? item.status ?? ''
           const dirty = !!draft && (draft.status !== (item.status ?? '') || draft.note !== (item.note ?? ''))
-          return <li key={item.employee_id} className={`rounded-xl px-2 py-3 sm:px-3 ${dirty ? 'bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)]' : ''}`}>
+          return <li key={item.employee_id} className={`rounded-xl px-2 py-3 sm:px-3 ${dirty ? 'bg-[var(--brand-soft)]' : ''}`}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-3"><Avatar name={item.name_en} /><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{display}</p>
                 <p className="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span>{item.employee_code}</span>{item.status ? <StatusBadge tone={item.status}>{t('attnSaved')} · {statusLabel(item.status)}</StatusBadge> : <StatusBadge tone="unmarked">{t('attendanceUnmarked')}</StatusBadge>}</p></div></div>
@@ -114,7 +123,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
 
     {own && sessionId && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="own-history-heading"><h2 id="own-history-heading" className="text-lg font-bold">{t('attendanceDaily')}</h2>
       {history.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : history.isError ? <p role="alert" className="mt-3 text-rose-700">{t('attendanceLoadError')}</p> : history.data?.items.length ? <>
-        <ul className="mt-3 divide-y divide-slate-100">{history.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><span className="text-sm text-slate-700">{item.attendance_date} · {item.session_name}</span><StatusBadge tone={item.status}>{statusLabel(item.status)}</StatusBadge></li>)}</ul>
+        <ul className="mt-3 divide-y divide-slate-100">{history.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><span className="text-sm font-medium text-slate-800">{fmt.date(item.attendance_date)}</span><StatusBadge tone={item.status}>{statusLabel(item.status)}</StatusBadge></li>)}</ul>
         {pager(historyPage, history.data.total, setHistoryPage)}</> : <div className="mt-3"><EmptyState title={t('attendanceNoHistory')} /></div>}
     </section>}
 

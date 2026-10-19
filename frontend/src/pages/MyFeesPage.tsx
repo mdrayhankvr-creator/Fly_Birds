@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { confirmFeeIntent, getChildFeeStatement, getFeeReceipt, getOwnFeeStatement, startFeeIntent, type FeeIntent, type FeeReceipt } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
 import { DuesTable, Notice, PaymentsList, ReceiptView, Totals, feeButton, feeCard, feeField, feeSecondary, useFeeAction, useLocalName, useMoney } from './feeShared'
+import { ui, PageHeader, EmptyState, Notice as Banner } from './attendanceUi'
+import { StateScreen } from '../components/StateScreen'
 
 // MyFeesPage shows a student's own fees or a guardian's linked child's fees.
 // Access is enforced by the API; unlinked children read as not found.
@@ -42,22 +44,21 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
   }
 
   const heading = mode === 'student' ? t('feeMyFees') : t('feeChildFees')
-  if (statement.isPending) return <p role="status">{t('feeLoading')}</p>
-  if (statement.isError) return <div className="space-y-4"><h1 className="text-2xl font-bold">{heading}</h1><p role="alert" className="text-rose-700">{t('feeStatementUnavailable')}</p></div>
+  if (statement.isPending) return <StateScreen kind="loading" message={t('feeLoading')} />
+  if (statement.isError) return <div className="space-y-6"><PageHeader eyebrow={t('m12Group_finance')} title={heading} /><EmptyState icon="receipt" title={t('feeStatementUnavailable')} /></div>
   const s = statement.data
   return <div className="space-y-5">
-    <header className={`${feeCard} print:hidden`}><h1 className="text-2xl font-bold">{heading}</h1>
-      <p className="mt-2 text-slate-600"><strong>{name(s.student.name_en, s.student.name_bn)}</strong> · {s.student.admission_no} · {s.student.class_name} / {s.student.section_name} · {s.student.session_name}</p>
-      <div className="mt-4"><Totals totals={s.totals} /></div>
-      {s.totals.overdue > 0 && <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{t('feeArrearsNotice', { amount: money(s.totals.overdue) })}</p>}
-    </header>
+    <PageHeader eyebrow={t('m12Group_finance')} title={heading} description={`${name(s.student.name_en, s.student.name_bn)} · ${s.student.admission_no} · ${s.student.class_name} · ${s.student.section_name} · ${s.student.session_name}`} />
+    <section className={`${feeCard} print:hidden`} aria-label={t('uxFeeSummary')}><Totals totals={s.totals} />
+      {s.totals.overdue > 0 && <div className="mt-4"><Banner tone="warning">{t('feeArrearsNotice', { amount: money(s.totals.overdue) })}</Banner></div>}
+    </section>
     <Notice error={action.error} message={action.message} />
     {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
-    {canPay && balance > 0 && <section className={`${feeCard} print:hidden`}><h2 className="text-xl font-bold">{t('feePayOnline')}</h2>
-      <p className="mt-1 rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{t('feeMockNotice')}</p>
+    {canPay && balance > 0 && <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feePayOnline')}</h2>
+      <div className="mt-3"><Banner tone="warning">{t('feeMockNotice')}</Banner></div>
       {!intent ? <form onSubmit={start} className="mt-3 grid gap-3 sm:grid-cols-3">
         <fieldset className="text-sm font-semibold"><legend>{t('feeProvider')}</legend><div className="mt-2 flex gap-4">{(['bkash', 'nagad'] as const).map(p => <label key={p} className="flex items-center gap-2 font-normal"><input type="radio" name="provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />{t(`feeMethod_${p}`)}</label>)}</div></fieldset>
-        <label className="text-sm font-semibold">{t('feeAmount')}<input type="number" inputMode="decimal" min="0.01" max={balance} step="0.01" className={feeField} value={amount} placeholder={balance.toFixed(2)} onChange={e => setAmount(e.target.value)} /></label>
+        <label className={ui.label}>{t('feeAmount')}<input type="number" inputMode="decimal" min="0.01" max={balance} step="0.01" className={feeField} value={amount} placeholder={balance.toFixed(2)} onChange={e => setAmount(e.target.value)} /></label>
         <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{t('feeContinue')}</button></div>
       </form> : <form onSubmit={confirm} className="mt-3 space-y-3 rounded-xl border-2 border-dashed border-[var(--brand-primary)] p-4">
         <p className="font-semibold">{t(`feeMethod_${intent.provider}`)} · {money(intent.amount)}</p>
@@ -67,7 +68,7 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
         <div className="flex flex-wrap gap-2"><button disabled={action.busy} className={feeButton}>{t('feeConfirmPayment')}</button><button type="button" className={feeSecondary} onClick={() => { setIntent(null); action.clear() }}>{t('feeCancel')}</button></div>
       </form>}
     </section>}
-    <section className={`${feeCard} print:hidden`}><h2 className="text-xl font-bold">{t('feeDuesTitle')}</h2><DuesTable dues={s.dues} /></section>
-    <section className={`${feeCard} print:hidden`}><h2 className="text-xl font-bold">{t('feeReceipts')}</h2><PaymentsList payments={s.payments} onOpen={id => void open(id)} /></section>
+    <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeDuesTitle')}</h2><DuesTable dues={s.dues} /></section>
+    <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeReceipts')}</h2><PaymentsList payments={s.payments} onOpen={id => void open(id)} /></section>
   </div>
 }
