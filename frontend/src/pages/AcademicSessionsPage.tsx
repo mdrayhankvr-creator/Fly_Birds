@@ -112,7 +112,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
       <label className={ui.label}>{t('startDate')}<input className={fieldClass} type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></label>
       <label className={ui.label}>{t('endDate')}<input className={fieldClass} type="date" required min={form.start_date} value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></label>
       <p className="text-sm text-slate-600 sm:col-span-3">{t('sessionNameHint')}</p>
-      <div className="flex flex-wrap gap-2 sm:col-span-3"><button disabled={busy} className="brand-bg rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-50">{t(editing ? 'saveChanges' : 'createSession')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyForm) }} className="rounded-lg border px-4 py-2 font-semibold">{t('cancel')}</button>}</div>
+      <div className="flex flex-wrap gap-2 sm:col-span-3"><button disabled={busy} className={ui.primary}>{t(editing ? 'saveChanges' : 'createSession')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyForm) }} className="rounded-lg border px-4 py-2 font-semibold">{t('cancel')}</button>}</div>
     </form>}
     <section className={`${ui.card} p-4 sm:p-6`}>
       <h2 className={ui.sectionTitle}>{t('sessionList')}</h2>

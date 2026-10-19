@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, createUser, getUser, getUsers, setUserRole, setUserStatus, updateUser, type ManagedUser, type NewUser } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
-import { ui, PageHeader } from './attendanceUi'
+import { ui, PageHeader, Notice, Skeleton, EmptyState, StatusBadge } from './attendanceUi'
 
 const roles = ['admin', 'head_teacher', 'teacher', 'student', 'guardian', 'accountant']
 const inputClass = ui.field
@@ -77,19 +77,12 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
     void run(() => authorized((token) => setUserRole(token, user.id, chosenRole)))
   }
 
-  return <div className="space-y-8">
+  return <div className="space-y-6">
     <PageHeader eyebrow={t('administration')} title={t('usersHeading')} description={t('usersDescription')} />
-    {message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-900">{message}</p>}
-    {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
-    {canCreate && <form onSubmit={create} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-2">
-      <h2 className="text-xl font-semibold text-slate-900 sm:col-span-2">{t('createUser')}</h2>
-      <label className={ui.label}>{t('displayName')}<input className={inputClass} required maxLength={160} value={newUser.display_name} onChange={(e) => setNewUser({ ...newUser, display_name: e.target.value })} /></label>
-      <label className={ui.label}>{t('email')}<input className={inputClass} type="email" required maxLength={254} value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></label>
-      <label className={ui.label}>{t('role')}<select className={inputClass} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>
-      <label className={ui.label}>{t('initialPassword')}<input className={inputClass} type="password" minLength={12} required autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} /></label>
-      <p className="text-sm text-slate-600 sm:col-span-2">{t('provisioningLimit')}</p>
-      <button disabled={busy} className="brand-bg rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-50 sm:justify-self-start">{t('createUser')}</button>
-    </form>}
+    {message && <Notice tone="success">{message}</Notice>}
+    {error && <Notice tone="error">{error}</Notice>}
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(18rem,1fr)]">
+      <div className="min-w-0 space-y-6">
     <section className={`${ui.card} p-4 sm:p-6`}>
       <h2 className={ui.sectionTitle}>{t('userDirectory')}</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -97,14 +90,25 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
         <label className={ui.label}>{t('role')}<select className={inputClass} value={roleFilter} onChange={(e) => { setPage(1); setRoleFilter(e.target.value) }}><option value="">{t('allRoles')}</option>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>
         <label className={ui.label}>{t('status')}<select className={inputClass} value={statusFilter} onChange={(e) => { setPage(1); setStatusFilter(e.target.value) }}><option value="">{t('allStatuses')}</option><option value="active">{t('active')}</option><option value="inactive">{t('inactive')}</option></select></label>
       </div>
-      {users.isPending ? <p role="status" className="mt-5">{t('loadingUsers')}</p> : users.isError ? <p role="alert" className="mt-5 text-rose-700">{t('loadUsersError')}</p> : users.data.items.length === 0 ? <p className="mt-5 text-slate-600">{t('noUsers')}</p> : <div className="mt-5 w-full overflow-x-auto"><table className="min-w-[38rem] w-full text-left text-sm"><thead className="border-b text-slate-600"><tr><th className="px-3 py-2.5">{t('displayName')}</th><th className="px-3 py-2.5">{t('email')}</th><th className="px-3 py-2.5">{t('role')}</th><th className="px-3 py-2.5">{t('status')}</th><th className="px-3 py-2.5">{t('details')}</th></tr></thead><tbody>{users.data.items.map((user) => <tr key={user.id} className="border-b last:border-0"><td className="px-3 py-2.5">{user.display_name}</td><td className="px-3 py-2.5">{user.email}</td><td className="px-3 py-2.5">{t(`role_${user.role}`)}</td><td className="px-3 py-2.5">{t(user.is_active ? 'active' : 'inactive')}</td><td className="px-3 py-2.5"><button className={ui.link} onClick={() => selectUser(user)}>{t('view')}</button></td></tr>)}</tbody></table></div>}
+      {users.isPending ? <div className="mt-5"><Skeleton rows={4} /></div> : users.isError ? <div className="mt-5"><Notice tone="error">{t('loadUsersError')}</Notice></div> : users.data.items.length === 0 ? <div className="mt-5"><EmptyState icon="users" title={t('noUsers')} /></div> : <div className="mt-5 w-full overflow-x-auto"><table className="min-w-[38rem] w-full text-left text-sm"><thead><tr className="text-xs uppercase tracking-wide text-slate-500"><th className={ui.th}>{t('displayName')}</th><th className={ui.th}>{t('email')}</th><th className={ui.th}>{t('role')}</th><th className={ui.th}>{t('status')}</th><th className={ui.th}><span className="sr-only">{t('details')}</span></th></tr></thead><tbody>{users.data.items.map((user) => <tr key={user.id} className={selectedId === user.id ? 'bg-[var(--brand-soft)]' : ''}><td className={`${ui.td} font-semibold text-slate-900`}>{user.display_name || '—'}</td><td className={`${ui.td} break-all text-slate-600`}>{user.email}</td><td className={ui.td}>{t(`role_${user.role}`)}</td><td className={ui.td}><StatusBadge tone={user.is_active ? 'present' : 'unmarked'}>{t(user.is_active ? 'active' : 'inactive')}</StatusBadge></td><td className={`${ui.td} text-right`}><button type="button" className={ui.ghost} aria-label={`${t('view')} ${user.display_name || user.email}`} onClick={() => selectUser(user)}>{t('view')}</button></td></tr>)}</tbody></table></div>}
       {(users.data?.total || 0) > 10 && <div className="mt-5 border-t border-slate-100 pt-4 flex items-center justify-between gap-2 text-sm"><button disabled={page <= 1 || users.isPending} onClick={() => setPage(page - 1)} className={ui.secondary}>{t('previous')}</button><span>{t('pageOf', { page, total: Math.max(1, Math.ceil((users.data?.total || 0) / 10)) })}</span><button disabled={users.isPending || !users.data || page * 10 >= users.data.total} onClick={() => setPage(page + 1)} className={ui.secondary}>{t('next')}</button></div>}
     </section>
     {selectedId && <section className={`${ui.card} p-4 sm:p-6`}><h2 className={ui.sectionTitle}>{t('userDetails')}</h2>
       {selected.isPending ? <p role="status">{t('loadingUsers')}</p> : selected.isError ? <p role="alert">{t('loadUsersError')}</p> : <div className="mt-4 space-y-4"><p className="break-all text-sm text-slate-600">{selected.data.id}</p><p>{t('status')}: {t(selected.data.is_active ? 'active' : 'inactive')}</p>
-        {canUpdate && edit && <form onSubmit={update} className="grid gap-3 sm:grid-cols-2"><label>{t('displayName')}<input className={inputClass} required maxLength={160} value={edit.display_name} onChange={(e) => setEdit({ ...edit, display_name: e.target.value })} /></label><label>{t('email')}<input className={inputClass} type="email" required maxLength={254} value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></label><button disabled={busy} className="brand-bg rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-50 sm:justify-self-start">{t('saveChanges')}</button></form>}
-        <div className="flex flex-wrap items-end gap-3">{canAssign && <label>{t('role')}<select className={inputClass} value={chosenRole} onChange={(e) => setChosenRole(e.target.value)}>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>}{canAssign && chosenRole !== selected.data.role && <button disabled={busy} onClick={() => changeRole(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t('assignRole')}</button>}{canUpdate && <button disabled={busy} onClick={() => changeStatus(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t(selected.data.is_active ? 'deactivate' : 'activate')}</button>}</div>
+        {canUpdate && edit && <form onSubmit={update} className="grid gap-3 sm:grid-cols-2"><label className={ui.label}>{t('displayName')}<input className={inputClass} required maxLength={160} value={edit.display_name} onChange={(e) => setEdit({ ...edit, display_name: e.target.value })} /></label><label className={ui.label}>{t('email')}<input className={inputClass} type="email" required maxLength={254} value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></label><button disabled={busy} className={`${ui.primary} sm:justify-self-start`}>{t('saveChanges')}</button></form>}
+        <div className="flex flex-wrap items-end gap-3">{canAssign && <label className={ui.label}>{t('role')}<select className={inputClass} value={chosenRole} onChange={(e) => setChosenRole(e.target.value)}>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>}{canAssign && chosenRole !== selected.data.role && <button disabled={busy} onClick={() => changeRole(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t('assignRole')}</button>}{canUpdate && <button disabled={busy} onClick={() => changeStatus(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t(selected.data.is_active ? 'deactivate' : 'activate')}</button>}</div>
       </div>}
     </section>}
+      </div>
+    {canCreate && <form onSubmit={create} className={`${ui.card} grid gap-4 p-4 sm:p-6 lg:sticky lg:top-24`}>
+      <h2 className={ui.sectionTitle}>{t('createUser')}</h2>
+      <label className={ui.label}>{t('displayName')}<input className={inputClass} required maxLength={160} value={newUser.display_name} onChange={(e) => setNewUser({ ...newUser, display_name: e.target.value })} /></label>
+      <label className={ui.label}>{t('email')}<input className={inputClass} type="email" required maxLength={254} value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></label>
+      <label className={ui.label}>{t('role')}<select className={inputClass} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>
+      <label className={ui.label}>{t('initialPassword')}<input className={inputClass} type="password" minLength={12} required autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} /></label>
+      <p className="text-sm leading-6 text-slate-600">{t('provisioningLimit')}</p>
+      <button disabled={busy} className={`${ui.primary} justify-self-start`}>{t('createUser')}</button>
+    </form>}
+    </div>
   </div>
 }
