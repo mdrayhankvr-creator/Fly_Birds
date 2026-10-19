@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Slate 500 carries secondary text on tinted surfaces as well as white;
+   one step darker than the default keeps it at 4.5:1 or better on all of them. */
+@theme {
+  --color-slate-500: #5a6a80;
+}
+
 /* Tailwind v4 draws bare `border` in the current text colour; older screens
    rely on the v3 default, so borders default to a soft slate everywhere. */
 @layer base {

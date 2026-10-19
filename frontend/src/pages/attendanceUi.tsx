@@ -8,7 +8,7 @@ import { Icon, type IconName } from '../components/icons'
 export const ui = {
   card: 'min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)]',
   field: 'mt-1.5 block w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--brand-primary)_18%,transparent)] disabled:bg-slate-50 disabled:text-slate-500',
-  label: 'block text-xs font-semibold uppercase tracking-wide text-slate-500',
+  label: 'block text-xs font-semibold uppercase tracking-wide text-slate-600',
   primary: 'inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-on)] shadow-sm transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50',
   secondary: 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50',
   ghost: 'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-[var(--brand-ink)] hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]',
@@ -22,10 +22,10 @@ export const ui = {
 
 export type Tone = 'present' | 'absent' | 'late' | 'leave' | 'unmarked'
 export const tones: Record<Tone, { solid: string; soft: string; dot: string; text: string }> = {
-  present: { solid: 'bg-emerald-600 text-white border-emerald-600', soft: 'bg-emerald-50 text-emerald-800 ring-emerald-600/20', dot: 'bg-emerald-500', text: 'text-emerald-700' },
+  present: { solid: 'bg-emerald-700 text-white border-emerald-700', soft: 'bg-emerald-50 text-emerald-800 ring-emerald-600/20', dot: 'bg-emerald-500', text: 'text-emerald-700' },
   absent: { solid: 'bg-rose-600 text-white border-rose-600', soft: 'bg-rose-50 text-rose-800 ring-rose-600/20', dot: 'bg-rose-500', text: 'text-rose-700' },
-  late: { solid: 'bg-amber-500 text-white border-amber-500', soft: 'bg-amber-50 text-amber-900 ring-amber-600/25', dot: 'bg-amber-400', text: 'text-amber-700' },
-  leave: { solid: 'bg-sky-600 text-white border-sky-600', soft: 'bg-sky-50 text-sky-800 ring-sky-600/20', dot: 'bg-sky-500', text: 'text-sky-700' },
+  late: { solid: 'bg-amber-400 text-amber-950 border-amber-400', soft: 'bg-amber-50 text-amber-900 ring-amber-600/25', dot: 'bg-amber-400', text: 'text-amber-700' },
+  leave: { solid: 'bg-sky-700 text-white border-sky-700', soft: 'bg-sky-50 text-sky-800 ring-sky-600/20', dot: 'bg-sky-500', text: 'text-sky-700' },
   unmarked: { solid: 'bg-slate-600 text-white border-slate-600', soft: 'bg-slate-100 text-slate-700 ring-slate-500/20', dot: 'bg-slate-300', text: 'text-slate-600' },
 }
 

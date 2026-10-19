@@ -255,7 +255,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
                 {draft && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-full bg-[var(--brand-primary)]" />}
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <span className="w-9 shrink-0 text-center font-mono text-lg font-bold tabular-nums text-slate-400" aria-label={t('attnRoll', { roll: item.roll_no ?? '—' })}>{item.roll_no == null ? '—' : num(item.roll_no)}</span>
+                    <span className="w-9 shrink-0 text-center font-mono text-lg font-bold tabular-nums text-slate-500" aria-label={t('attnRoll', { roll: item.roll_no ?? '—' })}>{item.roll_no == null ? '—' : num(item.roll_no)}</span>
                     <Avatar name={item.name_en} />
                     <div className="min-w-0"><p className="truncate font-semibold text-slate-900">{display}</p>
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span>{item.admission_no}</span>
@@ -361,7 +361,7 @@ function MonthlyPanel({ sessionId, sectionId, authorized }: { sessionId: string;
           return <tr key={item.student_id} className="border-b border-slate-100">
             <td className="py-2.5 pr-3"><p className="font-semibold text-slate-900">{i18n.language === 'bn' && item.name_bn ? item.name_bn : item.name_en}</p><p className="text-xs text-slate-500">{item.admission_no}</p></td>
             <td className={`px-2 text-right font-semibold tabular-nums ${tones.present.text}`}>{item.present}</td><td className={`px-2 text-right font-semibold tabular-nums ${tones.absent.text}`}>{item.absent}</td><td className={`px-2 text-right font-semibold tabular-nums ${tones.late.text}`}>{item.late}</td>
-            <td className="py-2.5 pl-3">{rate === null ? <span className="text-xs text-slate-400">{t('attnNoDays')}</span> : <div className="flex items-center gap-2"><div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100"><div className={`h-1.5 ${rate >= 75 ? tones.present.dot : rate >= 50 ? tones.late.dot : tones.absent.dot}`} style={{ width: `${rate}%` }} /></div><span className="text-xs font-semibold tabular-nums text-slate-700">{rate}%</span></div>}</td>
+            <td className="py-2.5 pl-3">{rate === null ? <span className="text-xs text-slate-500">{t('attnNoDays')}</span> : <div className="flex items-center gap-2"><div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100"><div className={`h-1.5 ${rate >= 75 ? tones.present.dot : rate >= 50 ? tones.late.dot : tones.absent.dot}`} style={{ width: `${rate}%` }} /></div><span className="text-xs font-semibold tabular-nums text-slate-700">{rate}%</span></div>}</td>
           </tr>
         })}</tbody></table></div>
       <p className="mt-2 text-xs text-slate-500">{t('attnRateHint')}</p>
@@ -420,8 +420,8 @@ export function StudentAttendanceReportPage({ guardian }: { guardian: boolean })
           {Array.from({ length: days }, (_, i) => {
             const record = byDay.get(i + 1)
             const label = `${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthIndex - 1, i + 1)))}: ${record ? statusText(record.status) : t('attnNoRecord')}`
-            return <div key={i} role="gridcell" aria-label={label} title={record?.note || label} className={`flex aspect-square flex-col items-center justify-center rounded-lg text-sm font-semibold ${record ? tones[record.status].solid : 'bg-slate-50 text-slate-400'}`}>
-              <span>{new Intl.NumberFormat(locale).format(i + 1)}</span>{record && <span className="text-[0.6rem] font-medium opacity-90">{t(`attnShort${record.status[0].toUpperCase()}${record.status.slice(1)}`)}</span>}</div>
+            return <div key={i} role="gridcell" aria-label={label} title={record?.note || label} className={`flex aspect-square flex-col items-center justify-center rounded-lg text-sm font-semibold ${record ? tones[record.status].solid : 'bg-slate-50 text-slate-500'}`}>
+              <span>{new Intl.NumberFormat(locale).format(i + 1)}</span>{record && <span className="text-[0.6rem] font-semibold">{t(`attnShort${record.status[0].toUpperCase()}${record.status.slice(1)}`)}</span>}</div>
           })}
         </div>
         <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-600">{(['present', 'absent', 'late'] as const).map(s => <span key={s} className="flex items-center gap-1.5"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded ${tones[s].dot}`} />{statusText(s)}</span>)}</div>
