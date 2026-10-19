@@ -1,0 +1,15 @@
+# TLS edge for one school. Caddy obtains and renews certificates
+# automatically once SCHOOL_DOMAIN points at this server and ports 80/443
+# are reachable from the internet.
+{
+	email {$ACME_EMAIL}
+}
+
+{$SCHOOL_DOMAIN} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy web:80
+}

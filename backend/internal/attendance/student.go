@@ -85,6 +85,7 @@ type ScanInput struct {
 	Payload        string `json:"payload"`
 	AttendanceDate string `json:"attendance_date"`
 }
+
 // RosterEntry is one student's mark in a roster save. RecordID and Version
 // are the record the client last saw; both are empty for a new mark.
 type RosterEntry struct {
@@ -173,6 +174,7 @@ func (s *StudentService) Correct(ctx context.Context, actor, id string, in Stude
 	in.Note = strings.TrimSpace(in.Note)
 	return s.repo.CorrectStudent(ctx, actor, id, in)
 }
+
 // SaveRoster records and corrects a section's attendance for one day in a
 // single transaction. Students absent from Entries are left untouched, so
 // unmarked students are never recorded as absent.

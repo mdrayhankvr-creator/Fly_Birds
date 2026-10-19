@@ -1,367 +1,207 @@
 # Fly_Birds
 
-Fly_Birds is a reusable, white-label school management system for schools in Bangladesh. One codebase supports configurable branding, language, grading, permissions, and module settings. M0 through M11 and the attendance UX redesign are merged into main. M1 provides authentication, runtime role permissions, school configuration, user administration, persistent audit logging, and six role dashboards. M12 UI and Product Polish is complete locally on `feature/m12-premium-ui-ux` and awaits review.
+**A white-label school management system for schools in Bangladesh.**
+Attendance, results, fees, notices, class diary and analytics for
+administrators, head teachers, teachers, accountants, students and guardians,
+in Bangla and English. Each school runs its own private installation, with its
+own database, files, backups, name, logo and colours.
 
-## M12 Interface and Demo School
+![Administrator dashboard](docs/screenshots/admin-dashboard.png)
 
-- **Layout:** signed-in users get a sidebar with grouped navigation (collapsible on desktop, a drawer on phones) and a top bar with the page location, language switch, notifications and their account menu. The sidebar shows only what the user's role, permissions and enabled modules allow.
-- **Home dashboards:** every role lands on its own dashboard, built from live school data.
-- **Branding:** the school's colours from school settings brand the whole interface. Readable text colours are derived automatically, and the dark dashboard theme covers every screen.
+## Screenshots
 
-### Demo school
+| | |
+|---|---|
+| ![Public landing page](docs/screenshots/landing.png) | ![School analytics](docs/screenshots/analytics.png) |
+| Public landing page with the school's own branding | School analytics: attendance, results, alerts and money |
+| ![Roll-wise attendance register](docs/screenshots/attendance.png) | ![Guardian dashboard in Bangla](docs/screenshots/guardian-bangla.png) |
+| Roll-wise attendance: one tap per student, save once | Guardian dashboard in Bangla, with a child selector |
+| ![Accountant dashboard](docs/screenshots/accountant-dashboard.png) | ![Dark theme](docs/screenshots/dark-theme.png) |
+| Accountant dashboard: collections, dues and overdue aging | Dark theme |
 
-Load a fictional demo school for training or review, preferably into a separate database. The seed only adds records and remembers what it created, so running it again changes nothing that already exists:
+<p align="center"><img src="docs/screenshots/student-mobile.png" alt="Student dashboard on a phone" width="260"></p>
 
-```powershell
-docker compose run --rm -e DEMO_PASSWORD backend /app/seed-demo -confirm
+All screenshots show the fictional demo school created by `seed-demo`.
+
+## Features
+
+| Area | What it does |
+|---|---|
+| **Accounts and security** | Email sign-in, 15-minute access tokens with rotating refresh cookies and CSRF protection, account lockout after repeated failures, per-request role permissions, an editable permission matrix and a full audit log. |
+| **School configuration** | School name in Bangla and English, logo, colours (contrast-checked), preferred language, grading scheme and 13 modules that can be switched on or off. |
+| **Academic structure** | Academic sessions, classes, sections, subjects (with fourth-subject support) and class-subject mapping. |
+| **Students and guardians** | Admission records, photos, roll numbers, guardian links and CSV import. |
+| **Teachers and staff** | Staff profiles, subject assignments, leave requests and private salary records. |
+| **Attendance** | Roll-wise daily student register, conflict-safe saving, QR-assisted check-in, teacher attendance, monthly reports and consecutive-absence alerts. |
+| **Routines** | Class timetables with clash detection and exam routines. |
+| **Exams and results** | Exams per section, marks entry by assigned teachers, Bangladesh GPA grading, positions, mark sheets and published results. |
+| **Fees and accounts** | Fee categories and structures, monthly dues, concessions, collections with receipts, overdue tracking and an income and expense ledger. Online bKash and Nagad payment is **simulated** (see [Limitations](#limitations)). |
+| **Communication** | Notices and events targeted by role, class or section; a daily class diary with homework and submissions; in-app notifications with per-user preferences. SMS is **simulated**. |
+| **Analytics and reports** | Role-specific dashboards, attendance and result trends, dropout and at-risk alerts, finance analytics, and CSV and printable reports. |
+| **Administration** | Control center, system health, data exports, verified backups with retention, and restore into an empty database. |
+| **Interface** | Responsive layout from phone to desktop, full Bangla and English (with Bangla digits and dates), light and dark themes, keyboard support and reduced-motion support. |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    browser["Browser<br/>React 19 + TypeScript"] -->|HTTPS| edge["Caddy<br/>TLS, HSTS"]
+    edge --> web["nginx<br/>static app, CSP,<br/>login rate limit"]
+    web -->|"/api/"| api["Go API<br/>Gin, JWT, RBAC"]
+    api --> db[("PostgreSQL 17")]
+    api --> files[("Uploads volume")]
+    api --> backups[("Backups volume")]
 ```
 
-- **Accounts:** eight accounts are created at `demo.flybirds.test`: `demo.admin`, `demo.head`, `demo.teacher` (plus `demo.teacher2` and `demo.teacher3`), `demo.accounts`, `demo.student` and `demo.guardian`. They use the password in `DEMO_PASSWORD` (12–72 bytes), or one typed at the prompt.
-- **Session:** the seed uses the active academic session, or creates the current year's.
-- **Existing data:** it leaves existing classes, subjects and settings alone.
-- **Before going live:** remove the demo accounts before a real school uses the database.
-
-## M11 Analytics and Reports
-
-Enable the **Analytics** module (it needs Students and guardians). Analytics reads the existing attendance, examination, fee and people records directly, so there is nothing to import or recalculate.
-
-- **School analytics** (`/analytics`, administrators and head teachers): an overview with "needs attention" items, plus tabs for:
-  - attendance trends by class, section and date;
-  - pass rates, GPA distribution and subject performance;
-  - fees, dues, income and expenses (finance roles only);
-  - at-risk and dropout alerts;
-  - a comparison of recent sessions.
-- **Accountants** see the fees tab; **teachers** use `/teacher/analytics`, limited to their assigned classes and subjects.
-- **Reports** (`/reports`): student and teacher attendance, exam results, fee balances and student alerts, each printable and downloadable as CSV. Downloads are audited.
-- **Progress pages:** students see `/student/progress`, guardians `/guardian/progress` (linked children only) and staff `/analytics/students/{id}`.
-- **Alerts** follow clear rules rather than predictions:
-  - **Dropout:** a run of absences, or no presence while the class is taking attendance.
-  - **At risk:** low attendance, a failed latest exam or a low GPA.
-  - **Thresholds:** administrators adjust them on the Student alerts tab.
-
-Migration `1101_analytics.sql` adds the threshold settings, six analytics permissions and two indexes. See [OpenAPI](docs/openapi.yaml) for the `/analytics/*` routes and [Progress](docs/PROGRESS.md) for the rules, verification and limitations.
-
-## M10 Admin Control Center
-
-Administrators open **Control center** (`/admin/control`) for a school-wide overview and links to every admin area:
-
-- **Audit log** (`/admin/audit`): search and filter all audited actions by person, action, outcome and date. Refused attempts by signed-in users to reach admin routes are logged as `admin.access_denied`.
-- **Data export** (`/admin/exports`): CSV downloads of users, students, guardians, staff, attendance, exam results, fee payments, the ledger and the audit log. Files open with Bangla intact in Excel and LibreOffice, formula-like cells are neutralised, password hashes are never included and every export is audited.
-- **Backups** (`/admin/backups`): take, verify, download and delete full backups (database plus attachments).
-- **Modules** (`/admin/modules`): switch modules on and off with dependency checks; related modules can be switched together.
-- **Permissions** (`/admin/permissions`): grouped, searchable editor with protected admin grants, a review step, stale-save protection, a role comparison matrix and change history.
-
-Migration `1001_admin_control.sql` adds module dependencies, the backup run history and three admin-only permissions (`system:read`, `data:export`, `backups:manage`).
-
-**Backups and restore.**
-- **Storage:** archives (`flybirds-backup-<UTC time>-<id>.tar.gz`) are written to `BACKUP_DIR` (default `data/backups`; in Compose the new `backups_data` volume at `/app/backups`). They contain personal data and password hashes, so copy them off the server and store them encrypted.
-- **Settings:** `BACKUP_RETENTION` (1–365, default 10) archives are kept. `BACKUP_INTERVAL` (`0` = manual only, or a duration of at least `1h`, such as `24h`) schedules automatic backups.
-- **Restore:** run the bundled command against a freshly migrated, empty database of the same schema version. It needs a PostgreSQL superuser and PostgreSQL 15 or later, and refuses a database that already has users unless `-force` is given. Everyone must sign in again afterwards because sessions are not backed up.
-
-```powershell
-docker compose run --rm -v ${PWD}/restore:/restore backend /app/restore-backup -archive /restore/flybirds-backup-....tar.gz -confirm
-```
-
-## M9 Notices, Notifications, Events and Class Diary
-
-Migrations `0901`–`0903` add notices, events, in-app notifications with preferences, a mock SMS log, the daily class diary with optional homework submission, and file attachments. They reference the existing academic, student, guardian and staff tables.
-
-- **Notices** (`/notices`) are written in English and Bangla with normal, important or urgent priority, role audiences, optional class/section targets, scheduling, expiry and PDF/image attachments. Each user sees only live notices addressed to them.
-- **The events calendar** (`/events`) shows holidays, exams, meetings and events in month and list views.
-- **Notifications** (bell, `/notifications`) cover notices, absences, published results, overdue fees and diaries. Each category can be switched on or off in-app and by SMS. Administrators can run dispatch and view the SMS log at `/admin/notifications`.
-- **SMS uses a mock provider only.** Nothing is sent to phones and no credentials or charges are involved; the log status is "sent to mock", never "delivered". A real gateway can replace `notify.MockSMS` through the `notify.SMSProvider` interface.
-- **The class diary** works by role:
-  - **Teachers** (`/teacher/diary`) write and publish daily diaries only for their assigned classes and subjects. They can enable homework submission and review submissions.
-  - **Students** (`/student/diary`) and **guardians** (`/guardian/children/:id/diary`, linked children only) browse diaries by date and subject. Students submit homework when it is enabled.
-  - **Administrators** (`/admin/diary`) can require daily publication with a reminder time and track compliance.
-
-Enable the **Notices and notifications** module and, for the diary, the separate **Daily class diary** module in school settings; both start disabled.
-
-**Storage configuration.**
-- **Location:** attachments are stored on disk, not in PostgreSQL, in `FILE_STORAGE_DIR`. The default is `data/uploads` relative to the backend's working directory, which is ignored by Git. In Docker Compose this is the new `uploads_data` volume mounted at `/app/uploads`, so back it up with the database.
-- **Access:** files are served only through authenticated, authorized API routes.
-- **Background work:** `NOTIFY_INTERVAL` (default `1m`, `0` disables) controls background dispatch and the cleanup of abandoned uploads.
-
-See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification and limitations.
-
-## M8 Fees and Accounts
-
-Migration `0801_fees_accounts.sql` adds fee categories, session and class fee structures, standing student concessions, dues, discounts and waivers, receipts with payment allocations, mock mobile payments and an income and expense ledger. It uses the existing student and academic tables. Dues store the amount at creation, so later structure changes do not rewrite history. A database check stops any due from being overpaid. Payments run in one transaction, settle the oldest dues first (or the dues you select) and issue a sequenced `RCT-` receipt. Retrying with the same idempotency key returns the original receipt instead of charging again. Bank, bKash and Nagad references must be unique. Every receipt posts fee income to the ledger, and every change is audited.
-
-Administrators and accountants use `/accounts/fees` to set up fees, generate monthly dues (rerunning skips existing dues), collect full or partial payments, apply discounts and print receipts. The same page has collection, arrears and receipt reports and the income and expense ledger. Only administrators can waive a balance. Students see their own statement and receipts at `/student/fees`. Guardians reach a linked child's fees from `/guardian/children/:id/fees`. Both can try the **mock** bKash or Nagad checkout: the test OTP is `123456`, any other code declines, and no real provider is contacted. The pages support English and Bangla (amounts in Bangla digits), mobile layouts and receipt printing. Enable the optional **Fees and accounts** module in school settings; it starts disabled. See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification and limitations.
-
-## M7 Exams, Marks and Results
-
-Migration `0701_exams_results.sql` adds exam definitions, mapped subjects, teacher-entered marks and published result snapshots. Exam types are class test, half-yearly, annual and other. A draft may optionally link to an M6 exam routine for the same academic section. Full and pass marks are configured per exam subject; marks cannot exceed full marks. Publication requires every active student in the section to have a mark for every exam subject. Results use the school's current grading bands and Bangladesh fourth-subject bonus rule. Administrators can return published results to draft for correction or lock them permanently. Every marks change and state transition is audited.
-
-Administrators manage exams and tabulation at `/admin/exams`, teachers enter marks for assigned subjects at `/teacher/exams`, students view published report cards at `/student/results`, and guardians open linked children's results from `/guardian/children/:id/results`. Report cards use configured school branding and support English, Bangla, mobile layouts and printing. The optional **Examinations and results** module must be enabled in school settings. Academic, student and staff records must be in place. See [OpenAPI](docs/openapi.yaml) for routes and permissions and [Progress](docs/PROGRESS.md) for verification.
-
-For isolated PostgreSQL tests, set `AUTH_TEST_DATABASE_URL` to a fresh disposable database and run `go vet ./...` and `go test ./... -p 1 -count=1` from `backend/`; run `npm run build` from `frontend/`. Backend startup applies migration 701 after migration 601. These commands do not require changes to the application database.
-
-## M6 Class and Exam Routines
-
-Migration `0601_routines.sql` adds weekly class periods, exam routine drafts, and dated exam slots. It follows the existing M0–M5 migrations. Administrators can create, edit, delete, filter, and publish schedules at `/admin/routines`; class periods enforce active teacher assignments, academic section and subject relationships, and nonoverlapping teacher, room, and section times, including intersecting academic sessions. Exam slots enforce mapped subjects, session dates, and nonoverlapping section and room times across sessions. Writes are transactional and audited. Published exam routines are visible to students and linked guardians; drafts remain private.
-
-Teachers see assigned class periods at `/teacher/routine`, students see their class and published exams at `/student/routine`, and guardians reach a linked child's routines from `/guardian/children/:id/routine`. The pages support English and Bangla, mobile layouts, and browser printing. JWT authentication, current role permissions, and the optional `routine` module protect every endpoint. Enable **Routine** in school settings before use. The module starts disabled; Academics, Students, and Staff must contain the related records. See [OpenAPI](docs/openapi.yaml) for API paths and [Progress](docs/PROGRESS.md) for verification.
-
-To run locally, start the existing Compose stack as described below; backend startup applies the migration. For isolated PostgreSQL verification, set `AUTH_TEST_DATABASE_URL` to a fresh disposable database and run `go vet ./...` and `go test ./... -p 1 -count=1` from `backend/`. Run `npm run build` from `frontend/`. These commands do not require demo-school records in the application database.
-
-## M2 Tasks 001–002 — Academic Structure Integration
-
-The `feature/m2-sections` branch completes Academic Sessions, validated classes, session- and class-owned Sections, bilingual subjects with canonical subject codes, and class-subject assignments with exactly one required or fourth/optional designation. The backend follows Handler → Service → Repository and guards academic routes with current authentication, permission, and the `academics` module; writes also require administrator status. The frontend provides `/admin/academic/sessions`, `/admin/academic/classes`, `/admin/academic/sections`, and `/admin/academic/subjects` with English/Bangla text, paginated search, responsive forms, and permission-aware controls. Head teachers have read-only access when Academics is enabled.
-
-M2 migrations `0101_academic_sessions.sql`, `0102_classes_subjects.sql`, and `0103_sections.sql` are merged into main; the versioned runner discovers numeric filenames in order. Sections have UUID identifiers, session and class foreign keys, scoped unique names/codes, and indexes that support listing and future student enrollment integrity. The optional Academics module starts disabled; enable it in school settings before using the academic APIs or pages. See [verified progress](docs/PROGRESS.md).
-
-The full requirements are in [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md). Milestone status is in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/roadmap.md](docs/roadmap.md).
-
-## M3 Students and Guardians
-
-Migration `0201_students_guardians.sql` creates student profiles, protected photos, guardian profiles, and many-to-many student–guardian links. Student admission numbers are case-insensitively unique; roll numbers are unique within a section. A composite foreign key ensures every student's section belongs to the selected class and session. Optional student and guardian login links require a user with the matching role. One child can have several guardians and at most one primary guardian.
-
-Administrators can create, search, edit, and delete student and guardian profiles at `/admin/students` and `/admin/guardians`; student detail, photo upload, guardian links, printable QR ID cards, and atomic CSV import are available there. A student sees their linked profile at `/student/me`. A guardian sees only linked children at `/guardian/children`. Head teachers have read-only directories. Every route requires authentication, its current permission, and the enabled **Students** module. The admin student editor also reads Academics options, so enable **Academics** for that workflow. Both optional modules remain disabled by default.
-
-The CSV header is `admission_no,name_en,name_bn,date_of_birth,roll_no,status`; all imported rows use the selected session, class, and section. The limit is 1,000 rows and 2 MiB per import. Photos accept JPEG or PNG up to 2 MiB and are re-encoded to discard metadata. A QR code contains the student's UUID as an identifier, not an access credential. Administrator deletion removes a profile and its photo/relationship links after a browser confirmation; existing login accounts remain. Account creation and initial-password delivery still use the M1 administrator workflow. See [OpenAPI](docs/openapi.yaml) for all endpoints and permissions.
-
-Run the stack with the [Compose instructions](#run-with-docker-compose). The backend applies migration 201 after versions 1–4 and 101–103. For PostgreSQL tests, set `AUTH_TEST_DATABASE_URL` to a fresh, separate database before running `go test ./... -count=1` from `backend/`.
-
-## M0 Features
-
-- Go 1.26 API with Gin, structured environment configuration, standard JSON responses, and graceful shutdown
-- Optional PostgreSQL connection through GORM; the M0 liveness endpoint works without a database
-- Public `GET /healthz` endpoint returning `{"data":{"status":"ok"}}`, documented in [OpenAPI](docs/openapi.yaml)
-- React, Vite, TypeScript, Tailwind CSS, React Router, TanStack Query, and i18next application shell
-- English and Bangla language toggle, with the choice saved in the browser
-- Frontend health display using the Vite `/api` proxy
-- Docker Compose development stack for PostgreSQL, backend, and frontend
-- GitHub Actions workflow for Go vet, Go tests, and the frontend production build
-
-## M1 Checkpoint 1 — Authentication
-
-- PostgreSQL user and revocable session tables, created by a versioned migration on backend startup
-- Six role identifiers on users; role permissions and management screens are later M1 work
-- bcrypt password hashes, generic login failures, and five-failure, 15-minute account lockout
-- 15-minute HS256 JWT access tokens validated against active server-side sessions
-- Seven-day opaque refresh tokens, stored as SHA-256 hashes and rotated on use
-- HttpOnly, SameSite=Strict refresh cookies and session-bound CSRF protection for refresh and logout
-- A responsive English/Bangla login page, in-memory access token, session restoration, and a protected account page
-- Interactive `create-user` command for the first account; no default credentials or public registration endpoint
-
-## M1 Checkpoint 2 — Role Permissions
-
-- Migration 2 adds normalized `roles`, `permissions`, and `role_permissions` tables and links the existing single `users.role` value to the six supported roles with a foreign key. Existing users and sessions are preserved.
-- All six roles can read their own account by default. Administrators receive the ten currently defined permissions. Role grants are read from PostgreSQL on each protected request, so changes affect active sessions immediately.
-- `GET /auth/permissions` returns the signed-in user's current grants. `GET /roles`, `GET /permissions`, `GET /roles/:id/permissions`, and `GET /users/:id/roles` provide read access based on `roles:read` or `permissions:read`.
-- Administrators with `permissions:manage` can atomically replace a role's grants with `PUT /roles/:id/permissions` or a user's single role with `PUT /users/:id/roles`. The admin role must retain management and self-read access; the last active administrator cannot be demoted.
-- `/admin/permissions` is a responsive English/Bangla permission matrix. The backend remains the authority for every update.
-
-Both checkpoints passed local PostgreSQL-backed tests and browser checks. The later checkpoint results are recorded in [verified progress](docs/PROGRESS.md).
-
-## M1 Checkpoint 3 — School Configuration
-
-- Migration 3 creates one school profile, a default Bangladesh grading scheme, and twelve stable module definitions. Defaults use the neutral name “School”; no actual school identity or credentials are seeded. Existing users and sessions are preserved.
-- Public `GET /school/branding` supplies only names, logo URL, language, colors, and theme. Contact details remain behind `school_settings:read`. Administrators with explicit update permissions can edit the profile, grade bands, and optional module states from `/admin/school-settings`.
-- Grade bands cover every integer mark from 0–100 without gaps or overlaps; GPA must be 0–5 with at most two decimal places. Changes are transactional. Grade calculations and examination features remain M7 work.
-- The frontend applies validated CSS color tokens and a light or dark theme after loading public branding. The login page and navigation show the configured school identity. Users can preview colors and logo before saving, reset unsaved edits, and switch between English and Bangla. A saved personal language choice takes precedence over the school default.
-- Core `authentication`, `permissions`, and `school_settings` modules cannot be disabled through the API. Optional module definitions start disabled; enabling one does not create its future screens or endpoints.
-- Protected module routes evaluate checks in this order: active session (`RequireAuth`), current PostgreSQL grant (`RequirePermission`), current PostgreSQL module state (`RequireModule`), then the handler. A missing/invalid session returns 401; missing permission or disabled module returns 403. Changes affect active sessions on the next request. Administrator-only writes also check the account and grant in the database transaction.
-
-**Logo handling:** This checkpoint accepts a public HTTPS URL ending in `.png`, `.jpg`, `.jpeg`, or `.webp`, with no credentials, custom port, query, or fragment. No upload endpoint or local file storage is provided. The server validates the URL shape but does not fetch or inspect remote image bytes; administrators should use a trusted image host. An external logo host can observe browser image requests. The URL may be left empty.
-
-This is a single-school deployment configuration, not tenant-isolated multi-tenancy. The repository and service interfaces leave room for later tenant scoping.
-
-## M1 Checkpoint 4 — User Administration, Audit, and Dashboards
-
-- Migration 4 adds user display names and a persistent audit event table with indexes. Successful user, role-permission, role-assignment, school settings, grading, and module changes insert audit events in the same transaction. Login, failed known-account login, and logout are also audited. Events contain explicit safe metadata, not passwords, hashes, tokens, cookies, or request bodies. Earlier actions are not backfilled.
-- Active administrators with the required grants can create, search, filter, page, read, and update users at `/admin/users`. The existing `PUT /users/:id/roles` endpoint assigns one of six roles. Deactivation atomically revokes all active sessions and protects the last active authorized administrator. Changes to the role permission matrix take effect on active sessions.
-- New accounts use a 12–72 byte administrator-supplied initial password. The API hashes it and never returns it. The administrator must deliver it privately. **The administrator continues to know this password; self-service password change, reset, and invitation delivery are not implemented yet.** Do not reuse personal passwords for this workflow. Use HTTPS outside local development.
-- `GET /audit/events` is a read-only, paginated, filtered, sorted API for administrators with `audit:read`. The advanced viewer and export belong to M10.
-- `GET /dashboard` supplies current database role, school branding, granted navigation, enabled module placeholders, and actual administrator counts. The shared frontend dashboard renders `/dashboard/admin`, `/dashboard/head_teacher`, `/dashboard/teacher`, `/dashboard/student`, `/dashboard/guardian`, and `/dashboard/accountant`. A role mismatch redirects to the current server-reported role. Later milestone modules appear only as Coming Soon when enabled; no academic or financial data is invented.
-- Local PostgreSQL integration tests, Go vet, the frontend production build, Compose validation, OpenAPI reference parsing, and headless Chrome checks passed. A neutral project favicon now serves successfully. The original development account remained untouched by the final isolated browser audit.
-
-## M1 Final Audit
-
-All twelve M1 acceptance criteria in the [project brief](docs/PROJECT_BRIEF.md) are locally verified. The final audit used a separate PostgreSQL database, backend on port 8081, and rebuilt frontend on port 5174. It exercised browser login/logout, account protection, bilingual fonts, browser user creation and permission editing, active-session grant changes, school profile editing with reload and persistent branding, grading validation, module navigation, and all six role dashboards at 1280 px and 390 px. The temporary stack and database were removed after testing; the developer's application database was not changed.
-
-The backend uses Handler → Service → Repository → Database for M1 domains. Four forward-only migrations add authentication and sessions, normalized role grants, school configuration and grading, and user display names and audit events. Privileged writes record safe audit metadata in their transaction. The 15-minute access token is held in browser memory; a rotated seven-day refresh token is held in an HttpOnly SameSite=Strict cookie and protected by a session-bound CSRF token. Runtime authorization reads current grants and module state from PostgreSQL.
-
-Final local gates passed: `go vet ./...`, `go test ./... -count=1` with and without the dedicated PostgreSQL test URL, `go test -race ./... -count=1` without PostgreSQL, fresh `npm ci` and production build inside the isolated frontend container, `docker compose config --quiet`, npm advisory audit (zero reported vulnerabilities at audit time), and OpenAPI parse with 20 paths, 26 operations, and 151 resolved references. No frontend unit-test command is configured. The Windows host `npm ci` could not replace a locked native binary, so the fresh container install was used. Go dependency advisory scanning and M1 GitHub Actions remain unverified.
-
-The security review found no confirmed critical or high M1 defect. Administrator-assisted initial password delivery remains a **medium** operational risk; use a private channel and a unique temporary password. Account lockout is per account, with no independent IP or edge rate limit (**medium**); deploy a rate limit before public exposure. Production HTTPS and Secure-cookie behavior have not been exercised (**medium**, deployment verification). External HTTPS logo bytes are not inspected and the browser contacts the chosen host (**low**); use a trusted host. There are no implemented optional feature routes yet: module enablement and the `RequireModule` middleware passed PostgreSQL tests on an isolated test route, while rejection by a real optional feature route must be checked when that route is introduced. Do not infer any academic or financial feature from a Coming Soon module link.
-
-At the M1 audit, M1 was ready for Pull Request review and M2 had not started. The audit's branch and CI status is historical; the current task status is tracked in [Progress](docs/PROGRESS.md).
-
-## Academic Sessions contribution from Joy
-
-Academic Sessions adds one M2 feature. Administrators can create, edit, activate, and deactivate sessions at `/admin/academic/sessions`; authorized head teachers can read them. The page supports English and Bangla, search, pagination, form validation, current-session status, and the configured school theme. The optional **Academics** module starts disabled. Enable it in `/admin/school-settings` before using the page or API. No session or school name is seeded.
-
-Migration `0101_academic_sessions.sql` adds `academic_sessions` with UUID IDs, date ordering, a generated normalized name key, and a unique index that permits at most one active session. Labels may be a single year (`2026`) or consecutive years (`2026–2027` or `2026-2027`). Hyphen and en-dash variants have the same unique key. The migration also adds `academic_sessions:read`, `academic_sessions:create`, `academic_sessions:update`, and `academic_sessions:activate`; all four are granted to administrators, and read is granted to head teachers. Its numeric version leaves room for independently numbered migrations after M1. Later classes, sections, subjects, attendance, and exams can reference `academic_sessions(id)`; they are outside this task.
-
-| Method | Endpoint | Permission | Purpose |
-|---|---|---|---|
-| GET | `/academic/sessions` | `academic_sessions:read` | Search and page through sessions |
-| POST | `/academic/sessions` | `academic_sessions:create` | Create an inactive session |
-| GET | `/academic/sessions/current` | `academic_sessions:read` | Read the active session; 404 if none |
-| GET | `/academic/sessions/{id}` | `academic_sessions:read` | Read one session |
-| PATCH | `/academic/sessions/{id}` | `academic_sessions:update` | Edit the name and dates |
-| PATCH | `/academic/sessions/{id}/activation` | `academic_sessions:activate` | Activate or deactivate |
-
-All six endpoints require a valid JWT and the enabled `academics` module. Writes require an active administrator account as well as the listed permission. Activation is serialized and transactional; the previous active session is deactivated in the same transaction. See [OpenAPI](docs/openapi.yaml) for request and response schemas.
-
-Deactivation may leave no current session; in that state the current lookup returns 404. The integrated classes, subjects, and assignments remain independent of sessions. Future session-dependent records should reference the stable session UUID and decide whether their own operations require a current session.
-
-Run this branch with the existing [Docker Compose instructions](#run-with-docker-compose) or the [local backend and frontend instructions](#run-backend-and-frontend-locally). The backend applies migrations 101–103 at startup. Existing Compose ports remain 5432/8080/5173. No demo credentials are provided; use an administrator account created through the documented interactive command. For PostgreSQL integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable database, then run `go test ./... -count=1` from `backend/`. The tests must not run against the application database.
-
-## Teachers and Staff (M4)
-
-The staff module adds employee profiles, existing-account links, session/class/subject assignments, leave management, and private salary records. Administrators use `/admin/staff`; linked teachers use `/staff/me`. Enable the optional **Staff** module in school settings. Migration `0401` runs at backend startup after M2 academic migrations. See the [M4 handoff](docs/M4_TEACHERS_STAFF.md) for the API, permissions, schema, test evidence, and integration notes. No employee or school-specific data is seeded.
-
-## Attendance (M5)
-
-The optional Attendance module provides daily student and teacher entry, corrections, QR-assisted student check-in, monthly teacher/student/guardian reports, and durable absence alert triggers. Enable Attendance in school settings. Teachers may mark students only in classes assigned through M4; a guardian may read only currently linked children. The printed student QR identifies a student and does not authorize a request. Alert delivery belongs to M9. Migrations 0501 and 0502 apply at backend startup. Pages include /admin/attendance/teachers, /admin/attendance/students, /attendance/me, /student/attendance, and /guardian/children/{id}/attendance. See the [M5 handoff](docs/M5_ATTENDANCE_HANDOFF.md) for APIs, permissions, run instructions, and verified test boundaries. No attendance data is seeded.
-
-## Repository Layout
-
-```text
-backend/                  Go API, auth layers, migrations, PostgreSQL connection, tests
-frontend/                 React application and API client
-.github/workflows/ci.yml  Continuous integration
-compose.yaml              Development services
-docs/                     Project brief, roadmap, and progress
-```
-
-M1 authentication, RBAC, school configuration, user management, audit retrieval, and dashboards follow Handler → Service → Repository → Database. M0's health endpoint remains a simple liveness handler.
-
-## Prerequisites
-
-- Docker with the Compose plugin for the complete container stack; **or** Go 1.26, Node.js 22 with npm, and PostgreSQL for local authentication development
-- A unique random JWT signing key of at least 32 bytes, base64 encoded, whenever `DATABASE_URL` is configured
-
-Docker is not required for the health endpoint or for local frontend development. Authentication requires PostgreSQL.
-
-## Run with Docker Compose
-
-From the repository root in PowerShell, generate a key for this environment and start the stack:
+- **Backend:** Go 1.26, Gin, PostgreSQL 17 with versioned SQL migrations
+  applied at startup, and a Handler → Service → Repository structure.
+- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS, TanStack Query and
+  i18next.
+- **Deployment:** Docker Compose, one project per school (see
+  [Deployment](docs/DEPLOYMENT.md)).
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [Deployment guide](docs/DEPLOYMENT.md) | Installing a school on a server, HTTPS, environment variables, upgrades and rollback |
+| [Operations guide](docs/OPERATIONS.md) | First administrator, school setup, password resets, backups and recovery, troubleshooting, release validation |
+| [API reference (OpenAPI 3)](docs/openapi.yaml) | Every endpoint, with permissions, request and response schemas |
+| [ER diagram](docs/diagrams/er-diagram.md) | Database schema by domain |
+| [Data flow diagram](docs/diagrams/data-flow-diagram.md) | Context and level 1 data flows |
+| [Use case diagram](docs/diagrams/use-case-diagram.md) | What each role can do |
+| [Final project report](docs/FINAL_REPORT.md) | Scope, design, testing, security and status |
+| [Progress](docs/PROGRESS.md) and [roadmap](docs/roadmap.md) | Milestone-by-milestone evidence |
+| [Browser suites](e2e/README.md) | End-to-end checks against a running stack |
+
+To browse the API reference, open `docs/openapi.yaml` in any OpenAPI viewer,
+for example by pasting it into https://editor.swagger.io.
+
+## Quick start (development)
+
+Requirements: Docker with the Compose plugin. From the repository root in
+PowerShell:
 
 ```powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 $keyBytes = New-Object byte[] 32
-$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-$rng.GetBytes($keyBytes)
-$rng.Dispose()
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($keyBytes)
 $env:JWT_SIGNING_KEY_B64 = [Convert]::ToBase64String($keyBytes)
-docker compose up --build
-```
-
-Reuse the same signing key when restarting the backend so existing access tokens remain valid. Keep it in a secure local environment source or the ignored root `.env`; do not commit it. Use `AUTH_COOKIE_SECURE=true` behind HTTPS; the Compose sample uses `false` solely for local HTTP. Create the first user in another terminal while the stack runs (the command prompts for a password without echo):
-
-```powershell
+docker compose up -d --build
 docker compose exec backend /app/create-user -email you@example.com -role admin
 ```
 
-Replace `you@example.com` with your own address. No demo account or password is supplied.
+Open http://localhost:5173 and sign in with the account you just created
+(`create-user` asks for the password without echoing it). Keep the same
+signing key across restarts, or everyone is signed out. The development stack
+uses plain HTTP and publishes PostgreSQL on port 5432; never use it for a real
+school. For a production installation follow the
+[deployment guide](docs/DEPLOYMENT.md).
 
-Use `docker compose down` to stop the stack. The default endpoints are:
-
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:5173 |
-| Backend health | http://localhost:8080/healthz |
-| Health through frontend proxy | http://localhost:5173/api/healthz |
-| Login page | http://localhost:5173/login |
-| Protected account page | http://localhost:5173/account |
-| Permission editor | http://localhost:5173/admin/permissions |
-| School settings | http://localhost:5173/admin/school-settings |
-| User administration | http://localhost:5173/admin/users |
-| Role dashboard | http://localhost:5173/dashboard |
-| Academic sessions | http://localhost:5173/admin/academic/sessions |
-| Classes | http://localhost:5173/admin/academic/classes |
-| Subjects and class-subject mapping | http://localhost:5173/admin/academic/subjects and http://localhost:5173/admin/academic/classes |
-
-The database is exposed on `localhost:5432` by default. Change the values in `.env` if those ports are occupied. The sample PostgreSQL password is for local development only.
-
-Verify the services:
+To explore with sample data instead, create a fictional demo school (8 role
+accounts, 36 students, three months of activity). It never changes records it
+did not create, but do not run it on a real school's database:
 
 ```powershell
-docker compose ps
-Invoke-RestMethod http://localhost:8080/healthz
-Invoke-RestMethod http://localhost:5173/api/healthz
+$env:DEMO_PASSWORD = '<a password of at least 12 characters>'
+docker compose exec -e DEMO_PASSWORD backend /app/seed-demo -confirm
 ```
 
-## Run Backend and Frontend Locally
+The demo accounts are `demo.admin`, `demo.head`, `demo.teacher`,
+`demo.accounts`, `demo.student` and `demo.guardian`, each
+`@demo.flybirds.test`.
 
-In one PowerShell terminal, start the backend without PostgreSQL:
+Stop the stack with `docker compose down`. **Never add `-v`**: that deletes
+the database, uploads and backups volumes.
 
-```powershell
-cd backend
-$env:PORT = '8080'
-Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
-go run ./cmd/api
-```
+### Running without Docker
 
-In a second terminal, start the frontend:
+Start PostgreSQL (for example `docker compose up -d db`), then:
 
 ```powershell
-cd frontend
-npm.cmd ci
-npm.cmd run dev
-```
-
-Open http://localhost:5173 and check that the API status displays as online. The frontend proxies `/api/healthz` to the backend on port 8080. Without PostgreSQL, the login page can render but the authentication API returns `503 auth_unavailable`. On shells where `npm` is available directly, use `npm ci` and `npm run dev`.
-
-To use PostgreSQL locally, start a PostgreSQL server, then set `DATABASE_URL` before running the backend. For example, from the repository root with the sample Compose database:
-
-```powershell
-docker compose up -d db
 cd backend
 $env:DATABASE_URL = 'postgres://flybirds:flybirds_dev@localhost:5432/flybirds?sslmode=disable'
-$keyBytes = New-Object byte[] 32
-$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-$rng.GetBytes($keyBytes)
-$rng.Dispose()
-$env:JWT_SIGNING_KEY_B64 = [Convert]::ToBase64String($keyBytes)
+$env:JWT_SIGNING_KEY_B64 = '<base64 of 32 random bytes>'
 $env:AUTH_COOKIE_SECURE = 'false'
-go run ./cmd/create-user -email you@example.com -role admin
 go run ./cmd/api
 ```
 
-Keep the same environment variables in that backend terminal. The `create-user` command asks for a password without echo. The backend checks the database connection and applies versioned migrations at startup. `GET /healthz` is a liveness check and does not test database readiness. The browser uses the API through `/api/*`. Authentication and authorization routes are documented in [OpenAPI](docs/openapi.yaml).
+In a second terminal: `cd frontend; npm ci; npm run dev`. Vite serves
+http://localhost:5173 and proxies `/api` to the backend on port 8080.
 
-## Environment Variables
+## Configuration
 
-See `.env.example`, `backend/.env.example`, and `frontend/.env.example` for examples.
+The backend reads environment variables only; it does not load `.env` files.
+Docker Compose reads the root `.env` (development) or the school's file under
+`deploy/` (production). Never commit real credentials.
 
 | Variable | Purpose | Default |
 |---|---|---|
+| `DATABASE_URL` | PostgreSQL connection string | unset (health endpoint only) |
+| `JWT_SIGNING_KEY_B64` | Base64 of at least 32 random bytes; required with a database | unset |
+| `AUTH_COOKIE_SECURE` | `true` behind HTTPS; `false` only for local HTTP | `true` |
 | `PORT` | Backend HTTP port | `8080` |
-| `DATABASE_URL` | PostgreSQL DSN; required for authentication, optional for the health-only server | Unset |
-| `JWT_SIGNING_KEY_B64` | Base64 encoding of at least 32 random signing-key bytes; required when the database is configured | Unset |
-| `AUTH_COOKIE_SECURE` | Set `false` only for local HTTP; keep `true` behind HTTPS | `true` in the backend, `false` in local Compose |
-| `AUTH_TEST_DATABASE_URL` | Fresh, dedicated disposable PostgreSQL database for opt-in authentication, RBAC, school, academic, student, guardian, and attendance integration tests; never point it at the application database | Unset |
-| `BACKUP_DIR` | Directory for backup archives; keep it outside the web root | `data/backups`; `/app/backups` in Compose |
-| `BACKUP_RETENTION` | Completed backup archives to keep (1–365) | `10` |
-| `BACKUP_INTERVAL` | Automatic backup interval (`0` disables; at least `1h`) | `0` |
-| `GIN_MODE` | Gin log mode; Compose sets `release` | Gin default |
-| `VITE_API_BASE_URL` | Browser API path | `/api` |
-| `VITE_API_PROXY_TARGET` | Vite development proxy target | `http://localhost:8080` |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Compose database credentials | Values in `compose.yaml` |
-| `POSTGRES_PORT`, `BACKEND_PORT`, `FRONTEND_PORT` | Compose host ports | `5432`, `8080`, `5173` |
+| `FILE_STORAGE_DIR` | Uploaded attachments | `data/uploads` |
+| `BACKUP_DIR` | Backup archives (keep outside the web root) | `data/backups` |
+| `BACKUP_RETENTION` | Completed archives to keep (1–365) | `10` |
+| `BACKUP_INTERVAL` | Automatic backup interval, `0` for manual only, else at least `1h` | `0` |
+| `NOTIFY_INTERVAL` | Notification dispatch interval, `0` disables, else at least `10s` | `1m` |
+| `GIN_MODE` | `release` in containers | Gin default |
+| `AUTH_TEST_DATABASE_URL` | Disposable database for integration tests only | unset |
+| `DEMO_PASSWORD` | Password for `seed-demo` accounts | unset |
+| `VITE_API_BASE_URL`, `VITE_API_PROXY_TARGET` | Frontend API path and development proxy target | `/api`, `http://localhost:8080` |
 
-The backend reads shell environment variables. It does not load `.env` files automatically. Vite loads `frontend/.env` when present; Docker Compose reads the root `.env` when present. Never commit real credentials. Keep the browser API on the same origin through the configured `/api` proxy so refresh cookies and CSRF protection work.
+The production variables (`COMPOSE_PROJECT_NAME`, `SCHOOL_DOMAIN`,
+`ACME_EMAIL`, `WEB_PORT`, `RELEASE_TAG`, database credentials) are described
+in [deploy/school.env.example](deploy/school.env.example) and the
+[deployment guide](docs/DEPLOYMENT.md).
 
-## Verification
+## Testing
 
 ```powershell
 cd backend
 go vet ./...
-go test ./... -count=1
+$env:AUTH_TEST_DATABASE_URL = 'postgres://user:pass@localhost:5433/fresh_test_db?sslmode=disable'
+go test ./... -p 1 -count=1
 cd ../frontend
-npm.cmd ci
-npm.cmd run build
-cd ..
-docker compose config --quiet
+npm ci
+npm run check:i18n
+npm run build
 ```
 
-For database integration tests, point `AUTH_TEST_DATABASE_URL` at a dedicated disposable PostgreSQL database, then run `go test ./... -count=1` from `backend/`. The HTTP lifecycle tests create isolated users and remove them afterward; school configuration tests also restore the prior settings, grading, and module state. The audit rollback test temporarily adds a rejecting constraint inside a transaction and rolls it back. The versioned schema remains. These tests skip explicitly without that variable. The GitHub Actions workflow runs Go vet, Go tests, and the frontend build on pushes and pull requests. Remote CI for the local M5 branch remains unverified until pushed.
+- **Integration tests** need a **fresh, dedicated, disposable** PostgreSQL
+  database; without `AUTH_TEST_DATABASE_URL` they are skipped. Never point it
+  at a school's database.
+- **Browser suites** in [e2e/](e2e/README.md) drive a real headless Chrome or
+  Edge against a running stack with a freshly seeded demo school.
+- **CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs
+  formatting, vet, unit and PostgreSQL integration tests, govulncheck, the
+  translation check, the frontend build and npm audit. It then builds the
+  production stack and runs the browser suites against it.
+
+## Repository layout
+
+```text
+backend/        Go API, migrations (internal/database/migrations), operator commands (cmd/)
+frontend/       React application and production nginx configuration
+deploy/         Per-school production Compose stack, Caddy TLS edge, environment template
+e2e/            Browser suites
+docs/           Brief, progress, OpenAPI, diagrams, guides, screenshots and final report
+compose.yaml    Development stack
+```
+
+## Limitations
+
+- **Payments:** online bKash and Nagad payment uses a **mock** provider. No
+  money moves and no real merchant account is involved. Cash and manual
+  receipts are real records.
+- **SMS:** messages use a **mock** provider. They are recorded and marked sent
+  but never reach a phone.
+- **Passwords:** there is no self-service password reset or in-app password
+  change yet. The school office asks the server operator to run
+  `reset-password` (see the [operations guide](docs/OPERATIONS.md)).
+- One installation serves one school. Several schools on one server need one
+  Compose project each.
 
 ## Future Work
 

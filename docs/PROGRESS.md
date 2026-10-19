@@ -4,11 +4,59 @@
 
 Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provisional acceptance criterion. There are 83 roadmap criteria, including four for M0. Count a criterion when its implementation has repository evidence and applicable local verification. Recalculate both denominators if the criteria are refined.
 
-- **Overall completion:** 76 verified criteria / 83 total criteria x 100 = **91.6%**.
-- **Current milestone completion:** 5 verified M12 criteria / 5 M12 criteria = **100% locally**.
-- **Remaining:** 7 criteria in M13. **Next planned milestone:** M13 Final Release, only after explicit approval.
+- **Overall completion:** 83 verified criteria / 83 total criteria x 100 = **100%** (locally verified; see the M13 limits below).
+- **Current milestone completion:** 7 verified M13 criteria / 7 M13 criteria = **100% locally**.
+- **Remaining:** none in M0–M13. Future features stay documentation only.
 
-M0–M11 are merged into main (M11 through PR #17). M12 is complete locally on `feature/m12-premium-ui-ux`, which is not pushed.
+M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
+
+## Current Status — M13 Final Release (2026-10-19)
+
+M13 adds no product features and no migrations. It completes the release material, closes release-blocking gaps found in a security review of M0–M12, and adds a reproducible per-school production deployment.
+
+| Brief criterion | Verified implementation |
+|---|---|
+| Automated testing | 87 Go top-level tests and 17 subtests (unit plus PostgreSQL integration), including four new M13 tests. Browser suites moved into the repository (`e2e/`, 106 + 23 checks, now also failing on CSP violations). The CI workflow now runs gofmt, vet, the integration tests against a PostgreSQL 17 service, govulncheck, the i18n check, the build and npm audit, then builds the production stack, seeds the demo school and runs both browser suites against it |
+| Complete Swagger documentation | `docs/openapi.yaml`: 246 operations on 187 paths. Added 23 described tags, missing summaries and tags, 401 on 207 and 403 on 132 secured operations, and the new `/readyz`. `TestOpenAPIOperationsAreComplete` requires a unique operationId, summary, declared tag, success response, auth errors on secured operations and declared path parameters; the existing route-coverage test still passes. The change was checked to be additive (no response or field removed) |
+| Professional README with screenshots | README rewritten as a product page: 8 compressed screenshots of the seeded demo school taken from the production stack over HTTPS (`docs/screenshots/`), features, architecture, documentation index, quick start, configuration, testing, limitations and Future Work |
+| ER diagram | `docs/diagrams/er-diagram.md`: six Mermaid diagrams by domain, built from the foreign keys of the fully migrated schema (61 tables) |
+| Data Flow Diagram | `docs/diagrams/data-flow-diagram.md`: context and level 1 diagrams with ten processes and eleven data stores; the mock payment and SMS providers are labelled |
+| Use case diagram | `docs/diagrams/use-case-diagram.md`: administrator, other staff, student and guardian, and operator diagrams derived from the enforced `role_permissions` matrix |
+| Final project report | `docs/FINAL_REPORT.md`: scope, architecture, security, testing, deployment, criteria, limitations and go-live prerequisites |
+
+All Mermaid diagrams were rendered with mermaid-cli 11.12.0 without errors, and the rendered images were reviewed for legibility.
+
+**Security review of M0–M12 and fixes.**
+- **Held up:** sessions, refresh-token rotation, CSRF double submit, lockout, per-request RBAC, module guards, teacher, student and guardian scope, upload validation and CSV neutralisation.
+- **Account recovery (blocker):** there was no way to recover an account, and the login page implied a self-service reset. Added the `reset-password` operator command (interactive terminal only; sets the password, clears lockout, revokes every session, audits `user.password_reset`) and corrected the login help text in both languages. Test: `TestPostgresOperatorPasswordReset`.
+- **API headers:** every API response now has nosniff, `X-Frame-Options: DENY`, no-referrer, a deny-all CSP and a same-origin resource policy. Test: `TestSecurityHeadersOnEveryResponse`.
+- **Readiness:** `GET /readyz` pings PostgreSQL and returns 503 without the driver error; the backend image health check uses it. Test: `TestReadyzReportsDatabaseState`.
+- **Web server:** nginx now sets CSP, Permissions-Policy, framing and referrer headers once (the API's duplicates are hidden; its stricter CSP stays and combines), hides its version, limits bodies to 12 MiB and allows long backup requests; the login rate limit is kept.
+- **Dependencies:** Go toolchain pinned to 1.26.9 and `golang.org/x` modules updated; `govulncheck` reports no called vulnerabilities. `npm audit --omit=dev` reports none.
+- **Formatting:** eight committed files from earlier milestones were not gofmt-clean; formatting only.
+
+**Deployment.** `deploy/compose.prod.yaml` runs one Compose project per school: its own PostgreSQL volume (no published port), uploads, backups, network and secrets file; the backend with secure cookies and health checks; nginx bound to localhost; and an optional Caddy TLS edge with HSTS. `deploy/school.env.example` is the template, and real `deploy/*.env` files are ignored by Git. `docs/DEPLOYMENT.md` and `docs/OPERATIONS.md` cover installation, environment variables, the first administrator, school settings and modules, the initial academic setup, password resets, upgrades, rollback, backups with encrypted off-site copies, restore drills, disaster recovery, troubleshooting, release validation and a go-live checklist. Mock payment and SMS are labelled as simulations throughout.
+
+**Verification (2026-10-19).**
+- **Backend:** `go vet ./...` passed. On a freshly created disposable PostgreSQL 17 database, `go test ./... -p 1 -count=1` passed **87 of 87 top-level tests and 17 of 17 subtests**, none failed or skipped, across all 20 packages with tests (9 have none). Each of the nine M13 code commits builds and passes `go vet` and the unit tests on its own.
+- **Frontend:** the production build, `npm run check:i18n` (1,716 English and 1,716 Bangla keys) and `npm audit --omit=dev` (0 vulnerabilities) passed.
+- **Compose:** `docker compose config --quiet` (development) passed, and the production file resolves from the example environment both with the TLS edge and without it (db, backend and web only).
+- **Production stack** (isolated project `m13smoke`, `SCHOOL_DOMAIN=localhost`, web on 127.0.0.1:8091):
+  - Images built; db and backend healthy; the backend runs as uid 10001; the database and API have no published ports.
+  - HTTPS root 200 with HSTS, CSP and Permissions-Policy; HTTP redirects with 308; `/api/readyz` ready.
+  - A 9.5 MB PDF upload succeeded and a 13 MB upload was refused with 413. Of 70 rapid login requests, 29 got 429.
+  - Demo school seeded inside the container; browser suites over HTTPS: **106 of 106** and **23 of 23** checks, with no exceptions and no CSP violations.
+- **Backup and restore:** a backup (60 tables, 2,727 rows, 1 file) verified, and the downloaded archive's SHA-256 matched. Restoring over the live database was refused (exit 1). Restoring into an isolated database restored 59 tables, 2,707 rows and 1 attachment, with identical counts for users (8), students (36), exam results (36), attendance (1,076), payments (72), ledger entries (74), notices (3) and files (1), Bangla text intact and no sessions carried over. The restore-drill commands in OPERATIONS.md were later run exactly as documented and gave matching counts, and the off-site copy command produced an archive whose SHA-256 matched the recorded value.
+- **Upgrades:** a database migrated by the M10 code (commit `908a0e25`) and filled with data upgraded to `1201` under M13, creating the M11 and M12 tables and grants and leaving existing rows unchanged. A read-only `pg_dump` copy of the main application's database (schema `1201`) started under M13 with no errors, the schema unchanged and identical counts and user checksum.
+- **Main application:** inspected read-only. Its three containers run the M12 image (so `/readyz` returns 404 there), schema `1201`, school "Fly Birds Model School". Its database, volumes, uploads and backups were not modified, and its containers were not restarted.
+- **Isolation:** all tests used disposable containers, databases and Compose projects. Joy's QA environments were not touched.
+
+**Not verified / limitations.**
+- **Remote CI:** the new workflow has not run on GitHub. In particular the release-stack job (Chrome on the runner, seeding and suite timing) is verified only by the equivalent local run.
+- **Operator commands:** `reset-password` is covered by its integration test and refuses to run without a terminal; an interactive run inside the container was not exercised from this environment.
+- **Real deployment:** no real server, domain, certificate authority or school database was used. Caddy issued a local certificate for `localhost`.
+- **Simulations:** bKash and Nagad payment and SMS remain mocks; there is no self-service password reset or in-app password change.
+- **Not done:** load testing, a full screen-reader audit and real-device testing.
 
 ## Current Status — M12 UI and Product Polish (2026-10-19)
 

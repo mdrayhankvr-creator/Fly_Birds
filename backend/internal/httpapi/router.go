@@ -114,7 +114,7 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
 		failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
 		c.Abort()
-	}), rejectNULQuery())
+	}), rejectNULQuery(), securityHeaders())
 	router.HandleMethodNotAllowed = true
 	moduleGuard := func(key string) gin.HandlerFunc {
 		if schoolService == nil { // Compatibility for health-only and isolated legacy router tests.
@@ -124,6 +124,7 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	}
 
 	router.GET("/healthz", healthz)
+	router.GET("/readyz", readyz)
 	handler := &authHandler{service: service, secureCookies: secureCookies}
 	authRoutes := router.Group("/auth")
 	authRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") })

@@ -80,9 +80,9 @@ type ActionCount struct {
 }
 type Page struct {
 	Items    []Item `json:"items"`
-	Total    int64   `json:"total"`
-	Page     int     `json:"page"`
-	PageSize int     `json:"page_size"`
+	Total    int64  `json:"total"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"page_size"`
 }
 type Repository struct{ db *gorm.DB }
 

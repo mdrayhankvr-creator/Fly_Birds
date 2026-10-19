@@ -1,0 +1,89 @@
+# Production stack for ONE school. Run one Compose project per school so each
+# school has its own database, attachment storage, backups, secrets and
+# network. Nothing here is shared between projects.
+#
+#   cp deploy/school.env.example deploy/<school>.env      # fill in, keep private
+#   docker compose -p <school> --env-file deploy/<school>.env -f deploy/compose.prod.yaml up -d --build
+#
+# See docs/DEPLOYMENT.md for the full procedure, upgrades and rollback.
+name: ${COMPOSE_PROJECT_NAME:?set COMPOSE_PROJECT_NAME to a short school code}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+    # No published port: only the backend on this project's network can connect.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+    image: ${COMPOSE_PROJECT_NAME}-backend:${RELEASE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      GIN_MODE: release
+      # The database is on the private project network; use sslmode=require
+      # (or verify-full) instead if PostgreSQL runs on another host.
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      JWT_SIGNING_KEY_B64: ${JWT_SIGNING_KEY_B64:?set JWT_SIGNING_KEY_B64 (openssl rand -base64 32)}
+      AUTH_COOKIE_SECURE: "true"
+      FILE_STORAGE_DIR: /app/uploads
+      BACKUP_DIR: /app/backups
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-14}
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-24h}
+      NOTIFY_INTERVAL: ${NOTIFY_INTERVAL:-1m}
+    volumes:
+      - uploads_data:/app/uploads
+      - backups_data:/app/backups
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../frontend
+      target: production
+    image: ${COMPOSE_PROJECT_NAME}-web:${RELEASE_TAG:-local}
+    restart: unless-stopped
+    # Bound to this machine only; the TLS edge (caddy below, or a shared
+    # reverse proxy) is the only public entry point.
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8081}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["edge"]
+    restart: unless-stopped
+    environment:
+      SCHOOL_DOMAIN: ${SCHOOL_DOMAIN:?set SCHOOL_DOMAIN, for example school.example.edu.bd}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL for certificate notices}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+  uploads_data:
+  backups_data:
+  caddy_data:
+  caddy_config:

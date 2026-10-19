@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -72,4 +75,39 @@ func TestPanicUsesStandardError(t *testing.T) {
 	if body.Error.Code != "internal_error" {
 		t.Fatalf("error code = %q, want internal_error", body.Error.Code)
 	}
+}
+
+func TestSecurityHeadersOnEveryResponse(t *testing.T) {
+	for _, path := range []string{"/healthz", "/missing", "/auth/me"} {
+		response := httptest.NewRecorder()
+		NewRouter().ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		for header, want := range map[string]string{"X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"} {
+			if got := response.Header().Get(header); got != want {
+				t.Errorf("%s %s = %q, want %q", path, header, got, want)
+			}
+		}
+	}
+}
+
+func TestReadyzReportsDatabaseState(t *testing.T) {
+	t.Cleanup(func() { SetReadiness(nil) })
+	check := func(want int, body string) {
+		t.Helper()
+		response := httptest.NewRecorder()
+		NewRouter().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+		if response.Code != want || !strings.Contains(response.Body.String(), body) {
+			t.Fatalf("readyz = %d %s, want %d containing %q", response.Code, response.Body.String(), want, body)
+		}
+	}
+	SetReadiness(nil)
+	check(http.StatusServiceUnavailable, "not_ready")
+	SetReadiness(func(context.Context) error { return errors.New("dial tcp 10.0.0.5:5432: secret detail") })
+	check(http.StatusServiceUnavailable, "database is not reachable")
+	response := httptest.NewRecorder()
+	NewRouter().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if strings.Contains(response.Body.String(), "secret detail") {
+		t.Fatal("readiness leaked the database error")
+	}
+	SetReadiness(func(context.Context) error { return nil })
+	check(http.StatusOK, "ready")
 }

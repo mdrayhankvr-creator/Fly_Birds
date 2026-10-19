@@ -3,10 +3,10 @@ package attendance
 import (
 	"context"
 	"errors"
-	"strings"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"strings"
 	"time"
 )
 
@@ -119,7 +119,7 @@ func (r *StudentGormRepository) StudentRoster(ctx context.Context, actor string,
 	if err = base.Count(&p.Total).Error; err != nil {
 		return p, err
 	}
-	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,s.roll_no,a.id AS record_id,a.status,a.source,a.note,"+versionExpr+" AS version").Order("s.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
+	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,s.roll_no,a.id AS record_id,a.status,a.source,a.note," + versionExpr + " AS version").Order("s.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
 	return p, err
 }
 func (r *StudentGormRepository) RecordStudent(ctx context.Context, actor string, in StudentInput, source string) (StudentRecord, error) {
