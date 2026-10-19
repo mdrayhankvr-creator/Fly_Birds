@@ -5,6 +5,7 @@ import { ApiError, getAcademicClasses, getAcademicSections } from '../api/client
 import { audienceRoles, fetchFile, uploadFile, type Attachment, type AudienceRole, type Priority, type Target } from '../api/communication'
 import { usePeopleApi } from './peopleShared'
 import { ui } from './attendanceUi'
+import { Icon } from '../components/icons'
 
 export const useApi = usePeopleApi
 
@@ -57,9 +58,13 @@ function formatSize(size: number) {
   return size >= 1 << 20 ? `${(size / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(size / 1024))} KB`
 }
 
+const fileKind = (file: Attachment) => file.content_type === 'application/pdf' ? 'PDF' : file.content_type === 'image/png' ? 'PNG' : file.content_type === 'image/jpeg' ? 'JPG' : 'IMG'
+const fileAction = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[var(--brand-ink)] transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60'
+
 // AttachmentList fetches files with the session token, then opens or saves
-// them from a short-lived object URL.
-export function AttachmentList({ items, pathFor, onRemove }: { items: Attachment[]; pathFor: (file: Attachment) => string; onRemove?: (id: string) => void }) {
+// them from a short-lived object URL. The "cards" variant shows each file as a
+// row with its type, size and labelled Preview and Download buttons.
+export function AttachmentList({ items, pathFor, onRemove, variant = 'chips' }: { items: Attachment[]; pathFor: (file: Attachment) => string; onRemove?: (id: string) => void; variant?: 'chips' | 'cards' }) {
   const { t } = useTranslation()
   const authorized = useApi()
   const [busy, setBusy] = useState('')
@@ -77,6 +82,18 @@ export function AttachmentList({ items, pathFor, onRemove }: { items: Attachment
     } catch { setError(t('m9ErrDownload')) } finally { setBusy('') }
   }
   if (items.length === 0) return null
+  if (variant === 'cards') return <div><ul className="space-y-2">{items.map(file => {
+    const pdf = file.content_type === 'application/pdf'
+    return <li key={file.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+      <span aria-hidden="true" className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${pdf ? 'bg-rose-50 text-rose-700' : 'bg-sky-50 text-sky-800'}`}><Icon name={pdf ? 'file' : 'image'} className="h-5 w-5" /></span>
+      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-slate-900" title={file.name}>{file.name}</span>
+        <span className="mt-0.5 block text-xs text-slate-500">{fileKind(file)} · {formatSize(file.size)}</span></span>
+      {pathFor(file) && <span className="flex w-full gap-2 sm:w-auto">
+        <button type="button" className={`${fileAction} flex-1 sm:flex-none`} disabled={busy === file.id} onClick={() => void open(file, false)} aria-label={`${t('m9Preview')} ${file.name}`}><Icon name="eye" className="h-4 w-4" />{t('m9Preview')}</button>
+        <button type="button" className={`${fileAction} flex-1 sm:flex-none`} disabled={busy === file.id} onClick={() => void open(file, true)} aria-label={`${t('m9Download')} ${file.name}`}><Icon name="download" className="h-4 w-4" />{t('m9Download')}</button></span>}
+      {onRemove && <button type="button" className={`${fileAction} text-rose-700`} onClick={() => onRemove(file.id)} aria-label={`${t('m9Remove')} ${file.name}`}>{t('m9Remove')}</button>}
+    </li>
+  })}</ul>{error && <p role="alert" className="mt-1 text-sm text-rose-700">{error}</p>}</div>
   return <div className="mt-3"><ul className="flex flex-wrap gap-2">{items.map(file => <li key={file.id} className="flex max-w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
     <span aria-hidden="true" className={`rounded px-1.5 py-0.5 text-[0.65rem] font-bold ${file.content_type === 'application/pdf' ? 'bg-rose-100 text-rose-800' : 'bg-sky-100 text-sky-800'}`}>{file.content_type === 'application/pdf' ? 'PDF' : 'IMG'}</span>
     <span className="min-w-0 truncate font-medium text-slate-800">{file.name}</span><span className="shrink-0 text-xs text-slate-500">{formatSize(file.size)}</span>
