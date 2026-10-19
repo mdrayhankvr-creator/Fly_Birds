@@ -12,16 +12,16 @@ import (
 	"time"
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academic"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/admin"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/analytics"
-	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/academicsessions"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/config"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
-	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/diary"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/diary"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/exams"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/fees"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/files"
@@ -81,6 +81,7 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		defer sqlDB.Close()
+		httpapi.SetReadiness(sqlDB.PingContext)
 		if err := database.Migrate(connectCtx, db); err != nil {
 			return err
 		}
