@@ -3,12 +3,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError, getGuardians, getMyStudent, getSchoolBranding, getStudent, getStudentCard, getStudentGuardians, getStudentPhoto, linkStudentGuardian, saveStudentPhoto, unlinkStudentGuardian } from '../api/client'
-import { peopleField, usePeopleApi } from './peopleShared'
+import { usePeopleApi } from './peopleShared'
+import { Icon } from '../components/icons'
+import { StateScreen } from '../components/StateScreen'
+import { Avatar, EmptyState, InfoRow, Notice as Banner, PageHeader, SectionCard, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 
 export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean }) {
   const { id } = useParams()
   const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
+  const num = useNumber()
   const cache = useQueryClient()
   const [photoUrl, setPhotoUrl] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -42,19 +46,60 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
     try { await authorized(token => unlinkStudentGuardian(token, studentID, guardianId)); await cache.invalidateQueries({ queryKey: ['people', 'links', studentID] }); setMessage(t('peopleSaved')) }
     catch { setError(t('peopleSaveError')) } finally { setBusy(false) }
   }
-  if (student.isPending) return <p role="status">{t('academicLoading')}</p>
-  if (student.isError) return <p role="alert" className="text-rose-700">{t('peopleLoadError')}</p>
+  if (student.isPending) return <StateScreen kind="loading" message={t('academicLoading')} />
+  if (student.isError) return <StateScreen kind="error" message={t('peopleLoadError')} />
   const value = student.data
   const name = i18n.language === 'bn' && value.name_bn ? value.name_bn : value.name_en
-  return <div className="space-y-6"><header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-sm font-bold uppercase tracking-widest text-[var(--brand-ink)]">{t(mode === 'self' ? 'myStudentProfile' : 'profileHeading')}</p><h1 className="mt-2 text-3xl font-bold">{name}</h1><p className="mt-2 text-slate-600">{t('admissionNo')}: {value.admission_no}</p>{mode === 'staff' && <Link to="/admin/students" className="mt-4 inline-block font-semibold text-[var(--brand-ink)] underline">{t('studentsHeading')}</Link>}</header>
-    {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-800">{error}</p>}{message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-800">{message}</p>}
-    <div className="grid gap-6 lg:grid-cols-2"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-xl font-bold">{t('profileHeading')}</h2><dl className="mt-4 grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 text-sm"><dt className="font-semibold">{t('studentNameEN')}</dt><dd>{value.name_en}</dd><dt className="font-semibold">{t('studentNameBN')}</dt><dd>{value.name_bn || '—'}</dd><dt className="font-semibold">{t('dateOfBirth')}</dt><dd>{value.date_of_birth || '—'}</dd><dt className="font-semibold">{t('studentStatus')}</dt><dd>{t(`${value.status}Student`)}</dd><dt className="font-semibold">{t('sessionLabel')}</dt><dd>{value.session_name}</dd><dt className="font-semibold">{t('classLabel')}</dt><dd>{value.class_name}</dd><dt className="font-semibold">{t('sectionLabel')}</dt><dd>{value.section_name}</dd><dt className="font-semibold">{t('rollNo')}</dt><dd>{value.roll_no ?? '—'}</dd></dl>
-      <h3 className="mt-6 font-semibold">{t('photoLabel')}</h3>{photoUrl ? <img src={photoUrl} alt={name} className="mt-2 h-32 w-32 rounded-lg object-cover" /> : <p className="mt-2 text-sm text-slate-600">{t('noPhoto')}</p>}
-      {canManagePhoto && <form className="mt-4 space-y-3" onSubmit={e => void upload(e)}><label className="block text-sm font-semibold">{t('selectPhoto')}<input type="file" required accept="image/jpeg,image/png" className={peopleField} onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} /></label><button disabled={busy || !photoFile} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 font-semibold text-[var(--brand-on)] disabled:opacity-50">{t('uploadPhoto')}</button></form>}
-    </section><section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-xl font-bold">{t('studentCard')}</h2>{card.isPending ? <p role="status">{t('academicLoading')}</p> : card.isError ? <p role="alert">{t('peopleLoadError')}</p> : <><div className="student-card mt-4 max-w-sm rounded-xl border-2 border-[var(--brand-primary)] bg-white p-5 text-slate-900"><p className="text-sm font-bold uppercase text-[var(--brand-ink)]">{i18n.language === 'bn' ? branding.data?.name_bn : branding.data?.name_en}</p><h3 className="mt-3 text-xl font-bold">{name}</h3><p className="text-sm">{value.admission_no} · {value.class_name} / {value.section_name}</p>{photoUrl && <img src={photoUrl} alt="" className="mt-3 h-20 w-20 rounded object-cover" />}<img src={card.data.qr_data_url} alt="Student ID QR code" className="mt-4 h-36 w-36" /><p className="mt-1 text-xs text-slate-500">{value.id}</p></div><button className="mt-4 rounded-lg border px-4 py-2 font-semibold text-[var(--brand-ink)]" onClick={() => window.print()}>{t('printCard')}</button></>}
-    </section></div>
-    {canReadGuardians && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-xl font-bold">{t('guardiansForStudent')}</h2><p className="mt-1 text-sm text-slate-600">{t('linkHelp')}</p>{guardianLinks.isPending ? <p role="status">{t('academicLoading')}</p> : guardianLinks.isError ? <p role="alert">{t('peopleLoadError')}</p> : guardianLinks.data.length === 0 ? <p className="mt-3 text-slate-600">{t('noGuardians')}</p> : <ul className="mt-3 space-y-2">{guardianLinks.data.map(link => <li key={link.guardian_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"><span>{link.guardian_name} · {link.relationship}{link.is_primary ? ` · ${t('primaryGuardian')}` : ''}</span>{canManageLinks && <button disabled={busy} className="font-semibold text-rose-700" onClick={() => void unlink(link.guardian_id)}>{t('unlinkGuardian')}</button>}</li>)}</ul>}
-      {canManageLinks && <form className="mt-5 grid gap-3 sm:grid-cols-2" onSubmit={e => void link(e)}><label className="text-sm font-semibold">{t('chooseGuardian')}<input className={peopleField} placeholder={t('search')} value={guardianSearch} onChange={e => setGuardianSearch(e.target.value)} /><select required className={peopleField} value={guardianID} onChange={e => setGuardianID(e.target.value)}><option value="">{t('chooseGuardian')}</option>{guardians.data?.items.map(g => <option key={g.id} value={g.id}>{g.name_en} · {g.phone}</option>)}</select></label><label className="text-sm font-semibold">{t('relationshipLabel')}<input required maxLength={60} className={peopleField} value={relationship} onChange={e => setRelationship(e.target.value)} /></label><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={primary} onChange={e => setPrimary(e.target.checked)} />{t('primaryGuardian')}</label><button disabled={busy} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 font-semibold text-[var(--brand-on)] disabled:opacity-50">{t('linkGuardian')}</button></form>}
-    </section>}
+  const statusTone = value.status === 'active' ? 'present' : value.status === 'inactive' ? 'unmarked' : 'leave'
+  return <div className="space-y-6">
+    <PageHeader eyebrow={t(mode === 'self' ? 'myStudentProfile' : 'profileHeading')} title={name}
+      description={`${t('admissionNo')}: ${value.admission_no} · ${value.class_name} · ${value.section_name}`}
+      actions={mode === 'staff' ? <Link to="/admin/students" className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t('studentsHeading')}</Link> : undefined} />
+    {error && <Banner tone="error">{error}</Banner>}{message && <Banner tone="success">{message}</Banner>}
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <SectionCard title={t('profileHeading')} id="student-profile">
+        <div className="flex items-center gap-4">
+          {photoUrl ? <img src={photoUrl} alt={name} className="h-20 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" /> : <span aria-hidden="true" className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-[var(--brand-soft)] text-2xl font-bold text-[var(--brand-ink)]">{[...value.name_en][0]}</span>}
+          <div className="min-w-0"><p className="truncate text-lg font-bold text-slate-900">{name}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2"><StatusBadge tone={statusTone}>{t(`${value.status}Student`)}</StatusBadge>{!photoUrl && <span className="text-xs text-slate-500">{t('noPhoto')}</span>}</div></div>
+        </div>
+        <dl className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
+          <InfoRow label={t('studentNameEN')}>{value.name_en}</InfoRow>
+          <InfoRow label={t('studentNameBN')}>{value.name_bn || '—'}</InfoRow>
+          <InfoRow label={t('dateOfBirth')}>{value.date_of_birth || '—'}</InfoRow>
+          <InfoRow label={t('sessionLabel')}>{value.session_name}</InfoRow>
+          <InfoRow label={t('classLabel')}>{value.class_name}</InfoRow>
+          <InfoRow label={t('sectionLabel')}>{value.section_name}</InfoRow>
+          <InfoRow label={t('rollNo')}>{value.roll_no == null ? '—' : num(value.roll_no)}</InfoRow>
+        </dl>
+        {canManagePhoto && <form className="mt-5 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-end" onSubmit={e => void upload(e)}>
+          <label className={`${ui.label} flex-1`}>{t('selectPhoto')}<input type="file" required accept="image/jpeg,image/png" className={ui.field} onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} /></label>
+          <button disabled={busy || !photoFile} className={ui.primary}>{t('uploadPhoto')}</button></form>}
+      </SectionCard>
+      <SectionCard title={t('studentCard')} id="student-card" actions={card.data ? <button type="button" className={ui.secondary} onClick={() => window.print()}>{t('printCard')}</button> : undefined}>
+        {card.isPending ? <Skeleton rows={3} /> : card.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> :
+          <div className="student-card mx-auto max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
+            <div className="bg-[var(--brand-primary)] px-5 py-3 text-sm font-bold uppercase tracking-wide text-[var(--brand-on)]">{i18n.language === 'bn' ? branding.data?.name_bn : branding.data?.name_en}</div>
+            <div className="flex items-start gap-4 p-5">
+              <div className="min-w-0 flex-1"><h3 className="text-xl font-bold">{name}</h3><p className="mt-1 text-sm text-slate-600">{value.admission_no}</p><p className="text-sm text-slate-600">{value.class_name} · {value.section_name}</p>
+                {photoUrl && <img src={photoUrl} alt="" className="mt-3 h-20 w-20 rounded-lg object-cover" />}</div>
+              <img src={card.data.qr_data_url} alt={t('uxQrAlt')} className="h-32 w-32 shrink-0" /></div>
+            <p className="border-t border-slate-100 px-5 py-2 text-[0.65rem] text-slate-500">{value.id}</p>
+          </div>}
+      </SectionCard>
+    </div>
+    {canReadGuardians && <SectionCard title={t('guardiansForStudent')} description={t('linkHelp')} id="student-guardians">
+      {guardianLinks.isPending ? <Skeleton rows={2} /> : guardianLinks.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> : guardianLinks.data.length === 0 ? <EmptyState icon="users" title={t('noGuardians')} /> :
+        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">{guardianLinks.data.map(link => <li key={link.guardian_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3"><Avatar name={link.guardian_name} /><div className="min-w-0"><p className="font-semibold text-slate-900">{link.guardian_name}</p><p className="text-sm text-slate-600">{link.relationship}</p></div>
+            {link.is_primary && <StatusBadge tone="present">{t('primaryGuardian')}</StatusBadge>}</div>
+          {canManageLinks && <button type="button" disabled={busy} className={ui.danger} onClick={() => void unlink(link.guardian_id)}>{t('unlinkGuardian')}</button>}</li>)}</ul>}
+      {canManageLinks && <form className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2" onSubmit={e => void link(e)}>
+        <label className={ui.label}>{t('search')}<input className={ui.field} placeholder={t('search')} value={guardianSearch} onChange={e => setGuardianSearch(e.target.value)} /></label>
+        <label className={ui.label}>{t('chooseGuardian')}<select required className={ui.field} value={guardianID} onChange={e => setGuardianID(e.target.value)}><option value="">{t('chooseGuardian')}</option>{guardians.data?.items.map(g => <option key={g.id} value={g.id}>{g.name_en} · {g.phone}</option>)}</select></label>
+        <label className={ui.label}>{t('relationshipLabel')}<input required maxLength={60} className={ui.field} value={relationship} onChange={e => setRelationship(e.target.value)} /></label>
+        <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={primary} onChange={e => setPrimary(e.target.checked)} />{t('primaryGuardian')}</label>
+        <div className="sm:col-span-2"><button disabled={busy} className={ui.primary}>{t('linkGuardian')}</button></div></form>}
+    </SectionCard>}
   </div>
 }
