@@ -7,16 +7,37 @@ import { deleteDiary, getAllDiaries, getDiary, getDiaryAssignments, getDiaryComp
 import { ApiError } from '../api/client'
 import { EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, StatusBadge, ui } from './attendanceUi'
 import { AttachmentList, Field, FileUploader, isoToLocal, localToIso, shiftDay, todayDhaka, useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
+import { Icon, type IconName } from '../components/icons'
+import type { Tone } from './attendanceUi'
 
 const sections: { key: keyof Pick<Diary, 'lesson_topics' | 'class_notes' | 'homework' | 'instructions'>; label: string }[] = [
   { key: 'lesson_topics', label: 'm9LessonTopics' }, { key: 'class_notes', label: 'm9ClassNotes' }, { key: 'homework', label: 'm9Homework' }, { key: 'instructions', label: 'm9Instructions' },
 ]
 
+// Each diary section gets its own tinted panel so lessons, notes, homework and
+// instructions read as distinct blocks; the tints have dark-theme mappings.
+const sectionLook: Record<(typeof sections)[number]['key'], { icon: IconName; box: string; title: string }> = {
+  lesson_topics: { icon: 'book', box: 'border-[color-mix(in_srgb,var(--brand-primary)_18%,transparent)] bg-[var(--brand-soft)]', title: 'text-[var(--brand-ink)]' },
+  class_notes: { icon: 'notebook', box: 'border-slate-200 bg-slate-50', title: 'text-slate-600' },
+  homework: { icon: 'clipboard', box: 'border-amber-200 bg-amber-50', title: 'text-amber-800' },
+  instructions: { icon: 'info', box: 'border-sky-200 bg-sky-50', title: 'text-sky-800' },
+}
+
 function DiaryBody({ diary, filePath }: { diary: Diary; filePath: (f: Attachment) => string }) {
   const { t } = useTranslation()
+  const fmt = useDhakaFormat()
+  const present = sections.filter(s => diary[s.key]?.trim())
+  const lesson = present.filter(s => s.key === 'lesson_topics' || s.key === 'class_notes')
+  const block = (s: (typeof sections)[number]) => <div key={s.key} className={`min-w-0 rounded-xl border p-4 ${sectionLook[s.key].box}`}>
+    <h4 className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wide ${sectionLook[s.key].title}`}><Icon name={sectionLook[s.key].icon} className="h-4 w-4 shrink-0" />{t(s.label)}</h4>
+    <p className="mt-2 whitespace-pre-line break-words text-[0.9375rem] leading-7 text-slate-800">{diary[s.key]}</p>
+  </div>
   return <div className="space-y-3">
-    {sections.map(s => diary[s.key] ? <div key={s.key}><h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">{t(s.label)}</h4><p className={`mt-1 whitespace-pre-line text-sm leading-relaxed ${s.key === 'homework' ? 'rounded-lg bg-amber-50 p-3 text-amber-950' : 'text-slate-800'}`}>{diary[s.key]}</p></div> : null)}
-    <AttachmentList items={diary.attachments} pathFor={filePath} />
+    {lesson.length > 0 && <div className={`grid gap-3 ${lesson.length === 2 ? 'md:grid-cols-2' : ''}`}>{lesson.map(block)}</div>}
+    {present.filter(s => !lesson.includes(s)).map(block)}
+    {diary.attachments.length > 0 && <div>
+      <h4 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500"><Icon name="file" className="h-4 w-4" />{t('m9Attachments')} <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[0.7rem] text-slate-600">{fmt.number(diary.attachments.length)}</span></h4>
+      <AttachmentList variant="cards" items={diary.attachments} pathFor={filePath} /></div>}
   </div>
 }
 
@@ -168,28 +189,79 @@ export function DiaryFeedPage({ mode }: { mode: 'student' | 'guardian' }) {
   const byDate = new Map<string, Diary[]>()
   feed.data?.items.forEach(d => byDate.set(d.diary_date, [...(byDate.get(d.diary_date) ?? []), d]))
   const filePath = (d: Diary) => (f: Attachment) => `/diary/${d.id}/files/${f.id}${mode === 'guardian' ? `?student_id=${childId}` : ''}`
-  return <div className="space-y-5">
+  const today = todayDhaka()
+  const defaultFrom = shiftDay(today, -13)
+  const filtered = from !== defaultFrom || to !== today || subject !== '' || search !== ''
+  function clearFilters() { setFrom(defaultFrom); setTo(today); setSubject(''); setSearch(''); setPage(1) }
+  const searchField = ui.field.replace('mt-1.5 ', '').replace('px-3', 'pl-10 pr-3')
+  return <div className="space-y-6">
     <PageHeader eyebrow={t('m9DiaryEyebrow')} title={t(mode === 'student' ? 'm9MyDiary' : 'm9ChildDiary')} description={t('m9DiaryFeedIntro')} />
-    <section className={`${ui.card} grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4`} aria-label={t('m9Filters')}>
-      <Field label={t('m9From')}><input type="date" className={ui.field} value={from} max={to} onChange={e => { setFrom(e.target.value); setPage(1) }} /></Field>
-      <Field label={t('m9To')}><input type="date" className={ui.field} value={to} min={from} onChange={e => { setTo(e.target.value); setPage(1) }} /></Field>
-      <Field label={t('m9Subject')}><select className={ui.field} value={subject} onChange={e => { setSubject(e.target.value); setPage(1) }}><option value="">{t('m9AllSubjects')}</option>{Object.entries(subjects).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></Field>
-      <Field label={t('m9Search')}><input type="search" className={ui.field} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></Field>
+    <section className={`${ui.card} p-4 sm:p-5`} aria-label={t('m9Filters')}>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <Field label={t('m9Search')} className="sm:col-span-2 xl:col-span-1"><span className="relative mt-1.5 block">
+          <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input type="search" className={searchField} placeholder={t('m9DiarySearchHint')} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></span></Field>
+        <Field label={t('m9Subject')}><select className={ui.field} value={subject} onChange={e => { setSubject(e.target.value); setPage(1) }}><option value="">{t('m9AllSubjects')}</option>{Object.entries(subjects).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></Field>
+        <div className="grid grid-cols-2 gap-3 sm:col-span-1 xl:col-span-2">
+          <Field label={t('m9From')}><input type="date" className={ui.field} value={from} max={to} onChange={e => { setFrom(e.target.value); setPage(1) }} /></Field>
+          <Field label={t('m9To')}><input type="date" className={ui.field} value={to} min={from} onChange={e => { setTo(e.target.value); setPage(1) }} /></Field>
+        </div>
+      </div>
+      <div className="mt-4 flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <p className="text-sm font-medium text-slate-600" aria-live="polite">{feed.data ? t('m9DiaryEntries', { count: feed.data.total, n: fmt.number(feed.data.total) }) : ''}</p>
+        {filtered && <button type="button" className={ui.ghost} onClick={clearFilters}><Icon name="close" className="h-4 w-4" />{t('m9DiaryClearFilters')}</button>}
+      </div>
     </section>
     {feed.isPending ? <Skeleton rows={4} /> : feed.isError ? <Banner tone="error">{feed.error instanceof ApiError && feed.error.status === 404 ? t('m9ErrNotFound') : t('m9ErrGeneric')}</Banner> : feed.data.items.length === 0 ? <EmptyState title={t('m9NoDiaries')} /> : <>
-      {[...byDate.entries()].map(([day, list]) => <section key={day} aria-labelledby={`day-${day}`} className="space-y-3">
-        <h2 id={`day-${day}`} className="text-sm font-bold uppercase tracking-wide text-slate-500">{fmt.date(day)}</h2>
-        {list.map(d => <article key={d.id} className={`${ui.card} p-4 sm:p-5`}>
-          <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-lg font-bold">{local(d.subject_name_en, d.subject_name_bn)}</h3><p className="text-xs text-slate-500">{d.teacher_name} · {d.class_name} {d.section_name}</p></div>
-            {d.submission_enabled && <StatusBadge tone={d.my_submission_status === 'reviewed' ? 'present' : d.my_submission_status ? 'late' : d.submission_open ? 'absent' : 'unmarked'}>{t(d.my_submission_status ? `m9Sub_${d.my_submission_status}` : d.submission_open ? 'm9SubmissionDue' : 'm9SubmissionClosed')}</StatusBadge>}</div>
-          <div className="mt-3"><DiaryBody diary={d} filePath={filePath(d)} /></div>
-          {d.submission_enabled && mode === 'student' && <HomeworkPanel diary={d} />}
-          {d.submission_enabled && d.submission_due_at && <p className="mt-2 text-xs text-slate-500">{t('m9DueAt')}: {fmt.dateTime(d.submission_due_at)}</p>}
-        </article>)}
+      {[...byDate.entries()].map(([day, list]) => <section key={day} aria-labelledby={`day-${day}`} className="space-y-4">
+        <div className="flex items-center gap-3">
+          <h2 id={`day-${day}`} className="flex shrink-0 items-center gap-2 text-sm font-bold text-slate-700"><Icon name="calendar" className="h-4 w-4 text-slate-400" />{fmt.date(day)}</h2>
+          {(day === today || day === shiftDay(today, -1)) && <span className="shrink-0 rounded-full bg-[var(--brand-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--brand-ink)]">{t(day === today ? 'm9DiaryToday' : 'm9DiaryYesterday')}</span>}
+          <span aria-hidden="true" className="flex-1 border-t border-slate-200" />
+        </div>
+        {list.map(d => <DiaryCard key={d.id} diary={d} mode={mode} filePath={filePath(d)} />)}
       </section>)}
       <Pager page={page} total={feed.data.total} size={20} onPage={setPage} previous={t('m9Previous')} next={t('m9Next')} label={t('m9MyDiary')} />
     </>}
   </div>
+}
+
+// The badge says where the homework stands for this student: due, submitted,
+// reviewed, closed, set without online submission, or none at all.
+function homeworkStatus(d: Diary): { tone: Tone; label: string } {
+  if (d.submission_enabled) {
+    if (d.my_submission_status === 'reviewed') return { tone: 'present', label: 'm9Sub_reviewed' }
+    if (d.my_submission_status === 'submitted') return { tone: 'leave', label: 'm9Sub_submitted' }
+    return d.submission_open ? { tone: 'late', label: 'm9SubmissionDue' } : { tone: 'unmarked', label: 'm9SubmissionClosed' }
+  }
+  return d.homework.trim() ? { tone: 'leave', label: 'm9DiaryHomeworkSet' } : { tone: 'unmarked', label: 'm9DiaryNoHomework' }
+}
+
+function DiaryCard({ diary: d, mode, filePath }: { diary: Diary; mode: 'student' | 'guardian'; filePath: (f: Attachment) => string }) {
+  const { t } = useTranslation()
+  const local = useLocal()
+  const fmt = useDhakaFormat()
+  const status = homeworkStatus(d)
+  const meta = 'flex min-w-0 items-center gap-1.5'
+  return <article className={`${ui.card} overflow-hidden`} aria-labelledby={`diary-${d.id}`}>
+    <header className="flex flex-wrap items-start gap-x-4 gap-y-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
+      <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--brand-soft)] text-[var(--brand-ink)]"><Icon name="book" className="h-5 w-5" /></span>
+      <div className="min-w-0 flex-1">
+        <h3 id={`diary-${d.id}`} className="text-lg font-bold leading-snug text-slate-900">{local(d.subject_name_en, d.subject_name_bn)}</h3>
+        <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+          <div className={meta}><dt><Icon name="user" className="h-4 w-4 text-slate-400" /><span className="sr-only">{t('m9DiaryTeacher')}</span></dt><dd className="truncate">{d.teacher_name}</dd></div>
+          <div className={meta}><dt><Icon name="school" className="h-4 w-4 text-slate-400" /><span className="sr-only">{t('m9DiaryClassSection')}</span></dt><dd>{d.class_name} · {d.section_name}</dd></div>
+          <div className={meta}><dt><Icon name="calendar" className="h-4 w-4 text-slate-400" /><span className="sr-only">{t('m9Date')}</span></dt><dd>{fmt.date(d.diary_date)}</dd></div>
+        </dl>
+      </div>
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-col sm:items-end">
+        <StatusBadge tone={status.tone}>{t(status.label)}</StatusBadge>
+        {d.submission_enabled && d.submission_due_at && <span className="flex items-center gap-1 text-xs font-medium text-slate-600"><Icon name="clock" className="h-3.5 w-3.5" />{t('m9DiaryDueOn', { date: fmt.dateTime(d.submission_due_at) })}</span>}
+      </div>
+    </header>
+    <div className="px-4 pb-4 sm:px-6 sm:pb-5"><DiaryBody diary={d} filePath={filePath} /></div>
+    {d.submission_enabled && mode === 'student' && <HomeworkPanel diary={d} />}
+  </article>
 }
 
 function HomeworkPanel({ diary }: { diary: Diary }) {
@@ -197,6 +269,7 @@ function HomeworkPanel({ diary }: { diary: Diary }) {
   const authorized = useApi()
   const client = useQueryClient()
   const errorText = useErrorText()
+  const fmt = useDhakaFormat()
   const mine = useQuery({ queryKey: ['m9', 'diary', 'mine', diary.id], enabled: !!diary.my_submission_status, queryFn: () => authorized(token => getMySubmission(token, diary.id)), retry: false })
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -215,18 +288,36 @@ function HomeworkPanel({ diary }: { diary: Diary }) {
       setOpen(false); setMessage({ tone: 'success', text: t('m9HomeworkSubmitted') })
     } catch (cause) { setMessage({ tone: 'error', text: errorText(cause) }) } finally { setBusy(false) }
   }
-  return <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-3">
-    {message && <div className="mb-2"><Banner tone={message.tone}>{message.text}</Banner></div>}
-    {sub && !open && <div className="text-sm"><p className="font-semibold">{t('m9YourSubmission')}</p>{sub.answer_text && <p className="mt-1 whitespace-pre-line">{sub.answer_text}</p>}
-      <AttachmentList items={sub.files} pathFor={f => `/diary/submissions/${sub.id}/files/${f.id}`} />{sub.review_note && <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-emerald-900">{t('m9TeacherNote')}: {sub.review_note}</p>}</div>}
-    {open ? <form onSubmit={submit} className="space-y-3">
-      <Field label={t('m9YourAnswer')}><textarea rows={4} className={ui.field} maxLength={10000} value={text} onChange={e => setText(e.target.value)} /></Field>
-      <AttachmentList items={files} pathFor={f => sub?.files.some(x => x.id === f.id) ? `/diary/submissions/${sub.id}/files/${f.id}` : ''} onRemove={id => setFiles(files.filter(f => f.id !== id))} />
+  const submissionPath = (f: Attachment) => sub ? `/diary/submissions/${sub.id}/files/${f.id}` : ''
+  return <div className="border-t border-slate-100 bg-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+    {message && <div className="mb-3"><Banner tone={message.tone}>{message.text}</Banner></div>}
+    {open ? <form onSubmit={submit} className="space-y-4 rounded-xl border border-[color-mix(in_srgb,var(--brand-primary)_22%,transparent)] bg-white p-4 shadow-sm sm:p-5" aria-labelledby={`hw-form-${diary.id}`}>
+      <h4 id={`hw-form-${diary.id}`} className="flex items-center gap-2 text-base font-bold text-slate-900"><Icon name="send" className="h-5 w-5 text-[var(--brand-ink)]" />{sub ? t('m9EditSubmission') : t('m9SubmitHomework')}</h4>
+      <Field label={t('m9YourAnswer')}><textarea rows={5} className={ui.field} maxLength={10000} value={text} onChange={e => setText(e.target.value)} /></Field>
+      <AttachmentList variant="cards" items={files} pathFor={f => sub?.files.some(x => x.id === f.id) ? submissionPath(f) : ''} onRemove={id => setFiles(files.filter(f => f.id !== id))} />
       <FileUploader path="/diary/homework/files" max={5 - files.length} onBusy={setUploading} onUploaded={f => setFiles(prev => [...prev, f])} />
-      <div className="flex gap-2"><button type="submit" className={ui.primary} disabled={busy || uploading || (!text.trim() && files.length === 0)}>{busy ? t('m9Submitting') : t('m9SubmitHomework')}</button><button type="button" className={ui.secondary} onClick={() => setOpen(false)}>{t('m9Cancel')}</button></div>
-    </form> : canEdit ? <button type="button" className={`${ui.secondary} ${sub ? 'mt-2' : ''}`} onClick={start}>{sub ? t('m9EditSubmission') : t('m9SubmitHomework')}</button> : !sub && <p className="text-sm text-slate-500">{t('m9SubmissionClosedHint')}</p>}
+      <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+        <button type="button" className={`${ui.secondary} min-h-12`} onClick={() => setOpen(false)}>{t('m9Cancel')}</button>
+        <button type="submit" className={cta} disabled={busy || uploading || (!text.trim() && files.length === 0)}><Icon name="send" className="h-5 w-5" />{busy ? t('m9Submitting') : t('m9SubmitHomework')}</button>
+      </div>
+    </form> : sub ? <div className="rounded-xl border border-emerald-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3"><span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-full bg-emerald-50 text-emerald-700"><Icon name="check" className="h-5 w-5" /></span>
+          <div><p className="font-bold text-slate-900">{t('m9YourSubmission')}</p>{sub.submitted_at && <p className="text-xs text-slate-500">{t('m9SubmittedOn', { date: fmt.dateTime(sub.submitted_at) })}</p>}</div></div>
+        {canEdit && <button type="button" className={ui.secondary} onClick={start}>{t('m9EditSubmission')}</button>}
+      </div>
+      {sub.answer_text && <p className="mt-3 whitespace-pre-line break-words rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-800">{sub.answer_text}</p>}
+      {sub.files.length > 0 && <div className="mt-3"><AttachmentList variant="cards" items={sub.files} pathFor={submissionPath} /></div>}
+      {sub.review_note && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm"><p className="text-xs font-bold uppercase tracking-wide text-emerald-800">{t('m9TeacherNote')}</p><p className="mt-1 whitespace-pre-line text-emerald-900">{sub.review_note}</p></div>}
+    </div> : diary.my_submission_status && mine.isPending ? <Skeleton rows={1} /> : canEdit ? <div className="flex flex-col gap-4 rounded-xl border border-[color-mix(in_srgb,var(--brand-primary)_22%,transparent)] bg-[var(--brand-soft)] p-4 sm:flex-row sm:items-center sm:p-5">
+      <span aria-hidden="true" className="hidden h-12 w-12 shrink-0 place-items-center rounded-xl bg-white text-[var(--brand-ink)] shadow-sm sm:grid"><Icon name="clipboard" className="h-6 w-6" /></span>
+      <div className="min-w-0 flex-1"><p className="font-bold text-slate-900">{t('m9SubmitCtaTitle')}</p><p className="mt-0.5 text-sm text-slate-600">{t('m9SubmitCtaHint')}</p></div>
+      <button type="button" className={cta} onClick={start}><Icon name="send" className="h-5 w-5" />{t('m9SubmitHomework')}</button>
+    </div> : <p className="flex items-center gap-2 text-sm text-slate-600"><Icon name="lock" className="h-4 w-4 text-slate-400" />{t('m9SubmissionClosedHint')}</p>}
   </div>
 }
+
+const cta = 'inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-6 text-base font-semibold text-[var(--brand-on)] shadow-md shadow-[color-mix(in_srgb,var(--brand-primary)_30%,transparent)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:w-auto'
 
 export function AdminDiaryPage({ canManage }: { canManage: boolean }) {
   const { t } = useTranslation()
