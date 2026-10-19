@@ -12,3 +12,7 @@ coverage/
 
 # Local attachment storage (FILE_STORAGE_DIR default)
 backend/data/
+
+# Per-school deployment secrets
+deploy/*.env
+!deploy/school.env.example
