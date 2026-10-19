@@ -16,7 +16,7 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | M9 | Notices and notifications | 7/7 locally verified and merged into main, plus the approved Daily Class Diary extension |
 | M10 | Admin control center | 5/5 locally verified and merged into main |
 | M11 | Analytics | 5/5 locally verified and merged into main |
-| M12 | UI and product polish | 5/5 locally verified on feature/m12-premium-ui-ux; review and merge pending |
-| M13 | Final release | Not started |
+| M12 | UI and product polish | 5/5 locally verified and merged into main |
+| M13 | Final release | 7/7 locally verified on feature/m13-release-readiness; remote CI, review and merge pending |
 
 The original seven-day M1–M13 target is a planning target. Testing, security, acceptance criteria, and milestone approval take priority. Future features outside M0–M13 are listed in the README and will not be implemented during these milestones.
