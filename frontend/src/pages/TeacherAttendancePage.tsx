@@ -76,6 +76,13 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
   }
   const pager = (current: number, total: number, set: (page: number) => void) => <Pager page={current} total={total} size={10} onPage={set} previous={t('attendancePrevious')} next={t('attendanceNext')} label={t('attendancePage')} />
 
+  // Someone with the permission but no linked staff profile has no attendance
+  // to show; explain that once instead of failing every panel.
+  const noProfile = own && [history.error, ownMonth.error].some(e => e instanceof ApiError && e.status === 404)
+  if (noProfile) return <div className="space-y-5">
+    <PageHeader eyebrow={t('attnEyebrow')} title={t('attendanceMyHeading')} description={t('attendanceMyDescription')} />
+    <EmptyState icon="user" title={t('staffProfileMissing')}>{t('uxStaffMissingHint')}</EmptyState>
+  </div>
   return <div className="space-y-5">
     <PageHeader eyebrow={t('attnEyebrow')} title={t(own ? 'attendanceMyHeading' : 'attendanceHeading')} description={t(own ? 'attendanceMyDescription' : 'attendanceDescription')} />
     {message && <Notice tone="success">{t(message)}</Notice>}{error && <Notice tone="error">{t(error)}</Notice>}
@@ -90,7 +97,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
 
     {!own && sessionId && <section className={`${ui.card} p-2 sm:p-3`} aria-labelledby="teacher-roster-heading">
       <h2 id="teacher-roster-heading" className="px-2 pt-2 text-lg font-bold sm:px-3">{t('attendanceDaily')}</h2>
-      {!validDay ? <div className="p-3"><Notice tone="warning">{t('attendanceInvalidDate')}</Notice></div> : roster.isPending ? <div className="p-2"><Skeleton /></div> : roster.isError ? <p role="alert" className="p-3 text-rose-700">{t('attendanceLoadError')}</p> : !roster.data?.items.length ? <div className="p-3"><EmptyState title={t('attendanceNoTeachers')} /></div> : <>
+      {!validDay ? <div className="p-3"><Notice tone="warning">{t('attendanceInvalidDate')}</Notice></div> : roster.isPending ? <div className="px-3 py-2.5"><Skeleton /></div> : roster.isError ? <p role="alert" className="p-3 text-rose-700">{t('attendanceLoadError')}</p> : !roster.data?.items.length ? <div className="p-3"><EmptyState title={t('attendanceNoTeachers')} /></div> : <>
         <ul className="mt-2 divide-y divide-slate-100">{roster.data.items.map(item => {
           const draft = drafts[item.employee_id]
           const display = name(item.name_en, item.name_bn)
