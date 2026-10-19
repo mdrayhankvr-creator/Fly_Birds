@@ -5,6 +5,8 @@
 @layer base {
   *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: #e2e8f0; }
   [data-theme="dark"] *, [data-theme="dark"] ::after, [data-theme="dark"] ::before { border-color: #334155; }
+  /* Table rows highlight on hover so long rows are easy to follow. */
+  main table tbody tr:hover { background-color: #f8fafc; }
 }
 
 :root {
@@ -65,6 +67,8 @@ main table tbody tr:hover { background-color: #f8fafc; }
 [data-theme="dark"] .hover\:bg-slate-100:hover,
 [data-theme="dark"] .hover\:bg-slate-50:hover { background-color: #1e2b42; }
 [data-theme="dark"] main table tbody tr:hover { background-color: #1a2740; }
+[data-theme="dark"] .ring-slate-200 { --tw-ring-color: #334155; }
+[data-theme="dark"] .hover\:bg-rose-50:hover { background-color: rgb(244 63 94 / 0.14); }
 [data-theme="dark"] .text-slate-900 { color: #f8fafc; }
 [data-theme="dark"] .text-slate-800,
 [data-theme="dark"] .text-slate-700,

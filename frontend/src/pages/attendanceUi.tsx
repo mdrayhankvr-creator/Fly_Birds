@@ -1,4 +1,7 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import { NavLink } from 'react-router'
+import { Icon, type IconName } from '../components/icons'
 
 // Shared attendance styling. Brand colour comes from the school's white-label
 // theme via --brand-primary; status colours are fixed so they stay meaningful.
@@ -9,6 +12,12 @@ export const ui = {
   primary: 'inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-on)] shadow-sm transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50',
   secondary: 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50',
   ghost: 'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-[var(--brand-ink)] hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]',
+  danger: 'inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50',
+  link: 'font-semibold text-[var(--brand-ink)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]',
+  sectionTitle: 'text-base font-bold tracking-tight text-slate-900',
+  table: 'w-full text-left text-sm',
+  th: 'whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 first:rounded-l-lg last:rounded-r-lg',
+  td: 'border-b border-slate-100 px-3 py-3 align-middle',
 }
 
 export type Tone = 'present' | 'absent' | 'late' | 'leave' | 'unmarked'
@@ -79,13 +88,41 @@ export function Tabs<T extends string>({ label, value, items, onChange }: { labe
   </div>
 }
 
+// LinkTabs is Tabs for sibling pages: each item is a route, and the current
+// page is marked for assistive technology.
+export function LinkTabs({ label, items }: { label: string; items: { to: string; label: string }[] }) {
+  return <nav aria-label={label} className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 print:hidden">
+    {items.map(item => <NavLink key={item.to} to={item.to} end className={({ isActive }) => `flex shrink-0 items-center rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${isActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{item.label}</NavLink>)}
+  </nav>
+}
+
 export function Notice({ tone, children, action }: { tone: 'success' | 'error' | 'info' | 'warning'; children: ReactNode; action?: ReactNode }) {
   const style = { success: 'border-emerald-200 bg-emerald-50 text-emerald-900', error: 'border-rose-200 bg-rose-50 text-rose-900', info: 'border-sky-200 bg-sky-50 text-sky-900', warning: 'border-amber-200 bg-amber-50 text-amber-900' }[tone]
   return <div role={tone === 'error' || tone === 'warning' ? 'alert' : 'status'} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${style}`}><div className="min-w-0">{children}</div>{action}</div>
 }
 
-export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
-  return <div className="rounded-xl border border-dashed border-slate-300 px-6 py-10 text-center"><p className="font-semibold text-slate-800">{title}</p>{children && <p className="mt-1 text-sm text-slate-600">{children}</p>}</div>
+export function EmptyState({ title, children, icon = 'search', action }: { title: string; children?: ReactNode; icon?: IconName; action?: ReactNode }) {
+  return <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+    <span aria-hidden="true" className="grid h-11 w-11 place-items-center rounded-xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200"><Icon name={icon} className="h-5 w-5" /></span>
+    <p className="mt-3 font-semibold text-slate-800">{title}</p>{children && <p className="mt-1 max-w-md text-sm leading-6 text-slate-600">{children}</p>}
+    {action && <div className="mt-4">{action}</div>}
+  </div>
+}
+
+// SectionCard is the standard titled panel: heading, optional description
+// and actions on the right, then the body.
+export function SectionCard({ title, description, actions, children, id, className = '' }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string; className?: string }) {
+  return <section className={`${ui.card} p-4 sm:p-6 ${className}`} aria-labelledby={id}>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0"><h2 id={id} className={ui.sectionTitle}>{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>}</div>
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    </div>
+    <div className="mt-4">{children}</div>
+  </section>
+}
+
+export function InfoRow({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return <div className="grid gap-0.5 py-2.5 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] sm:gap-4"><dt className="text-sm text-slate-500">{label}</dt><dd className="min-w-0 break-words text-sm font-medium text-slate-900">{children}</dd></div>
 }
 
 export function Skeleton({ rows = 5 }: { rows?: number }) {
@@ -93,13 +130,22 @@ export function Skeleton({ rows = 5 }: { rows?: number }) {
 }
 
 export function Pager({ page, total, size, onPage, previous, next, label }: { page: number; total: number; size: number; onPage: (page: number) => void; previous: string; next: string; label: string }) {
+  const { t, i18n } = useTranslation()
   const pages = Math.max(1, Math.ceil(total / size))
   if (pages <= 1) return null
-  return <nav aria-label={label} className="mt-4 flex items-center justify-between gap-3 text-sm">
-    <button type="button" className={ui.secondary} disabled={page <= 1} onClick={() => onPage(page - 1)}>{previous}</button>
-    <span className="tabular-nums text-slate-600">{page} / {pages}</span>
-    <button type="button" className={ui.secondary} disabled={page >= pages} onClick={() => onPage(page + 1)}>{next}</button>
+  const n = new Intl.NumberFormat(i18n.language === 'bn' ? 'bn-BD' : 'en-GB')
+  return <nav aria-label={label} className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm">
+    <button type="button" className={ui.secondary} disabled={page <= 1} onClick={() => onPage(page - 1)}><Icon name="chevronLeft" className="h-4 w-4" />{previous}</button>
+    <span className="tabular-nums text-slate-600" aria-live="polite">{t('uxPageOf', { page: n.format(page), pages: n.format(pages) })}</span>
+    <button type="button" className={ui.secondary} disabled={page >= pages} onClick={() => onPage(page + 1)}>{next}<Icon name="chevronRight" className="h-4 w-4" /></button>
   </nav>
+}
+
+// useNumber formats counts and rolls with the reader's digits (Bangla or Latin).
+export function useNumber() {
+  const { i18n } = useTranslation()
+  const nf = new Intl.NumberFormat(i18n.language === 'bn' ? 'bn-BD' : 'en-GB')
+  return (n: number) => nf.format(n)
 }
 
 export function Avatar({ name }: { name: string }) {

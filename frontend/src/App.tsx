@@ -36,6 +36,7 @@ import { AdminNotificationsPage, NotificationBell, NotificationsPage } from './p
 import { AdminDiaryPage, DiaryFeedPage, TeacherDiaryPage } from './pages/DiaryPages'
 import { AdminOverviewPage, AuditLogPage, BackupsPage, DataExportPage, ModulesPage } from './pages/AdminPages'
 import { AnalyticsPage, ChildrenProgressPage, MyProgressPage, ReportsPage, StaffStudentPage } from './pages/AnalyticsPages'
+import { StateScreen } from './components/StateScreen'
 
 function ServiceStatus() {
   const { t } = useTranslation()
@@ -90,22 +91,14 @@ function Home() {
 }
 
 function NotFound() {
-  const { t } = useTranslation()
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-      <h1 className="text-2xl font-bold text-slate-900">{t('notFound')}</h1>
-      <Link to="/" className="mt-4 inline-block font-semibold text-[var(--brand-ink)] underline-offset-4 hover:underline">
-        {t('backHome')}
-      </Link>
-    </div>
-  )
+  return <StateScreen kind="notFound" />
 }
 
 function PermissionGate({ permissions, role, loading, error }: { permissions: string[] | undefined; role: string | undefined; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status" className="text-slate-600">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert" className="text-rose-700">{t('loadPermissionsError')}</p>
-  if (!permissions?.includes('permissions:read')) return <p role="alert" className="text-rose-700">{t('permissionDenied')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (!permissions?.includes('permissions:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
   return <PermissionPage canManage={role === 'admin' && permissions.includes('permissions:manage')} />
 }
 
@@ -113,10 +106,10 @@ function PermissionGate({ permissions, role, loading, error }: { permissions: st
 // the page's own permission; the server enforces the same rules.
 function AdminGate({ kind, permissions, role, loading, error }: { kind: 'overview' | 'audit' | 'exports' | 'backups' | 'modules'; permissions: string[] | undefined; role: string | undefined; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
   const required = { overview: 'system:read', audit: 'audit:read', exports: 'data:export', backups: 'backups:manage', modules: 'modules:read' }[kind]
-  if (role !== 'admin' || !permissions?.includes(required)) return <p role="alert">{t('permissionDenied')}</p>
+  if (role !== 'admin' || !permissions?.includes(required)) return <StateScreen kind="denied" message={t('permissionDenied')} />
   switch (kind) {
     case 'overview': return <AdminOverviewPage />
     case 'audit': return <AuditLogPage />
@@ -128,116 +121,118 @@ function AdminGate({ kind, permissions, role, loading, error }: { kind: 'overvie
 
 function SchoolGate({ permissions, loading, error }: { permissions: string[] | undefined; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
-  if (!permissions?.includes('school_settings:read')) return <p role="alert">{t('permissionDenied')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (!permissions?.includes('school_settings:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
   return <SchoolSettingsPage permissions={permissions} />
 }
 
 function UsersGate({ permissions, role, loading, error }: { permissions: string[] | undefined; role: string | undefined; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
-  if (role !== 'admin' || !permissions?.includes('users:read')) return <p role="alert">{t('permissionDenied')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (role !== 'admin' || !permissions?.includes('users:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
   return <UsersPage permissions={permissions} />
 }
 
 function AcademicGate({ kind, permissions, role, enabled, loading, error }: { kind: 'classes' | 'subjects' | 'sections'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
-  if (!permissions?.includes('academics:read')) return <p role="alert">{t('permissionDenied')}</p>
-  if (!enabled) return <p role="alert">{t('academicModuleDisabled')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (!permissions?.includes('academics:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" message={t('academicModuleDisabled')} />
   const canManage = role === 'admin' && permissions.includes('academics:manage')
   return kind === 'sections' ? <SectionsPage canManage={canManage} /> : <AcademicPage kind={kind} canManage={canManage} />
 }
 
 function AcademicSessionsGate({ permissions, loading, error }: { permissions: string[] | undefined; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
-  if (!permissions?.includes('academic_sessions:read')) return <p role="alert">{t('permissionDenied')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (!permissions?.includes('academic_sessions:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
   return <AcademicSessionsPage permissions={permissions} />
 }
 
 function StaffGate({ permissions, own, enabled, loading, error }: { permissions: string[] | undefined; own: boolean; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
-  if (!permissions?.includes(own ? 'staff:read_self' : 'staff:read')) return <p role="alert">{t('permissionDenied')}</p>
-  if (!enabled) return <p role="alert">{t('staffModuleDisabled')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (!permissions?.includes(own ? 'staff:read_self' : 'staff:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" message={t('staffModuleDisabled')} />
   return <StaffPage permissions={permissions} own={own} />
 }
 
 function AttendanceGate({ permissions, own, enabled, loading, error }: { permissions: string[] | undefined; own: boolean; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
-  if (!permissions?.includes(own ? 'attendance:teachers_read_self' : 'attendance:teachers_read')) return <p role="alert">{t('permissionDenied')}</p>
-  if (!enabled) return <p role="alert">{t('attendanceModuleDisabled')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (!permissions?.includes(own ? 'attendance:teachers_read_self' : 'attendance:teachers_read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" message={t('attendanceModuleDisabled')} />
   return <TeacherAttendancePage permissions={permissions} own={own} />
 }
 
 function StudentAttendanceGate({ kind, permissions, enabled, loading, error }: { kind: 'manage' | 'self' | 'guardian'; permissions: string[] | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
   const required = kind === 'manage' ? 'attendance:students_read' : kind === 'self' ? 'attendance:students_read_self' : 'attendance:guardians_read_children'
-  if (!permissions?.includes(required)) return <p role="alert">{t('permissionDenied')}</p>
-  if (!enabled) return <p role="alert">{t('attendanceModuleDisabled')}</p>
+  if (!permissions?.includes(required)) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" message={t('attendanceModuleDisabled')} />
   return kind === 'manage' ? <StudentAttendancePage permissions={permissions} /> : <StudentAttendanceReportPage guardian={kind === 'guardian'} />
 }
 
 function PeopleGate({ kind, permissions, role, enabled, loading, error, routineEnabled = false, examsEnabled = false, feesEnabled = false, diaryEnabled = false }: { kind: 'students' | 'guardians' | 'profile' | 'self' | 'children' | 'child'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean; routineEnabled?: boolean; examsEnabled?: boolean; feesEnabled?: boolean; diaryEnabled?: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('loadingPermissions')}</p>
-  if (error) return <p role="alert">{t('loadPermissionsError')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
   const canStudents = !!permissions?.includes('students:read') && (role === 'admin' || role === 'head_teacher')
   const canGuardians = !!permissions?.includes('guardians:read') && (role === 'admin' || role === 'head_teacher')
   const canManageStudents = role === 'admin' && !!permissions?.includes('students:manage')
   const canManageGuardians = role === 'admin' && !!permissions?.includes('guardians:manage')
   const permitted = kind === 'students' || kind === 'profile' ? canStudents : kind === 'guardians' ? canGuardians : kind === 'self' ? role === 'student' && !!permissions?.includes('students:read_self') : role === 'guardian' && !!permissions?.includes('guardians:read_children')
   // Permission first: someone without access learns that, not the module state.
-  if (!permitted) return <p role="alert">{t('permissionDenied')}</p>
-  if (!enabled) return <p role="alert">{t('peopleModuleDisabled')}</p>
+  if (!permitted) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" message={t('peopleModuleDisabled')} />
   if (kind === 'students' && canStudents) return <StudentsPage canManage={canManageStudents} />
   if (kind === 'guardians' && canGuardians) return <GuardiansPage canManage={canManageGuardians} />
   if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} />
   if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
   if (kind === 'children' && role === 'guardian' && permissions?.includes('guardians:read_children')) return <GuardianChildrenPage showAttendance={!!permissions?.includes('attendance:guardians_read_children')} showRoutine={routineEnabled && !!permissions?.includes('routine:read_children')} showResults={examsEnabled && !!permissions?.includes('exams:read_children')} showFees={feesEnabled && !!permissions?.includes('fees:read_children')} showDiary={diaryEnabled && !!permissions?.includes('diary:read_children')} />
   if (kind === 'child' && role === 'guardian' && permissions?.includes('guardians:read_children')) return <StudentProfilePage mode="child" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
-  return <p role="alert">{t('permissionDenied')}</p>
+  return <StateScreen kind="denied" message={t('permissionDenied')} />
 }
 
 function RoutineGate({ mode, permissions, role, enabled, loading, error }: { mode: 'admin' | 'student' | 'teacher' | 'guardian'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('routineLoading')}</p>
-  if (error) return <p role="alert">{t('routineLoadError')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('routineLoading')} />
+  if (error) return <StateScreen kind="error" message={t('routineLoadError')} />
   const required = mode === 'admin' ? 'routine:read' : mode === 'guardian' ? 'routine:read_children' : 'routine:read_self'
-  if (!enabled || !permissions?.includes(required) || (mode === 'student' && role !== 'student') || (mode === 'teacher' && role !== 'teacher') || (mode === 'guardian' && role !== 'guardian')) return <p role="alert">{t('permissionDenied')}</p>
+  if (!permissions?.includes(required) || (mode === 'student' && role !== 'student') || (mode === 'teacher' && role !== 'teacher') || (mode === 'guardian' && role !== 'guardian')) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" />
   return <RoutinePage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('routine:manage')} />
 }
 
 function ExamsGate({ mode, permissions, role, enabled, loading, error }: { mode: 'admin' | 'student' | 'teacher' | 'guardian'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('examLoading')}</p>
-  if (error) return <p role="alert">{t('examError')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('examLoading')} />
+  if (error) return <StateScreen kind="error" message={t('examError')} />
   const required = mode === 'admin' ? 'exams:read' : mode === 'teacher' ? 'exams:enter_marks' : mode === 'guardian' ? 'exams:read_children' : 'exams:read_self'
-  if (!enabled || !permissions?.includes(required) || mode !== 'admin' && role !== mode) return <p role="alert">{t('permissionDenied')}</p>
+  if (!permissions?.includes(required) || mode !== 'admin' && role !== mode) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" />
   return <ExamsPage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('exams:manage')} />
 }
 
 function CommGate({ kind, permissions, role, enabled, loading, error }: { kind: 'notices' | 'events' | 'notifications' | 'delivery' | 'teacher-diary' | 'student-diary' | 'guardian-diary' | 'admin-diary'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('m9Loading')}</p>
-  if (error) return <p role="alert">{t('m9ErrGeneric')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('m9Loading')} />
+  if (error) return <StateScreen kind="error" message={t('m9ErrGeneric')} />
   const has = (p: string) => !!permissions?.includes(p)
   const allowed = enabled && ({
     notices: has('notices:read'), events: has('events:read'), notifications: has('notifications:read_self'), delivery: has('notifications:manage') && role === 'admin',
     'teacher-diary': has('diary:write') && (role === 'teacher' || role === 'head_teacher'), 'student-diary': has('diary:read_self') && role === 'student',
     'guardian-diary': has('diary:read_children') && role === 'guardian', 'admin-diary': has('diary:read'),
   } as Record<string, boolean>)[kind]
-  if (!allowed) return <p role="alert">{t(enabled ? 'permissionDenied' : 'm9ErrModule')}</p>
+  if (!allowed) return <StateScreen kind={enabled ? 'denied' : 'disabled'} message={t(enabled ? 'permissionDenied' : 'm9ErrModule')} />
   switch (kind) {
     case 'notices': return <NoticesPage canManage={has('notices:manage') && (role === 'admin' || role === 'head_teacher')} />
     case 'events': return <EventsPage canManage={has('events:manage') && (role === 'admin' || role === 'head_teacher')} />
@@ -252,10 +247,11 @@ function CommGate({ kind, permissions, role, enabled, loading, error }: { kind: 
 
 function FeesGate({ mode, permissions, role, enabled, loading, error }: { mode: 'staff' | 'student' | 'guardian'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('feeLoading')}</p>
-  if (error) return <p role="alert">{t('feeErrGeneric')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('feeLoading')} />
+  if (error) return <StateScreen kind="error" message={t('feeErrGeneric')} />
   const required = mode === 'staff' ? 'fees:read' : mode === 'guardian' ? 'fees:read_children' : 'fees:read_self'
-  if (!enabled || !permissions?.includes(required) || (mode !== 'staff' && role !== mode)) return <p role="alert">{t('permissionDenied')}</p>
+  if (!permissions?.includes(required) || (mode !== 'staff' && role !== mode)) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" />
   if (mode !== 'staff') return <MyFeesPage mode={mode} canPay={permissions.includes('fees:pay_online')} />
   const writer = role === 'admin' || role === 'accountant'
   return <FeesPage access={{ role: role ?? '', canManage: writer && permissions.includes('fees:manage'), canCollect: writer && permissions.includes('fees:collect'), canReadAccounts: permissions.includes('accounts:read'), canManageAccounts: writer && permissions.includes('accounts:manage') }} />
@@ -265,15 +261,15 @@ function FeesGate({ mode, permissions, role, enabled, loading, error }: { mode: 
 // narrows teacher, student and guardian data to their own records.
 function AnalyticsGate({ kind, permissions, role, enabled, loading, error }: { kind: 'school' | 'teacher' | 'reports' | 'student' | 'guardian' | 'staff-student'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
-  if (loading) return <p role="status">{t('m11Eyebrow')}…</p>
-  if (error) return <p role="alert">{t('m11ErrGeneric')}</p>
+  if (loading) return <StateScreen kind="loading" message={t('m11Eyebrow')} />
+  if (error) return <StateScreen kind="error" message={t('m11ErrGeneric')} />
   const has = (p: string) => !!permissions?.includes(p)
   const access = { school: has('analytics:read'), teacher: has('analytics:read_assigned'), finance: has('analytics:finance'), manage: has('analytics:manage') && role === 'admin' }
   const allowed = enabled && ({
     school: access.school || access.finance, teacher: access.teacher && !access.school, reports: access.school || access.teacher || access.finance,
     student: has('analytics:read_self') && role === 'student', guardian: has('analytics:read_children') && role === 'guardian', 'staff-student': access.school || access.teacher,
   } as Record<string, boolean>)[kind]
-  if (!allowed) return <p role="alert">{t(enabled ? 'permissionDenied' : 'm11ErrModule')}</p>
+  if (!allowed) return <StateScreen kind={enabled ? 'denied' : 'disabled'} message={t(enabled ? 'permissionDenied' : 'm11ErrModule')} />
   switch (kind) {
     case 'reports': return <ReportsPage access={access} />
     case 'student': return <MyProgressPage />

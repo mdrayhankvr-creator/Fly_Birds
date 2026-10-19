@@ -16,6 +16,7 @@ import { commTranslations } from './commTranslations'
 import { adminTranslations } from './adminTranslations'
 import { analyticsTranslations } from './analyticsTranslations'
 import { shellTranslations } from './shellTranslations'
+import { uxTranslations } from './uxTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -44,7 +45,7 @@ void i18n.use(initReactI18next).init({
         signOut: 'Sign out',
         account: 'Account',
         accountHeading: 'Your account',
-        accountDescription: 'Your current signed-in details are loaded from the API.',
+        accountDescription: 'The details your school uses to identify you when you sign in.',
         loadingAccount: 'Loading your account…',
         accountError: 'Your account could not be loaded. Try again.',
         role: 'Role',
@@ -98,7 +99,7 @@ void i18n.use(initReactI18next).init({
         signOut: 'সাইন আউট',
         account: 'অ্যাকাউন্ট',
         accountHeading: 'আপনার অ্যাকাউন্ট',
-        accountDescription: 'আপনার বর্তমান অ্যাকাউন্টের তথ্য এপিআই থেকে আনা হয়েছে।',
+        accountDescription: 'সাইন ইন করার সময় বিদ্যালয় যে তথ্য দিয়ে আপনাকে চেনে।',
         loadingAccount: 'অ্যাকাউন্টের তথ্য আনা হচ্ছে…',
         accountError: 'অ্যাকাউন্টের তথ্য আনা যায়নি। আবার চেষ্টা করুন।',
         role: 'ভূমিকা',
@@ -169,5 +170,7 @@ i18n.addResourceBundle('en', 'translation', analyticsTranslations.en, true, true
 i18n.addResourceBundle('bn', 'translation', analyticsTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', shellTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', shellTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', uxTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', uxTranslations.bn, true, true)
 
 export default i18n
