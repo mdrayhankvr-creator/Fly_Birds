@@ -539,7 +539,7 @@ func (r *GormRepository) Submissions(ctx context.Context, v Viewer, diaryID stri
 	out := []Submission{}
 	err := db.Table("students s").Joins("LEFT JOIN homework_submissions hs ON hs.student_id = s.id AND hs.diary_id = ?", diaryID).
 		Where("s.section_id = ? AND s.session_id = ? AND (s.status = 'active' OR hs.id IS NOT NULL)", d.SectionID, d.SessionID).
-		Select("COALESCE(hs.id::text,'') AS id,'"+diaryID+"' AS diary_id,"+strings.SplitN(submissionSelect, ",", 3)[2]).Order("s.roll_no NULLS LAST, s.name_en").Find(&out).Error
+		Select("COALESCE(hs.id::text,'') AS id,'" + diaryID + "' AS diary_id," + strings.SplitN(submissionSelect, ",", 3)[2]).Order("s.roll_no NULLS LAST, s.name_en").Find(&out).Error
 	if err != nil {
 		return nil, err
 	}

@@ -49,6 +49,7 @@ func (s *Service) Enabled(ctx context.Context, key string) (bool, error) {
 	}
 	return s.repo.ModuleEnabled(ctx, key)
 }
+
 // SetModule enables or disables a module. Without cascade it is refused when
 // prerequisites are off or enabled modules depend on it; with cascade those
 // modules are switched too, in one audited transaction.

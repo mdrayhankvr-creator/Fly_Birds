@@ -247,7 +247,10 @@ func TestPostgresStudentAttendanceRosterSave(t *testing.T) {
 	codes := make(chan int, 5)
 	for range 5 {
 		wg.Add(1)
-		go func() { defer wg.Done(); codes <- perform(router, "PUT", "/attendance/students/roster", race, nil, teacherH).Code }()
+		go func() {
+			defer wg.Done()
+			codes <- perform(router, "PUT", "/attendance/students/roster", race, nil, teacherH).Code
+		}()
 	}
 	wg.Wait()
 	close(codes)
