@@ -78,7 +78,7 @@ export function PermissionPage({ canManage }: { canManage: boolean }) {
         {matrix.data.roles.map(r => <button key={r.id} type="button" role="radio" aria-checked={role === r.id} onClick={() => selectRole(r.id)}
           className={`rounded-xl px-3.5 py-2 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${role === r.id ? 'bg-[var(--brand-primary)] text-[var(--brand-on)] shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
           <span className="block font-semibold">{roleName(r.id)}</span>
-          <span className={`block text-xs ${role === r.id ? 'text-white/85' : 'text-slate-500'}`}>{t('m10ActiveUsers', { count: r.active_users, n: f.number(r.active_users) })} · {f.number(matrix.data.grants[r.id]?.length ?? 0)}</span></button>)}
+          <span className={`block text-xs ${role === r.id ? 'text-[var(--brand-on)]' : 'text-slate-500'}`}>{t('m10ActiveUsers', { count: r.active_users, n: f.number(r.active_users) })} · {f.number(matrix.data.grants[r.id]?.length ?? 0)}</span></button>)}
       </div>}
       {message && <Notice tone={message.tone} action={message.stale ? <button type="button" className={ui.secondary} onClick={() => { setMessage(null); void matrix.refetch() }}>{t('m10Reload')}</button> : undefined}>{message.text}</Notice>}
 
