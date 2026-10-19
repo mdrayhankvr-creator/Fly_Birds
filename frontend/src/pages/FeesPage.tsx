@@ -90,7 +90,7 @@ function CollectPanel({ access, options }: { access: FeeAccess; options: FeeOpti
             <label className={ui.label}>{t('feeMethod')}<select className={feeField} value={method} onChange={e => setMethod(e.target.value as FeeMethod)}>{(['cash', 'bank', 'bkash', 'nagad'] as const).map(m => <option key={m} value={m}>{t(`feeMethod_${m}`)}</option>)}</select></label>
             <label className={ui.label}>{t('feeReference')}<input required={method !== 'cash'} maxLength={80} className={feeField} value={reference} placeholder={method === 'cash' ? t('feeOptional') : t('feeReferenceHint')} onChange={e => setReference(e.target.value)} /></label>
             <label className={ui.label}>{t('feePaidOn')}<input required type="date" max={todayInDhaka()} className={feeField} value={paidOn} onChange={e => setPaidOn(e.target.value)} /></label>
-            <label className="text-sm font-semibold sm:col-span-2">{t('feeNote')}<input maxLength={240} className={feeField} value={note} onChange={e => setNote(e.target.value)} /></label>
+            <label className={`${ui.label} sm:col-span-2`}>{t('feeNote')}<input maxLength={240} className={feeField} value={note} onChange={e => setNote(e.target.value)} /></label>
             <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{action.busy ? t('feeSaving') : t('feeCollect')}</button></div>
           </form>}
       </section>}

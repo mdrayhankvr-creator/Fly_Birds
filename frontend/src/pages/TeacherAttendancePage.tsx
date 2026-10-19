@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, correctTeacherAttendance, getAttendanceSessions, getOwnTeacherAttendance, getOwnTeacherMonthly, getTeacherMonthlyReport, getTeacherRoster, recordTeacherAttendance, type AttendanceSession, type TeacherRosterItem } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { Avatar, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, tones, ui, type SegmentOption } from './attendanceUi'
+import { useDhakaFormat } from './commShared'
 
 const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 type Status = 'present' | 'absent' | 'leave'
@@ -13,6 +14,7 @@ const sessionParams = new URLSearchParams({ page: '1', page_size: '100' })
 export function TeacherAttendancePage({ permissions, own = false }: { permissions: string[]; own?: boolean }) {
   const { t, i18n } = useTranslation()
   const { accessToken, renew, expire } = useAuth()
+  const fmt = useDhakaFormat()
   const cache = useQueryClient()
   const [sessionId, setSessionId] = useState('')
   const [date, setDate] = useState(today)
@@ -121,7 +123,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
 
     {own && sessionId && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="own-history-heading"><h2 id="own-history-heading" className="text-lg font-bold">{t('attendanceDaily')}</h2>
       {history.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : history.isError ? <p role="alert" className="mt-3 text-rose-700">{t('attendanceLoadError')}</p> : history.data?.items.length ? <>
-        <ul className="mt-3 divide-y divide-slate-100">{history.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><span className="text-sm text-slate-700">{item.attendance_date} · {item.session_name}</span><StatusBadge tone={item.status}>{statusLabel(item.status)}</StatusBadge></li>)}</ul>
+        <ul className="mt-3 divide-y divide-slate-100">{history.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><span className="text-sm font-medium text-slate-800">{fmt.date(item.attendance_date)}</span><StatusBadge tone={item.status}>{statusLabel(item.status)}</StatusBadge></li>)}</ul>
         {pager(historyPage, history.data.total, setHistoryPage)}</> : <div className="mt-3"><EmptyState title={t('attendanceNoHistory')} /></div>}
     </section>}
 
