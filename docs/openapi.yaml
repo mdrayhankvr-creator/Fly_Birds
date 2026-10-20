@@ -82,7 +82,7 @@ paths:
     post:
       operationId: refreshSession
       summary: Rotate refresh token and issue a new access token
-      description: Requires flybirds_refresh and flybirds_csrf cookies. The X-CSRF-Token header must match the CSRF cookie and its server-side session hash. Refresh secrets are rotated and stored only as hashes.
+      description: Requires flybirds_refresh and flybirds_csrf cookies. The X-CSRF-Token header must match the CSRF cookie and its server-side session hash. Refresh secrets are rotated and stored only as hashes. Presenting a refresh token that was already rotated away revokes its whole session and is audited as auth.refresh_reuse_detected; a replay within 10 seconds of the rotation (two tabs refreshing together) is only rejected.
       tags: [authentication]
       security: []
       parameters:
@@ -138,6 +138,29 @@ paths:
         '200': { $ref: '#/components/responses/IDList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/password:
+    post:
+      operationId: changeOwnPassword
+      summary: Change the signed-in user's password
+      description: Requires auth:password_change_self and the core authentication module. The current password must be correct; a wrong one counts toward the login lockout. The new password must be 12 to 72 UTF-8 bytes and differ from the current one. On success every other session of the user is revoked, the current session stays signed in, and user.password_changed is audited without password material. Errors never use 401, so clients do not treat them as an expired session.
+      tags: [authentication]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordChangeInput' }
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordChangeResponse' }
+        '400': { description: 'invalid_request, weak_password, same_password or invalid_current_password', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { description: account_locked after too many incorrect passwords, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /roles:
     get:
       operationId: listRoles
@@ -3203,6 +3226,22 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/AuthUser' }
+    PasswordChangeInput:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string, format: password, maxLength: 72 }
+        new_password: { type: string, format: password, minLength: 12, maxLength: 72, description: 12 to 72 UTF-8 bytes }
+    PasswordChangeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [sessions_revoked]
+          properties:
+            sessions_revoked: { type: integer, minimum: 0 }
     ErrorResponse:
       type: object
       required: [error]
