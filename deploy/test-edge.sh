@@ -74,10 +74,11 @@ check "visitor B can still sign in while A is limited" "$([ "$(count_429 <<<"$b_
 
 # 3. Forged forwarding headers through Caddy neither lift A's limit nor
 #    push the limit onto someone else. The limit refills one request every
-#    two seconds, so a few of A's requests may pass; with a working forgery
-#    all ten would.
+#    two seconds, so some of A's requests may pass on a slow host. A working
+#    forgery would get a fresh allowance of 31, so none of the ten would be
+#    refused: one refusal proves the forged address was ignored.
 forged=$(edge_logins a 10 -H "'X-Forwarded-For: 198.51.100.7'" -H "'X-Real-IP: 198.51.100.7'" -H "'Forwarded: for=198.51.100.7'")
-check "visitor A cannot escape the limit with forged forwarding headers" "$([ "$(count_429 <<<"$forged")" -ge 6 ]; echo $?)" "$(count_429 <<<"$forged") of 10 answered 429"
+check "visitor A cannot escape the limit with forged forwarding headers" "$([ "$(count_429 <<<"$forged")" -ge 1 ]; echo $?)" "$(count_429 <<<"$forged") of 10 answered 429"
 framed=$(edge_logins c 5 -H "'X-Forwarded-For: $(address a)'")
 check "visitor C claiming to be A is not limited as A" "$([ "$(count_429 <<<"$framed")" -eq 0 ]; echo $?)" "$(tr '\n' ' ' <<<"$framed")"
 
