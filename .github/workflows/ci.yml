@@ -79,10 +79,14 @@ jobs:
       - name: Write a throwaway school environment
         run: |
           cp deploy/school.env.example deploy/ci.env
-          sed -i "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=ci/; s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=/" deploy/ci.env
+          # The edge profile runs Caddy, as in production; for localhost it
+          # issues a certificate from its own local authority.
+          sed -i "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=ci/; s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=edge/; s/^SCHOOL_DOMAIN=.*/SCHOOL_DOMAIN=localhost/" deploy/ci.env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" deploy/ci.env
           sed -i "s|^JWT_SIGNING_KEY_B64=.*|JWT_SIGNING_KEY_B64=$(openssl rand -base64 32)|" deploy/ci.env
           sed -i "s/^BACKUP_INTERVAL=.*/BACKUP_INTERVAL=0/" deploy/ci.env
+      - name: Production Compose file is valid
+        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml config --quiet
       - name: Build and start the production stack
         run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml up -d --build --wait
       - name: Smoke checks
@@ -90,15 +94,21 @@ jobs:
           curl -fsS http://localhost:8081/ > /dev/null
           curl -fsS http://localhost:8081/api/readyz
           curl -fsS -D - -o /dev/null http://localhost:8081/ | grep -i "content-security-policy"
+          curl -fsSk https://localhost/api/readyz
       - name: Seed the demo school
         env:
           DEMO_PASSWORD: CiDemoPassword!2026
         run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml exec -T -e DEMO_PASSWORD backend /app/seed-demo -confirm
-      - name: Browser suite
+      - name: Browser suite through the HTTPS edge
         env:
-          E2E_BASE_URL: http://localhost:8081
+          E2E_BASE_URL: https://localhost
+          E2E_INSECURE_TLS: '1'
           DEMO_PASSWORD: CiDemoPassword!2026
         run: node e2e/suite.mjs && node e2e/whitelabel.mjs
+      # After the browser suite: these checks use up the login rate limit for
+      # this runner's address for about a minute.
+      - name: HTTPS edge, proxy trust and login rate limit
+        run: bash deploy/test-edge.sh deploy/ci.env
       - name: Show service logs on failure
         if: failure()
         run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml logs --tail 200
