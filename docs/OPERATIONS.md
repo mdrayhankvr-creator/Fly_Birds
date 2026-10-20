@@ -32,6 +32,13 @@ asks for the password twice without echoing it (12 to 72 characters):
 fb exec backend /app/create-user -email head.office@school.example.edu.bd -role admin
 ```
 
+A school prepared with `school-provision` prints this command with its own
+environment file filled in. No default administrator or password exists:
+the first account is always created this way, by someone at the server.
+`create-user` refuses to run without an interactive terminal, so the
+password is never passed on a command line or stored in shell history. In
+Git Bash on Windows, prefix the command with `MSYS_NO_PATHCONV=1`.
+
 Sign in at `https://<SCHOOL_DOMAIN>/login` with that account. Create every
 other account from **Admin → Users** in the app, not from the command line.
 `create-user` also accepts `-role head_teacher|teacher|accountant|student|guardian`.
@@ -112,7 +119,13 @@ every uploaded file, with a SHA-256 manifest. Archives are kept in the
   Archives contain personal data about children. Store them encrypted, limit
   who can read them and delete copies past the school's retention period.
 - Keep the school's environment file (database password and signing key)
-  with the off-site backups, in a separate secure place.
+  with the off-site backups, in a separate secure place. Backup archives
+  contain the school's data but not this file. To move a school's Docker
+  volumes to another server you need the file's `POSTGRES_PASSWORD`, which
+  PostgreSQL stored when the database was created. To rebuild from a backup
+  archive (6.2) the saved file is preferred; a newly provisioned file also
+  works, because the archive is restored into a new, empty database, but its
+  new signing key means everyone signs in again.
 
 ## 6. Restoring and disaster recovery
 
@@ -165,6 +178,48 @@ fb exec backend rm -rf /tmp/restore-drill
 3. Sign in as an administrator and check recent attendance, payments and
    attachments. Then upgrade to the latest release if needed.
 
+## Rotating secrets
+
+Rotate a school's secrets when they may have been exposed, for example a
+copied environment file, or when staff with server access leave. Make and
+verify a backup first, and update the saved copy of the environment file
+afterwards. The commands use the `fb` alias.
+
+**Signing key (`JWT_SIGNING_KEY_B64`).** Replace the value in the
+environment file with a new one (`openssl rand -base64 32`) and run
+`fb up -d --wait`, which recreates the backend. Access tokens signed with
+the old key stop working at once, but **sessions continue**: browsers
+silently obtain new tokens with their session cookie, which is stored in the
+database and does not depend on the key. To also end every session, so
+everyone must sign in again, revoke them:
+
+```sh
+fb exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "UPDATE auth_sessions SET revoked_at = now(), updated_at = now() WHERE revoked_at IS NULL"'
+```
+
+Revoking takes effect immediately for every access token too, with or
+without a new key. To sign out one person, use `reset-password` (section 4).
+
+**Database password (`POSTGRES_PASSWORD`).** PostgreSQL keeps the password
+it was created with; editing the file alone breaks the backend's next
+connection. Change it in PostgreSQL first, then in the file:
+
+1. Generate a new value: `openssl rand -hex 24`.
+2. Set it in PostgreSQL. `\password` asks for it twice without echoing it:
+
+   ```sh
+   fb exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+   # at the psql prompt:  \password flybirds     (your POSTGRES_USER), then \q
+   ```
+
+3. Put the same value in `POSTGRES_PASSWORD` in the environment file.
+4. `fb up -d --wait` recreates `db` (its data volume is kept) and `backend`.
+5. Check `https://<domain>/api/readyz`, sign in, and update the saved copy of
+   the file.
+
+If the backend restarts in a loop after step 4, the two values differ:
+repeat step 2 with the value in the file.
+
 ## 7. Troubleshooting
 
 | Symptom | Check |
@@ -172,7 +227,8 @@ fb exec backend rm -rf /tmp/restore-drill
 | Site unreachable | `fb ps`: all services `healthy`/`running`? `fb logs caddy` for certificate errors (DNS must point at the server; ports 80 and 443 open). |
 | "Service unavailable" or 502 | `fb logs backend`. `fb exec backend wget -qO- http://127.0.0.1:8080/readyz` reports whether the database is reachable. |
 | Backend restarts in a loop | `fb logs backend`: a missing or short `JWT_SIGNING_KEY_B64`, a wrong database password, or a failed migration. Never delete volumes to "fix" this. |
-| Everyone signed out | The signing key changed. Restore the original value from the saved environment file. |
+| Everyone signed out | Sessions were revoked (see rotating secrets), or the database was restored from a backup. Signing in again is enough. A changed signing key alone does not sign people out. |
+| Provisioning a new school fails | See [DEPLOYMENT.md, provisioning errors](DEPLOYMENT.md#35-provisioning-errors). |
 | Sign-in fails for everyone | The site must be opened over HTTPS (secure cookies). Check the browser address and the proxy. |
 | "Too many requests" at login | The rate limit (30 per minute per address). Wait a minute. Many users behind one school NAT share an address. |
 | A user is locked out | Wait 15 minutes or use `reset-password` (section 4). |

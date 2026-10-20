@@ -38,6 +38,8 @@ Named volumes, prefixed with the project name: `postgres_data`,
 - Ports 80 and 443 open to the internet (Caddy needs port 80 to obtain the
   certificate). Close every other inbound port except SSH.
 - Git, to fetch a tagged release.
+- Go 1.26 or later to run `school-provision` (section 3.2), or run it in the
+  official Go container as shown there.
 
 ## 3. First installation
 
@@ -50,35 +52,120 @@ cd /opt/flybirds/app
 git checkout <release tag or commit>
 ```
 
-### 3.2 Create the school's environment file
+### 3.2 Provision the school's configuration
+
+`school-provision` writes the school's environment file, `deploy/<code>.env`,
+from `deploy/school.env.example`. It generates the school's secrets and
+checks that nothing collides with another school. It never overwrites a
+file, never starts or removes containers and never prints a secret. Run it
+from anywhere inside the repository:
 
 ```sh
-cp deploy/school.env.example deploy/greenvalley.env
-chmod 600 deploy/greenvalley.env
-openssl rand -hex 24      # paste as POSTGRES_PASSWORD
-openssl rand -base64 32   # paste as JWT_SIGNING_KEY_B64
+cd /opt/flybirds/app/backend
+go run ./cmd/school-provision create --code greenvalley \
+  --domain greenvalley.flybirds.com --acme-email it@greenvalley.edu.bd --dry-run
+go run ./cmd/school-provision create --code greenvalley \
+  --domain greenvalley.flybirds.com --acme-email it@greenvalley.edu.bd
 ```
 
-Edit `deploy/greenvalley.env` and fill in every value:
+The dry run prints the plan and changes nothing:
+
+```text
+Dry run: planned provisioning
+  School code        greenvalley (Compose project name)
+  Domain             greenvalley.flybirds.com
+  Environment file   /opt/flybirds/app/deploy/greenvalley.env (Git-ignored)
+  TLS edge           on: Caddy serves https://greenvalley.flybirds.com on ports 80 and 443
+  Local web port     127.0.0.1:8081
+  Database password  48 random hex characters, would be generated and saved to the file; never shown
+  Signing key        32 random bytes (base64), would be generated and saved to the file; never shown
+  Docker resources the school gets on its first start (none are created now):
+    Volumes          greenvalley_postgres_data, greenvalley_uploads_data, greenvalley_backups_data, greenvalley_caddy_data, greenvalley_caddy_config, greenvalley_edge_socket
+    Network          greenvalley_default
+    Containers       greenvalley-db-1, greenvalley-backend-1, greenvalley-web-1, greenvalley-caddy-1
+
+Dry run: nothing was written and no container was started.
+```
+
+The real run prints the same plan, creates the file and then prints the
+commands to start the school and create its first administrator. Every path
+in those commands is quoted for both bash and PowerShell, so paths with
+spaces (such as `C:\Users\Laptop Click\...`) work as printed. `go run
+./cmd/school-provision list` shows the provisioned schools without secrets.
+
+| Option | Meaning |
+|---|---|
+| `--code` | Required. The school code: 3–32 lower-case letters, digits and single hyphens, starting with a letter and not ending with a hyphen (`greenvalley`, `st-marys-2`). It becomes the Compose project name and prefixes every container, volume and network. It cannot contain `_`, so two schools' `<code>_` volume names never overlap. **Never change it after installation**: a new name means new, empty volumes. |
+| `--domain` | Required. The school's host name under any parent domain (`greenvalley.flybirds.com`, `portal.school.edu.bd`). It is lower-cased. A scheme, port, path, wildcard, IP address, trailing dot, space or other unusual character is refused. `localhost` and `<name>.localhost` are accepted for local trials (section 9). |
+| `--acme-email` | Mailbox for certificate expiry notices. Required for public domains; example and reserved domains are refused because Let's Encrypt rejects them. |
+| `--web-port` | The school's local port (`127.0.0.1` only). By default the first port from 8081 that no other school uses and that is free on this machine. |
+| `--no-edge` | Do not run the school's own Caddy. Use it for every school after the first on one server (section 4), or for a plain local trial. |
+| `--dry-run` | Validate and print the plan only. Writes nothing, starts nothing, generates no secrets and needs no DNS. |
+| `--skip-docker-check` | Do not ask Docker whether the project already has containers or volumes. Only when Docker is not running and you have checked by hand. |
+| `--deploy-dir` | Another directory holding `compose.prod.yaml` and the template. Default: `deploy/` of the repository you run it in. |
+
+What `create` checks and does:
+
+- Refuses a code, domain or web port that another school file in `deploy/`
+  already uses, and refuses if `deploy/<code>.env` exists.
+- Refuses if Docker already has containers, volumes or networks labelled
+  with the project name, so an old school's data is never picked up by a
+  new configuration.
+- Generates `POSTGRES_PASSWORD` (24 random bytes, hex) and
+  `JWT_SIGNING_KEY_B64` (32 random bytes, base64) from the operating
+  system's secure random source. Every school gets its own.
+- Fills `COMPOSE_PROJECT_NAME`, `COMPOSE_PROFILES`, `SCHOOL_DOMAIN`,
+  `ACME_EMAIL` and `WEB_PORT`; every other value keeps the template default.
+  If the template ever gains a setting without a default, it stops instead
+  of writing an incomplete file.
+- Runs `docker compose config` with the new values before writing, and
+  shows Docker's messages with secrets replaced by `[redacted]`.
+- Writes the file in one step: a temporary file in `deploy/` is flushed and
+  then linked to `deploy/<code>.env`, which fails rather than replace an
+  existing file. An interruption leaves no file, or a hidden
+  `.provision-<code>-*.env` if the process was killed outright; the next run
+  for that code stops and points to it. On Linux the file is readable only by
+  its owner (mode 600).
+
+**Without Go on the server**, run the same command in the official Go
+container (the backend build already uses this image). The container has no
+Docker CLI, so the tool warns that it could not check Docker; check by hand
+afterwards with `docker volume ls --filter label=com.docker.compose.project=<code>`
+and `docker compose --env-file deploy/<code>.env -f deploy/compose.prod.yaml config --quiet`.
+Its port check also runs inside the container, so pass `--web-port` with a
+port you know is free on the server:
+
+```sh
+cd /opt/flybirds/app
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e GOCACHE=/tmp/go-cache \
+  -e GOMODCACHE=/tmp/go-mod -v "$PWD":/src -w /src/backend golang:1.26.9-alpine \
+  go run ./cmd/school-provision create --code greenvalley \
+  --domain greenvalley.flybirds.com --acme-email it@greenvalley.edu.bd --web-port 8081
+```
+
+The file contains:
 
 | Variable | Meaning |
 |---|---|
-| `COMPOSE_PROJECT_NAME` | Short unique school code (lower-case letters, digits, `-`). Names every container, volume and network. **Never change it after installation**: a new name means new, empty volumes. |
-| `COMPOSE_PROFILES` | `edge` to run Caddy. Leave empty when a shared reverse proxy terminates TLS (section 5). |
+| `COMPOSE_PROJECT_NAME` | The school code. Names every container, volume and network. **Never change it after installation.** |
+| `COMPOSE_PROFILES` | `edge` to run Caddy; empty with `--no-edge`. |
 | `SCHOOL_DOMAIN` | The school's public host name. |
 | `ACME_EMAIL` | Address for certificate expiry notices. |
-| `POSTGRES_USER`, `POSTGRES_DB` | Database user and name (the defaults are fine). |
-| `POSTGRES_PASSWORD` | Random, unique to this school. Used only on the first start to create the database. |
-| `JWT_SIGNING_KEY_B64` | Base64 of 32 random bytes, unique to this school. Changing it signs everyone out. |
+| `POSTGRES_USER`, `POSTGRES_DB` | Database user and name (template defaults). |
+| `POSTGRES_PASSWORD` | Random, unique to this school. Used on the first start to create the database; to change it later, see [OPERATIONS.md, rotating secrets](OPERATIONS.md#rotating-secrets). |
+| `JWT_SIGNING_KEY_B64` | Base64 of 32 random bytes, unique to this school. Changing it invalidates current access tokens; sessions continue (see rotating secrets). |
 | `WEB_PORT` | Local port of the web container. Unique per school on the same server. |
 | `BACKUP_RETENTION` | Completed backup archives to keep (1–365). |
 | `BACKUP_INTERVAL` | Automatic backup interval, for example `24h`; `0` for manual only. |
 | `NOTIFY_INTERVAL` | Notification dispatch interval (SMS is a mock). |
 | `RELEASE_TAG` | Tag recorded on the built images, for example `v1.0.0`. Keep the previous value for rollback. |
 
-The `deploy/*.env` files are ignored by Git; only the example is tracked.
-Keep a copy of the file in the school's password manager: without the
-database password and signing key the installation cannot be rebuilt as is.
+You may edit the template-default values (backups, notifications, release
+tag) afterwards. The `deploy/*.env` files are ignored by Git; only the
+example is tracked. **The file is the only copy of the school's secrets.**
+Keep a copy in the school's password manager and with its off-site backups:
+without the database password the installation cannot be rebuilt from its
+volumes.
 
 ### 3.3 Build and start
 
@@ -111,6 +198,34 @@ bash deploy/test-edge.sh deploy/greenvalley.env               # ends with "All e
 
 Then continue with [OPERATIONS.md](OPERATIONS.md#1-first-administrator) to
 create the first administrator and configure the school.
+
+### 3.5 Provisioning errors
+
+| Message | What to do |
+|---|---|
+| `school code ... may contain only ...` | Use 3–32 lower-case letters, digits and single hyphens, starting with a letter. |
+| `school domain ... is not a valid host name` | Give only the host name: `greenvalley.flybirds.com`, not `https://greenvalley.flybirds.com/` or `greenvalley.flybirds.com:443`. |
+| `--acme-email is required` / `uses a reserved domain` | Give a real mailbox that receives certificate notices. |
+| `is already provisioned` / `already uses the domain` / `already assigned` | That school, domain or port exists. `list` shows them. The tool never replaces a file; choose another code, or keep the existing school. |
+| `Docker already has resources for project` | Containers or volumes with that project name exist, possibly an earlier school's data. Inspect them with `docker volume ls --filter label=com.docker.compose.project=<code>`; choose another code. Never delete them to make room without a verified backup. |
+| `could not check Docker` | Start Docker and run again. Use `--skip-docker-check` only after checking by hand. |
+| `web port ... is in use on this machine` | Something already listens there. Omit `--web-port` to pick a free one. |
+| `an earlier provisioning ... was interrupted and left ...` | A killed run left a hidden temporary file, which may contain secrets. Look at it, delete it, and run again. |
+| `docker compose rejected the configuration` | The message (with secrets redacted) says what Compose refused; usually a changed `deploy/compose.prod.yaml` or template. Nothing was written. |
+
+### 3.6 Limitations of the provisioning tool
+
+- It prepares configuration only. It does not start schools, create DNS
+  records, deploy to a server or create the first administrator (that stays
+  an interactive `create-user` step, so no password is ever passed on a
+  command line).
+- It knows only the school files in its own `deploy/` directory. Codes,
+  domains and ports are checked against those files and this machine's
+  Docker; a school on another server is not seen.
+- It needs Go 1.26, or the Go container shown above.
+- On Windows the file is not given special permissions; it inherits the
+  folder's access list (normally your own profile only).
+- Secret rotation is manual (OPERATIONS.md, rotating secrets).
 
 ### Short form
 
@@ -153,10 +268,23 @@ and its own installation with `SCHOOL_DOMAIN=greenvalley.flybirds.com`.
 
 ## 4. Several schools on one server
 
-Use one environment file per school, each with its own
-`COMPOSE_PROJECT_NAME`, `WEB_PORT`, database password and signing key. Only
-one project can own ports 80 and 443, so with more than one school use the
-shared-proxy layout below instead of each school's `edge` profile.
+Provision each school separately; each gets its own environment file,
+Compose project, database, volumes, network, secrets and `WEB_PORT`.
+Only one project can own ports 80 and 443, so with more than one school
+on one server, provision the others with `--no-edge` and use the
+shared-proxy layout below:
+
+```sh
+go run ./cmd/school-provision create --code riverside \
+  --domain riverside.flybirds.com --acme-email it@riverside.edu.bd --no-edge
+go run ./cmd/school-provision list
+```
+
+The tool warns when a school with the edge profile already exists in
+`deploy/`. Two schools never share data: separate databases on separate
+Docker networks (one school's backend cannot reach another's database),
+separate signing keys and sessions, and cookies scoped to each school's own
+host name. A school on its own server needs no `--no-edge`.
 
 ## 5. Behind a shared reverse proxy
 
@@ -297,6 +425,25 @@ to `--env-file`, otherwise Git Bash rewrites `/app/...` and file paths:
 ```sh
 MSYS_NO_PATHCONV=1 docker compose --env-file 'C:\flybirds\deploy\qa.env' -f deploy/compose.prod.yaml exec backend /app/create-user -email you@example.com
 ```
+
+### Local trial with two schools
+
+Provisioned schools run locally with the production Compose file and
+their own disposable volumes; nothing touches the development stack
+(`compose.yaml`, project `fly_birds`). Names under `.localhost` resolve to
+this machine in browsers and need no DNS or `--acme-email`:
+
+```powershell
+cd 'C:\Users\Laptop Click\Fly_Birds\backend'
+go run ./cmd/school-provision create --code trial-a --domain trial-a.localhost
+go run ./cmd/school-provision create --code trial-b --domain trial-b.localhost --no-edge
+```
+
+Start each with the `up -d --build --wait` command the tool printed.
+`trial-a` is served by its Caddy at `https://trial-a.localhost` (ports 80
+and 443 must be free); `trial-b` at `http://localhost:<its WEB_PORT>`.
+Stop them with the same command and `stop` instead of `up ...`; that keeps
+their volumes. They are trial schools: do not enter real data.
 
 Use `SCHOOL_DOMAIN=localhost` for a local trial; Caddy then issues a
 certificate from its own local authority, which browsers warn about. Run

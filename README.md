@@ -93,7 +93,7 @@ docker compose exec backend /app/create-user -email you@example.com -role admin
 
 Open http://localhost:5173 and sign in with the account you just created
 (`create-user` asks for the password without echoing it). Keep the same
-signing key across restarts, or everyone is signed out. The development stack
+signing key across restarts; a new key invalidates current access tokens. The development stack
 uses plain HTTP and publishes PostgreSQL on port 5432; never use it for a real
 school. For a production installation follow the
 [deployment guide](docs/DEPLOYMENT.md).
