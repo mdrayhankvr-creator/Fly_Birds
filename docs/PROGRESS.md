@@ -10,6 +10,26 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E1 Examination Architecture and UX Design (2026-10-21)
+
+On `feature/e1-exam-architecture-ux`, from `main` `82b4e73d`. Documents only: no application code, migration, database or deployment changed.
+
+**Deliverables** (`docs/exams/`):
+- `E1_ARCHITECTURE_AUDIT.md`: the current model, workflows with interaction counts, calculation and security review, a coverage matrix, and priority issues E1-01–E1-16.
+- `E1_ASSESSMENT_BLUEPRINT_SPEC.md`: terms, versioned blueprints, components, combined subjects, mark statuses, visibility and a no-rewrite migration.
+- `E1_RESULT_CALCULATION_RULES.md`: exact arithmetic, rounding points, pipeline, GPA, annual methods, ranking, corrections and nine worked examples.
+- `E1_PREMIUM_UX_SPEC.md`: the design direction and ten screens with acceptance criteria.
+- `E1_ROUTINE_AND_PDF_SPEC.md`: the term routine model, conflict rules, draft generation, the PDF renderer decision, the automatic pipeline, layouts and verification.
+- `E1_IMPLEMENTATION_ROADMAP.md`: milestones E2–E9 and the recommended next milestone.
+
+**Key finding.** `exams.GradeFor` compares float64 percentages with band edges. 66 exact boundary cases (full marks 1–200) are graded one band too low; for example, 16.83 / 51 (exactly 33 %) is graded F and fails.
+- **How it was checked:** a test against the real function through a Go build overlay, with no repository change.
+- **What it affects:** whole-number full marks are unaffected, which is why the lifecycle audit's 621 results matched.
+
+**Verification.** All worked examples were recomputed with exact fractions and match the documents. Every cross-document link and anchor resolves.
+
+**Recommended next:** E2, the exact result engine. It needs no migration and no UI change.
+
 ## Current Status — Critical Payment Safety Fix (2026-10-20)
 
 On `feature/payment-safety`, from `origin/main` `cebb9ccb`.
