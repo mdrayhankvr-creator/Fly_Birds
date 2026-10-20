@@ -10,6 +10,42 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E2 Exact Result Engine (2026-10-21)
+
+On `feature/e2-exact-result-engine`, from `main` `cdd5d7e4`. No migration, API or UI change. Details: [docs/exams/E2_EXACT_RESULT_ENGINE.md](exams/E2_EXACT_RESULT_ENGINE.md).
+
+**Implementation:**
+- **`internal/results/calc`** is a pure, exact engine:
+  - integer hundredths and rationals;
+  - band lookup by integer comparison (`m × 100 ≥ L × f`);
+  - unchanged pass, fourth-subject, cap and GPA rules (half up, truncation as a policy);
+  - competition and dense ranking;
+  - isolated, tested building blocks for E5/E6 (contributions, best-N, components, combined papers, annual methods, mark statuses).
+- **Publish path:** `exams.GradeFor` and `exams.GPA` delegate to it; publication stores exact two-decimal values.
+- **`cmd/exam-verify`** (in the backend image) is a read-only report of published results the exact engine would calculate differently, classified as boundary correction or inconsistent.
+- **Docs:** OPERATIONS.md §8.1.
+
+**Fix:** 66 exact band edges (full marks 1–200) are no longer graded one band too low. 16.83 / 51 (exactly 33 %) is D and passed, not F and failed. Results with whole-number full marks are unchanged.
+
+**Verification (2026-10-21, disposable resources only):**
+- **Go:** `go vet` clean; all packages pass on a fresh PostgreSQL 17 database; govulncheck finds no vulnerability in our code.
+- **New tests:**
+  - every edge for full marks 0.01–1000.00;
+  - 200,000 random results against the old engine (all 3,598 differences are exact-edge corrections);
+  - 40,032 GPA combinations with no difference;
+  - property tests and the worked examples;
+  - PostgreSQL publication and verifier tests, including a write-refusing connection.
+- **Disposable school `e2-school`:**
+  - started on `main`, a boundary exam was published (stored F, GPA 0.00), then the school was upgraded in place;
+  - exam rows were unchanged by the upgrade and by the tool;
+  - `exam-verify` reported 2 boundary corrections (exit 3);
+  - after republishing, D and GPA 3.00 were stored and it reported no differences (exit 0);
+  - browser suite 106/106, white-label 23/23.
+
+**Limitations:**
+- Published results change only when an administrator republishes an exam.
+- Rounding and ranking policies other than today's defaults are not configurable until E5.
+
 ## Current Status — E1 Examination Architecture and UX Design (2026-10-21)
 
 On `feature/e1-exam-architecture-ux`, from `main` `82b4e73d`. Documents only: no application code, migration, database or deployment changed.
