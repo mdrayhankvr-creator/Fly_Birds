@@ -93,6 +93,31 @@ func (r *memoryRepository) CreateUser(_ context.Context, user *User) error {
 	r.user = *user
 	return nil
 }
+func (r *memoryRepository) FindActiveUser(_ context.Context, id string) (User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.user.ID != id || !r.user.IsActive {
+		return User{}, ErrNotFound
+	}
+	return r.user, nil
+}
+func (r *memoryRepository) ChangePassword(_ context.Context, id, keep, verified, hash string, now time.Time) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.user.ID != id || r.user.PasswordHash != verified {
+		return 0, ErrInvalidCredentials
+	}
+	r.user.PasswordHash, r.user.FailedLoginAttempts, r.user.LockedUntil = hash, 0, nil
+	var revoked int64
+	for sid, session := range r.sessions {
+		if sid != keep && session.RevokedAt == nil {
+			session.RevokedAt = &now
+			r.sessions[sid] = session
+			revoked++
+		}
+	}
+	return revoked, nil
+}
 func (r *memoryRepository) HasPermission(context.Context, string, string) (bool, error) {
 	return true, nil
 }

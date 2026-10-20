@@ -183,8 +183,13 @@ No real server, domain or school database was used.
   integration exists.
 - **SMS is simulated.** No SMS gateway is integrated; in-app notifications
   are real.
-- **No self-service password reset or in-app password change.** Recovery
-  needs the server operator (`reset-password`).
+- **No self-service password reset.** Signed-in users can change their own
+  password on the account page; a forgotten password still needs the server
+  operator (`reset-password`), because there is no email delivery.
+- **Session security trade-offs.** A password change keeps the session it was
+  made from; only the other sessions are revoked. A replayed refresh token
+  revokes its session, except within 10 seconds of rotation (to tolerate
+  concurrent tabs), and only for tokens rotated in the last seven days.
 - **No email delivery** of any kind.
 - **Single school per installation**; several schools need several stacks.
 - **Rule-based alerts**, not predictions; analytics checked on fixture-sized
@@ -201,7 +206,8 @@ No real server, domain or school database was used.
    a real gateway (a new piece of work with its own security review).
 4. Decide on SMS: accept in-app only, or integrate a real gateway.
 5. Agree a password-recovery procedure with the school office (identity
-   check, then `reset-password`), or schedule in-app password management.
+   check, then `reset-password`) for forgotten passwords. Ask users to change
+   any password the office issued from their account page.
 6. Make sure no demo accounts exist in the school's database.
 7. Turn on automatic backups, pass a restore drill and set up encrypted
    off-site copies.
@@ -214,5 +220,5 @@ No real server, domain or school database was used.
 
 From the brief: online admission, library management, stipend management,
 an assignment portal, a chatbot and machine-learning prediction. From this
-release: self-service password management, real payment and SMS gateways,
+release: forgotten-password recovery, real payment and SMS gateways,
 email notifications, PDF report export and a full accessibility audit.

@@ -208,7 +208,7 @@ func RequireAuth(service *auth.Service) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		user, err := service.Authenticate(c.Request.Context(), token)
+		user, sessionID, err := service.AuthenticateSession(c.Request.Context(), token)
 		if errors.Is(err, auth.ErrInvalidToken) {
 			failure(c, http.StatusUnauthorized, "unauthorized", "authentication required")
 			c.Abort()
@@ -220,6 +220,7 @@ func RequireAuth(service *auth.Service) gin.HandlerFunc {
 			return
 		}
 		c.Set("auth_user", user)
+		c.Set("auth_session", sessionID)
 		c.Next()
 	}
 }
@@ -252,5 +253,42 @@ func RequirePermission(service *auth.Service, permission string) gin.HandlerFunc
 			return
 		}
 		c.Next()
+	}
+}
+
+type passwordChangeRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// changePassword godoc
+// @Summary Change the signed-in user's password and sign out other sessions
+// @Tags authentication
+// @Accept json
+// @Produce json
+// @Router /auth/password [post]
+func (h *authHandler) changePassword(c *gin.Context) {
+	var request passwordChangeRequest
+	if !decodeSchoolJSON(c, 4*1024, &request) {
+		return
+	}
+	user := c.MustGet("auth_user").(auth.User)
+	revoked, err := h.service.ChangePassword(c.Request.Context(), user.ID, c.GetString("auth_session"), request.CurrentPassword, request.NewPassword)
+	// Never 401 here: clients treat 401 as an expired session and sign out.
+	switch {
+	case err == nil:
+		success(c, http.StatusOK, gin.H{"sessions_revoked": revoked})
+	case errors.Is(err, auth.ErrWeakPassword):
+		failure(c, http.StatusBadRequest, "weak_password", "new password must be 12 to 72 UTF-8 bytes")
+	case errors.Is(err, auth.ErrSamePassword):
+		failure(c, http.StatusBadRequest, "same_password", "new password must differ from the current one")
+	case errors.Is(err, auth.ErrInvalidCredentials):
+		failure(c, http.StatusBadRequest, "invalid_current_password", "current password is incorrect")
+	case errors.Is(err, auth.ErrAccountLocked):
+		failure(c, http.StatusTooManyRequests, "account_locked", "too many incorrect passwords; try again later")
+	case errors.Is(err, auth.ErrInvalidSession):
+		failure(c, http.StatusForbidden, "forbidden", "permission denied")
+	default:
+		failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
 	}
 }

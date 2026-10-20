@@ -133,6 +133,7 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	authRoutes.POST("/logout", handler.logout)
 	authRoutes.GET("/me", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), handler.me)
 	authRoutes.GET("/permissions", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("permissions"), handler.permissions)
+	authRoutes.POST("/password", RequireAuth(service), RequirePermission(service, "auth:password_change_self"), moduleGuard("authentication"), handler.changePassword)
 	rbacHandler := &rbacHandler{service: grants}
 	management := router.Group("")
 	management.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), AuditDenied(auditService))
