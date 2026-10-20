@@ -11,5 +11,8 @@
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		-Server
 	}
-	reverse_proxy web:80
+	# The web container trusts the client address in X-Forwarded-For only on
+	# this socket. Caddy trusts no upstream proxies, so it replaces any
+	# X-Forwarded-For the visitor sent with the visitor's real address.
+	reverse_proxy unix//run/edge/web.sock
 }

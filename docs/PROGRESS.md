@@ -10,6 +10,22 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Pilot-Safe HTTPS Edge (2026-10-20)
+
+Post-release hardening for the school pilot, on `feature/pilot-edge-client-ip`. No product features and no migrations.
+
+**Problem (reproduced).** On a disposable stack with the Caddy edge, nginx saw every visitor as the Caddy container, so the login limit (30 per minute) was shared by the whole school: after one visitor sent a burst of failed sign-ins, other visitors got 429 too, and the access log recorded only Caddy's address.
+
+**Fix.** Caddy now reaches nginx through a Unix socket on an `edge_socket` volume mounted only by `caddy` (read-only) and `web`. nginx takes the client address from `X-Forwarded-For` only on that socket; Caddy trusts no upstream proxy, so it replaces whatever the visitor sent. TCP access on the host's `WEB_PORT` or to `web:80` keeps its own address and ignores forwarding headers. The limit key is `$remote_addr`, which is never empty. A leftover socket from an unclean stop is removed when the web container starts.
+
+**Verification (2026-10-20, disposable stacks only).**
+- `deploy/test-edge.sh` (new, runs in CI): 16 of 16 checks. HTTPS readiness through Caddy; HTTP 308 to HTTPS; HSTS and a single CSP header; visitor A limited while B is unaffected; forged `X-Forwarded-For`, `X-Real-IP` and `Forwarded` neither lift A's limit nor frame A; direct access to `web:80` and to the host port with forged addresses is still limited by its own address; nginx logs real visitor addresses and never a forged one. On the unchanged code, 4 of the 13 checks the script had at that point failed, which reproduced the problem.
+- Browser suites through `https://localhost` (Caddy → socket → nginx → backend): 106 of 106 and 23 of 23.
+- `go vet` clean; 87 Go tests and 17 subtests passed; frontend build and translation check (1,768 keys per language) passed; development and production Compose files valid with and without the `edge` profile.
+- Forced kill of the web container left a stale socket; it started again cleanly and HTTPS kept working.
+
+**Limitations.** The shared host reverse proxy layout (DEPLOYMENT.md section 5) still counts all visitors of a school as one client, safely but coarsely; pilots should run one school per server with the `edge` profile. Real Let's Encrypt issuance for a public school domain is not tested locally (CI uses Caddy's local authority for `localhost`).
+
 ## Current Status — M13 Final Release (2026-10-19)
 
 M13 adds no product features and no migrations. It completes the release material, closes release-blocking gaps found in a security review of M0–M12, and adds a reproducible per-school production deployment.
