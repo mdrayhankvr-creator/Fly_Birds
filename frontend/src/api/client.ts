@@ -235,6 +235,7 @@ export type LeaveInput = Pick<EmployeeLeave, 'starts_on' | 'ends_on' | 'leave_ty
 export type SalaryRecord = { id: string; employee_id: string; effective_on: string; basic_bdt: string; allowance_bdt: string; deduction_bdt: string; note: string }
 export type SalaryInput = Omit<SalaryRecord, 'id' | 'employee_id'>
 export const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+export const changeOwnPassword = (token: string, current_password: string, new_password: string) => bearerRequest<{ sessions_revoked: number }>('/auth/password', token, json('POST', { current_password, new_password }))
 export const getEmployees = (token: string, params: URLSearchParams) => bearerRequest<Page<Employee>>(`/staff/employees?${params}`, token)
 export const getEmployee = (token: string, id: string) => bearerRequest<Employee>(`/staff/employees/${encodeURIComponent(id)}`, token)
 export const getOwnEmployee = (token: string) => bearerRequest<Employee>('/staff/me', token)
