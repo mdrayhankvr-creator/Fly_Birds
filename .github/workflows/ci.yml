@@ -76,19 +76,23 @@ jobs:
           node-version: '22'
       - name: Development Compose file is valid
         run: docker compose config --quiet
-      - name: Write a throwaway school environment
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Provision a throwaway school
+        working-directory: backend
+        # The same tool operators use. The edge profile runs Caddy, as in
+        # production; for localhost it issues a certificate from its own
+        # local authority.
         run: |
-          cp deploy/school.env.example deploy/ci.env
-          # The edge profile runs Caddy, as in production; for localhost it
-          # issues a certificate from its own local authority.
-          sed -i "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=ci/; s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=edge/; s/^SCHOOL_DOMAIN=.*/SCHOOL_DOMAIN=localhost/" deploy/ci.env
-          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" deploy/ci.env
-          sed -i "s|^JWT_SIGNING_KEY_B64=.*|JWT_SIGNING_KEY_B64=$(openssl rand -base64 32)|" deploy/ci.env
-          sed -i "s/^BACKUP_INTERVAL=.*/BACKUP_INTERVAL=0/" deploy/ci.env
+          go run ./cmd/school-provision create --code ci-school --domain localhost --web-port 8081 --dry-run
+          go run ./cmd/school-provision create --code ci-school --domain localhost --web-port 8081
+          sed -i "s/^BACKUP_INTERVAL=.*/BACKUP_INTERVAL=0/" ../deploy/ci-school.env
       - name: Production Compose file is valid
-        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml config --quiet
+        run: docker compose --env-file deploy/ci-school.env -f deploy/compose.prod.yaml config --quiet
       - name: Build and start the production stack
-        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml up -d --build --wait
+        run: docker compose --env-file deploy/ci-school.env -f deploy/compose.prod.yaml up -d --build --wait
       - name: Smoke checks
         run: |
           curl -fsS http://localhost:8081/ > /dev/null
@@ -98,7 +102,7 @@ jobs:
       - name: Seed the demo school
         env:
           DEMO_PASSWORD: CiDemoPassword!2026
-        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml exec -T -e DEMO_PASSWORD backend /app/seed-demo -confirm
+        run: docker compose --env-file deploy/ci-school.env -f deploy/compose.prod.yaml exec -T -e DEMO_PASSWORD backend /app/seed-demo -confirm
       - name: Browser suite through the HTTPS edge
         env:
           E2E_BASE_URL: https://localhost
@@ -108,7 +112,7 @@ jobs:
       # After the browser suite: these checks use up the login rate limit for
       # this runner's address for about a minute.
       - name: HTTPS edge, proxy trust and login rate limit
-        run: bash deploy/test-edge.sh deploy/ci.env
+        run: bash deploy/test-edge.sh deploy/ci-school.env
       - name: Show service logs on failure
         if: failure()
-        run: docker compose --env-file deploy/ci.env -f deploy/compose.prod.yaml logs --tail 200
+        run: docker compose --env-file deploy/ci-school.env -f deploy/compose.prod.yaml logs --tail 200
