@@ -143,9 +143,10 @@ func Create(ctx context.Context, opts Options, deps Deps) (*Result, error) {
 	var edgeSchools []string
 	for _, school := range schools {
 		switch {
-		case school.Code == opts.Code:
+		// Files written by hand may differ in case; names are case-insensitive.
+		case strings.EqualFold(school.Code, opts.Code):
 			return nil, fmt.Errorf("%s already uses the Compose project name %q", school.File, opts.Code)
-		case school.Domain == domain:
+		case strings.EqualFold(school.Domain, domain):
 			return nil, fmt.Errorf("%s already uses the domain %s", school.File, domain)
 		}
 		if school.WebPort > 0 {

@@ -281,6 +281,22 @@ func TestDuplicateProvisioningIsRefused(t *testing.T) {
 			deps.PortFree = func(int) bool { return false }
 			return Create(context.Background(), Options{Code: "gamma", Domain: "gamma.flybirds.com", ACMEEmail: "it@flybirds.com", WebPort: 9000, DeployDir: dir}, deps)
 		},
+		"same domain in a hand-written file": func() (*Result, error) {
+			manual := "COMPOSE_PROJECT_NAME=Manual\nSCHOOL_DOMAIN=Delta.FlyBirds.com\nPOSTGRES_PASSWORD=x\nJWT_SIGNING_KEY_B64=x\nWEB_PORT=8090\n"
+			if err := os.WriteFile(filepath.Join(dir, "manual.env"), []byte(manual), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(filepath.Join(dir, "manual.env"))
+			return create(t, dir, "delta", "delta.flybirds.com", &fakeDocker{}, &bytes.Buffer{})
+		},
+		"same code in a hand-written file": func() (*Result, error) {
+			manual := "COMPOSE_PROJECT_NAME=Epsilon\nSCHOOL_DOMAIN=other.flybirds.com\nPOSTGRES_PASSWORD=x\nJWT_SIGNING_KEY_B64=x\nWEB_PORT=8091\n"
+			if err := os.WriteFile(filepath.Join(dir, "manual.env"), []byte(manual), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(filepath.Join(dir, "manual.env"))
+			return create(t, dir, "epsilon", "epsilon.flybirds.com", &fakeDocker{}, &bytes.Buffer{})
+		},
 		"existing Docker project": func() (*Result, error) {
 			docker := &fakeDocker{resources: map[string][]string{"gamma": {"volume gamma_postgres_data"}}}
 			return create(t, dir, "gamma", "gamma.flybirds.com", docker, &bytes.Buffer{})
