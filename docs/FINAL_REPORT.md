@@ -186,6 +186,10 @@ No real server, domain or school database was used.
 - **No self-service password reset.** Signed-in users can change their own
   password on the account page; a forgotten password still needs the server
   operator (`reset-password`), because there is no email delivery.
+- **Session security trade-offs.** A password change keeps the session it was
+  made from; only the other sessions are revoked. A replayed refresh token
+  revokes its session, except within 10 seconds of rotation (to tolerate
+  concurrent tabs), and only for tokens rotated in the last seven days.
 - **No email delivery** of any kind.
 - **Single school per installation**; several schools need several stacks.
 - **Rule-based alerts**, not predictions; analytics checked on fixture-sized

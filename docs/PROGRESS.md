@@ -91,6 +91,11 @@ Post-release work on `feature/account-password-security`, outside the brief's 83
 - OpenAPI completeness, `check:i18n`, TypeScript and the production build passed.
 - A real Edge browser test against the branch passed 18/18. It covered English at 1280 px and Bangla at 390 px, the other device signed out, the old password refused, keyboard order, and no axe violations in the form card.
 
+**Security limitations (accepted trade-offs).**
+- **10-second replay grace.** A rotated refresh token presented within 10 seconds of its rotation is refused without revoking the session, so two tabs refreshing together do not sign the user out. An attacker who refreshes a stolen token first, followed by the real user within 10 seconds, keeps the session. A later refresh by the user revokes it.
+- **The current session survives a password change.** Only other sessions are revoked. Cookies copied from the very session the user changes the password in remain valid.
+- **Seven-day history.** Rotated hashes older than the refresh lifetime are pruned. Replaying such a token is refused but does not revoke the session.
+
 **Not verified / limitations.** Forgotten-password recovery still needs the operator. axe reports an unnamed user-menu button and logo link in the app shell at phone widths on every page; they pre-date this work and are left for a UI follow-up.
 
 ## Current Status — M12 UI and Product Polish (2026-10-19)
