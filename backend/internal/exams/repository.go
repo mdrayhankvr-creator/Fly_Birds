@@ -386,22 +386,22 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 					return ErrConflict
 				}
 				values := make([]ScoredSubject, 0, len(rows))
-				total, full := 0.0, 0.0
 				for _, row := range rows {
 					values = append(values, ScoredSubject{Marks: row.Marks, FullMarks: row.FullMarks, PassMarks: row.PassMarks, Fourth: row.IsFourth})
-					total += row.Marks
-					full += row.FullMarks
 				}
-				gpa, passed, grades, err := GPA(values, bands)
+				// Exact engine; values are written as two-decimal strings so
+				// no float reaches the numeric columns.
+				result, err := Score(values, bands)
 				if err != nil {
 					return err
 				}
 				for i, row := range rows {
-					if err := tx.Exec("UPDATE exam_marks SET grade=?,grade_point=?,passed=? WHERE id=?", grades[i].Name, grades[i].Point, grades[i].Passed, row.MarkID).Error; err != nil {
+					g := result.Grades[i]
+					if err := tx.Exec("UPDATE exam_marks SET grade=?,grade_point=?::numeric,passed=? WHERE id=?", g.Grade, g.Point.String(), g.Passed, row.MarkID).Error; err != nil {
 						return err
 					}
 				}
-				if err := tx.Exec("INSERT INTO exam_results(exam_id,student_id,session_id,class_id,section_id,total_marks,full_marks,gpa,passed,class_position,section_position) VALUES (?,?,?,?,?,?,?,?,?,1,1)", id, student.ID, e.SessionID, e.ClassID, e.SectionID, total, full, gpa, passed).Error; err != nil {
+				if err := tx.Exec("INSERT INTO exam_results(exam_id,student_id,session_id,class_id,section_id,total_marks,full_marks,gpa,passed,class_position,section_position) VALUES (?,?,?,?,?,?::numeric,?::numeric,?::numeric,?,1,1)", id, student.ID, e.SessionID, e.ClassID, e.SectionID, result.Total.String(), result.Full.String(), result.GPA.String(), result.Passed).Error; err != nil {
 					return dbErr(err)
 				}
 			}
