@@ -43,9 +43,12 @@ in_client() { local name=$1; shift; docker exec "${project}-edgetest-$name" sh -
 # Sign-in attempts through Caddy over HTTPS, one per made-up account so the
 # API's per-account lockout never answers instead of the rate limit. Prints
 # one HTTP status per attempt. Extra curl options (headers) follow the count.
+# Attempts are sent concurrently, like a real burst: sent one by one, each
+# waits for password hashing, and a slow server would refill the limit (one
+# request per two seconds) as fast as the test uses it.
 edge_logins() { # edge_logins <client> <count> [curl options...]
   local client=$1 count=$2; shift 2
-  in_client "$client" "for i in \$(seq $count); do curl -sk -o /dev/null -w '%{http_code}\n' --connect-to $domain:443:caddy:443 $* -H 'Content-Type: application/json' -d \"{\\\"email\\\":\\\"edge-test-\$i@example.invalid\\\",\\\"password\\\":\\\"not-the-password\\\"}\" https://$domain/api/auth/login; done"
+  in_client "$client" "for i in \$(seq $count); do curl -sk -o /dev/null -w '%{http_code}\n' --connect-to $domain:443:caddy:443 $* -H 'Content-Type: application/json' -d \"{\\\"email\\\":\\\"edge-test-\$i@example.invalid\\\",\\\"password\\\":\\\"not-the-password\\\"}\" https://$domain/api/auth/login & done; wait"
 }
 count_429() { tr -d '\r' | grep -c '^429$' || true; }
 
@@ -71,24 +74,25 @@ check "visitor B can still sign in while A is limited" "$([ "$(count_429 <<<"$b_
 
 # 3. Forged forwarding headers through Caddy neither lift A's limit nor
 #    push the limit onto someone else. The limit refills one request every
-#    two seconds, so a few of A's requests may pass; with a working forgery
-#    all ten would.
+#    two seconds, so some of A's requests may pass on a slow host. A working
+#    forgery would get a fresh allowance of 31, so none of the ten would be
+#    refused: one refusal proves the forged address was ignored.
 forged=$(edge_logins a 10 -H "'X-Forwarded-For: 198.51.100.7'" -H "'X-Real-IP: 198.51.100.7'" -H "'Forwarded: for=198.51.100.7'")
-check "visitor A cannot escape the limit with forged forwarding headers" "$([ "$(count_429 <<<"$forged")" -ge 6 ]; echo $?)" "$(count_429 <<<"$forged") of 10 answered 429"
+check "visitor A cannot escape the limit with forged forwarding headers" "$([ "$(count_429 <<<"$forged")" -ge 1 ]; echo $?)" "$(count_429 <<<"$forged") of 10 answered 429"
 framed=$(edge_logins c 5 -H "'X-Forwarded-For: $(address a)'")
 check "visitor C claiming to be A is not limited as A" "$([ "$(count_429 <<<"$framed")" -eq 0 ]; echo $?)" "$(tr '\n' ' ' <<<"$framed")"
 
 # 4. Direct connections to the web container (bypassing Caddy) are limited by
 #    their own address: a fresh forged address on every request does not help,
 #    and B's allowance is untouched.
-direct=$(in_client d "for i in \$(seq 40); do curl -s -o /dev/null -w '%{http_code}\n' -H \"X-Forwarded-For: 10.77.\$i.1\" -H \"X-Real-IP: 10.77.\$i.1\" -H 'Content-Type: application/json' -d \"{\\\"email\\\":\\\"edge-direct-\$i@example.invalid\\\",\\\"password\\\":\\\"not-the-password\\\"}\" http://web/api/auth/login; done")
+direct=$(in_client d "for i in \$(seq 40); do curl -s -o /dev/null -w '%{http_code}\n' -H \"X-Forwarded-For: 10.77.\$i.1\" -H \"X-Real-IP: 10.77.\$i.1\" -H 'Content-Type: application/json' -d \"{\\\"email\\\":\\\"edge-direct-\$i@example.invalid\\\",\\\"password\\\":\\\"not-the-password\\\"}\" http://web/api/auth/login & done; wait")
 check "direct access with forged addresses is still rate-limited" "$([ "$(count_429 <<<"$direct")" -ge 1 ]; echo $?)" "$(count_429 <<<"$direct") of 40 answered 429"
 b_after=$(edge_logins b 5)
 check "visitor B is unaffected by D's forged direct requests" "$([ "$(count_429 <<<"$b_after")" -eq 0 ]; echo $?)" "$(tr '\n' ' ' <<<"$b_after")"
 
 #    The same holds on the host port. This uses up the limit for this host's
 #    address for about a minute, so run browser tests before this script.
-host_direct=$(for i in $(seq 40); do curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: 10.78.$i.1" -H "X-Real-IP: 10.78.$i.1" -H 'Content-Type: application/json' -d "{\"email\":\"edge-host-$i@example.invalid\",\"password\":\"not-the-password\"}" "http://127.0.0.1:$web_port/api/auth/login"; done)
+host_direct=$(for i in $(seq 40); do curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: 10.78.$i.1" -H "X-Real-IP: 10.78.$i.1" -H 'Content-Type: application/json' -d "{\"email\":\"edge-host-$i@example.invalid\",\"password\":\"not-the-password\"}" "http://127.0.0.1:$web_port/api/auth/login" & done; wait)
 check "direct access on the host port with forged addresses is still rate-limited" "$([ "$(count_429 <<<"$host_direct")" -ge 1 ]; echo $?)" "$(count_429 <<<"$host_direct") of 40 answered 429"
 
 # 5. nginx records the real visitor addresses for requests through Caddy, and
