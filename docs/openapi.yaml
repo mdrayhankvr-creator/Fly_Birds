@@ -1763,25 +1763,52 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/FeeId' }]
       responses: { '200': { description: Receipt }, '404': { description: Not linked or not owned }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /fees/online/status:
+    get:
+      operationId: getOnlinePaymentStatus
+      summary: Whether online payment is available, and how
+      description: Requires auth:read_self and the fees module. Mode is off unless the deployment sets PAYMENT_SIMULATION_ALLOWED=true and an administrator enables simulation; then it is simulation. There is no live bKash or Nagad integration. simulation_allowed and simulation_enabled are reported to administrators only.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: 'mode (off or simulation), simulation_allowed, simulation_enabled, updated_at' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /fees/online/settings:
+    put:
+      operationId: saveOnlinePaymentSettings
+      summary: Switch payment simulation on or off
+      description: Requires fees:manage and the admin role; audited. Switching simulation on is refused with simulation_not_allowed unless the deployment allows it. Switching it off always works and blocks checkouts already started.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [simulation_enabled], properties: { simulation_enabled: { type: boolean } } } } } }
+      responses: { '200': { description: Online payment status }, '409': { description: simulation_not_allowed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /fees/online/intents:
     post:
-      operationId: startMockMobilePayment
-      summary: Start a mock bKash or Nagad checkout for own or linked child's dues
-      description: Requires fees:pay_online and student or guardian role. Students may omit student_id. The mock gateway never contacts a real provider; the session expires after 15 minutes.
+      operationId: startSimulatedMobilePayment
+      summary: Start a simulated bKash or Nagad checkout for a linked child's dues
+      description: Requires fees:pay_online (guardians by default; students no longer hold it) and simulation mode, otherwise 403 online_payments_disabled. Simulated references start with SIM and are never provider transaction IDs. The session expires after 15 minutes.
       tags: [fees]
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeIntentInput' } } } }
-      responses: { '201': { description: Pending checkout with provider reference }, '404': { description: Not linked }, '409': { description: Amount exceeds outstanding balance }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '201': { description: Pending simulated checkout }, '404': { description: Not linked }, '409': { description: Amount exceeds outstanding balance }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Forbidden or online_payments_disabled } }
   /fees/online/intents/{id}/confirm:
     post:
-      operationId: confirmMockMobilePayment
-      summary: Confirm a mock checkout with the provider OTP and receive a receipt
-      description: Requires fees:pay_online and the same payer. The mock gateway accepts only OTP 123456; any other OTP declines and closes the checkout. Repeated confirmation returns the same receipt.
+      operationId: confirmSimulatedMobilePayment
+      summary: Complete a simulated checkout (no money moves, nothing is recorded)
+      description: Requires fees:pay_online, the same payer and simulation mode, otherwise 403 online_payments_disabled. The simulator accepts only code 123456. Success records no payment, receipt or ledger income and changes no balance; the response says SIMULATED — NO MONEY TRANSFERRED. Repeated confirmation returns the same simulation.
       tags: [fees]
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/FeeId' }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [otp], properties: { otp: { type: string, maxLength: 12 } } } } } }
-      responses: { '200': { description: Receipt }, '409': { description: payment_expired, fee_conflict or overpayment }, '422': { description: payment_declined }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: 'Simulation result: simulated, intent, unchanged balance, message, replayed' }, '409': { description: payment_expired or fee_conflict }, '422': { description: payment_declined }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Forbidden or online_payments_disabled } }
+  /fees/payments/{id}/void:
+    post:
+      operationId: voidSimulatedFeePayment
+      summary: Void a simulated payment recorded before the payment-safety upgrade
+      description: Requires fees:manage and the admin role; audited. Only simulated payments can be voided. The dues the payment reduced are owed again; the payment, its allocations and ledger line stay in the history, marked void. A reason is required.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 240 } } } } } }
+      responses: { '200': { description: The voided payment }, '403': { description: Not a simulated payment, or not an administrator }, '409': { description: Already voided }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /accounts/entries:
     get:
       operationId: listLedgerEntries
