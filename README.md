@@ -35,7 +35,7 @@ All screenshots show the fictional demo school created by `seed-demo`.
 | **Attendance** | Roll-wise daily student register, conflict-safe saving, QR-assisted check-in, teacher attendance, monthly reports and consecutive-absence alerts. |
 | **Routines** | Class timetables with clash detection and exam routines. |
 | **Exams and results** | Exams per section, marks entry by assigned teachers, Bangladesh GPA grading, positions, mark sheets and published results. |
-| **Fees and accounts** | Fee categories and structures, monthly dues, concessions, collections with receipts, overdue tracking and an income and expense ledger. Online bKash and Nagad payment is **simulated** (see [Limitations](#limitations)). |
+| **Fees and accounts** | Fee categories and structures, monthly dues, concessions, collections with receipts, overdue tracking and an income and expense ledger. Online bKash and Nagad payment is **off**; test installations can simulate it (see [Limitations](#limitations)). |
 | **Communication** | Notices and events targeted by role, class or section; a daily class diary with homework and submissions; in-app notifications with per-user preferences. SMS is **simulated**. |
 | **Analytics and reports** | Role-specific dashboards, attendance and result trends, dropout and at-risk alerts, finance analytics, and CSV and printable reports. |
 | **Administration** | Control center, system health, data exports, verified backups with retention, and restore into an empty database. |
@@ -192,9 +192,11 @@ compose.yaml    Development stack
 
 ## Limitations
 
-- **Payments:** online bKash and Nagad payment uses a **mock** provider. No
-  money moves and no real merchant account is involved. Cash and manual
-  receipts are real records.
+- **Payments:** there is no live bKash or Nagad integration, and online
+  payment is off. A disposable test installation can switch on a simulation
+  (`PAYMENT_SIMULATION_ALLOWED=true`) that moves no money, issues no receipt
+  and changes no balance. Cash, bank and counter-recorded bKash/Nagad
+  payments and their receipts are real records.
 - **SMS:** messages use a **mock** provider. They are recorded and marked sent
   but never reach a phone.
 - **Passwords:** there is no self-service password reset or in-app password

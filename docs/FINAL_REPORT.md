@@ -179,8 +179,9 @@ No real server, domain or school database was used.
 
 ## 8. Limitations
 
-- **Online payment (bKash, Nagad) is simulated.** No gateway contract or
-  integration exists.
+- **Online payment (bKash, Nagad) is off.** No gateway contract or
+  integration exists; test installations can switch on a labelled simulation
+  that moves no money (payment-safety fix, migration 1401).
 - **SMS is simulated.** No SMS gateway is integrated; in-app notifications
   are real.
 - **No self-service password reset.** Signed-in users can change their own
@@ -202,8 +203,10 @@ No real server, domain or school database was used.
 1. Run the new CI workflow on GitHub and confirm it passes.
 2. Merge the release, tag it, and deploy from the tag following
    [DEPLOYMENT.md](DEPLOYMENT.md) on a hardened server with a real domain.
-3. Decide on payments: switch online payment off, or contract and integrate
-   a real gateway (a new piece of work with its own security review).
+3. Decide on payments: keep online payment off and record payments at the
+   counter, or contract and integrate a real gateway (a new piece of work with
+   its own security review). After upgrading, review the simulated payments
+   recorded by earlier releases.
 4. Decide on SMS: accept in-app only, or integrate a real gateway.
 5. Agree a password-recovery procedure with the school office (identity
    check, then `reset-password`) for forgotten passwords. Ask users to change
