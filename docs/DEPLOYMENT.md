@@ -21,19 +21,20 @@ password resets, backups and recovery) see [OPERATIONS.md](OPERATIONS.md).
 |---|---|---|---|
 | `db` | `postgres:17-alpine` | The school's database | Nothing (project network only) |
 | `backend` | built from `backend/` | Go API; runs migrations at start; non-root user 10001 | Nothing |
-| `web` | built from `frontend/` (production target) | nginx: the built app, security headers, `/api/` proxy, login rate limit | `127.0.0.1:${WEB_PORT}` only |
+| `web` | built from `frontend/` (production target) | nginx: the built app, security headers, `/api/` proxy, login rate limit | `127.0.0.1:${WEB_PORT}` only, plus a socket for Caddy |
 | `caddy` | `caddy:2-alpine` (profile `edge`) | HTTPS with automatic Let's Encrypt certificates and HSTS | ports 80 and 443 |
 
 Named volumes, prefixed with the project name: `postgres_data`,
-`uploads_data`, `backups_data`, `caddy_data`, `caddy_config`.
+`uploads_data`, `backups_data`, `caddy_data`, `caddy_config`, and
+`edge_socket` (the socket between Caddy and `web`; it holds no data).
 
 ## 2. Server requirements
 
 - A Linux server (Ubuntu 24.04 LTS or similar), 2 vCPU, 4 GB RAM and 40 GB
   disk are comfortable for one school of a few thousand students.
 - Docker Engine 24 or later with the Compose plugin (`docker compose version`).
-- A DNS name for the school (for example `school.example.edu.bd`) whose A or
-  AAAA record points at the server.
+- A DNS name for the school whose A (and, if the server has IPv6, AAAA)
+  record points at the server. See [School subdomains and DNS](#school-subdomains-and-dns).
 - Ports 80 and 443 open to the internet (Caddy needs port 80 to obtain the
   certificate). Close every other inbound port except SSH.
 - Git, to fetch a tagged release.
@@ -97,6 +98,17 @@ curl -sI https://school.example.edu.bd/ | grep -i -E 'strict-transport|content-s
 curl -sI http://school.example.edu.bd/ | head -1            # 308 redirect to HTTPS
 ```
 
+Before the school starts using the installation, you can also run the
+automated edge checks on the server. They start a few short-lived test
+containers, send failed sign-ins for made-up accounts and confirm that the
+login limit applies per visitor and cannot be dodged with forged headers
+(section 6.1). They touch no school data, but they use up the login limit
+for the server's own address for about a minute:
+
+```sh
+bash deploy/test-edge.sh deploy/greenvalley.env               # ends with "All edge checks passed"
+```
+
 Then continue with [OPERATIONS.md](OPERATIONS.md#1-first-administrator) to
 create the first administrator and configure the school.
 
@@ -111,6 +123,33 @@ fb-greenvalley ps
 ```
 
 The rest of the documentation writes `fb` for this alias.
+
+### School subdomains and DNS
+
+Each school gets its own host name, for example `greenvalley.flybirds.com`,
+and its own installation with `SCHOOL_DOMAIN=greenvalley.flybirds.com`.
+
+- **One record per school:** an A record (and AAAA for IPv6) for
+  `greenvalley.flybirds.com` pointing at the server that runs that school.
+- **Or a wildcard:** one `*.flybirds.com` A/AAAA record pointing at a server
+  that runs several schools. A wildcard matches any name, so a mistyped
+  subdomain also reaches the server. Caddy serves only the school domains it
+  is configured with: other names fail the TLS handshake, and plain-HTTP
+  requests for them only get a redirect to HTTPS, where they fail too.
+- Create the record **before** starting the stack and check it with
+  `dig +short greenvalley.flybirds.com`. Caddy requests the certificate on
+  the first start; while DNS does not yet point at the server the request
+  fails and Caddy retries with increasing delays.
+- Caddy obtains a separate certificate for each school name using the
+  HTTP-01 challenge, so port 80 must be reachable from the internet. No
+  wildcard certificate or DNS provider credentials are needed. Let's Encrypt
+  allows about 50 new certificates per registered domain per week, ample for
+  a pilot and gradual onboarding.
+- If the domain has a CAA record, it must allow `letsencrypt.org`.
+- HSTS is sent with `includeSubDomains` for the school's own host name. It
+  does not affect `flybirds.com` or other schools' names. Do not add
+  `flybirds.com` to the browser HSTS preload list unless every name under it
+  will always be served over HTTPS.
 
 ## 4. Several schools on one server
 
@@ -138,8 +177,15 @@ school-b.example.edu.bd {
 
 The proxy must use HTTPS: the backend sets `Secure` cookies
 (`AUTH_COOKIE_SECURE=true`), so sign-in does not work over plain HTTP.
-Login rate limiting is applied by each school's web container per client
-address; if your proxy hides the client address, all users share one limit.
+
+> **Login rate limit in this layout.** A shared proxy reaches each school
+> over the `WEB_PORT`, a TCP connection from the host. The web container
+> does not trust forwarded addresses on that port (section 6.1), so it
+> counts every visitor of that school as one client: 30 sign-in attempts per
+> minute for the whole school. That is safe against forged headers, but busy
+> mornings can see "Too many requests" at sign-in. Until the shared layout
+> passes the real client address (planned), run **one school per server
+> with the `edge` profile** for pilots.
 
 ## 6. Security settings in this stack
 
@@ -148,12 +194,47 @@ address; if your proxy hides the client address, all users share one limit.
 - Strict Content-Security-Policy, `X-Frame-Options: DENY`, `nosniff`,
   `Referrer-Policy`, `Permissions-Policy` (camera allowed only for QR
   attendance); nginx and Caddy hide their versions.
-- Login limited to 30 requests per minute per client address (burst 30),
-  plus account lockout in the API after repeated failures.
+- Login limited to 30 requests per minute per visitor address (burst 30),
+  plus account lockout in the API after repeated failures. See 6.1 for how
+  the visitor address is determined.
 - Uploads limited to 12 MiB at the web server (10 MiB per attachment in the
   API).
 - Backend container runs as an unprivileged user; refresh and CSRF tokens are
   stored only as hashes.
+
+### 6.1 Proxy trust and client addresses
+
+The login rate limit in the web container (nginx) needs the visitor's real
+address. With the `edge` profile:
+
+1. Caddy terminates HTTPS. It trusts no upstream proxies, so it **discards**
+   any `X-Forwarded-For` the visitor sends and sets it to the visitor's real
+   address.
+2. Caddy forwards to nginx through a Unix socket on the `edge_socket`
+   volume, which only the `caddy` and `web` containers mount (Caddy
+   read-only).
+3. nginx accepts the client address from `X-Forwarded-For` **only on that
+   socket** (`set_real_ip_from unix:`). Every TCP connection, whether on the
+   host's `127.0.0.1:${WEB_PORT}` or from another container to `web:80`, is
+   counted by its own connecting address, and forwarding headers on it are
+   ignored.
+
+Trust is therefore tied to the socket, not to an IP range, so another
+container on the project network cannot claim to be a proxy. Consequences:
+
+- Visitors are limited individually; one visitor (or attacker) using up the
+  limit does not block anyone else.
+- Forged `X-Forwarded-For`, `X-Real-IP` or `Forwarded` headers neither lift a
+  visitor's limit nor push it onto someone else's address.
+- The nginx access log records the real visitor address.
+- Many users behind one school network (NAT) share one public address and
+  so share one limit of 30 attempts per minute (burst 30).
+- The API itself does not use client addresses (account lockout is per
+  account), so it needs no proxy configuration.
+
+`deploy/test-edge.sh` verifies all of this on a running stack and runs in CI.
+If `web` is ever stopped uncleanly, a leftover socket file is removed when it
+starts again.
 
 ## 7. Upgrading
 
@@ -217,5 +298,8 @@ to `--env-file`, otherwise Git Bash rewrites `/app/...` and file paths:
 MSYS_NO_PATHCONV=1 docker compose --env-file 'C:\flybirds\deploy\qa.env' -f deploy/compose.prod.yaml exec backend /app/create-user -email you@example.com
 ```
 
-Use `SCHOOL_DOMAIN=localhost` for a local trial; Caddy then issues a locally
-trusted certificate that browsers will warn about.
+Use `SCHOOL_DOMAIN=localhost` for a local trial; Caddy then issues a
+certificate from its own local authority, which browsers warn about. Run
+`deploy/test-edge.sh` from Git Bash with a Windows-style path to the
+environment file. The browser tests in `e2e/` accept that certificate with
+`E2E_INSECURE_TLS=1` and `E2E_BASE_URL=https://localhost`.

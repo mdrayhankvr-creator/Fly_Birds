@@ -60,6 +60,9 @@ services:
     # reverse proxy) is the only public entry point.
     ports:
       - "127.0.0.1:${WEB_PORT:-8081}:80"
+    volumes:
+      # nginx creates the socket the TLS edge connects through; see caddy.
+      - edge_socket:/run/edge
     depends_on:
       backend:
         condition: service_healthy
@@ -76,6 +79,9 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Only Caddy and web mount this volume, so only Caddy can reach the
+      # socket on which web trusts the forwarded client address.
+      - edge_socket:/run/edge:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -87,3 +93,4 @@ volumes:
   backups_data:
   caddy_data:
   caddy_config:
+  edge_socket:
