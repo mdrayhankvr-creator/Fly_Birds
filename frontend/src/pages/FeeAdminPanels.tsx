@@ -2,9 +2,10 @@ import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { OnlinePaymentsPanel } from './OnlinePaymentsPanel'
 import { deleteFeeConcession, deleteLedgerEntry, getAccountingSummary, getFeeCategories, getFeeCollections, getFeeConcessions, getFeeDueReport, getFeePayments, getFeeReceipt, getFeeStructures, getLedgerEntries, ledgerCategories, saveFeeCategory, saveFeeConcession, saveFeeStructure, saveLedgerEntry, type FeeBucket, type FeeCategoryInput, type FeeOptions, type FeeReceipt, type FeeStructureInput, type FeeStudent, type LedgerEntryInput } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
-import { Notice, Pager, ReceiptView, StudentPicker, TableWrap, feeButton, feeCard, feeField, feeSecondary, monthStart, todayInDhaka, useFeeAction, useLocalName, useMoney, type FeeAccess } from './feeShared'
+import { Notice, Pager, ReceiptView, SimulatedLabel, StudentPicker, TableWrap, VoidLabel, feeButton, feeCard, feeField, feeSecondary, monthStart, todayInDhaka, useFeeAction, useLocalName, useMoney, type FeeAccess } from './feeShared'
 import { ui } from './attendanceUi'
 
 const blankCategory: FeeCategoryInput = { code: '', name_en: '', name_bn: '', frequency: 'monthly', is_active: true }
@@ -50,6 +51,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
 
   return <div className="space-y-5">
     <Notice error={action.error} message={action.message} />
+    {access.role === 'admin' && <OnlinePaymentsPanel />}
     <section className={feeCard}><h2 className={ui.sectionTitle}>{t('feeCategories')}</h2>
       {access.canManage && <form onSubmit={submitCategory} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <label className={ui.label}>{t('feeCode')}<input required pattern="[A-Za-z0-9_\-]{2,20}" maxLength={20} className={`${feeField} uppercase`} value={category.code} onChange={e => setCategory({ ...category, code: e.target.value.toUpperCase() })} /></label>
@@ -145,6 +147,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
       </div>
       {collections.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : collections.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrRange')}</p> : <>
         <p className="mt-4 text-lg">{t('feeCollected')}: <strong>{money(collections.data.total)}</strong> · {t('feeReceiptCount', { count: collections.data.count })}</p>
+        {collections.data.simulated_count > 0 && <p role="note" className="mt-2 flex flex-wrap items-center gap-2 text-sm text-rose-900"><SimulatedLabel />{t('feeSimulatedExcluded', { count: collections.data.simulated_count, amount: money(collections.data.simulated_total) })}</p>}
         <div className="mt-4 grid gap-6 md:grid-cols-2">
           <Breakdown title={t('feeByMethod')} buckets={collections.data.by_method} label={b => t(`feeMethod_${b.key}`)} />
           <Breakdown title={t('feeByCategory')} buckets={collections.data.by_category} label={b => name(b.name_en, b.name_bn)} />
@@ -173,7 +176,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
       <label className="mt-3 block max-w-sm text-sm font-semibold">{t('feeSearchReceipts')}<input className={feeField} value={paymentSearch} onChange={e => { setPaymentSearch(e.target.value); setPaymentPage(1) }} /></label>
       {payments.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : payments.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : payments.data.items.length === 0 ? <p className="mt-3 text-slate-600">{t('feeNoPayments')}</p> : <>
         <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeReceiptNo')}</th><th className="px-3 py-2.5">{t('feePaidOn')}</th><th className="px-3 py-2.5">{t('feeStudent')}</th><th className="px-3 py-2.5">{t('feeMethod')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
-          <tbody>{payments.data.items.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{name(p.student_name, p.student_name_bn)}<span className="block text-xs text-slate-600">{p.admission_no} · {p.class_name}</span></td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
+          <tbody>{payments.data.items.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}{p.simulated && <SimulatedLabel className="mt-1 block font-sans" />}{p.voided_at && <VoidLabel className="mt-1 block font-sans" />}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{name(p.student_name, p.student_name_bn)}<span className="block text-xs text-slate-600">{p.admission_no} · {p.class_name}</span></td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
             <td className="px-3 py-2.5"><button type="button" className={ui.link} onClick={() => void open(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody></TableWrap>
         <Pager page={paymentPage} total={payments.data.total} size={20} onPage={setPaymentPage} />
       </>}
@@ -233,7 +236,7 @@ export function LedgerPanel({ canManage }: { canManage: boolean }) {
       <label className="mt-3 block max-w-xs text-sm font-semibold">{t('ledgerType')}<select className={feeField} value={type} onChange={e => { setType(e.target.value); setPage(1) }}><option value="">{t('feeAll')}</option><option value="income">{t('ledgerIncome')}</option><option value="expense">{t('ledgerExpense')}</option></select></label>
       {entries.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : entries.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrRange')}</p> : entries.data.items.length === 0 ? <p className="mt-3 text-slate-600">{t('ledgerNoEntries')}</p> : <>
         <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('ledgerDate')}</th><th className="px-3 py-2.5">{t('ledgerType')}</th><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('ledgerDescription')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5">{t('ledgerBy')}</th>{canManage && <th className="px-3 py-2.5"><span className="sr-only">{t('feeActions')}</span></th>}</tr></thead>
-          <tbody>{entries.data.items.map(e => <tr key={e.id} className="border-b border-slate-100"><td className="whitespace-nowrap p-2">{e.entry_date}</td><td className="px-3 py-2.5">{t(e.entry_type === 'income' ? 'ledgerIncome' : 'ledgerExpense')}</td><td className="px-3 py-2.5">{categoryLabel(e.category)}</td><td className="px-3 py-2.5">{e.description}{e.reference && <span className="block text-xs text-slate-500">{e.reference}</span>}</td>
+          <tbody>{entries.data.items.map(e => <tr key={e.id} className="border-b border-slate-100"><td className="whitespace-nowrap p-2">{e.entry_date}</td><td className="px-3 py-2.5">{t(e.entry_type === 'income' ? 'ledgerIncome' : 'ledgerExpense')}</td><td className="px-3 py-2.5">{categoryLabel(e.category)}</td><td className="px-3 py-2.5">{e.description}{e.reference && <span className="block text-xs text-slate-500">{e.reference}</span>}{e.simulated && <SimulatedLabel className="mt-1 block" />}</td>
             <td className={`p-2 text-right font-semibold ${e.entry_type === 'expense' ? 'text-rose-700' : 'text-emerald-800'}`}>{e.entry_type === 'expense' ? '−' : '+'}{money(e.amount)}</td><td className="px-3 py-2.5">{e.created_by_name}</td>
             {canManage && <td className="px-3 py-2.5">{e.payment_id ? <span className="text-xs text-slate-500">{t('ledgerFromReceipt')}</span> : <button type="button" className="font-semibold text-rose-700 underline" onClick={async () => { if ((await confirmAction(t('ledgerConfirmDelete')))) void action.run(() => authorized(token => deleteLedgerEntry(token, e.id)), t('feeDeleted')) }}>{t('feeDelete')}</button>}</td>}</tr>)}</tbody></TableWrap>
         <Pager page={page} total={entries.data.total} size={20} onPage={setPage} />
