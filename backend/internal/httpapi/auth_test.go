@@ -52,6 +52,12 @@ func (r *handlerRepository) ActiveUserBySession(_ context.Context, id string, no
 	}
 	return r.user, nil
 }
+func (r *handlerRepository) FindActiveUser(context.Context, string) (auth.User, error) {
+	return auth.User{}, auth.ErrNotFound
+}
+func (r *handlerRepository) ChangePassword(context.Context, string, string, string, string, time.Time) (int64, error) {
+	return 0, auth.ErrInvalidCredentials
+}
 func (r *handlerRepository) CreateUser(context.Context, *auth.User) error {
 	return errors.New("unexpected create")
 }

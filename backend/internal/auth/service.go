@@ -6,6 +6,7 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -155,21 +156,64 @@ func (s *Service) Logout(ctx context.Context, refresh, csrf string) error {
 }
 
 func (s *Service) Authenticate(ctx context.Context, rawAccess string) (User, error) {
+	user, _, err := s.AuthenticateSession(ctx, rawAccess)
+	return user, err
+}
+
+// AuthenticateSession also returns the session the access token belongs to.
+func (s *Service) AuthenticateSession(ctx context.Context, rawAccess string) (User, string, error) {
 	userID, sessionID, err := s.tokens.Verify(rawAccess)
 	if err != nil {
-		return User{}, ErrInvalidToken
+		return User{}, "", ErrInvalidToken
 	}
 	user, err := s.repo.ActiveUserBySession(ctx, sessionID, s.now())
 	if errors.Is(err, ErrInvalidSession) {
-		return User{}, ErrInvalidToken
+		return User{}, "", ErrInvalidToken
 	}
 	if err != nil {
-		return User{}, err
+		return User{}, "", err
 	}
 	if user.ID != userID {
-		return User{}, ErrInvalidToken
+		return User{}, "", ErrInvalidToken
 	}
-	return user, nil
+	return user, sessionID, nil
+}
+
+// ChangePassword lets a signed-in user replace their own password. A wrong
+// current password counts toward the login lockout. On success every other
+// session is revoked and the current one stays signed in.
+func (s *Service) ChangePassword(ctx context.Context, userID, sessionID, current, next string) (int64, error) {
+	if !utf8.ValidString(next) || len(next) < 12 || len(next) > 72 {
+		return 0, ErrWeakPassword
+	}
+	if current == "" || len(current) > 72 {
+		return 0, ErrInvalidCredentials
+	}
+	user, err := s.repo.FindActiveUser(ctx, userID)
+	if errors.Is(err, ErrNotFound) {
+		return 0, ErrInvalidSession
+	}
+	if err != nil {
+		return 0, err
+	}
+	now := s.now()
+	if user.LockedUntil != nil && user.LockedUntil.After(now) {
+		return 0, ErrAccountLocked
+	}
+	if !VerifyPassword(user.PasswordHash, current) {
+		if err := s.repo.RecordLoginFailure(ctx, user.ID, now); err != nil {
+			return 0, err
+		}
+		return 0, ErrInvalidCredentials
+	}
+	if current == next {
+		return 0, ErrSamePassword
+	}
+	hash, err := HashPassword(next)
+	if err != nil {
+		return 0, err
+	}
+	return s.repo.ChangePassword(ctx, user.ID, sessionID, user.PasswordHash, hash, now)
 }
 
 func (s *Service) HasPermission(ctx context.Context, userID, permission string) (bool, error) {
