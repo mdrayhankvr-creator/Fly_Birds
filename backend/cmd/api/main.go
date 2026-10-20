@@ -109,7 +109,7 @@ func run(logger *slog.Logger) error {
 		studentAttendanceService = attendance.NewStudentService(attendance.NewStudentRepository(db))
 		routineService = routine.NewService(routine.NewRepository(db))
 		examService = exams.NewService(exams.NewRepository(db))
-		feeService = fees.NewService(fees.NewRepository(db), fees.MockGateway{})
+		feeService = fees.NewService(fees.NewRepository(db), fees.SimulationGateway{}, fees.ServiceOptions{SimulationAllowed: cfg.PaymentSimulationAllowed})
 		store, err := files.NewLocalStore(cfg.FileStorageDir)
 		if err != nil {
 			return fmt.Errorf("file storage: %w", err)

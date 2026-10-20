@@ -43,6 +43,9 @@ services:
       BACKUP_RETENTION: ${BACKUP_RETENTION:-14}
       BACKUP_INTERVAL: ${BACKUP_INTERVAL:-24h}
       NOTIFY_INTERVAL: ${NOTIFY_INTERVAL:-1m}
+      # Payment simulation (fake bKash/Nagad checkouts) only on disposable
+      # test installations; never true for a real school.
+      PAYMENT_SIMULATION_ALLOWED: ${PAYMENT_SIMULATION_ALLOWED:-false}
     volumes:
       - uploads_data:/app/uploads
       - backups_data:/app/backups

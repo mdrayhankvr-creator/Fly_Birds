@@ -11,6 +11,10 @@ var (
 	ErrForbidden   = errors.New("fee access denied")
 	ErrDeclined    = errors.New("mobile payment declined")
 	ErrExpired     = errors.New("mobile payment expired")
+	// ErrOnlineDisabled: online payment is not available in this school.
+	ErrOnlineDisabled = errors.New("online payment is not enabled")
+	// ErrSimulationNotAllowed: the deployment does not allow simulation.
+	ErrSimulationNotAllowed = errors.New("payment simulation is not allowed in this deployment")
 )
 
 type Category struct {
@@ -144,12 +148,16 @@ type PaymentRecord struct {
 	FeeIDs         []string
 }
 type Payment struct {
-	ID             string  `json:"id"`
-	ReceiptNo      string  `json:"receipt_no"`
-	StudentID      string  `json:"student_id"`
-	Amount         float64 `json:"amount"`
-	Method         string  `json:"method"`
-	Source         string  `json:"source"`
+	ID        string  `json:"id"`
+	ReceiptNo string  `json:"receipt_no"`
+	StudentID string  `json:"student_id"`
+	Amount    float64 `json:"amount"`
+	Method    string  `json:"method"`
+	Source    string  `json:"source"`
+	// Simulated payments moved no money; Voided ones no longer reduce dues.
+	Simulated      bool    `json:"simulated"`
+	VoidedAt       *string `json:"voided_at"`
+	VoidReason     string  `json:"void_reason"`
 	Reference      string  `json:"reference"`
 	PaidOn         string  `json:"paid_on"`
 	Note           string  `json:"note"`
@@ -200,6 +208,10 @@ type Totals struct {
 	Paid     float64 `json:"paid"`
 	Balance  float64 `json:"balance"`
 	Overdue  float64 `json:"overdue"`
+	// SimulatedUnreviewed is the part of Paid that came from simulated
+	// payments recorded before the payment-safety upgrade and not yet voided:
+	// no money was received for it.
+	SimulatedUnreviewed float64 `json:"simulated_unreviewed"`
 }
 type Statement struct {
 	Student  StudentRef `json:"student"`
@@ -228,10 +240,12 @@ type ConfirmInput struct {
 	OTP string `json:"otp"`
 }
 type Entry struct {
-	ID            string  `json:"id"`
-	EntryType     string  `json:"entry_type"`
-	Category      string  `json:"category"`
-	Amount        float64 `json:"amount"`
+	ID        string  `json:"id"`
+	EntryType string  `json:"entry_type"`
+	Category  string  `json:"category"`
+	Amount    float64 `json:"amount"`
+	// Simulated marks income posted by a simulated payment: not real money.
+	Simulated     bool    `json:"simulated"`
 	EntryDate     string  `json:"entry_date"`
 	Description   string  `json:"description"`
 	Reference     string  `json:"reference"`
@@ -265,14 +279,18 @@ type Summary struct {
 	Arrears           float64  `json:"arrears"`
 }
 type CollectionReport struct {
-	From       string   `json:"from"`
-	To         string   `json:"to"`
-	Total      float64  `json:"total"`
-	Count      int64    `json:"count"`
-	ByMethod   []Bucket `json:"by_method"`
-	ByClass    []Bucket `json:"by_class"`
-	ByCategory []Bucket `json:"by_category"`
-	ByDay      []Bucket `json:"by_day"`
+	From  string  `json:"from"`
+	To    string  `json:"to"`
+	Total float64 `json:"total"`
+	Count int64   `json:"count"`
+	// Simulated payments in the period, excluded from every figure above
+	// and below.
+	SimulatedTotal float64  `json:"simulated_total"`
+	SimulatedCount int64    `json:"simulated_count"`
+	ByMethod       []Bucket `json:"by_method"`
+	ByClass        []Bucket `json:"by_class"`
+	ByCategory     []Bucket `json:"by_category"`
+	ByDay          []Bucket `json:"by_day"`
 }
 type DueReportRow struct {
 	StudentID   string  `json:"student_id"`
@@ -328,13 +346,44 @@ type Query struct {
 	To          string
 	Search      string
 	OverdueOnly bool
-	Today       string
-	Page        int
-	PageSize    int
+	// Simulated filters payments: "true", "false" or "unreviewed".
+	Simulated string
+	Today     string
+	Page      int
+	PageSize  int
 }
 type Page[T any] struct {
 	Items    []T   `json:"items"`
 	Total    int64 `json:"total"`
 	Page     int   `json:"page"`
 	PageSize int   `json:"page_size"`
+}
+
+// OnlineStatus says whether online payment can be used and how.
+type OnlineStatus struct {
+	// Mode is "off" or "simulation". There is no live provider.
+	Mode string `json:"mode"`
+	// SimulationAllowed reports the deployment setting
+	// PAYMENT_SIMULATION_ALLOWED; only administrators see it as true.
+	SimulationAllowed bool   `json:"simulation_allowed"`
+	SimulationEnabled bool   `json:"simulation_enabled"`
+	UpdatedAt         string `json:"updated_at,omitempty"`
+}
+
+type OnlineSettingsInput struct {
+	SimulationEnabled bool `json:"simulation_enabled"`
+}
+
+// SimulationResult is what a confirmed simulation returns. It is not a
+// receipt: no payment was recorded and no balance changed.
+type SimulationResult struct {
+	Simulated bool    `json:"simulated"`
+	Intent    Intent  `json:"intent"`
+	Balance   float64 `json:"balance"`
+	Message   string  `json:"message"`
+	Replayed  bool    `json:"replayed"`
+}
+
+type VoidInput struct {
+	Reason string `json:"reason"`
 }

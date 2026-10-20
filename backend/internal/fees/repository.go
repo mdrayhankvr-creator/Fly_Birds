@@ -628,7 +628,7 @@ func recordPayment(tx *gorm.DB, actor string, rec PaymentRecord) (string, bool, 
 	return id, false, nil
 }
 
-const paymentSelect = `p.id,p.receipt_no,p.student_id,p.amount,p.method,p.source,p.reference,to_char(p.paid_on,'YYYY-MM-DD') AS paid_on,p.note,
+const paymentSelect = `p.id,p.receipt_no,p.student_id,p.amount,p.method,p.source,p.simulated,to_char(p.voided_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS voided_at,p.void_reason,p.reference,to_char(p.paid_on,'YYYY-MM-DD') AS paid_on,p.note,
 CASE WHEN p.source='online' THEN '' ELSE COALESCE(NULLIF(u.display_name,''),u.email) END AS received_by_name,
 to_char(p.created_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS created_at,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,ac.name AS class_name,sec.name AS section_name`
 
@@ -643,6 +643,14 @@ func (r *GormRepository) ListPayments(ctx context.Context, q Query) (Page[Paymen
 	}
 	if q.Method != "" {
 		base = base.Where("p.method=?", q.Method)
+	}
+	switch q.Simulated {
+	case "true":
+		base = base.Where("p.simulated")
+	case "false":
+		base = base.Where("NOT p.simulated")
+	case "unreviewed":
+		base = base.Where("p.simulated AND p.voided_at IS NULL")
 	}
 	if q.From != "" {
 		base = base.Where("p.paid_on>=?::date", q.From)
@@ -732,7 +740,8 @@ func (r *GormRepository) Statement(ctx context.Context, studentID, today string)
 		}
 	}
 	out.Totals = Totals{Charged: float64(charged) / 100, Discount: float64(discount) / 100, Paid: float64(paid) / 100, Balance: float64(balance) / 100, Overdue: float64(overdue) / 100}
-	return out, nil
+	err := db.Raw("SELECT COALESCE(sum(amount),0) FROM fee_payments WHERE student_id=? AND simulated AND voided_at IS NULL", studentID).Row().Scan(&out.Totals.SimulatedUnreviewed)
+	return out, err
 }
 
 const intentSelect = "id,provider,provider_ref,student_id,payer_user_id,amount,status,to_char(expires_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI:SS') AS expires_at,(status='pending' AND expires_at < now()) AS expired,payment_id"
@@ -772,40 +781,109 @@ func (r *GormRepository) FailIntent(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Exec("UPDATE online_payment_intents SET status='failed',updated_at=now() WHERE id=? AND status='pending'", id).Error
 }
 
-// CompleteIntent turns an approved checkout into a receipt. The intent id is
-// the payment idempotency key, so a repeated confirmation replays the receipt.
-func (r *GormRepository) CompleteIntent(ctx context.Context, actor, id, today string) (string, bool, error) {
-	var paymentID string
-	var replay bool
+// SimulateIntent closes an approved simulated checkout. It records no
+// payment, receipt or ledger income and changes no balance; a repeated
+// confirmation returns the same simulated intent.
+func (r *GormRepository) SimulateIntent(ctx context.Context, actor, id string) (Intent, bool, error) {
+	var intent Intent
+	replay := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var intent Intent
 		if err := tx.Table("online_payment_intents").Select(intentSelect).Where("id=? AND payer_user_id=?", id, actor).Clauses(clause.Locking{Strength: "UPDATE"}).Take(&intent).Error; err != nil {
 			return dbErr(err)
 		}
 		switch {
-		case intent.Status == "completed" && intent.PaymentID != nil:
-			paymentID, replay = *intent.PaymentID, true
+		case intent.Status == "simulated":
+			replay = true
 			return nil
-		case intent.Status == "failed":
+		case intent.Status != "pending":
 			return ErrConflict
 		case intent.Expired:
 			return ErrExpired
 		}
-		cents, _ := ToCents(intent.Amount)
-		var err error
-		paymentID, _, err = recordPayment(tx, actor, PaymentRecord{StudentID: intent.StudentID, AmountCents: cents, Method: intent.Provider, Source: "online", Reference: intent.ProviderRef, PaidOn: today, IdempotencyKey: intent.ID})
-		if err != nil {
+		if err := tx.Exec("UPDATE online_payment_intents SET status='simulated',updated_at=now() WHERE id=?", id).Error; err != nil {
 			return err
 		}
-		return tx.Exec("UPDATE online_payment_intents SET status='completed',payment_id=?,updated_at=now() WHERE id=?", paymentID, id).Error
+		intent.Status = "simulated"
+		return audit.Record(tx, &actor, "fee.online_payment_simulated", "student", intent.StudentID, map[string]any{"intent_id": id, "provider": intent.Provider, "amount": intent.Amount, "money_moved": false})
 	})
-	return paymentID, replay, dbErr(err)
+	return intent, replay, dbErr(err)
 }
 
-const entrySelect = "le.id,le.entry_type,le.category,le.amount,to_char(le.entry_date,'YYYY-MM-DD') AS entry_date,le.description,le.reference,le.payment_id,COALESCE(NULLIF(u.display_name,''),u.email) AS created_by_name"
+// PaymentSettings reads the administrator's simulation switch.
+func (r *GormRepository) PaymentSettings(ctx context.Context) (bool, string, error) {
+	var enabled bool
+	var updated string
+	err := r.db.WithContext(ctx).Raw("SELECT simulation_enabled, to_char(updated_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') FROM payment_settings WHERE id=1").Row().Scan(&enabled, &updated)
+	return enabled, updated, err
+}
+
+// SavePaymentSettings records the administrator's simulation switch.
+func (r *GormRepository) SavePaymentSettings(ctx context.Context, actor string, enabled bool) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("UPDATE payment_settings SET simulation_enabled=?,updated_by=?,updated_at=now() WHERE id=1", enabled, actor).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, &actor, "fee.payment_simulation_changed", "school", "payments", map[string]any{"simulation_enabled": enabled})
+	})
+}
+
+// VoidSimulatedPayment reverses a simulated payment recorded before the
+// payment-safety upgrade: the dues it reduced are owed again. The payment,
+// its allocations and its ledger line stay in the history, marked void.
+func (r *GormRepository) VoidSimulatedPayment(ctx context.Context, actor, id, reason string) (Payment, error) {
+	var out Payment
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var p struct {
+			StudentID string
+			Simulated bool
+			Voided    bool
+			Amount    float64
+			ReceiptNo string
+		}
+		if err := tx.Raw("SELECT student_id,simulated,voided_at IS NOT NULL AS voided,amount,receipt_no FROM fee_payments WHERE id=? FOR UPDATE", id).Row().Scan(&p.StudentID, &p.Simulated, &p.Voided, &p.Amount, &p.ReceiptNo); err != nil {
+			return dbErr(err)
+		}
+		if !p.Simulated {
+			return ErrForbidden
+		}
+		if p.Voided {
+			return ErrConflict
+		}
+		if err := lockStudent(tx, p.StudentID); err != nil {
+			return err
+		}
+		var allocations []struct {
+			StudentFeeID string
+			Amount       float64
+		}
+		if err := tx.Raw("SELECT student_fee_id,amount FROM fee_payment_allocations WHERE payment_id=? ORDER BY student_fee_id", id).Scan(&allocations).Error; err != nil {
+			return err
+		}
+		for _, a := range allocations {
+			if err := tx.Exec("UPDATE student_fees SET paid_amount=paid_amount-?::numeric,updated_at=now() WHERE id=?", Decimal(mustCents(a.Amount)), a.StudentFeeID).Error; err != nil {
+				return dbErr(err)
+			}
+		}
+		if err := tx.Exec("UPDATE fee_payments SET voided_at=now(),voided_by=?,void_reason=? WHERE id=?", actor, reason, id).Error; err != nil {
+			return dbErr(err)
+		}
+		if err := audit.Record(tx, &actor, "fee.simulated_payment_voided", "fee_payment", id, map[string]any{"student_id": p.StudentID, "receipt_no": p.ReceiptNo, "amount": p.Amount, "dues_restored": len(allocations), "reason": reason}); err != nil {
+			return err
+		}
+		return paymentBase(tx).Select(paymentSelect).Where("p.id=?", id).Take(&out).Error
+	})
+	return out, dbErr(err)
+}
+
+func mustCents(v float64) int64 {
+	c, _ := ToCents(v)
+	return c
+}
+
+const entrySelect = "le.id,le.entry_type,le.category,le.amount,COALESCE(fp.simulated,false) AS simulated,to_char(le.entry_date,'YYYY-MM-DD') AS entry_date,le.description,le.reference,le.payment_id,COALESCE(NULLIF(u.display_name,''),u.email) AS created_by_name"
 
 func entryBase(db *gorm.DB) *gorm.DB {
-	return db.Table("ledger_entries le").Joins("JOIN users u ON u.id=le.created_by")
+	return db.Table("ledger_entries le").Joins("JOIN users u ON u.id=le.created_by").Joins("LEFT JOIN fee_payments fp ON fp.id=le.payment_id")
 }
 
 func (r *GormRepository) ListEntries(ctx context.Context, q Query) (Page[Entry], error) {
@@ -872,7 +950,8 @@ func (r *GormRepository) Summary(ctx context.Context, from, to, today string) (S
 		EntryType string
 		Bucket
 	}
-	if err := db.Table("ledger_entries").Select("entry_type,category AS key,sum(amount) AS total,count(*) AS count").Where("entry_date BETWEEN ?::date AND ?::date", from, to).Group("entry_type,category").Order("entry_type,total DESC").Find(&rows).Error; err != nil {
+	if err := db.Table("ledger_entries").Select("entry_type,category AS key,sum(amount) AS total,count(*) AS count").Where("entry_date BETWEEN ?::date AND ?::date", from, to).
+		Where("NOT EXISTS (SELECT 1 FROM fee_payments sp WHERE sp.id=ledger_entries.payment_id AND sp.simulated)").Group("entry_type,category").Order("entry_type,total DESC").Find(&rows).Error; err != nil {
 		return out, err
 	}
 	var income, expense int64
@@ -894,9 +973,15 @@ func (r *GormRepository) Summary(ctx context.Context, from, to, today string) (S
 func (r *GormRepository) Collections(ctx context.Context, q Query) (CollectionReport, error) {
 	db := r.db.WithContext(ctx)
 	out := CollectionReport{From: q.From, To: q.To, ByMethod: []Bucket{}, ByClass: []Bucket{}, ByCategory: []Bucket{}, ByDay: []Bucket{}}
+	includeSimulated := false
 	base := func() *gorm.DB {
 		b := db.Table("fee_payment_allocations a").Joins("JOIN fee_payments p ON p.id=a.payment_id").Joins("JOIN student_fees sf ON sf.id=a.student_fee_id").Joins("JOIN fee_structures fs ON fs.id=sf.structure_id").Joins("JOIN fee_categories c ON c.id=fs.category_id").Joins("JOIN academic_classes ac ON ac.id=sf.class_id").
 			Where("p.paid_on BETWEEN ?::date AND ?::date", q.From, q.To)
+		if !includeSimulated {
+			b = b.Where("NOT p.simulated")
+		} else {
+			b = b.Where("p.simulated")
+		}
 		if q.SessionID != "" {
 			b = b.Where("sf.session_id=?", q.SessionID)
 		}
@@ -911,6 +996,11 @@ func (r *GormRepository) Collections(ctx context.Context, q Query) (CollectionRe
 	if err := base().Select("COALESCE(sum(a.amount),0) AS total, count(DISTINCT p.id) AS count").Row().Scan(&out.Total, &out.Count); err != nil {
 		return out, err
 	}
+	includeSimulated = true
+	if err := base().Select("COALESCE(sum(a.amount),0) AS total, count(DISTINCT p.id) AS count").Row().Scan(&out.SimulatedTotal, &out.SimulatedCount); err != nil {
+		return out, err
+	}
+	includeSimulated = false
 	groups := []struct {
 		target *[]Bucket
 		sel    string

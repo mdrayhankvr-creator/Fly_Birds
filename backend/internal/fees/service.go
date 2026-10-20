@@ -49,7 +49,10 @@ type Repository interface {
 	CreateIntent(context.Context, string, string, string, string, int64, time.Duration) (Intent, error)
 	Intent(context.Context, string, string) (Intent, error)
 	FailIntent(context.Context, string) error
-	CompleteIntent(context.Context, string, string, string) (string, bool, error)
+	SimulateIntent(context.Context, string, string) (Intent, bool, error)
+	PaymentSettings(context.Context) (bool, string, error)
+	SavePaymentSettings(context.Context, string, bool) error
+	VoidSimulatedPayment(context.Context, string, string, string) (Payment, error)
 	ListEntries(context.Context, Query) (Page[Entry], error)
 	SaveEntry(context.Context, string, EntryInput, int64) (Entry, error)
 	DeleteEntry(context.Context, string, string) error
@@ -62,13 +65,28 @@ type Service struct {
 	repo    Repository
 	gateway Gateway
 	now     func() time.Time
+	// simulationAllowed is the deployment's PAYMENT_SIMULATION_ALLOWED. Without
+	// it no online payment is possible, whatever the administrator chooses.
+	simulationAllowed bool
 }
 
-func NewService(repo Repository, gateway Gateway) *Service {
+// ServiceOptions are deployment settings for the fee service.
+type ServiceOptions struct {
+	SimulationAllowed bool
+}
+
+// NewService builds the fee service. Online payment is off unless the
+// deployment allows simulation and an administrator enables it; a nil
+// gateway uses the simulator, the only gateway that exists.
+func NewService(repo Repository, gateway Gateway, opts ...ServiceOptions) *Service {
 	if gateway == nil {
-		gateway = MockGateway{}
+		gateway = SimulationGateway{}
 	}
-	return &Service{repo: repo, gateway: gateway, now: time.Now}
+	s := &Service{repo: repo, gateway: gateway, now: time.Now}
+	for _, o := range opts {
+		s.simulationAllowed = o.SimulationAllowed
+	}
+	return s
 }
 
 func (s *Service) today() string { return s.now().In(Dhaka).Format(time.DateOnly) }
@@ -98,6 +116,11 @@ func (s *Service) validQuery(q *Query) bool {
 		(q.Period == "" || periodFormat.MatchString(q.Period)) && (q.From == "" || validDate(q.From)) && (q.To == "" || validDate(q.To))
 	switch q.Status {
 	case "", "unpaid", "partial", "paid", "waived", "overdue", "outstanding":
+	default:
+		return false
+	}
+	switch q.Simulated {
+	case "", "true", "false", "unreviewed":
 	default:
 		return false
 	}
@@ -333,12 +356,61 @@ func (s *Service) Statement(ctx context.Context, scope, actor, studentID string)
 	return s.repo.Statement(ctx, id, s.today())
 }
 
-// StartOnlinePayment opens a mock bKash or Nagad checkout for the payer's own
-// or linked child's outstanding dues.
+// OnlineStatus reports whether online payment can be used. The mode is
+// "simulation" only when the deployment allows it and an administrator has
+// switched it on; otherwise "off". The deployment setting is shown to
+// administrators only.
+func (s *Service) OnlineStatus(ctx context.Context, administrator bool) (OnlineStatus, error) {
+	enabled, updated, err := s.repo.PaymentSettings(ctx)
+	if err != nil {
+		return OnlineStatus{}, err
+	}
+	out := OnlineStatus{Mode: "off"}
+	if s.simulationAllowed && enabled {
+		out.Mode = "simulation"
+	}
+	if administrator {
+		out.SimulationAllowed, out.SimulationEnabled, out.UpdatedAt = s.simulationAllowed, enabled, updated
+	}
+	return out, nil
+}
+
+func (s *Service) simulating(ctx context.Context) error {
+	status, err := s.OnlineStatus(ctx, false)
+	if err != nil {
+		return err
+	}
+	if status.Mode != "simulation" {
+		return ErrOnlineDisabled
+	}
+	return nil
+}
+
+// SaveOnlineSettings is the administrator's switch. Turning simulation on is
+// refused unless the deployment allows it; turning it off always works.
+func (s *Service) SaveOnlineSettings(ctx context.Context, actor string, in OnlineSettingsInput) (OnlineStatus, error) {
+	if !uuid.MatchString(actor) {
+		return OnlineStatus{}, ErrInvalid
+	}
+	if in.SimulationEnabled && !s.simulationAllowed {
+		return OnlineStatus{}, ErrSimulationNotAllowed
+	}
+	if err := s.repo.SavePaymentSettings(ctx, actor, in.SimulationEnabled); err != nil {
+		return OnlineStatus{}, err
+	}
+	return s.OnlineStatus(ctx, true)
+}
+
+// StartOnlinePayment opens a simulated bKash or Nagad checkout for the
+// payer's own or linked child's outstanding dues. It is refused unless
+// simulation is enabled; there is no live provider.
 func (s *Service) StartOnlinePayment(ctx context.Context, scope, actor string, in IntentInput) (Intent, error) {
 	cents, ok := ToCents(in.Amount)
 	if !uuid.MatchString(actor) || !optionalID(in.StudentID) || !ok || cents <= 0 || (in.Provider != "bkash" && in.Provider != "nagad") || (scope != "student" && scope != "guardian") {
 		return Intent{}, ErrInvalid
+	}
+	if err := s.simulating(ctx); err != nil {
+		return Intent{}, err
 	}
 	studentID, err := s.repo.ResolveStudent(ctx, scope, actor, in.StudentID)
 	if err != nil {
@@ -351,33 +423,51 @@ func (s *Service) StartOnlinePayment(ctx context.Context, scope, actor string, i
 	return s.repo.CreateIntent(ctx, actor, studentID, in.Provider, reference, cents, intentLifetime)
 }
 
-// ConfirmOnlinePayment verifies the checkout with the gateway and, on
-// approval, records the payment exactly once.
-func (s *Service) ConfirmOnlinePayment(ctx context.Context, actor, intentID string, in ConfirmInput) (Receipt, error) {
+// ConfirmOnlinePayment checks a simulated checkout's code. Success closes the
+// checkout as a simulation: no payment, receipt or ledger income is recorded
+// and no balance changes. It is refused whenever simulation is not enabled,
+// including for checkouts started before it was switched off.
+func (s *Service) ConfirmOnlinePayment(ctx context.Context, actor, intentID string, in ConfirmInput) (SimulationResult, error) {
 	if !uuid.MatchString(actor) || !uuid.MatchString(intentID) || len(in.OTP) > 12 {
-		return Receipt{}, ErrInvalid
+		return SimulationResult{}, ErrInvalid
+	}
+	if err := s.simulating(ctx); err != nil {
+		return SimulationResult{}, err
 	}
 	intent, err := s.repo.Intent(ctx, actor, intentID)
 	if err != nil {
-		return Receipt{}, err
+		return SimulationResult{}, err
 	}
 	if intent.Status == "pending" && !intent.Expired {
 		if err := s.gateway.Verify(ctx, intent.Provider, intent.ProviderRef, in.OTP); err != nil {
 			if errors.Is(err, ErrDeclined) {
 				if failErr := s.repo.FailIntent(ctx, intentID); failErr != nil {
-					return Receipt{}, failErr
+					return SimulationResult{}, failErr
 				}
 			}
-			return Receipt{}, err
+			return SimulationResult{}, err
 		}
 	}
-	id, replay, err := s.repo.CompleteIntent(ctx, actor, intentID, s.today())
+	closed, replay, err := s.repo.SimulateIntent(ctx, actor, intentID)
 	if err != nil {
-		return Receipt{}, err
+		return SimulationResult{}, err
 	}
-	receipt, err := s.repo.Receipt(ctx, id, intent.StudentID)
-	receipt.Replayed = replay
-	return receipt, err
+	statement, err := s.repo.Statement(ctx, closed.StudentID, s.today())
+	if err != nil {
+		return SimulationResult{}, err
+	}
+	return SimulationResult{Simulated: true, Intent: closed, Balance: statement.Totals.Balance, Replayed: replay,
+		Message: "SIMULATED — NO MONEY TRANSFERRED. No payment was recorded and the balance is unchanged."}, nil
+}
+
+// VoidSimulatedPayment is the administrator's explicit, audited correction
+// for a simulated payment recorded before the payment-safety upgrade.
+func (s *Service) VoidSimulatedPayment(ctx context.Context, actor, id string, in VoidInput) (Payment, error) {
+	reason, ok := text(in.Reason, 240, true)
+	if !uuid.MatchString(actor) || !uuid.MatchString(id) || !ok {
+		return Payment{}, ErrInvalid
+	}
+	return s.repo.VoidSimulatedPayment(ctx, actor, id, reason)
 }
 
 func (s *Service) ListEntries(ctx context.Context, q Query) (Page[Entry], error) {

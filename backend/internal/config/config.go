@@ -24,6 +24,10 @@ type Config struct {
 	BackupRetention int
 	// BackupInterval schedules automatic backups (BACKUP_INTERVAL); 0 disables.
 	BackupInterval time.Duration
+	// PaymentSimulationAllowed lets an administrator switch on simulated
+	// bKash/Nagad payments (PAYMENT_SIMULATION_ALLOWED). Only for disposable
+	// test installations; off by default.
+	PaymentSimulationAllowed bool
 }
 
 func Load() (Config, error) {
@@ -87,6 +91,14 @@ func Load() (Config, error) {
 		}
 		backupInterval = parsed
 	}
+	simulation := false
+	if raw := os.Getenv("PAYMENT_SIMULATION_ALLOWED"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("PAYMENT_SIMULATION_ALLOWED must be true or false")
+		}
+		simulation = parsed
+	}
 	return Config{
 		Port:             port,
 		DatabaseURL:      databaseURL,
@@ -98,5 +110,7 @@ func Load() (Config, error) {
 		BackupDir:        backupDir,
 		BackupRetention:  retention,
 		BackupInterval:   backupInterval,
+
+		PaymentSimulationAllowed: simulation,
 	}, nil
 }
