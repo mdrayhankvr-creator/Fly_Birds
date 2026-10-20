@@ -58,6 +58,25 @@ All Mermaid diagrams were rendered with mermaid-cli 11.12.0 without errors, and 
 - **Simulations:** bKash and Nagad payment and SMS remain mocks; there is no self-service password reset or in-app password change.
 - **Not done:** load testing, a full screen-reader audit and real-device testing.
 
+## Current Status — In-App Password Change and Session Security (2026-10-20)
+
+Post-release work on `feature/account-password-security`, outside the brief's 83 criteria, so completion stays at **83/83**. It closes the final report's "no in-app password change" limitation and the audit's open refresh-token reuse finding.
+
+| Area | Implementation |
+|---|---|
+| Password change | `POST /auth/password` with `auth:password_change_self` (granted to all six roles, editable per role). Requires the current password, applies the existing 12–72 UTF-8 byte rule and bcrypt cost, rejects an unchanged password, and counts wrong attempts toward the login lockout. The hash is replaced only if it still matches the verified one. |
+| Sessions | Success revokes every other session of the user in the same transaction; the current session stays signed in. Other users are unaffected. |
+| Refresh reuse | Migration 1301 adds `auth_refresh_history`. Replaying a rotated refresh token revokes its session, clears the cookies and audits `auth.refresh_reuse_detected`. A replay within 10 seconds of the rotation (two tabs refreshing together) is only refused. |
+| Audit | `user.password_changed` records the source and the number of sessions revoked; no passwords, hashes or tokens. |
+| Frontend | Account page security card: Bangla/English form with explicit labels, described-by hints and errors, UTF-8 length check, and a pluralised result. Shown only with the permission. |
+
+**Verification.** On a disposable PostgreSQL database:
+- `go vet` and the full Go suite passed, including unit tests for the rules and lockout, a PostgreSQL test of both sides of the reuse grace window, and an HTTP test covering every outcome. That HTTP test confirms that other sessions lose access, unrelated users keep theirs, the permission is enforced, and audit events contain no passwords or tokens.
+- OpenAPI completeness, `check:i18n`, TypeScript and the production build passed.
+- A real Edge browser test against the branch passed 18/18. It covered English at 1280 px and Bangla at 390 px, the other device signed out, the old password refused, keyboard order, and no axe violations in the form card.
+
+**Not verified / limitations.** Forgotten-password recovery still needs the operator. axe reports an unnamed user-menu button and logo link in the app shell at phone widths on every page; they pre-date this work and are left for a UI follow-up.
+
 ## Current Status — M12 UI and Product Polish (2026-10-19)
 
 M12 is a frontend redesign plus a demo seed. It kept every API contract and the reliable business logic; the only backend additions are the demo seed and its record table.
