@@ -19,6 +19,7 @@ The [project brief](PROJECT_BRIEF.md) is the source of truth for each milestone'
 | M12 | UI and product polish | 5/5 locally verified and merged into main |
 | M13 | Final release | 7/7 locally verified and merged into main (PR #19) |
 | M14 | School onboarding: local provisioning (`school-provision`) | Merged into main (PR #24) |
-| Payment safety | Online payment off by default; administrator-controlled simulation for test installations only; legacy simulated payments labelled, excluded and voidable | Locally verified on feature/payment-safety; push, CI and merge pending |
+| Payment safety | Online payment off by default; administrator-controlled simulation for test installations only; legacy simulated payments labelled, excluded and voidable | Merged into main (PR #25) |
+| E1 | Examination system architecture and UX design (documents only, `docs/exams/`) | Complete locally on feature/e1-exam-architecture-ux; review pending. Recommended next: E2 exact result engine |
 
 The original seven-day M1–M13 target is a planning target. Testing, security, acceptance criteria, and milestone approval take priority. Future features outside M0–M13 are listed in the README and will not be implemented during these milestones.
