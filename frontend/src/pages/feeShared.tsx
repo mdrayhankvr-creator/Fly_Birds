@@ -52,7 +52,21 @@ export function monthStart(): string {
 
 const errorKeys: Record<string, string> = {
   overpayment: 'feeErrOverpayment', duplicate_payment: 'feeErrDuplicate', fee_conflict: 'feeErrConflict', payment_declined: 'feeErrDeclined',
-  payment_expired: 'feeErrExpired', forbidden: 'feeErrForbidden', not_found: 'feeErrNotFound', invalid_request: 'feeErrInvalid', module_disabled: 'feeErrModule',
+  payment_expired: 'feeErrExpired', online_payments_disabled: 'feeErrOnlineDisabled', simulation_not_allowed: 'feeErrSimulationNotAllowed', forbidden: 'feeErrForbidden', not_found: 'feeErrNotFound', invalid_request: 'feeErrInvalid', module_disabled: 'feeErrModule',
+}
+
+// A caller may put a label on its own line with "block"; otherwise it flows inline.
+const display = (className: string) => /(^|\s)block(\s|$)/.test(className) ? '' : 'inline-block'
+
+// SimulatedLabel marks anything produced by payment simulation: no money moved.
+export function SimulatedLabel({ className = '' }: { className?: string }) {
+  const { t } = useTranslation()
+  return <span className={`${display(className)} w-fit rounded-md bg-rose-700 px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide text-white ${className}`}>{t('feeSimulatedLabel')}</span>
+}
+
+export function VoidLabel({ className = '' }: { className?: string }) {
+  const { t } = useTranslation()
+  return <span className={`${display(className)} w-fit rounded-md bg-slate-800 px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide text-white ${className}`}>{t('feeVoidLabel')}</span>
 }
 
 export function useFeeError() {
@@ -109,12 +123,15 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
   const name = useLocalName()
   const p = receipt.payment
   const school = name(receipt.school_name_en, receipt.school_name_bn)
-  return <article className="fee-receipt rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8" lang={i18n.language}>
+  return <article className="fee-receipt relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8" lang={i18n.language}>
+    {p.simulated && <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex select-none items-center justify-center"><span className="-rotate-12 text-center text-4xl font-black uppercase text-rose-700/15 sm:text-6xl">{t('feeSimulatedLabel')}</span></div>}
     <header className="flex flex-wrap items-center gap-4 border-b pb-4">
       {receipt.logo_url && <img src={receipt.logo_url} alt="" className="h-14 w-14 object-contain" />}
-      <div className="min-w-0 flex-1"><p className={ui.sectionTitle}>{school}</p>{(receipt.address || receipt.phone) && <p className="text-sm text-slate-600">{[receipt.address, receipt.phone].filter(Boolean).join(' · ')}</p>}<h2 className="mt-1 text-lg font-semibold">{t('feeReceiptTitle')}</h2></div>
+      <div className="min-w-0 flex-1"><p className={ui.sectionTitle}>{school}</p>{(receipt.address || receipt.phone) && <p className="text-sm text-slate-600">{[receipt.address, receipt.phone].filter(Boolean).join(' · ')}</p>}<h2 className="mt-1 text-lg font-semibold">{t(p.simulated ? 'feeSimulationRecord' : 'feeReceiptTitle')}</h2></div>
       <div className="text-right text-sm"><p className="font-mono text-base font-bold">{p.receipt_no}</p><p>{t('feePaidOn')}: {p.paid_on}</p></div>
     </header>
+    {p.simulated && <div role="alert" className="mt-4 rounded-xl border-2 border-rose-700 bg-rose-50 p-3 text-rose-900"><p className="text-base font-extrabold uppercase tracking-wide">{t('feeSimulatedLabel')}</p><p className="mt-1 text-sm">{t('feeSimulatedReceiptHint')}</p></div>}
+    {p.voided_at && <div role="note" className="mt-3 rounded-xl border-2 border-slate-800 bg-slate-50 p-3 text-slate-900"><VoidLabel /><p className="mt-1 text-sm">{t('feeVoidedOn', { date: p.voided_at, reason: p.void_reason })}</p></div>}
     {receipt.replayed && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-900 print:hidden">{t('feeReplayed')}</p>}
     <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
       <div><dt className="text-slate-500">{t('feeStudent')}</dt><dd className="font-semibold">{name(p.student_name, p.student_name_bn)} · {p.admission_no}</dd></div>
@@ -124,7 +141,7 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
     </dl>
     <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
       <tbody>{receipt.allocations.map(a => <tr key={a.student_fee_id} className="border-b border-slate-100"><td className="px-3 py-2.5">{name(a.category_name_en, a.category_name_bn)}</td><td className="px-3 py-2.5">{month(a.period)}</td><td className="px-3 py-2.5">{a.due_date}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(a.amount)}</td></tr>)}</tbody>
-      <tfoot><tr className="font-bold"><td className="px-3 py-2.5" colSpan={3}>{t('feeTotalPaid')}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td></tr></tfoot>
+      <tfoot><tr className="font-bold"><td className="px-3 py-2.5" colSpan={3}>{t(p.simulated ? 'feeSimulatedAmount' : 'feeTotalPaid')}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td></tr></tfoot>
     </TableWrap>
     <div className="mt-4 flex flex-wrap justify-between gap-2 text-sm"><p>{t('feeBalanceAfter')}: <strong>{money(receipt.balance_after)}</strong></p>{p.received_by_name && <p>{t('feeReceivedBy')}: {p.received_by_name}</p>}</div>
     {p.note && <p className="mt-2 text-sm text-slate-600">{p.note}</p>}
@@ -159,7 +176,7 @@ export function PaymentsList({ payments, onOpen }: { payments: FeeStatement['pay
   const money = useMoney()
   if (payments.length === 0) return <p className="mt-3 text-slate-600">{t('feeNoPayments')}</p>
   return <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeReceiptNo')}</th><th className="px-3 py-2.5">{t('feePaidOn')}</th><th className="px-3 py-2.5">{t('feeMethod')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 print:hidden"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
-    <tbody>{payments.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
+    <tbody>{payments.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}{p.simulated && <SimulatedLabel className="mt-1 block font-sans" />}{p.voided_at && <VoidLabel className="mt-1 block font-sans" />}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
       <td className="px-3 py-2.5 print:hidden"><button type="button" className={ui.link} onClick={() => onOpen(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody>
   </TableWrap>
 }

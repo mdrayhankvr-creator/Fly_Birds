@@ -16,12 +16,51 @@ interactive terminal: run them over SSH, not from a script.
 | Feature | Status |
 |---|---|
 | Accounts, attendance, exams, results, fees records, receipts, ledger, notices, diary, in-app notifications, analytics, backups | **Live**: real records in the school's database |
-| Online bKash and Nagad payment | **Simulated** by a mock provider. No money moves. A real payment gateway contract and integration are needed before parents can pay online. |
+| Online bKash and Nagad payment | **Off.** There is no live bKash or Nagad integration. A disposable test installation can switch on a simulation that moves no money and records nothing (below). A real payment gateway contract and integration are needed before parents can pay online. |
+| bKash and Nagad payments recorded at the counter | **Live**: the accountant records a payment after checking it, as for cash or bank. |
 | SMS notifications | **Simulated** by a mock provider. Messages are queued and marked sent but never reach a phone. In-app notifications are real. |
 
-Until a real gateway exists, switch off online payment by removing the
-`fees:pay_online` permission from the Student and Guardian roles in
-**Admin → Permissions**, and tell staff that SMS is not delivered.
+Tell staff that SMS is not delivered.
+
+### Online payment modes
+
+Online payment has two modes, shown in **Fees and accounts → Fee setup →
+Online payments** (administrators only):
+
+- **Off** (every school by default). Guardians see no online payment, and the
+  server refuses any attempt with `online_payments_disabled`.
+- **Simulation**, for disposable test installations only. It needs both
+  `PAYMENT_SIMULATION_ALLOWED=true` in the school's environment file and an
+  administrator switching it on. A completed simulation is labelled
+  **SIMULATED — NO MONEY TRANSFERRED**, uses a `SIM…` reference, issues no
+  receipt, records no payment or income and leaves the balance unchanged.
+  Switching it off blocks checkouts already started. Both changes are audited.
+
+Never set `PAYMENT_SIMULATION_ALLOWED=true` for a real school. Students cannot
+pay online in either mode; only guardians hold `fees:pay_online`.
+
+### Simulated payments recorded before the payment-safety upgrade
+
+Earlier releases recorded mock bKash and Nagad checkouts as ordinary payments
+with receipts, although no money was received. The upgrade does not delete or
+rewrite them. It labels every online payment **SIMULATED — NO MONEY
+TRANSFERRED** (audit event `fee.simulated_payments_labelled` with the count and
+amount), and from then on:
+
+- collection reports, the income and expense summary and analytics leave them
+  out; the collection report shows them as a separate simulated figure;
+- their receipts are titled "Simulation record — not a receipt", with a
+  watermark, and exports carry a `simulation` column;
+- they still reduce the student's dues until reviewed, so the statement warns
+  the guardian and staff.
+
+To review them, open **Fee setup → Online payments → Simulated payments to
+review**. Check each one with the family. If no money was received, enter a
+reason and choose **Void**: the dues it covered are owed again, and the
+payment stays in the history marked void (audit event
+`fee.simulated_payment_voided`). If the family did pay in another way, record
+that real payment at the counter first, then void the simulated one. Only
+administrators can void, and only simulated payments.
 
 ## 1. First administrator
 
@@ -261,8 +300,10 @@ If any check fails, stop and roll back as in
 
 - [ ] No demo accounts (`@demo.flybirds.test`) exist in the school's database.
 - [ ] Every staff account has its own address and a strong password.
-- [ ] Online payment is switched off (`fees:pay_online` removed) or the school
-      understands it is simulated.
+- [ ] `PAYMENT_SIMULATION_ALLOWED` is `false` (or absent) and **Fee setup →
+      Online payments** shows Off.
+- [ ] After an upgrade, every simulated payment to review has been checked
+      and voided or explained.
 - [ ] The school knows SMS is simulated.
 - [ ] Automatic backups are on, a restore drill has passed and an encrypted
       off-site copy exists.

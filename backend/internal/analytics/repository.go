@@ -406,13 +406,13 @@ func (r *Repository) Fees(ctx context.Context, f Filter, today string) (Fees, er
 	if err := raw(db, "SELECT COALESCE(sum(f.balance), 0)::float8 AS outstanding, COALESCE(sum(f.balance) FILTER (WHERE f.due_date < @today::date), 0)::float8 AS overdue, count(DISTINCT f.student_id) FILTER (WHERE f.balance > 0 AND f.due_date < @today::date) AS students FROM student_fees f WHERE "+dues.sql(), args).Scan(&bal).Error; err != nil {
 		return out, err
 	}
-	paidIn := "FROM fee_payment_allocations al JOIN fee_payments p ON p.id = al.payment_id JOIN student_fees f ON f.id = al.student_fee_id WHERE " + dues.sql() + " AND p.paid_on BETWEEN @from::date AND @to::date"
+	paidIn := "FROM fee_payment_allocations al JOIN fee_payments p ON p.id = al.payment_id JOIN student_fees f ON f.id = al.student_fee_id WHERE " + dues.sql() + " AND p.paid_on BETWEEN @from::date AND @to::date AND NOT p.simulated"
 	var collected float64
 	if err := raw(db, "SELECT COALESCE(sum(al.amount), 0)::float8 "+paidIn, args).Row().Scan(&collected); err != nil {
 		return out, err
 	}
 	var ledger []CategoryAmount
-	if err := raw(db, "SELECT entry_type, category, sum(amount)::float8 AS amount FROM ledger_entries WHERE entry_date BETWEEN @from::date AND @to::date GROUP BY entry_type, category ORDER BY entry_type DESC, amount DESC, category", args).Scan(&ledger).Error; err != nil {
+	if err := raw(db, "SELECT entry_type, category, sum(amount)::float8 AS amount FROM ledger_entries WHERE entry_date BETWEEN @from::date AND @to::date AND NOT EXISTS (SELECT 1 FROM fee_payments sp WHERE sp.id = ledger_entries.payment_id AND sp.simulated) GROUP BY entry_type, category ORDER BY entry_type DESC, amount DESC, category", args).Scan(&ledger).Error; err != nil {
 		return out, err
 	}
 	var income, expense float64
@@ -448,7 +448,7 @@ func (r *Repository) Fees(ctx context.Context, f Filter, today string) (Fees, er
 	var amounts []monthAmount
 	if err := raw(db, `SELECT to_char(f.due_date, 'YYYY-MM') AS month, 'billed' AS kind, sum(f.amount - f.discount_amount)::float8 AS amount FROM student_fees f WHERE `+inRange+` GROUP BY 1
 UNION ALL SELECT to_char(p.paid_on, 'YYYY-MM'), 'collected', sum(al.amount)::float8 `+paidIn+` GROUP BY 1
-UNION ALL SELECT to_char(entry_date, 'YYYY-MM'), entry_type, sum(amount)::float8 FROM ledger_entries WHERE entry_date BETWEEN @from::date AND @to::date GROUP BY 1, 2`, args).Scan(&amounts).Error; err != nil {
+UNION ALL SELECT to_char(entry_date, 'YYYY-MM'), entry_type, sum(amount)::float8 FROM ledger_entries WHERE entry_date BETWEEN @from::date AND @to::date AND NOT EXISTS (SELECT 1 FROM fee_payments sp WHERE sp.id = ledger_entries.payment_id AND sp.simulated) GROUP BY 1, 2`, args).Scan(&amounts).Error; err != nil {
 		return out, err
 	}
 	for _, a := range amounts {

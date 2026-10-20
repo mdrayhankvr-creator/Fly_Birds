@@ -2,9 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { confirmFeeIntent, getChildFeeStatement, getFeeReceipt, getOwnFeeStatement, startFeeIntent, type FeeIntent, type FeeReceipt } from '../api/fees'
+import { confirmFeeIntent, getChildFeeStatement, getFeeReceipt, getOnlinePaymentStatus, getOwnFeeStatement, startFeeIntent, type FeeIntent, type FeeReceipt, type FeeSimulation } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
-import { DuesTable, Notice, PaymentsList, ReceiptView, Totals, feeButton, feeCard, feeField, feeSecondary, useFeeAction, useLocalName, useMoney } from './feeShared'
+import { DuesTable, Notice, PaymentsList, ReceiptView, SimulatedLabel, Totals, feeButton, feeCard, feeField, feeSecondary, useFeeAction, useLocalName, useMoney } from './feeShared'
 import { ui, PageHeader, EmptyState, Notice as Banner } from './attendanceUi'
 import { StateScreen } from '../components/StateScreen'
 
@@ -22,6 +22,9 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
   const [amount, setAmount] = useState('')
   const [intent, setIntent] = useState<FeeIntent | null>(null)
   const [otp, setOtp] = useState('')
+  const [simulation, setSimulation] = useState<FeeSimulation | null>(null)
+  // Online payment exists only as a simulation that a school switches on for testing.
+  const online = useQuery({ queryKey: ['fees', 'online-status'], enabled: canPay, queryFn: () => authorized(token => getOnlinePaymentStatus(token)), retry: false })
   const statement = useQuery({ queryKey: ['fees', 'mine', mode, childId], queryFn: () => authorized(token => mode === 'student' ? getOwnFeeStatement(token) : getChildFeeStatement(token, childId)), retry: false })
   const receiptBase = mode === 'student' ? '/fees/me/payments' : `/fees/children/${encodeURIComponent(childId)}/payments`
   const balance = statement.data?.totals.balance ?? 0
@@ -38,8 +41,8 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
   async function confirm(event: FormEvent) {
     event.preventDefault()
     if (!intent) return
-    const value = await action.run(() => authorized(token => confirmFeeIntent(token, intent.id, otp)), r => t('feePaymentSaved', { receipt: r.payment.receipt_no }))
-    if (value) { setReceipt(value); setIntent(null); setAmount('') }
+    const value = await action.run(() => authorized(token => confirmFeeIntent(token, intent.id, otp)), t('feeSimulationDone'))
+    if (value) { setSimulation(value); setIntent(null); setAmount('') }
     else setIntent(null)
   }
 
@@ -53,9 +56,14 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
       {s.totals.overdue > 0 && <div className="mt-4"><Banner tone="warning">{t('feeArrearsNotice', { amount: money(s.totals.overdue) })}</Banner></div>}
     </section>
     <Notice error={action.error} message={action.message} />
+    {s.totals.simulated_unreviewed > 0 && <Banner tone="warning">{t('feeSimulatedUnreviewed', { amount: money(s.totals.simulated_unreviewed) })}</Banner>}
     {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
-    {canPay && balance > 0 && <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feePayOnline')}</h2>
-      <div className="mt-3"><Banner tone="warning">{t('feeMockNotice')}</Banner></div>
+    {simulation && <section role="status" className={`${feeCard} border-2 border-rose-700 print:hidden`}><SimulatedLabel /><h2 className={`${ui.sectionTitle} mt-2`}>{t('feeSimulationResultTitle')}</h2>
+      <p className="mt-2 text-sm">{t(`feeMethod_${simulation.intent.provider}`)} · {money(simulation.intent.amount)} · {t('feeProviderRef')}: <span className="break-all font-mono">{simulation.intent.provider_ref}</span></p>
+      <p className="mt-1 text-sm font-semibold">{t('feeBalanceUnchanged', { amount: money(simulation.balance) })}</p>
+      <button type="button" className={`${feeSecondary} mt-3`} onClick={() => setSimulation(null)}>{t('feeClose')}</button></section>}
+    {canPay && online.data?.mode === 'simulation' && balance > 0 && <section className={`${feeCard} border-2 border-rose-700 print:hidden`}><SimulatedLabel /><h2 className={`${ui.sectionTitle} mt-2`}>{t('feePayOnline')}</h2>
+      <div className="mt-3"><Banner tone="warning">{t('feeSimulationModeNotice')}</Banner></div>
       {!intent ? <form onSubmit={start} className="mt-3 grid gap-3 sm:grid-cols-3">
         <fieldset className="text-sm font-semibold"><legend>{t('feeProvider')}</legend><div className="mt-2 flex gap-4">{(['bkash', 'nagad'] as const).map(p => <label key={p} className="flex items-center gap-2 font-normal"><input type="radio" name="provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />{t(`feeMethod_${p}`)}</label>)}</div></fieldset>
         <label className={ui.label}>{t('feeAmount')}<input type="number" inputMode="decimal" min="0.01" max={balance} step="0.01" className={feeField} value={amount} placeholder={balance.toFixed(2)} onChange={e => setAmount(e.target.value)} /></label>

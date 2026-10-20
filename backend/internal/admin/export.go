@@ -55,9 +55,12 @@ WHERE a.attendance_date BETWEEN @from AND @to ORDER BY a.attendance_date, c.disp
 	{Key: "exam_results", query: `SELECT x.name AS exam, x.exam_type, x.status, se.name AS session, c.name AS class, sec.name AS section, s.admission_no, s.name_en, r.total_marks, r.full_marks, r.gpa, r.passed, r.class_position, r.section_position
 FROM exam_results r JOIN exams x ON x.id = r.exam_id JOIN students s ON s.id = r.student_id JOIN academic_sessions se ON se.id = r.session_id JOIN academic_classes c ON c.id = r.class_id JOIN academic_sections sec ON sec.id = r.section_id
 ORDER BY se.start_date DESC, x.name, c.display_order, sec.name, r.section_position`, count: `SELECT count(*) FROM exam_results`},
-	{Key: "fee_payments", Ranged: true, query: `SELECT p.receipt_no, p.paid_on, s.admission_no, s.name_en, p.amount, p.method, p.source, p.reference, p.note
+	{Key: "fee_payments", Ranged: true, query: `SELECT p.receipt_no, p.paid_on, s.admission_no, s.name_en, p.amount, p.method, p.source, p.reference, p.note,
+CASE WHEN p.simulated THEN 'SIMULATED — NO MONEY TRANSFERRED' ELSE '' END AS simulation,
+COALESCE(to_char(p.voided_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI'), '') AS voided_at
 FROM fee_payments p JOIN students s ON s.id = p.student_id WHERE p.paid_on BETWEEN @from AND @to ORDER BY p.paid_on, p.receipt_no`, count: `SELECT count(*) FROM fee_payments WHERE paid_on BETWEEN @from AND @to`},
-	{Key: "ledger", Ranged: true, query: `SELECT l.entry_date, l.entry_type, l.category, l.amount, l.description, l.reference
+	{Key: "ledger", Ranged: true, query: `SELECT l.entry_date, l.entry_type, l.category, l.amount, l.description, l.reference,
+CASE WHEN EXISTS (SELECT 1 FROM fee_payments p WHERE p.id = l.payment_id AND p.simulated) THEN 'SIMULATED — NO MONEY TRANSFERRED' ELSE '' END AS simulation
 FROM ledger_entries l WHERE l.entry_date BETWEEN @from AND @to ORDER BY l.entry_date, l.created_at`, count: `SELECT count(*) FROM ledger_entries WHERE entry_date BETWEEN @from AND @to`},
 	{Key: "audit_log", Ranged: true, query: `SELECT to_char(e.created_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI:SS') AS created_at, COALESCE(u.email, '') AS actor, e.action, e.target_type, e.target_id, e.outcome, e.metadata::text AS metadata
 FROM audit_events e LEFT JOIN users u ON u.id = e.actor_user_id

@@ -59,6 +59,10 @@ func feeError(c *gin.Context, err error) {
 		failure(c, 422, "payment_declined", "mobile payment was declined")
 	case errors.Is(err, fees.ErrForbidden):
 		failure(c, 403, "forbidden", "fee access denied")
+	case errors.Is(err, fees.ErrOnlineDisabled):
+		failure(c, 403, "online_payments_disabled", "online payment is not enabled in this school")
+	case errors.Is(err, fees.ErrSimulationNotAllowed):
+		failure(c, 409, "simulation_not_allowed", "this installation does not allow payment simulation")
 	default:
 		failure(c, 500, "internal_error", "internal server error")
 	}
@@ -69,13 +73,14 @@ func feeUser(c *gin.Context) auth.User { return c.MustGet("auth_user").(auth.Use
 func feeQuery(c *gin.Context) (fees.Query, bool) {
 	page, size, err := parsePage(c)
 	overdue := c.Query("overdue_only")
-	if err != nil || (overdue != "" && overdue != "true" && overdue != "false") {
+	simulated := c.Query("simulated")
+	if err != nil || (overdue != "" && overdue != "true" && overdue != "false") || (simulated != "" && simulated != "true" && simulated != "false" && simulated != "unreviewed") {
 		feeError(c, fees.ErrInvalid)
 		return fees.Query{}, false
 	}
 	return fees.Query{SessionID: c.Query("session_id"), ClassID: c.Query("class_id"), SectionID: c.Query("section_id"), StudentID: c.Query("student_id"), CategoryID: c.Query("category_id"),
 		Status: c.Query("status"), Period: c.Query("period"), Method: c.Query("method"), EntryType: c.Query("type"), Category: c.Query("category"),
-		From: c.Query("from"), To: c.Query("to"), Search: c.Query("search"), OverdueOnly: overdue == "true", Page: page, PageSize: size}, true
+		From: c.Query("from"), To: c.Query("to"), Search: c.Query("search"), OverdueOnly: overdue == "true", Simulated: simulated, Page: page, PageSize: size}, true
 }
 
 // respond writes a read result or maps its error.
@@ -309,6 +314,32 @@ func (h *feeHandler) deleteEntry(c *gin.Context) {
 func (h *feeHandler) summary(c *gin.Context) {
 	if h.ready(c) {
 		v, err := h.service.Summary(c.Request.Context(), c.Query("from"), c.Query("to"))
+		respond(c, 200, v, err)
+	}
+}
+
+// onlineStatus tells any signed-in user whether online payment is available.
+func (h *feeHandler) onlineStatus(c *gin.Context) {
+	if h.ready(c) {
+		v, err := h.service.OnlineStatus(c.Request.Context(), feeUser(c).Role == "admin")
+		respond(c, 200, v, err)
+	}
+}
+
+// saveOnlineSettings is the administrator's simulation switch.
+func (h *feeHandler) saveOnlineSettings(c *gin.Context) {
+	var in fees.OnlineSettingsInput
+	if h.ready(c) && decodeSchoolJSON(c, 1024, &in) {
+		v, err := h.service.SaveOnlineSettings(c.Request.Context(), feeUser(c).ID, in)
+		respond(c, 200, v, err)
+	}
+}
+
+// voidSimulatedPayment restores the dues a simulated payment reduced.
+func (h *feeHandler) voidSimulatedPayment(c *gin.Context) {
+	var in fees.VoidInput
+	if h.ready(c) && decodeSchoolJSON(c, 1024, &in) {
+		v, err := h.service.VoidSimulatedPayment(c.Request.Context(), feeUser(c).ID, c.Param("id"), in)
 		respond(c, 200, v, err)
 	}
 }

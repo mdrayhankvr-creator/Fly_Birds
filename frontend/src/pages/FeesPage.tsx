@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { adjustFeeDue, assignFeeDue, deleteFeeDue, generateFeeDues, getFeeAdjustments, getFeeDues, getFeeOptions, getFeeReceipt, getFeeStructures, getStudentFeeStatement, recordFeePayment, type FeeDue, type FeeMethod, type FeeOptions, type FeeReceipt, type FeeStudent } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
-import { DuesTable, Notice, useFeeAction, type FeeAccess, Pager, PaymentsList, ReceiptView, StudentPicker, Totals, feeButton, feeCard, feeField, feeSecondary, newKey, todayInDhaka, useLocalName, useMoney } from './feeShared'
+import { SimulatedLabel, DuesTable, Notice, useFeeAction, type FeeAccess, Pager, PaymentsList, ReceiptView, StudentPicker, Totals, feeButton, feeCard, feeField, feeSecondary, newKey, todayInDhaka, useLocalName, useMoney } from './feeShared'
 import { FeeReportsPanel, FeeSetupPanel, LedgerPanel } from './FeeAdminPanels'
 import { ui, PageHeader, Tabs } from './attendanceUi'
 
@@ -77,6 +77,7 @@ function CollectPanel({ access, options }: { access: FeeAccess; options: FeeOpti
       {student && <p className="mt-3 text-sm">{t('feeSelectedStudent')}: <strong>{name(student.name_en, student.name_bn)}</strong> · {student.admission_no} · {student.class_name} / {student.section_name} · {student.session_name}{student.status !== 'active' && <span className="ml-2 rounded bg-slate-200 px-2 text-xs">{t(`feeStudentStatus_${student.status}`, { defaultValue: student.status })}</span>}</p>}
     </section>
     <Notice error={action.error} message={action.message} />
+    {statement.data && statement.data.totals.simulated_unreviewed > 0 && <p role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-rose-700 bg-rose-50 px-4 py-3 text-sm text-rose-900 print:hidden"><SimulatedLabel />{t('feeSimulatedUnreviewedStaff', { amount: money(statement.data.totals.simulated_unreviewed) })}</p>}
     {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
     {student && (statement.isPending ? <p role="status">{t('feeLoading')}</p> : statement.isError ? <p role="alert" className="text-rose-700">{t('feeErrGeneric')}</p> : <>
       <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeStatement')}</h2><div className="mt-3"><Totals totals={statement.data.totals} /></div>

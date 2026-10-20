@@ -8,10 +8,11 @@ and network. Nothing is shared between schools.
 For day-to-day tasks after installation (first administrator, school setup,
 password resets, backups and recovery) see [OPERATIONS.md](OPERATIONS.md).
 
-> **Simulated integrations.** Online bKash and Nagad payment and SMS
-> notifications use **mock** providers. They record what would happen but no
-> money moves and no SMS reaches a phone. Tell the school before go-live, and
-> do not advertise either as a live service.
+> **No live payment or SMS integration.** Online bKash and Nagad payment is
+> off; a disposable test installation can switch on a simulation that moves no
+> money (`PAYMENT_SIMULATION_ALLOWED`, below). SMS uses a **mock** provider: no
+> SMS reaches a phone. Tell the school before go-live, and do not advertise
+> either as a live service.
 
 ## 1. What gets deployed
 
@@ -157,6 +158,7 @@ The file contains:
 | `WEB_PORT` | Local port of the web container. Unique per school on the same server. |
 | `BACKUP_RETENTION` | Completed backup archives to keep (1–365). |
 | `BACKUP_INTERVAL` | Automatic backup interval, for example `24h`; `0` for manual only. |
+| `PAYMENT_SIMULATION_ALLOWED` | `false` (the default, also when absent). `true` only for a disposable test installation: it lets an administrator switch on simulated online payment, which moves no money. See [OPERATIONS.md, online payment modes](OPERATIONS.md#online-payment-modes). |
 | `NOTIFY_INTERVAL` | Notification dispatch interval (SMS is a mock). |
 | `RELEASE_TAG` | Tag recorded on the built images, for example `v1.0.0`. Keep the previous value for rollback. |
 
@@ -392,6 +394,30 @@ the backend applies when it starts.
 
 5. **Validate** with the release checklist in
    [OPERATIONS.md](OPERATIONS.md#8-release-validation).
+
+**Upgrading past migration 1401 (payment safety).** Online payment is off
+afterwards, students lose `fees:pay_online`, and online payments made with the
+old simulator are labelled simulated and left out of collections; nothing is
+deleted. An administrator then reviews them (see
+[OPERATIONS.md](OPERATIONS.md#simulated-payments-recorded-before-the-payment-safety-upgrade)).
+Existing environment files need no change.
+
+Before upgrading, list the payments that will be labelled so the school
+office can prepare the review. The query only reads, and gives the same list
+afterwards:
+
+```sh
+fb exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT p.receipt_no, p.paid_on, s.admission_no, p.method, p.amount
+FROM fee_payments p JOIN students s ON s.id = p.student_id
+WHERE p.source = 'online' ORDER BY p.paid_on, p.receipt_no;
+SELECT count(*) AS payments, COALESCE(sum(amount), 0) AS amount FROM fee_payments WHERE source = 'online';
+SQL
+```
+
+No row means the school never used the simulator and nothing needs review.
+After the upgrade, the audit event `fee.simulated_payments_labelled` records
+the same count and amount.
 
 Do not use `docker compose down -v`, `docker volume rm`, `docker system prune
 --volumes` or `docker compose up --force-recreate` with a changed project

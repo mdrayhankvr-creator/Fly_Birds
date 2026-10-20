@@ -10,6 +10,34 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Critical Payment Safety Fix (2026-10-20)
+
+On `feature/payment-safety`, from `origin/main` `cebb9ccb`.
+
+**Root cause.** The production backend used `fees.MockGateway`, and confirming its checkout called `recordPayment`. Any student or guardian (both held `fees:pay_online` from migration 801) could therefore enter OTP `123456` and create a real payment: a numbered receipt, ledger income and dues marked paid, with no money received.
+
+**Implementation.**
+- **Off by default.** A simulation runs only when two switches are on: the deployment's `PAYMENT_SIMULATION_ALLOWED` (default `false`, also when absent) and an administrator's switch in the new `payment_settings` table. Otherwise the server answers 403 `online_payments_disabled`, including for checkouts already started. An administrator gets 409 `simulation_not_allowed` when the deployment does not allow simulation. Only administrators can change the switch; changes are audited.
+- **A simulation never creates a payment.** The confirmed intent gets the new status `simulated`. No `fee_payments` row, allocation, ledger entry or balance change is made. References start with `SIM` and the result says "SIMULATED — NO MONEY TRANSFERRED".
+- **Intent state machine.** The row lock makes concurrent and replayed confirmations one simulation, with the others marked `replayed`. A wrong code fails the intent; expired, failed and other payers' intents are refused.
+- **Students** lose `fees:pay_online` (migration 1401); only guardians keep it.
+- **Existing records.** Migration 1401 labels online payments `simulated`, without deleting or rewriting them, and audits the count and amount. A check constraint keeps any new online payment simulated. Collections (with a separate simulated total), the ledger summary and analytics exclude these payments. Statements report `simulated_unreviewed`. An administrator-only, audited void, with a reason, restores exactly the allocated dues and keeps the record marked void. Only simulated payments can be voided.
+- **UI.** A rose "SIMULATED — NO MONEY TRANSFERRED" badge appears on the register, ledger, statements and review list. Simulated receipts get a banner and watermark and are titled "Simulation record — not a receipt". The guardian sees online payment only in simulation mode, and the result card shows the unchanged balance. Guardian and staff warnings call out unreviewed simulated amounts. A new administrator panel holds the online payments switch and the review/void list. Exports gain a `simulation` column. 30 new keys in English and Bangla.
+
+**Verification (2026-10-20, disposable schools and databases only).**
+- Go: `go vet` clean. The full suite passed on a fresh PostgreSQL 17 database. New coverage: the mode matrix, decline, other payer, replay, four concurrent confirmations, expiry, switch-off of a pending checkout, legacy labelling, collection, summary and due-report exclusion, void permissions, void exactness and double void.
+- `e2e/payment-safety.mjs`:
+  - production-mode school (`PAYMENT_SIMULATION_ALLOWED=false`): 12/12;
+  - simulation school: 20/20, including five concurrent confirmations giving one simulation and one audit event, both children's balances, payments and collections unchanged, an exact 123.45 counter payment, and the collection report equal to the sum of real payments.
+- `e2e/payment-upgrade.mjs`, on a school started from `main` that made three mock payments (575.75) and a counter payment, then upgraded in place: 23/23.
+  - Fingerprints of payments, allocations, dues, ledger and intents are identical before and after migration. The only changes are one audit event and the student grant.
+  - Balances are unchanged until review. Collections and income drop by exactly 575.75. Student, guardian and admin-enable attempts are refused.
+  - Void works for the administrator only: refused for an accountant, without a reason, or for a real payment. It restores exactly 300.00 and refuses a second void.
+  - Counter payments still work, and the browser shows labelled receipts and the review panel.
+- Existing browser suites on the production-mode school: 106/106 and white-label 23/23. Frontend build and translation check (1,812 keys per language) passed; Compose files valid.
+
+**Limitations.** There is still no live bKash or Nagad integration. Legacy simulated payments still reduce dues until an administrator reviews them, by design, so history is not silently rewritten. Rolling back past migration 1401 needs the pre-upgrade backup, as with any migration.
+
 ## Current Status — M14 School Onboarding: Local Provisioning (2026-10-20)
 
 On `feature/m14-school-onboarding`. Adds operator tooling only: no migrations, no changes to authentication, RBAC, modules or the application UI.
