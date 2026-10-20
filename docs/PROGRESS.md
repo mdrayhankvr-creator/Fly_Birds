@@ -10,6 +10,31 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — M14 School Onboarding: Local Provisioning (2026-10-20)
+
+On `feature/m14-school-onboarding`. Adds operator tooling only: no migrations, no changes to authentication, RBAC, modules or the application UI.
+
+**Implementation.** `school-provision` (`backend/cmd/school-provision`, logic in `backend/internal/provision`) prepares one school's isolated deployment from `deploy/school.env.example`:
+- **`create`** validates a restrictive school code and a host name under any parent domain, and refuses a duplicate code, domain or web port, or a project that Docker already has. It generates a unique database password (24 bytes) and signing key (32 bytes) from the OS random source, then validates with `docker compose config` before writing.
+- **Writes** `deploy/<code>.env` atomically: a Git-ignored temporary file, flushed, then hard-linked. It never overwrites and leaves nothing after an interruption.
+- **Output:** secrets are never printed, Docker's output is redacted, and the next-step commands are quoted for bash and PowerShell.
+- **`--dry-run`** writes nothing and generates no secrets; **`list`** shows schools without secrets.
+- It never starts or removes containers. The first administrator is still created with the existing interactive `create-user`.
+
+**Verification (2026-10-20, disposable resources only).**
+- 15 new Go tests (13 in `internal/provision`, 2 for the command): valid and malicious codes and domains, duplicate refusal (code, domain, port, busy port, existing Docker project), unique secrets for two schools, complete environment files, secrets absent from output even when Docker echoes them, dry run with no file or Docker changes and no secret generation, interrupted and cancelled writes and stale temporary files, independent project and volume names, a template with a new empty setting, bash and PowerShell quoting of a path with a space and an apostrophe. The real `docker compose config` was checked for an edge and a no-edge school, including Caddy's read-only `edge_socket` mount. Sabotaging redaction, dry-run secrecy and temporary-file clean-up each made the matching test fail.
+- Two schools provisioned with the tool in the repository's `deploy/` and started from its printed PowerShell commands (path with a space): `m14-alpha` (edge, `https://alpha.localhost`) and `m14-beta` (no edge, port 8082). 24 isolation checks passed:
+  - separate secrets, volume namespaces and networks; neither database published;
+  - beta's backend cannot connect to alpha's database;
+  - data, logins, access tokens and branding stay in their own school;
+  - host-only cookies;
+  - `create-user` refuses without a terminal.
+- Through alpha's HTTPS edge: browser suite 106/106, white-label 23/23. `deploy/test-edge.sh` passed 16/16 twice after its sign-in bursts were made concurrent; sequential bursts failed to trip the limit on a slow host.
+- Secret rotation on beta: a new signing key rejects old access tokens but sessions continue (refresh 200); revoking `auth_sessions` ends all sessions; the database password changed in PostgreSQL and then in the file, with `up -d`, kept all data and sign-in working. The docs' earlier claim that a new key signs everyone out was corrected.
+- Full backend: `go vet` clean; 102 Go tests and 17 subtests passed against a throwaway database. Frontend build and translation check (1,768 keys per language) passed; development Compose file and both provisioned files valid.
+
+**Limitations.** Provisioning prepares configuration only: no DNS, server deployment or administrator creation. Collisions are checked against school files in the same `deploy/` and the local Docker only. Running it needs Go 1.26 or the Go container. On Windows the file inherits the folder's access list. Secret rotation is a documented manual procedure.
+
 ## Current Status — Pilot-Safe HTTPS Edge (2026-10-20)
 
 Post-release hardening for the school pilot, on `feature/pilot-edge-client-ip`. No product features and no migrations.
