@@ -3,6 +3,7 @@ package fees
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -56,24 +57,116 @@ func TestAllocateSettlesOldestDuesAndRejectsOverpayment(t *testing.T) {
 	}
 }
 
-func TestMockGatewayIssuesReferencesAndApprovesOnlyMockOTP(t *testing.T) {
-	g := MockGateway{}
+func TestSimulationGatewayIssuesSimulatedReferences(t *testing.T) {
+	g := SimulationGateway{}
 	ref, err := g.Initiate(context.Background(), "bkash", 100)
-	if err != nil || len(ref) != 14 || ref[:2] != "BK" {
+	if err != nil || len(ref) != 17 || ref[:5] != "SIMBK" {
 		t.Fatalf("reference %q %v", ref, err)
 	}
 	other, _ := g.Initiate(context.Background(), "nagad", 100)
-	if other[:2] != "NG" || other == ref {
+	if other[:5] != "SIMNG" || other == ref {
 		t.Fatalf("nagad reference %q", other)
 	}
 	if _, err := g.Initiate(context.Background(), "rocket", 100); !errors.Is(err, ErrInvalid) {
 		t.Fatal("unknown provider accepted")
 	}
 	if err := g.Verify(context.Background(), "bkash", ref, "000000"); !errors.Is(err, ErrDeclined) {
-		t.Fatalf("wrong OTP: %v", err)
+		t.Fatalf("wrong code: %v", err)
 	}
-	if err := g.Verify(context.Background(), "bkash", ref, MockOTP); err != nil {
+	if err := g.Verify(context.Background(), "bkash", ref, SimulationCode); err != nil {
 		t.Fatal(err)
+	}
+	// A reference that looks like a real provider transaction is never accepted.
+	if err := g.Verify(context.Background(), "bkash", "BKABCDEFGH1234", SimulationCode); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("non-simulated reference: %v", err)
+	}
+}
+
+// modeRepo stores the simulation switch. Its embedded Repository is nil, so
+// any attempt to record a payment panics and fails the test.
+type modeRepo struct {
+	Repository
+	enabled   bool
+	saved     []bool
+	simulated int
+}
+
+func (r *modeRepo) PaymentSettings(context.Context) (bool, string, error) { return r.enabled, "", nil }
+func (r *modeRepo) SavePaymentSettings(_ context.Context, _ string, v bool) error {
+	r.saved = append(r.saved, v)
+	r.enabled = v
+	return nil
+}
+func (r *modeRepo) ResolveStudent(context.Context, string, string, string) (string, error) {
+	return student, nil
+}
+func (r *modeRepo) CreateIntent(_ context.Context, _, studentID, provider, ref string, cents int64, _ time.Duration) (Intent, error) {
+	return Intent{ID: key, Provider: provider, ProviderRef: ref, StudentID: studentID, Amount: float64(cents) / 100, Status: "pending"}, nil
+}
+func (r *modeRepo) Intent(context.Context, string, string) (Intent, error) {
+	return Intent{ID: key, Provider: "bkash", ProviderRef: "SIMBKABCDEFGHJKLMN", StudentID: student, Amount: 5, Status: "pending"}, nil
+}
+func (r *modeRepo) FailIntent(context.Context, string) error { return nil }
+func (r *modeRepo) SimulateIntent(context.Context, string, string) (Intent, bool, error) {
+	r.simulated++
+	return Intent{ID: key, StudentID: student, Status: "simulated"}, false, nil
+}
+func (r *modeRepo) Statement(context.Context, string, string) (Statement, error) {
+	return Statement{Totals: Totals{Balance: 1250}}, nil
+}
+
+func TestOnlinePaymentIsOffUnlessDeploymentAndAdministratorEnableIt(t *testing.T) {
+	ctx := context.Background()
+	start := IntentInput{Provider: "bkash", Amount: 5}
+
+	// Production default: the deployment does not allow simulation.
+	repo := &modeRepo{enabled: true} // even a switched-on setting has no effect
+	s := NewService(repo, nil)
+	if status, _ := s.OnlineStatus(ctx, true); status.Mode != "off" || status.SimulationAllowed {
+		t.Fatalf("default status %+v", status)
+	}
+	if _, err := s.StartOnlinePayment(ctx, "guardian", actor, start); !errors.Is(err, ErrOnlineDisabled) {
+		t.Fatalf("start: %v", err)
+	}
+	if _, err := s.ConfirmOnlinePayment(ctx, actor, key, ConfirmInput{OTP: SimulationCode}); !errors.Is(err, ErrOnlineDisabled) {
+		t.Fatalf("confirm: %v", err)
+	}
+	if _, err := s.SaveOnlineSettings(ctx, actor, OnlineSettingsInput{SimulationEnabled: true}); !errors.Is(err, ErrSimulationNotAllowed) {
+		t.Fatalf("enable: %v", err)
+	}
+	if _, err := s.SaveOnlineSettings(ctx, actor, OnlineSettingsInput{SimulationEnabled: false}); err != nil {
+		t.Fatalf("disabling must always work: %v", err)
+	}
+
+	// A test installation that allows simulation, before the administrator enables it.
+	repo = &modeRepo{}
+	s = NewService(repo, nil, ServiceOptions{SimulationAllowed: true})
+	if _, err := s.StartOnlinePayment(ctx, "guardian", actor, start); !errors.Is(err, ErrOnlineDisabled) {
+		t.Fatalf("start before enabling: %v", err)
+	}
+	if status, _ := s.SaveOnlineSettings(ctx, actor, OnlineSettingsInput{SimulationEnabled: true}); status.Mode != "simulation" {
+		t.Fatalf("enabled status %+v", status)
+	}
+	if status, _ := s.OnlineStatus(ctx, false); status.SimulationAllowed || status.SimulationEnabled {
+		t.Fatalf("non-administrators must not see the deployment setting: %+v", status)
+	}
+	intent, err := s.StartOnlinePayment(ctx, "guardian", actor, start)
+	if err != nil || intent.ProviderRef[:3] != "SIM" {
+		t.Fatalf("intent %+v %v", intent, err)
+	}
+	result, err := s.ConfirmOnlinePayment(ctx, actor, key, ConfirmInput{OTP: SimulationCode})
+	if err != nil || !result.Simulated || result.Intent.Status != "simulated" || result.Balance != 1250 || repo.simulated != 1 {
+		t.Fatalf("simulation %+v %v", result, err)
+	}
+	if !strings.Contains(result.Message, "NO MONEY TRANSFERRED") {
+		t.Fatalf("message %q", result.Message)
+	}
+}
+
+func TestVoidRequiresAReason(t *testing.T) {
+	s := NewService(&modeRepo{}, nil)
+	if _, err := s.VoidSimulatedPayment(context.Background(), actor, key, VoidInput{Reason: "  "}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("void without reason: %v", err)
 	}
 }
 

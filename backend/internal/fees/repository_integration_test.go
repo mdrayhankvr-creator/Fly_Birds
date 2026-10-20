@@ -297,37 +297,89 @@ func TestPostgresFeesLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Mock bKash and Nagad: the second student still owes 750 for December 2199.
-	_, err = svc.StartOnlinePayment(ctx, "guardian", f.stranger, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 100})
+	// Online payment is off unless the deployment allows simulation.
+	_, err = svc.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 100})
+	expect(t, err, ErrOnlineDisabled, "online payment in a production installation")
+
+	// A test installation with simulation switched on. The second student
+	// owes 750 for December 2199; simulations never change that.
+	sim := NewService(NewRepository(f.db), nil, ServiceOptions{SimulationAllowed: true})
+	if _, err := sim.SaveOnlineSettings(ctx, f.admin, OnlineSettingsInput{SimulationEnabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	defer f.db.Exec("UPDATE payment_settings SET simulation_enabled=false WHERE id=1")
+	_, err = sim.StartOnlinePayment(ctx, "guardian", f.stranger, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 100})
 	expect(t, err, ErrNotFound, "unlinked guardian")
-	_, err = svc.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 750.01})
+	_, err = sim.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 750.01})
 	expect(t, err, ErrOverpayment, "online overpayment")
-	declined, err := svc.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 500})
-	if err != nil || declined.Status != "pending" || declined.ProviderRef[:2] != "BK" {
+	declined, err := sim.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 500})
+	if err != nil || declined.Status != "pending" || declined.ProviderRef[:5] != "SIMBK" {
 		t.Fatalf("intent: %+v %v", declined, err)
 	}
-	_, err = svc.ConfirmOnlinePayment(ctx, f.guardian, declined.ID, ConfirmInput{OTP: "000000"})
-	expect(t, err, ErrDeclined, "wrong OTP")
-	_, err = svc.ConfirmOnlinePayment(ctx, f.guardian, declined.ID, ConfirmInput{OTP: MockOTP})
+	_, err = sim.ConfirmOnlinePayment(ctx, f.guardian, declined.ID, ConfirmInput{OTP: "000000"})
+	expect(t, err, ErrDeclined, "wrong code")
+	_, err = sim.ConfirmOnlinePayment(ctx, f.guardian, declined.ID, ConfirmInput{OTP: SimulationCode})
 	expect(t, err, ErrConflict, "confirm failed intent")
-	intent, err := svc.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "nagad", Amount: 500})
+	intent, err := sim.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "nagad", Amount: 500})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = svc.ConfirmOnlinePayment(ctx, f.stranger, intent.ID, ConfirmInput{OTP: MockOTP})
+	_, err = sim.ConfirmOnlinePayment(ctx, f.stranger, intent.ID, ConfirmInput{OTP: SimulationCode})
 	expect(t, err, ErrNotFound, "another payer confirming")
-	online, err := svc.ConfirmOnlinePayment(ctx, f.guardian, intent.ID, ConfirmInput{OTP: MockOTP})
-	if err != nil || online.Payment.Method != "nagad" || online.Payment.Source != "online" || online.Payment.Reference != intent.ProviderRef || online.BalanceAfter != 250 {
-		t.Fatalf("online receipt: %+v %v", online, err)
+	var paymentsBefore int64
+	f.db.Table("fee_payments").Where("student_id=?", f.second).Count(&paymentsBefore)
+	simulated, err := sim.ConfirmOnlinePayment(ctx, f.guardian, intent.ID, ConfirmInput{OTP: SimulationCode})
+	if err != nil || !simulated.Simulated || simulated.Intent.Status != "simulated" || simulated.Balance != 750 {
+		t.Fatalf("simulation: %+v %v", simulated, err)
 	}
-	again, err := svc.ConfirmOnlinePayment(ctx, f.guardian, intent.ID, ConfirmInput{OTP: MockOTP})
-	if err != nil || !again.Replayed || again.Payment.ID != online.Payment.ID {
-		t.Fatalf("confirm replay: %+v %v", again, err)
+	again, err := sim.ConfirmOnlinePayment(ctx, f.guardian, intent.ID, ConfirmInput{OTP: SimulationCode})
+	if err != nil || !again.Replayed || again.Balance != 750 {
+		t.Fatalf("simulation replay: %+v %v", again, err)
 	}
-	stale, _ := svc.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 100})
+	// Concurrent confirmations of one checkout: all succeed as the same simulation, none records money.
+	racer, _ := sim.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 100})
+	errs := make(chan error, 4)
+	for i := 0; i < 4; i++ {
+		go func() {
+			_, err := sim.ConfirmOnlinePayment(ctx, f.guardian, racer.ID, ConfirmInput{OTP: SimulationCode})
+			errs <- err
+		}()
+	}
+	for i := 0; i < 4; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent confirmation: %v", err)
+		}
+	}
+	var paymentsAfter int64
+	f.db.Table("fee_payments").Where("student_id=?", f.second).Count(&paymentsAfter)
+	if paymentsAfter != paymentsBefore {
+		t.Fatalf("simulation recorded payments: %d -> %d", paymentsBefore, paymentsAfter)
+	}
+	stale, _ := sim.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 100})
 	f.db.Exec("UPDATE online_payment_intents SET expires_at=now()-interval '1 minute' WHERE id=?", stale.ID)
-	_, err = svc.ConfirmOnlinePayment(ctx, f.guardian, stale.ID, ConfirmInput{OTP: MockOTP})
+	_, err = sim.ConfirmOnlinePayment(ctx, f.guardian, stale.ID, ConfirmInput{OTP: SimulationCode})
 	expect(t, err, ErrExpired, "expired intent")
+	// Switching simulation off blocks a checkout already started.
+	late, _ := sim.StartOnlinePayment(ctx, "guardian", f.guardian, IntentInput{StudentID: f.second, Provider: "bkash", Amount: 100})
+	if _, err := sim.SaveOnlineSettings(ctx, f.admin, OnlineSettingsInput{SimulationEnabled: false}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = sim.ConfirmOnlinePayment(ctx, f.guardian, late.ID, ConfirmInput{OTP: SimulationCode})
+	expect(t, err, ErrOnlineDisabled, "confirm after switching simulation off")
+
+	// A simulated payment recorded by the old simulator, before the upgrade.
+	var online struct{ Payment Payment }
+	var legacyDue string
+	f.db.Raw("SELECT id FROM student_fees WHERE student_id=? AND balance>0 ORDER BY due_date LIMIT 1", f.second).Row().Scan(&legacyDue)
+	f.db.Raw(`INSERT INTO fee_payments(student_id,amount,method,source,reference,paid_on,idempotency_key,received_by,simulated)
+VALUES (?,500,'nagad','online',?,?::date,gen_random_uuid(),?,true) RETURNING id`, f.second, "NGLEGACY"+f.stamp, todayDhaka(), f.guardian).Row().Scan(&online.Payment.ID)
+	f.db.Exec("INSERT INTO fee_payment_allocations(payment_id,student_fee_id,amount) VALUES (?,?,500)", online.Payment.ID, legacyDue)
+	f.db.Exec("UPDATE student_fees SET paid_amount=paid_amount+500 WHERE id=?", legacyDue)
+	f.db.Exec("INSERT INTO ledger_entries(entry_type,category,amount,entry_date,description,reference,payment_id,created_by) VALUES ('income','fees',500,'2001-02-03','Fee receipt (legacy simulation)','',?,?)", online.Payment.ID, f.guardian)
+	labelled, err := svc.Receipt(ctx, "guardian", f.guardian, f.second, online.Payment.ID)
+	if err != nil || !labelled.Payment.Simulated || labelled.Payment.VoidedAt != nil {
+		t.Fatalf("legacy receipt: %+v %v", labelled.Payment, err)
+	}
 
 	// Receipt and statement scoping.
 	if _, err := svc.Receipt(ctx, "student", f.studentUser, "", receipt.Payment.ID); err != nil {
@@ -345,12 +397,33 @@ func TestPostgresFeesLifecycle(t *testing.T) {
 
 	// Reports for this class only, so other suites cannot disturb the totals.
 	today := todayDhaka()
+	// Real money only; the legacy simulated 500 is reported separately.
 	report, err := svc.Collections(ctx, Query{ClassID: f.class, From: today, To: today})
-	if err != nil || report.Total != 4300 || report.Count != 5 || len(report.ByMethod) != 3 || len(report.ByCategory) != 2 {
+	if err != nil || report.Total != 3800 || report.Count != 4 || report.SimulatedTotal != 500 || report.SimulatedCount != 1 || len(report.ByMethod) != 2 || len(report.ByCategory) != 2 {
 		t.Fatalf("collections: %+v %v", report, err)
 	}
+	secondStatement, _ := svc.Statement(ctx, "staff", f.accountant, f.second)
+	if secondStatement.Totals.Balance != 250 || secondStatement.Totals.SimulatedUnreviewed != 500 {
+		t.Fatalf("statement before void: %+v", secondStatement.Totals)
+	}
+	if summary, _ := svc.Summary(ctx, "2001-02-03", "2001-02-03"); summary.Income != 0 {
+		t.Fatalf("simulated income counted: %+v", summary)
+	}
+	// Voiding it restores the 500: the student owes 750 again.
+	_, err = svc.VoidSimulatedPayment(ctx, f.admin, receipt.Payment.ID, VoidInput{Reason: "Not simulated"})
+	expect(t, err, ErrForbidden, "void a real payment")
+	voided, err := svc.VoidSimulatedPayment(ctx, f.admin, online.Payment.ID, VoidInput{Reason: "Simulated, no money received"})
+	if err != nil || voided.VoidedAt == nil || voided.VoidReason != "Simulated, no money received" {
+		t.Fatalf("void: %+v %v", voided, err)
+	}
+	_, err = svc.VoidSimulatedPayment(ctx, f.admin, online.Payment.ID, VoidInput{Reason: "Again"})
+	expect(t, err, ErrConflict, "void twice")
+	secondStatement, _ = svc.Statement(ctx, "staff", f.accountant, f.second)
+	if secondStatement.Totals.Balance != 750 || secondStatement.Totals.SimulatedUnreviewed != 0 {
+		t.Fatalf("statement after void: %+v", secondStatement.Totals)
+	}
 	dueReport, err := svc.DueReport(ctx, Query{ClassID: f.class})
-	if err != nil || dueReport.Total != 1 || dueReport.TotalBalance != 250 || dueReport.TotalOverdue != 0 || dueReport.Items[0].StudentID != f.second {
+	if err != nil || dueReport.Total != 1 || dueReport.TotalBalance != 750 || dueReport.TotalOverdue != 0 || dueReport.Items[0].StudentID != f.second {
 		t.Fatalf("due report: %+v %v", dueReport, err)
 	}
 	if overdue, err := svc.DueReport(ctx, Query{ClassID: f.class, OverdueOnly: true}); err != nil || overdue.Total != 0 {
