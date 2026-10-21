@@ -473,6 +473,12 @@ func (r *GormRepository) SaveMarkEntries(ctx context.Context, actor, role, examI
 			}
 			key := e.ExamSubjectID + ":" + e.StudentID
 			old, exists := current[key]
+			// An exemption or a withheld result is an administrator's decision;
+			// nobody else may change that cell, even back to present.
+			if exists && (old.Status == StatusExempt || old.Status == StatusWithheld) && role != "admin" {
+				fail(e, "status_not_allowed", "only an administrator can change an exempt or withheld mark", nil)
+				continue
+			}
 			version := 0
 			if exists {
 				version = old.RowVersion
