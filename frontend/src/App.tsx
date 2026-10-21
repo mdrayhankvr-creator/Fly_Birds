@@ -219,7 +219,7 @@ function ExamsGate({ mode, permissions, role, enabled, loading, error }: { mode:
   const required = mode === 'admin' ? 'exams:read' : mode === 'teacher' ? 'exams:enter_marks' : mode === 'guardian' ? 'exams:read_children' : 'exams:read_self'
   if (!permissions?.includes(required) || mode !== 'admin' && role !== mode) return <StateScreen kind="denied" message={t('permissionDenied')} />
   if (!enabled) return <StateScreen kind="disabled" />
-  return <ExamsPage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('exams:manage')} />
+  return <ExamsPage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('exams:manage')} canReview={mode === 'admin' && (role === 'admin' || role === 'head_teacher') && permissions.includes('exams:review')} />
 }
 
 function CommGate({ kind, permissions, role, enabled, loading, error }: { kind: 'notices' | 'events' | 'notifications' | 'delivery' | 'teacher-diary' | 'student-diary' | 'guardian-diary' | 'admin-diary'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {

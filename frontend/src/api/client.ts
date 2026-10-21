@@ -321,9 +321,10 @@ export const getAttendanceSections = (token: string, sessionId: string) => beare
 export type ResultExam = { id: string; name: string; exam_type: 'class_test'|'half_yearly'|'annual'|'other'; session_id: string; class_id: string; section_id: string; routine_id: string|null; status: 'draft'|'published'|'locked'; session_name: string; class_name: string; section_name: string; subjects: ExamSubject[] }
 export type ResultExamInput = Pick<ResultExam,'name'|'exam_type'|'session_id'|'class_id'|'section_id'|'routine_id'>
 export type ExamSubject = { id: string; exam_id: string; subject_id: string; name_en: string; name_bn: string; full_marks: number; pass_marks: number; is_fourth_subject: boolean }
-export type ExamMarkRow = { exam_subject_id: string; student_id: string; student_name: string; admission_no: string; roll_no: number|null; subject_name: string; subject_name_bn: string; marks: number|null; grade: string|null; grade_point: number|null; passed: boolean|null }
+export type ExamMarkRow = { exam_subject_id: string; student_id: string; student_name: string; admission_no: string; roll_no: number|null; subject_name: string; subject_name_bn: string; marks: number|null; grade: string|null; grade_point: number|null; passed: boolean|null; status: ExamMarkStatus|''; status_reason: string; row_version: number }
+export type ExamMarkStatus = 'present'|'absent'|'exempt'|'incomplete'|'withheld'
 export type ExamResult = { exam_id: string; student_id: string; student_name: string; student_name_bn: string; admission_no: string; roll_no: number|null; total_marks: number; full_marks: number; gpa: number; passed: boolean; class_position: number; section_position: number }
-export type ReportCard = { exam: ResultExam; result: ExamResult; subjects: ExamMarkRow[]; school_name_en: string; school_name_bn: string; logo_url: string }
+export type ReportCard = { withheld: boolean; exam: ResultExam; result: ExamResult; subjects: ExamMarkRow[]; school_name_en: string; school_name_bn: string; logo_url: string }
 export const getResultExams = (token:string,path:string,params:URLSearchParams) => bearerRequest<Page<ResultExam>>(`${path}?${params}`,token)
 export const getResultExam = (token:string,path:string) => bearerRequest<ResultExam>(path,token)
 export const saveResultExam = (token:string,input:ResultExamInput,id?:string) => bearerRequest<ResultExam>(id?`/exams/${encodeURIComponent(id)}`:'/exams',token,json(id?'PATCH':'POST',input))
@@ -332,6 +333,15 @@ export const saveResultSubject = (token:string,examId:string,input:{subject_id:s
 export const deleteResultSubject = (token:string,examId:string,subjectId:string) => bearerRequest<{deleted:boolean}>(`/exams/${encodeURIComponent(examId)}/subjects/${encodeURIComponent(subjectId)}`,token,{method:'DELETE'})
 export const getExamMarksRoster = (token:string,examId:string,teacher:boolean) => bearerRequest<ExamMarkRow[]>(`/exams/${encodeURIComponent(examId)}/${teacher?'assigned-roster':'roster'}`,token)
 export const saveExamMarks = (token:string,examId:string,entries:{exam_subject_id:string;student_id:string;marks:number}[]) => bearerRequest<{saved:number}>(`/exams/${encodeURIComponent(examId)}/marks`,token,json('PUT',{entries}))
+export type ExamSheetStatus = 'not_started'|'in_progress'|'submitted'|'returned'|'approved'
+export type ExamSheet = { id: string; subject_id: string; name_en: string; name_bn: string; full_marks: number; pass_marks: number; is_fourth_subject: boolean; status: ExamSheetStatus; students: number; entered: number; missing: number; absent: number; exempt: number; incomplete: number; withheld: number; submitted_by: string; submitted_at: string|null; reviewed_by: string; reviewed_at: string|null; return_reason: string }
+export type ExamBlocker = { code: 'no_subjects'|'no_students'|'marks_missing'|'marks_incomplete'|'awaiting_review'|'returned'; sheet_id?: string; subject?: string; count?: number }
+export type ExamSheets = { exam_id: string; exam_status: ResultExam['status']; sheets: ExamSheet[]; readiness: { ready: boolean; blockers: ExamBlocker[] } }
+export type ExamMarkCell = { exam_subject_id: string; student_id: string; status: ExamMarkStatus; marks: number|null; reason: string; row_version: number }
+export type ExamCellError = { exam_subject_id: string; student_id: string; code: string; message: string; current?: ExamMarkCell }
+export const getExamSheets = (token:string,examId:string,teacher:boolean) => bearerRequest<ExamSheets>(teacher?`/exams/assigned/${encodeURIComponent(examId)}/sheets`:`/exams/${encodeURIComponent(examId)}/sheets`,token)
+export const saveExamMarkCells = (token:string,examId:string,entries:ExamMarkCell[]) => bearerRequest<{saved:ExamMarkCell[];errors:ExamCellError[]}>(`/exams/${encodeURIComponent(examId)}/marks`,token,json('PATCH',{entries}))
+export const examSheetAction = (token:string,examId:string,sheetId:string,action:'submit'|'approve'|'return',reason?:string) => bearerRequest<ExamSheet>(`/exams/${encodeURIComponent(examId)}/sheets/${encodeURIComponent(sheetId)}/${action}`,token,json('POST',action==='return'?{reason}:{}))
 export const setResultExamState = (token:string,examId:string,status:ResultExam['status']) => bearerRequest<ResultExam>(`/exams/${encodeURIComponent(examId)}/state`,token,json('PATCH',{status}))
 export const getExamTabulation = (token:string,examId:string) => bearerRequest<ExamResult[]>(`/exams/${encodeURIComponent(examId)}/tabulation`,token)
 export const getReportCards = (token:string,path:string) => bearerRequest<ReportCard[]>(path,token)

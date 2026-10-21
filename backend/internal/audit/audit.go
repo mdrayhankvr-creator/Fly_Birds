@@ -45,6 +45,37 @@ func Record(tx *gorm.DB, actor *string, action, targetType, targetID string, met
 
 // RecordDenied logs a refused administrative request. Only the method, route
 // pattern and the reason are kept; request bodies are never recorded.
+// Entry is one event for RecordMany.
+type Entry struct {
+	Action     string
+	TargetType string
+	TargetID   string
+	Metadata   map[string]any
+}
+
+// RecordMany records several successful events by one actor in one
+// statement, with the same validation as Record.
+func RecordMany(tx *gorm.DB, actor *string, entries []Entry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	events := make([]Event, 0, len(entries))
+	for _, e := range entries {
+		if !safeFilter.MatchString(e.Action) || !safeFilter.MatchString(e.TargetType) || e.TargetID == "" {
+			return ErrInvalid
+		}
+		if e.Metadata == nil {
+			e.Metadata = map[string]any{}
+		}
+		body, err := json.Marshal(e.Metadata)
+		if err != nil {
+			return err
+		}
+		events = append(events, Event{ActorUserID: actor, Action: e.Action, TargetType: e.TargetType, TargetID: e.TargetID, Outcome: "success", Metadata: body})
+	}
+	return tx.CreateInBatches(&events, 500).Error
+}
+
 func RecordDenied(tx *gorm.DB, actor *string, method, route, reason string) error {
 	body, err := json.Marshal(map[string]any{"method": method, "route": route, "reason": reason})
 	if err != nil {

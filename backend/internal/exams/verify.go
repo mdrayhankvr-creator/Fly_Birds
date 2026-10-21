@@ -87,12 +87,13 @@ type verifyExam struct {
 }
 
 type verifyMark struct {
-	ExamID, StudentID, SubjectID, SubjectName string
-	Marks, FullMarks, PassMarks               float64
-	IsFourth                                  bool
-	Grade                                     *string
-	GradePoint                                *float64
-	Passed                                    *bool
+	ExamID, StudentID, SubjectID, SubjectName, Status string
+	Marks                                             *float64
+	FullMarks, PassMarks                              float64
+	IsFourth                                          bool
+	Grade                                             *string
+	GradePoint                                        *float64
+	Passed                                            *bool
 }
 
 type verifyResult struct {
@@ -129,7 +130,7 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 	}
 	marks := []verifyMark{}
 	if err := session(tx.Table("exam_marks m").Joins("JOIN exams e ON e.id=m.exam_id").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Where(published)).
-		Select("m.exam_id,m.student_id,es.subject_id,sub.name_en AS subject_name,m.marks,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth,m.grade,m.grade_point,m.passed").
+		Select("m.exam_id,m.student_id,es.subject_id,sub.name_en AS subject_name,m.status,m.marks,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth,m.grade,m.grade_point,m.passed").
 		Order("m.exam_id,m.student_id,es.subject_id").Find(&marks).Error; err != nil {
 		return report, err
 	}
@@ -179,25 +180,50 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 			add(Inconsistent, "result", e, r, "", "marks", "none", "", "a published result has no marks")
 			continue
 		}
+		lines := make([]MarkLine, 0, len(rows))
 		subjects := make([]ScoredSubject, 0, len(rows))
+		allPresent := true
 		for _, m := range rows {
-			subjects = append(subjects, ScoredSubject{Marks: m.Marks, FullMarks: m.FullMarks, PassMarks: m.PassMarks, Fourth: m.IsFourth})
+			lines = append(lines, MarkLine{Marks: m.Marks, FullMarks: m.FullMarks, PassMarks: m.PassMarks, Fourth: m.IsFourth, Status: m.Status})
+			if m.Status != StatusPresent || m.Marks == nil {
+				allPresent = false
+				continue
+			}
+			subjects = append(subjects, ScoredSubject{Marks: *m.Marks, FullMarks: m.FullMarks, PassMarks: m.PassMarks, Fourth: m.IsFourth})
 		}
-		exact, err := Score(subjects, bands)
+		score, err := ScoreLines(lines, bands)
 		if err != nil {
 			add(Inconsistent, "result", e, r, "", "marks", "", "", "the stored marks cannot be graded with the current scheme")
 			continue
 		}
-		lgpa, lpassed, lgrades, lok := legacyGPA(subjects, bands)
+		if score.Withheld {
+			add(Inconsistent, "result", e, r, "", "result", "published", "withheld", "a student whose result is withheld has a published result")
+			continue
+		}
+		exact := score.Result
+		// The pre-E2 engine never saw statuses; it explains a difference only
+		// when every mark is present.
+		var lgpa float64
+		var lpassed, lok bool
+		var lgrades []Grade
+		if allPresent {
+			lgpa, lpassed, lgrades, lok = legacyGPA(subjects, bands)
+		}
 		for i, m := range rows {
-			g := exact.Grades[i]
+			g := score.Lines[i]
 			stored := fmt.Sprintf("%s %s %s", deref(m.Grade), points(m.GradePoint), passedWord(m.Passed))
-			want := fmt.Sprintf("%s %s %s", g.Grade, g.Point, passedWord(&g.Passed))
+			want := "— — —"
+			if g.Grade != nil {
+				want = fmt.Sprintf("%s %s %s", *g.Grade, *g.Point, passedWord(g.Passed))
+			}
 			if stored == want {
 				continue
 			}
 			legacy := lok && fmt.Sprintf("%s %s %s", lgrades[i].Name, fmt.Sprintf("%.2f", lgrades[i].Point), passedWord(&lgrades[i].Passed)) == stored
-			detail := fmt.Sprintf("%s of %s", formatMarks(m.Marks), formatMarks(m.FullMarks))
+			detail := m.Status
+			if m.Marks != nil {
+				detail = fmt.Sprintf("%s of %s", formatMarks(*m.Marks), formatMarks(m.FullMarks))
+			}
 			if legacy {
 				detail += " is exactly on a band edge"
 			}
@@ -215,6 +241,9 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 		}
 		group := strings.Join([]string{e.SessionID, e.ClassID, strings.ToLower(e.Name), e.ExamType}, "|")
 		legacyGPAPoints := calc.Points(math.Round(lgpa * 100))
+		if !lok { // statuses: the old engine has no value; rank with the exact one
+			legacyGPAPoints, lpassed = exact.GPA, exact.Passed
+		}
 		groups[group] = append(groups[group], ranking{
 			exact:  calc.Ranked{Key: r.ExamID + "|" + r.StudentID, GPA: exact.GPA, Total: exact.Total, Passed: exact.Passed},
 			legacy: calc.Ranked{Key: r.ExamID + "|" + r.StudentID, GPA: legacyGPAPoints, Total: exact.Total, Passed: lpassed},

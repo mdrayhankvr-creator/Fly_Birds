@@ -1496,12 +1496,75 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamMarksInput' } } } }
-      responses: { '200': { description: Marks saved }, '400': { description: Invalid or duplicate entries }, '403': { description: Subject not assigned }, '409': { description: Exam is published or locked }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      responses: { '200': { description: Marks saved }, '400': { description: Invalid or duplicate entries }, '403': { description: Subject not assigned }, '409': { description: Exam is published or locked (exam_not_draft), or the sheet was submitted or approved (sheet_state) }, '401': { $ref: '#/components/responses/Unauthorized' } }
+    patch:
+      operationId: saveExamMarkCells
+      summary: Save marks and mark statuses cell by cell, with version checks
+      description: >-
+        Requires exams:enter_marks and the examinations module. Each entry is a cell
+        (exam_subject_id, student_id) with a status (present, absent, incomplete; exempt
+        and withheld for administrators only, with a reason) and marks for present
+        (withheld may keep marks). row_version is the version the client last saw (0 for an
+        empty cell); a stale version is reported as version_conflict with the current value
+        and never overwrites. Invalid cells are reported in errors and the valid ones are
+        saved. Teachers write only assigned subjects; sheets that are submitted or approved
+        are read-only until returned. Up to 500 cells; every change is audited.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [entries], properties: { entries: { type: array, maxItems: 500, items: { type: object, required: [exam_subject_id, student_id, status, row_version], properties: { exam_subject_id: { type: string, format: uuid }, student_id: { type: string, format: uuid }, status: { type: string, enum: [present, absent, exempt, incomplete, withheld] }, marks: { type: number, nullable: true }, reason: { type: string, maxLength: 240 }, row_version: { type: integer, minimum: 0 } } } } } } } } }
+      responses: { '200': { description: 'saved (cells with their new row_version) and errors (cells not saved, with a code such as above_full_marks, sheet_locked, not_assigned, reason_required or version_conflict)' }, '400': { description: Malformed or duplicate entries }, '403': { description: Not a teacher or administrator }, '409': { description: exam_not_draft }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /exams/{id}/sheets:
+    get:
+      operationId: getExamSheets
+      summary: Mark sheets of an exam with progress, review state and publication readiness
+      description: Requires exams:read. One sheet per exam subject with its status (not_started, in_progress, submitted, returned, approved), counts of entered, missing, absent, exempt, incomplete and withheld marks, and the blockers that stop publication.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Sheets and readiness }, '404': { description: Exam not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/assigned/{id}/sheets:
+    get:
+      operationId: getAssignedExamSheets
+      summary: A teacher's own mark sheets of an exam
+      description: Requires exams:enter_marks and the teacher role; only sheets of assigned subjects are returned.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Sheets and readiness }, '403': { description: No assigned subject in this exam }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /exams/{id}/sheets/{sheetId}/submit:
+    post:
+      operationId: submitExamSheet
+      summary: Submit a mark sheet for review
+      description: Requires exams:enter_marks; the assigned teacher or an administrator. Every active student must have marks or a status. The sheet becomes read-only for the teacher. Audited.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sheetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: The submitted sheet }, '403': { description: Not assigned }, '404': { description: Sheet not found }, '409': { description: 'exam_not_draft, sheet_state or sheet_incomplete' }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /exams/{id}/sheets/{sheetId}/approve:
+    post:
+      operationId: approveExamSheet
+      summary: Approve a submitted mark sheet
+      description: Requires exams:review and the head teacher or administrator role. Audited.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sheetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: The approved sheet }, '404': { description: Sheet not found }, '409': { description: 'exam_not_draft, sheet_state or sheet_incomplete' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/{id}/sheets/{sheetId}/return:
+    post:
+      operationId: returnExamSheet
+      summary: Return a submitted or approved sheet to the teacher with a reason
+      description: Requires exams:review and the head teacher or administrator role. The reason (1–240 characters) is shown to the teacher. Audited.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sheetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 1, maxLength: 240 } } } } } }
+      responses: { '200': { description: The returned sheet }, '400': { description: Reason missing or too long }, '404': { description: Sheet not found }, '409': { description: 'exam_not_draft or sheet_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/{id}/state:
     patch:
       operationId: setExamState
       summary: Publish, unpublish, or lock exam results
-      description: Requires exams:manage and administrator role. Publication requires complete marks for every active eligible student and uses the current school grading scheme. Locked results cannot be changed.
+      description: Requires exams:manage and administrator role. Publication requires marks or a status for every active eligible student, no incomplete mark (exam_marks_incomplete) and no sheet awaiting review or returned (exam_sheets_pending); it uses the current school grading scheme, approves every sheet, scores absent as 0 (fail), leaves exempt subjects out and holds withheld results back. Unpublishing reopens the sheets. Locked results cannot be changed.
       tags: [exams]
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]

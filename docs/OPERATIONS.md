@@ -330,6 +330,32 @@ values. Each difference has a kind:
 The output contains student names and admission numbers. Keep it with the
 school's records, not in shared chat or tickets.
 
+### 8.2 Mark sheets and mark statuses
+
+From E3, each exam subject is a **mark sheet** with a review state, and each
+mark has a status. Explain this to teachers and the head teacher before the
+first exam after the upgrade:
+
+- **Teachers** mark a student **Absent** (fails the subject, as a 0 did
+  before) or **Incomplete** (for example, a missing script). Incomplete stops
+  publication until it is resolved. When every student has marks or a status,
+  the teacher submits the sheet for review; it is then read-only for them.
+- **The head teacher** approves a submitted sheet, or returns it with a reason
+  that the teacher sees.
+- **The administrator** can also **exempt** a student from a subject (the
+  subject leaves the result and the GPA) or **withhold** a result (the family
+  sees "Result withheld — contact the school office", with no marks). Both
+  need a reason, which only staff see.
+- An exam cannot be published while a sheet is awaiting review or has been
+  returned, or while any mark is missing or incomplete; the exam page lists
+  what is left. Publishing approves every sheet; returning an exam to draft
+  reopens them for correction.
+
+The upgrade (migration 1501) changes no marks or results: marks become
+Present, sheets of published exams become Approved, and sheets of draft exams
+become In progress or Not started. The audit log records the counts as
+`exam.sheets_migrated`.
+
 ## 9. Data protection checklist before go-live
 
 - [ ] No demo accounts (`@demo.flybirds.test`) exist in the school's database.
