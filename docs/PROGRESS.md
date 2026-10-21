@@ -10,6 +10,40 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E4 Teacher Marks Workspace (2026-10-21)
+
+On `feature/e4-premium-marks-workspace`, from `main` `a5affd81`. Scope as in the E1 roadmap, without components, weighting or PDFs. Details and the differences from the E1 spec: [docs/exams/E4_MARKS_WORKSPACE.md](exams/E4_MARKS_WORKSPACE.md).
+
+**Implementation:**
+- **Backend (no migration):**
+  - `GET /exams/my-sheets`;
+  - sheet workspace and history routes for teachers (assigned only) and staff;
+  - server-computed permissions with read-only reasons;
+  - only the administrator can change an exempt or withheld mark.
+- **Frontend:**
+  - My exam sheets queue;
+  - the sheet workspace: grid with pinned columns and keyboard map, list and one-at-a-time layouts on phones;
+  - autosave on the E3 versioned PATCH, with Saving / Saved / Offline / Conflict / Error, retries, and Use theirs / Keep mine;
+  - tab-only recovery and a leave warning;
+  - paste and CSV preview mapped by admission number;
+  - history panel; submit, approve and return.
+  - 133 new keys in each language.
+
+**Verification (disposable resources only):**
+- **Go:** all packages pass on a fresh database; vet clean; govulncheck finds nothing reachable.
+- **Frontend:** build, i18n (1,997 keys) and `npm run test:unit` pass.
+- **E2E:** `e2e/marks-workspace.mjs` 49/49 at 1440, 768 and 390 px, in English and Bangla, light and dark, with three school colours and axe clean. Existing suites: browser 106/106, white-label 23/23, payment safety 12/12, E3 exam workflow 17/17.
+- **Measured on one laptop (not a production claim):**
+  - 56 marks by keyboard: 158 keystrokes, saved about 1 s after the last key in 1–2 requests;
+  - 42-line paste: saved in 0.5 s, in 1 request;
+  - error rate 0.
+
+**Limitations:** see the E4 document, §9. In short:
+- one marks column per subject;
+- no virtualisation beyond about 60 rows;
+- recovery lasts for one tab;
+- no notification on submit.
+
 ## Current Status — E3 Mark Statuses and Sheet Workflow (2026-10-21)
 
 On `feature/e3-exam-workflow-foundation`, from `main` `0b0188ca`. Scope as in the E1 roadmap. Term grouping and blueprints are E5. Details: [docs/exams/E3_MARK_STATUSES_AND_SHEETS.md](exams/E3_MARK_STATUSES_AND_SHEETS.md).

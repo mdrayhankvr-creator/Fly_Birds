@@ -8,6 +8,7 @@ later and no npm packages.
 |---|---|
 | `suite.mjs` | Landing and login pages, every role's home dashboard and navigation, the attendance register flow, module screens, Bangla and English, mobile layout, dark theme, uncaught exceptions and Content-Security-Policy violations (106 checks). |
 | `whitelabel.mjs` | School branding: name, colours and logo applied across the shell, then restored (23 checks). |
+| `marks-workspace.mjs` | E4 teacher marks workspace: keyboard entry, autosave, conflicts, offline and recovery, paste, submission and review, access, three viewports, both languages and themes, contrast and axe, failing saves (49 checks). Prepare the school first with `marks-workspace-setup.mjs`, which adds students to the demo sections, so run the other suites before it; see docs/exams/E4_MARKS_WORKSPACE.md §8. |
 
 ## Requirements
 

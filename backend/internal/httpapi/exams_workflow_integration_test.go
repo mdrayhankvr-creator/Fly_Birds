@@ -114,6 +114,27 @@ func TestPostgresExamWorkflowRouteProtection(t *testing.T) {
 	check("POST", approve, "", head, 404)
 	check("POST", ret, `{"reason":""}`, head, 400)
 	check("POST", ret, `{"reason":"Check the totals"}`, head, 404)
+	// E4 workspace reads: the work queue is for teachers; one sheet and its
+	// history through exams:read (staff) or the teacher's own route.
+	queue, ws, mineWS := "/exams/my-sheets", "/exams/"+examID+"/sheets/"+sheetID, "/exams/assigned/"+examID+"/sheets/"+sheetID
+	check("GET", queue, "", nil, 401)
+	for _, who := range []map[string]string{student, guardian} {
+		check("GET", queue, "", who, 403)
+		check("GET", ws, "", who, 403)
+		check("GET", mineWS, "", who, 403)
+		check("GET", ws+"/history", "", who, 403)
+		check("GET", mineWS+"/history", "", who, 403)
+	}
+	check("GET", queue, "", teacher, 200)
+	check("GET", queue, "", head, 403)
+	check("GET", queue, "", admin, 403)
+	check("GET", ws, "", teacher, 403)
+	check("GET", ws+"/history", "", teacher, 403)
+	check("GET", mineWS, "", teacher, 404)
+	check("GET", mineWS+"/history", "", teacher, 404)
+	check("GET", mineWS, "", head, 403)
+	check("GET", ws, "", head, 404)
+	check("GET", ws+"/history", "", admin, 404)
 	// Administrators: everything.
 	check("GET", sheets, "", admin, 404)
 	check("PATCH", marks, cell, admin, 404)

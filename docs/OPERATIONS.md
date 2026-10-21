@@ -356,6 +356,16 @@ Present, sheets of published exams become Approved, and sheets of draft exams
 become In progress or Not started. The audit log records the counts as
 `exam.sheets_migrated`.
 
+### 8.3 Teacher marks workspace
+
+From E4, teachers enter marks in **Marks entry → My exam sheets**: one sheet per subject and section, saved automatically as they type. Tell teachers:
+
+- **Saving:** there is no Save button. The indicator at the top shows Saving, All changes saved, Offline (changes are kept and saved when the connection returns) or a conflict to resolve.
+- **Pasting from Excel or Google Sheets:** if the first column holds admission numbers, rows match by student whatever their order. The preview shows every rejected line and the reason before anything is saved.
+- **Unsaved changes after a crash:** they are offered back when the sheet is reopened **in the same browser tab**. Nothing is kept after the tab closes or the teacher signs out, so shared computers keep no marks.
+- **Approving and returning sheets:** the head teacher and the administrator use **Open sheet** in the exam's sheets panel.
+- **Exempt and withheld** stay administrator-only. A teacher sees these rows as "Set by the administrator".
+
 ## 9. Data protection checklist before go-live
 
 - [ ] No demo accounts (`@demo.flybirds.test`) exist in the school's database.

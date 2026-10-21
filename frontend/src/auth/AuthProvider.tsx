@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { hasRefreshSession, login, logout, refreshSession, type AuthSession, type AuthUser } from '../api/client'
+import { clearMarksDrafts } from '../pages/marks/useSheetAutosave'
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    clearMarksDrafts() // unsaved marks kept for recovery never outlive the session
     await logout()
     setSession(null)
     setExpired(false)
