@@ -153,7 +153,7 @@ FROM exams x
 JOIN exam_results er ON er.exam_id = x.id
 JOIN students s ON s.id = er.student_id
 ` + recipients + `
-WHERE x.status IN ('published', 'locked') AND x.published_at >= now() - interval '60 days'`},
+WHERE x.status IN ('published', 'locked') AND x.published_at >= now() - interval '60 days' AND exam_visible_to_students(x.id)`},
 	{category: "fee", module: "fees", sql: `SELECT u.id AS user_id, 'fee:' || f.id AS source_key,
   left('Fee overdue: ' || c.name_en, 70) AS title_en, left('বকেয়া ফি: ' || COALESCE(NULLIF(c.name_bn, ''), c.name_en), 220) AS title_bn,
   left(s.name_en || ' has Tk ' || f.balance || ' outstanding, due ' || to_char(f.due_date, 'DD Mon YYYY') || '.', 240) AS body_en,
