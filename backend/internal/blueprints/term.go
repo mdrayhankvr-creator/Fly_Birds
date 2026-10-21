@@ -443,3 +443,81 @@ func combine(lines []*line, rule string) ([]*line, error) {
 	}
 	return out, nil
 }
+
+// SampleSubject computes one subject's term line from sample marks, graded
+// on its own (as a required subject), for the builder's worked example.
+func SampleSubject(d Definition, subjectID, termID string, marks map[string]SampleMark, scheme calc.Scheme) (SubjectResult, error) {
+	var rule SubjectRule
+	found := false
+	for _, s := range d.Subjects {
+		if s.SubjectID == subjectID {
+			rule, found = s, true
+		}
+	}
+	tr, ok := rule.Term(termID)
+	if !found || !ok || rule.Role == "non_graded" {
+		return SubjectResult{}, ErrInvalidInput
+	}
+	st := Student{ID: "sample", Marks: map[string]map[string]Mark{}}
+	for key, sm := range marks {
+		sh, ok := rule.Sheet(key)
+		if !ok {
+			return SubjectResult{}, ErrInvalidInput
+		}
+		full, err := sh.Full()
+		if err != nil {
+			return SubjectResult{}, ErrInvalidInput
+		}
+		m := Mark{Status: sm.Status, Marks: sm.Marks, Full: full.Float(), Pass: sh.Pass}
+		if m.Status == "" {
+			m.Status = "present"
+		}
+		if len(sh.Components) > 1 || (len(sh.Components) == 1 && sh.Components[0].Key != "TOTAL") {
+			var sum calc.Marks
+			for _, c := range sh.Components {
+				v, err := calc.MarksOf(sm.Components[c.Key])
+				if err != nil {
+					return SubjectResult{}, ErrInvalidInput
+				}
+				sum += v
+				m.Components = append(m.Components, ComponentMark{Key: c.Key, Marks: sm.Components[c.Key], Full: c.Full, Pass: c.Pass})
+			}
+			if m.Status == "present" {
+				total := sum.Float()
+				m.Marks = &total
+			}
+		}
+		st.Marks[key] = map[string]Mark{subjectID: m}
+	}
+	policy := calc.TermPolicy{RoundContributions: d.Policy.RoundContributions, WholeMarks: d.Policy.WholeMarks}
+	if d.Policy.Absent == "missing" {
+		policy.Absent = calc.AbsentIsMissing
+	}
+	rule.Role, rule.CombinedKey = "required", ""
+	l, err := subjectTerm(d, rule, tr, st, policy)
+	if err != nil {
+		return SubjectResult{}, err
+	}
+	sr := SubjectResult{SubjectIDs: l.papers, Reasons: l.reasons, Contributions: l.contribs}
+	if sr.Reasons == nil {
+		sr.Reasons = []Reason{}
+	}
+	switch l.status {
+	case calc.Exempt:
+		sr.Status = "exempt"
+		return sr, nil
+	case calc.Incomplete:
+		sr.Status = "incomplete"
+		return sr, nil
+	case calc.Withheld:
+		sr.Status = "withheld"
+		return sr, nil
+	}
+	r, err := calc.CalculateWithStatuses([]calc.Line{{Marks: l.marks, Full: l.full, Pass: l.pass, Failed: len(l.reasons) > 0}}, scheme, calc.Policy{}, calc.AbsentScoresZero)
+	if err != nil {
+		return SubjectResult{}, ErrInvalidInput
+	}
+	g := r.Result.Grades[0]
+	sr.Status, sr.Marks, sr.Full, sr.Grade, sr.Point, sr.Passed = "graded", l.marks.String(), l.full.String(), g.Grade, g.Point.String(), g.Passed
+	return sr, nil
+}

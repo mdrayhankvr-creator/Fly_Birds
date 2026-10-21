@@ -112,7 +112,7 @@ func schoolD() Definition {
 	return d
 }
 
-func context(ids ...string) Context {
+func classContext(ids ...string) Context {
 	c := Context{Terms: terms, Subjects: map[string]ClassSubject{}, Bands: bdBands}
 	for _, id := range ids {
 		c.Subjects[id] = ClassSubject{Name: id, Fourth: id == "HMATH" || id == "AGRI"}
@@ -134,10 +134,10 @@ func TestSchoolsAToDAreValid(t *testing.T) {
 		d   Definition
 		ctx Context
 	}{
-		"A": {schoolA("MATH", "ENG"), context("MATH", "ENG")},
-		"B": {schoolB("MATH"), context("MATH")},
-		"C": {schoolC("MATH", "ENG"), context("MATH", "ENG")},
-		"D": {schoolD(), context("PHY", "ENG", "BAN1", "BAN2", "HMATH", "AGRI", "PE")},
+		"A": {schoolA("MATH", "ENG"), classContext("MATH", "ENG")},
+		"B": {schoolB("MATH"), classContext("MATH")},
+		"C": {schoolC("MATH", "ENG"), classContext("MATH", "ENG")},
+		"D": {schoolD(), classContext("PHY", "ENG", "BAN1", "BAN2", "HMATH", "AGRI", "PE")},
 	} {
 		if issues := Validate(c.d, c.ctx); len(issues) > 0 {
 			t.Errorf("school %s: %+v", name, issues)
@@ -156,26 +156,26 @@ func TestValidationNamesEveryProblem(t *testing.T) {
 		ctx  Context
 		want []string
 	}{
-		"worth does not add up": {mutate(func(d *Definition) { d.Subjects[0].Terms[0].Contributions[1].Worth = 70 }), context("MATH"), []string{"worth_sum"}},
-		"best N too large":      {mutate(func(d *Definition) { d.Subjects[0].Terms[0].Contributions[0].Best = 4 }), context("MATH"), []string{"best_invalid"}},
+		"worth does not add up": {mutate(func(d *Definition) { d.Subjects[0].Terms[0].Contributions[1].Worth = 70 }), classContext("MATH"), []string{"worth_sum"}},
+		"best N too large":      {mutate(func(d *Definition) { d.Subjects[0].Terms[0].Contributions[0].Best = 4 }), classContext("MATH"), []string{"best_invalid"}},
 		"source from another term": {mutate(func(d *Definition) {
 			d.Assessments = append(d.Assessments, Assessment{Key: "X", Name: "X", TermID: "T2", Kind: "class_test", Visibility: "hidden"})
 			d.Subjects[0].Sheets = append(d.Subjects[0].Sheets, Sheet{Assessment: "X", Pass: 1, Components: total(10)})
 			d.Subjects[0].Terms[0].Contributions[0].From = append(d.Subjects[0].Terms[0].Contributions[0].From, "X")
-		}), context("MATH"), []string{"source_other_term", "term_rule_missing"}},
+		}), classContext("MATH"), []string{"source_other_term", "term_rule_missing"}},
 		"component pass above full": {mutate(func(d *Definition) {
 			d.Subjects[0].Sheets[3].Components = []Component{{Key: "CQ", Full: 60, Pass: f(70)}, {Key: "MCQ", Full: 40}}
-		}), context("MATH"), []string{"component_pass_invalid"}},
-		"three decimals":        {mutate(func(d *Definition) { d.Subjects[0].Sheets[0].Components[0].Full = 20.005 }), context("MATH"), []string{"marks_invalid"}},
-		"unused sheet":          {mutate(func(d *Definition) { d.Subjects[0].Terms[0].Contributions[0].From = []string{"CT1", "CT2"} }), context("MATH"), []string{"sheet_unused"}},
-		"duplicate key":         {mutate(func(d *Definition) { d.Assessments[1].Key = "CT1" }), context("MATH"), []string{"assessment_key_duplicate", "sheet_assessment_unknown", "source_unknown"}},
-		"unknown term":          {mutate(func(d *Definition) { d.Assessments[0].TermID = "T9" }), context("MATH"), []string{"assessment_term_unknown", "source_other_term", "term_rule_missing"}},
-		"subject missing":       {schoolB("MATH"), context("MATH", "ENG"), []string{"coverage_missing"}},
-		"not a class subject":   {schoolB("MATH", "ART"), context("MATH"), []string{"subject_unknown"}},
-		"optional required":     {mutate(func(d *Definition) { d.Subjects[0].Role = "optional" }), context("MATH"), []string{"optional_not_fourth"}},
-		"single combined paper": {mutate(func(d *Definition) { d.Subjects[0].CombinedKey = "BAN" }), context("MATH"), []string{"combined_single"}},
-		"annual weights":        {mutate(func(d *Definition) { d.Annual = Annual{Method: "weighted", Weights: map[string]int{"T1": 90}} }), context("MATH"), []string{"annual_weights_sum"}},
-		"policy":                {mutate(func(d *Definition) { d.Policy.Ranking = "random" }), context("MATH"), []string{"policy_invalid"}},
+		}), classContext("MATH"), []string{"component_pass_invalid"}},
+		"three decimals":        {mutate(func(d *Definition) { d.Subjects[0].Sheets[0].Components[0].Full = 20.005 }), classContext("MATH"), []string{"marks_invalid"}},
+		"unused sheet":          {mutate(func(d *Definition) { d.Subjects[0].Terms[0].Contributions[0].From = []string{"CT1", "CT2"} }), classContext("MATH"), []string{"sheet_unused"}},
+		"duplicate key":         {mutate(func(d *Definition) { d.Assessments[1].Key = "CT1" }), classContext("MATH"), []string{"assessment_key_duplicate", "sheet_assessment_unknown", "source_unknown"}},
+		"unknown term":          {mutate(func(d *Definition) { d.Assessments[0].TermID = "T9" }), classContext("MATH"), []string{"assessment_term_unknown", "source_other_term", "term_rule_missing"}},
+		"subject missing":       {schoolB("MATH"), classContext("MATH", "ENG"), []string{"coverage_missing"}},
+		"not a class subject":   {schoolB("MATH", "ART"), classContext("MATH"), []string{"subject_unknown"}},
+		"optional required":     {mutate(func(d *Definition) { d.Subjects[0].Role = "optional" }), classContext("MATH"), []string{"optional_not_fourth"}},
+		"single combined paper": {mutate(func(d *Definition) { d.Subjects[0].CombinedKey = "BAN" }), classContext("MATH"), []string{"combined_single"}},
+		"annual weights":        {mutate(func(d *Definition) { d.Annual = Annual{Method: "weighted", Weights: map[string]int{"T1": 90}} }), classContext("MATH"), []string{"annual_weights_sum"}},
+		"policy":                {mutate(func(d *Definition) { d.Policy.Ranking = "random" }), classContext("MATH"), []string{"policy_invalid"}},
 		"no assessments":        {Definition{PaperRule: "combined", Annual: Annual{Method: "final_only"}, Policy: Policy{GPARounding: "half_up", Absent: "zero", Ranking: "competition"}}, Context{Terms: terms, Bands: bdBands}, []string{"no_assessments"}},
 		"grading gap":           {schoolB("MATH"), Context{Terms: terms, Subjects: map[string]ClassSubject{"MATH": {Name: "MATH"}}, Bands: bdBands[:6]}, []string{"bands_invalid"}},
 	} {
@@ -193,7 +193,7 @@ func TestValidationNamesEveryProblem(t *testing.T) {
 func TestWorthSumMessageNamesSubjectAndTerm(t *testing.T) {
 	d := schoolD()
 	d.Subjects[0].Terms[0].Contributions[0].Worth = 90
-	issues := Validate(d, context("PHY", "ENG", "BAN1", "BAN2", "HMATH", "AGRI", "PE"))
+	issues := Validate(d, classContext("PHY", "ENG", "BAN1", "BAN2", "HMATH", "AGRI", "PE"))
 	if len(issues) != 1 || issues[0].Code != "worth_sum" || issues[0].Path != "subjects.0.terms.0.contributions" ||
 		!reflect.DeepEqual(issues[0].Params, map[string]string{"subject": "PHY", "term": "First Term", "sum": "90.00", "full": "100.00"}) ||
 		issues[0].Message != "PHY · First Term: contributions add up to 90.00, expected 100.00" {
