@@ -350,9 +350,9 @@ WHERE `+q.sql()+` GROUP BY e.id, c.name, sec.name ORDER BY e.published_at DESC N
 		AvgPercent                      *float64
 	}
 	if err := raw(db, `SELECT sub.id AS subject_id, sub.name_en, sub.name_bn, sub.code, count(*) AS entries, count(*) FILTER (WHERE m.passed) AS passed,
-avg(m.marks * 100 / es.full_marks)::float8 AS avg_percent
+avg(coalesce(m.marks, 0) * 100 / es.full_marks)::float8 AS avg_percent
 FROM exam_marks m JOIN exams e ON e.id = m.exam_id JOIN exam_subjects es ON es.id = m.exam_subject_id JOIN academic_subjects sub ON sub.id = es.subject_id
-WHERE `+sq.sql()+` GROUP BY sub.id ORDER BY sub.code, sub.name_en`, sq.args).Scan(&subjects).Error; err != nil {
+WHERE `+sq.sql()+` AND m.status NOT IN ('exempt', 'withheld') GROUP BY sub.id ORDER BY sub.code, sub.name_en`, sq.args).Scan(&subjects).Error; err != nil {
 		return out, err
 	}
 	for _, s := range subjects {
@@ -720,9 +720,9 @@ ORDER BY e.published_at DESC NULLS LAST, e.id DESC LIMIT 20`, student.ID, studen
 		GradePoint       *float64
 		Passed           *bool
 	}
-	if err := db.Raw(`SELECT sub.name_en, sub.name_bn, m.marks::float8 AS marks, es.full_marks::float8 AS full_marks, m.grade, m.grade_point::float8 AS grade_point, m.passed
+	if err := db.Raw(`SELECT sub.name_en, sub.name_bn, coalesce(m.marks, 0)::float8 AS marks, es.full_marks::float8 AS full_marks, m.grade, m.grade_point::float8 AS grade_point, m.passed
 FROM exam_marks m JOIN exam_subjects es ON es.id = m.exam_subject_id JOIN academic_subjects sub ON sub.id = es.subject_id
-WHERE m.exam_id = ? AND m.student_id = ? ORDER BY sub.code, sub.name_en`, rows[0].ExamID, student.ID).Scan(&subs).Error; err != nil {
+WHERE m.exam_id = ? AND m.student_id = ? AND m.status NOT IN ('exempt', 'withheld') ORDER BY sub.code, sub.name_en`, rows[0].ExamID, student.ID).Scan(&subs).Error; err != nil {
 		return nil, nil, err
 	}
 	for _, s := range subs {

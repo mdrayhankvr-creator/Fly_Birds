@@ -107,6 +107,9 @@ func (r *GormRepository) DeleteExam(ctx context.Context, actor, id string) error
 		if err := lock(tx); err != nil {
 			return err
 		}
+		if _, err := lockExam(tx, id, "UPDATE"); err != nil {
+			return err
+		}
 		e, err := examByID(tx, id)
 		if err != nil {
 			return err
@@ -149,6 +152,9 @@ func (r *GormRepository) SaveSubject(ctx context.Context, actor, examID string, 
 	var out Exam
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lock(tx); err != nil {
+			return err
+		}
+		if _, err := lockExam(tx, examID, "UPDATE"); err != nil {
 			return err
 		}
 		e, err := examByID(tx, examID)
@@ -198,6 +204,9 @@ func (r *GormRepository) DeleteSubject(ctx context.Context, actor, examID, subje
 		if err := lock(tx); err != nil {
 			return err
 		}
+		if _, err := lockExam(tx, examID, "UPDATE"); err != nil {
+			return err
+		}
 		e, err := examByID(tx, examID)
 		if err != nil {
 			return err
@@ -234,68 +243,9 @@ func (r *GormRepository) Roster(ctx context.Context, examID, actor, scope string
 	if scope == "teacher" {
 		q = q.Where("EXISTS (SELECT 1 FROM employees emp JOIN teacher_assignments ta ON ta.employee_id=emp.id WHERE emp.user_id=? AND emp.is_active AND ta.session_id=? AND ta.class_id=? AND ta.subject_id=es.subject_id)", actor, e.SessionID, e.ClassID)
 	}
-	err = q.Select("es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed").Order("s.roll_no NULLS LAST,s.admission_no,sub.code").Find(&rows).Error
+	err = q.Select("es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed,coalesce(m.status,'') AS status,coalesce(m.status_reason,'') AS status_reason,coalesce(m.row_version,0) AS row_version").Order("s.roll_no NULLS LAST,s.admission_no,sub.code").Find(&rows).Error
 	return rows, err
 }
-func (r *GormRepository) SaveMarks(ctx context.Context, actor, role, examID string, entries []MarkInput) error {
-	return dbErr(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lock(tx); err != nil {
-			return err
-		}
-		e, err := examByID(tx, examID)
-		if err != nil {
-			return err
-		}
-		if e.Status != "draft" {
-			return ErrConflict
-		}
-		for _, input := range entries {
-			var subject struct {
-				FullMarks float64
-				SubjectID string
-			}
-			if err := tx.Table("exam_subjects").Select("full_marks,subject_id").Where("id=? AND exam_id=?", input.ExamSubjectID, examID).Take(&subject).Error; err != nil {
-				return dbErr(err)
-			}
-			if input.Marks > subject.FullMarks {
-				return ErrInvalid
-			}
-			var n int64
-			if err := tx.Table("students").Where("id=? AND session_id=? AND class_id=? AND section_id=? AND status='active'", input.StudentID, e.SessionID, e.ClassID, e.SectionID).Count(&n).Error; err != nil {
-				return err
-			}
-			if n == 0 {
-				return ErrInvalid
-			}
-			if role != "admin" {
-				if role != "teacher" {
-					return ErrForbidden
-				}
-				if err := tx.Table("employees emp").Joins("JOIN teacher_assignments ta ON ta.employee_id=emp.id").Where("emp.user_id=? AND emp.is_active AND ta.session_id=? AND ta.class_id=? AND ta.subject_id=?", actor, e.SessionID, e.ClassID, subject.SubjectID).Count(&n).Error; err != nil {
-					return err
-				}
-				if n == 0 {
-					return ErrForbidden
-				}
-			}
-			var prior struct{ Marks float64 }
-			old := any(nil)
-			if err := tx.Table("exam_marks").Select("marks").Where("exam_subject_id=? AND student_id=?", input.ExamSubjectID, input.StudentID).Take(&prior).Error; err == nil {
-				old = prior.Marks
-			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			if err := tx.Exec("INSERT INTO exam_marks(exam_id,exam_subject_id,student_id,session_id,class_id,section_id,marks,entered_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(exam_subject_id,student_id) DO UPDATE SET marks=EXCLUDED.marks,grade=NULL,grade_point=NULL,passed=NULL,updated_by=EXCLUDED.updated_by,updated_at=now()", examID, input.ExamSubjectID, input.StudentID, e.SessionID, e.ClassID, e.SectionID, input.Marks, actor, actor).Error; err != nil {
-				return dbErr(err)
-			}
-			if err := audit.Record(tx, &actor, "exam.mark_saved", "exam", examID, map[string]any{"student_id": input.StudentID, "exam_subject_id": input.ExamSubjectID, "old_marks": old, "new_marks": input.Marks}); err != nil {
-				return err
-			}
-		}
-		return nil
-	}))
-}
-
 func classRanks(tx *gorm.DB, e Exam) error {
 	return tx.Exec(`WITH ranked AS (
  SELECT r.exam_id,r.student_id,
@@ -310,6 +260,9 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 	var out Exam
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lock(tx); err != nil {
+			return err
+		}
+		if _, err := lockExam(tx, id, "UPDATE"); err != nil {
 			return err
 		}
 		e, err := examByID(tx, id)
@@ -356,6 +309,13 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 			if fourth > 1 || required == 0 {
 				return ErrConflict
 			}
+			var pending int64
+			if err := tx.Table("exam_subjects").Where("exam_id=? AND sheet_status IN ('submitted','returned')", id).Count(&pending).Error; err != nil {
+				return err
+			}
+			if pending > 0 {
+				return ErrSheetsPending
+			}
 			students := []struct{ ID string }{}
 			if err := tx.Table("students").Select("id").Where("session_id=? AND class_id=? AND section_id=? AND status='active'", e.SessionID, e.ClassID, e.SectionID).Order("id").Find(&students).Error; err != nil {
 				return err
@@ -373,34 +333,46 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 			for _, student := range students {
 				rows := []struct {
 					MarkID    string
-					Marks     float64
+					Marks     *float64
+					Status    string
 					FullMarks float64
 					PassMarks float64
 					IsFourth  bool
 				}{}
-				err := tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Select("m.id AS mark_id,m.marks,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth").Where("m.exam_id=? AND m.student_id=?", id, student.ID).Order("es.subject_id").Find(&rows).Error
+				err := tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Select("m.id AS mark_id,m.marks,m.status,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth").Where("m.exam_id=? AND m.student_id=?", id, student.ID).Order("es.subject_id").Find(&rows).Error
 				if err != nil {
 					return err
 				}
 				if len(rows) != len(e.Subjects) {
-					return ErrConflict
+					return ErrMarksIncomplete
 				}
-				values := make([]ScoredSubject, 0, len(rows))
+				lines := make([]MarkLine, 0, len(rows))
 				for _, row := range rows {
-					values = append(values, ScoredSubject{Marks: row.Marks, FullMarks: row.FullMarks, PassMarks: row.PassMarks, Fourth: row.IsFourth})
+					if row.Status == StatusIncomplete {
+						return ErrMarksIncomplete
+					}
+					lines = append(lines, MarkLine{Marks: row.Marks, FullMarks: row.FullMarks, PassMarks: row.PassMarks, Fourth: row.IsFourth, Status: row.Status})
 				}
-				// Exact engine; values are written as two-decimal strings so
-				// no float reaches the numeric columns.
-				result, err := Score(values, bands)
+				// Exact engine with mark statuses; values are written as
+				// two-decimal strings so no float reaches the numeric columns.
+				score, err := ScoreLines(lines, bands)
 				if err != nil {
 					return err
 				}
+				if score.Withheld {
+					continue // no grades and no result: the student sees "withheld"
+				}
 				for i, row := range rows {
-					g := result.Grades[i]
-					if err := tx.Exec("UPDATE exam_marks SET grade=?,grade_point=?::numeric,passed=? WHERE id=?", g.Grade, g.Point.String(), g.Passed, row.MarkID).Error; err != nil {
+					g := score.Lines[i]
+					var point any
+					if g.Point != nil {
+						point = g.Point.String()
+					}
+					if err := tx.Exec("UPDATE exam_marks SET grade=?,grade_point=?::numeric,passed=? WHERE id=?", g.Grade, point, g.Passed, row.MarkID).Error; err != nil {
 						return err
 					}
 				}
+				result := score.Result
 				if err := tx.Exec("INSERT INTO exam_results(exam_id,student_id,session_id,class_id,section_id,total_marks,full_marks,gpa,passed,class_position,section_position) VALUES (?,?,?,?,?,?::numeric,?::numeric,?::numeric,?,1,1)", id, student.ID, e.SessionID, e.ClassID, e.SectionID, result.Total.String(), result.Full.String(), result.GPA.String(), result.Passed).Error; err != nil {
 					return dbErr(err)
 				}
@@ -408,11 +380,18 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 			if err := tx.Exec("UPDATE exams SET status='published',published_at=now(),updated_by=?,updated_at=now() WHERE id=?", actor, id).Error; err != nil {
 				return err
 			}
+			if err := tx.Exec("UPDATE exam_subjects SET sheet_status='approved',reviewed_by=?,reviewed_at=now(),return_reason='' WHERE exam_id=? AND sheet_status<>'approved'", actor, id).Error; err != nil {
+				return err
+			}
 		} else if state == "draft" {
 			if err := tx.Exec("DELETE FROM exam_results WHERE exam_id=?", id).Error; err != nil {
 				return err
 			}
 			if err := tx.Exec("UPDATE exam_marks SET grade=NULL,grade_point=NULL,passed=NULL WHERE exam_id=?", id).Error; err != nil {
+				return err
+			}
+			// Back to draft: sheets reopen for correction, as before E3.
+			if err := tx.Exec("UPDATE exam_subjects SET sheet_status='in_progress',submitted_by=NULL,submitted_at=NULL,reviewed_by=NULL,reviewed_at=NULL,return_reason='' WHERE exam_id=?", id).Error; err != nil {
 				return err
 			}
 			if err := tx.Exec("UPDATE exams SET status='draft',published_at=NULL,updated_by=?,updated_at=now() WHERE id=?", actor, id).Error; err != nil {
@@ -486,6 +465,15 @@ func (r *GormRepository) Cards(ctx context.Context, scope, actor, studentID, exa
 	if err := q.Pluck("er.exam_id", &ids).Error; err != nil {
 		return nil, err
 	}
+	withheld := []string{}
+	wq := tx.Table("exams e").Where("e.status IN ('published','locked') AND EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_id=e.id AND m.student_id=? AND m.status='withheld') AND NOT EXISTS (SELECT 1 FROM exam_results er WHERE er.exam_id=e.id AND er.student_id=?)", studentID, studentID).Order("e.published_at DESC,e.id DESC")
+	if examID != "" {
+		wq = wq.Where("e.id=?", examID)
+	}
+	if err := wq.Pluck("e.id", &withheld).Error; err != nil {
+		return nil, err
+	}
+	ids = append(ids, withheld...)
 	out := make([]Card, 0, len(ids))
 	for _, id := range ids {
 		card, err := r.Card(ctx, scope, actor, studentID, id)
@@ -511,12 +499,33 @@ func (r *GormRepository) Card(ctx context.Context, scope, actor, studentID, exam
 		return Card{}, ErrNotFound
 	}
 	err = tx.Table("exam_results er").Joins("JOIN students s ON s.id=er.student_id").Select("er.exam_id,er.student_id,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,s.roll_no,er.total_marks,er.full_marks,er.gpa,er.passed,er.class_position,er.section_position").Where("er.exam_id=? AND er.student_id=?", examID, studentID).Take(&card.Result).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) && card.Exam.Status != "draft" {
+		// A withheld result: the student learns it is held back, nothing more.
+		var n int64
+		if err := tx.Table("exam_marks").Where("exam_id=? AND student_id=? AND status='withheld'", examID, studentID).Count(&n).Error; err != nil {
+			return Card{}, err
+		}
+		if n == 0 {
+			return Card{}, ErrNotFound
+		}
+		if err := tx.Table("students s").Select("? AS exam_id,s.id AS student_id,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,s.roll_no", examID).Where("s.id=?", studentID).Take(&card.Result).Error; err != nil {
+			return Card{}, dbErr(err)
+		}
+		card.Withheld = true
+		err = tx.Raw("SELECT name_en,name_bn,logo_url FROM school_settings WHERE id=1").Row().Scan(&card.SchoolNameEN, &card.SchoolNameBN, &card.LogoURL)
+		return card, err
+	}
 	if err != nil {
 		return Card{}, dbErr(err)
 	}
-	err = tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Select("m.exam_subject_id,m.student_id,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed").Where("m.exam_id=? AND m.student_id=?", examID, studentID).Order("sub.code").Find(&card.Subjects).Error
+	err = tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Select("m.exam_subject_id,m.student_id,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed,m.status,m.status_reason,m.row_version").Where("m.exam_id=? AND m.student_id=?", examID, studentID).Order("sub.code").Find(&card.Subjects).Error
 	if err != nil {
 		return Card{}, err
+	}
+	if scope != "admin" {
+		for i := range card.Subjects {
+			card.Subjects[i].StatusReason, card.Subjects[i].RowVersion = "", 0
+		}
 	}
 	err = tx.Raw("SELECT name_en,name_bn,logo_url FROM school_settings WHERE id=1").Row().Scan(&card.SchoolNameEN, &card.SchoolNameBN, &card.LogoURL)
 	return card, err

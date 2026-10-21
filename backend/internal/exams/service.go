@@ -76,6 +76,10 @@ type MarkRow struct {
 	Grade         *string  `json:"grade"`
 	GradePoint    *float64 `json:"grade_point"`
 	Passed        *bool    `json:"passed"`
+	// Status is empty when no mark has been entered (E3).
+	Status       string `json:"status"`
+	StatusReason string `json:"status_reason"`
+	RowVersion   int    `json:"row_version"`
 }
 type Result struct {
 	ExamID          string  `json:"exam_id"`
@@ -92,6 +96,8 @@ type Result struct {
 	SectionPosition int     `json:"section_position"`
 }
 type Card struct {
+	// Withheld: the school holds this result back; no marks are included.
+	Withheld     bool      `json:"withheld"`
 	Exam         Exam      `json:"exam"`
 	Result       Result    `json:"result"`
 	Subjects     []MarkRow `json:"subjects"`
@@ -227,7 +233,9 @@ type Repository interface {
 	SaveSubject(context.Context, string, string, SubjectInput) (Exam, error)
 	DeleteSubject(context.Context, string, string, string) error
 	Roster(context.Context, string, string, string) ([]MarkRow, error)
-	SaveMarks(context.Context, string, string, string, []MarkInput) error
+	SaveMarkEntries(context.Context, string, string, string, []MarkEntry, bool) (MarksResult, error)
+	Sheets(context.Context, string, string, string) (SheetsView, error)
+	SheetAction(context.Context, string, string, string, string, string, string) (Sheet, error)
 	SetState(context.Context, string, string, string) (Exam, error)
 	Tabulation(context.Context, string) ([]Result, error)
 	Cards(context.Context, string, string, string, string) ([]Card, error)
@@ -299,7 +307,14 @@ func (s *Service) SaveMarks(ctx context.Context, actor, role, examID string, ent
 		}
 		seen[key] = true
 	}
-	return s.repo.SaveMarks(ctx, actor, role, examID, entries)
+	// The pre-E3 contract: present marks, all or nothing, no version check.
+	in := make([]MarkEntry, 0, len(entries))
+	for _, e := range entries {
+		marks := e.Marks
+		in = append(in, MarkEntry{ExamSubjectID: e.ExamSubjectID, StudentID: e.StudentID, Status: StatusPresent, Marks: &marks})
+	}
+	_, err := s.repo.SaveMarkEntries(ctx, actor, role, examID, in, true)
+	return err
 }
 func (s *Service) SetState(ctx context.Context, actor, id, state string) (Exam, error) {
 	if !uuid.MatchString(actor) || !uuid.MatchString(id) || (state != "draft" && state != "published" && state != "locked") {
