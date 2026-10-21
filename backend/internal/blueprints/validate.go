@@ -109,8 +109,14 @@ func (v *validator) assessments(d Definition) {
 		v.add("no_assessments", "assessments", "add at least one assessment")
 	}
 	seen := map[string]bool{}
+	names := map[string]bool{} // term + name: each becomes an exam name
 	for i, a := range d.Assessments {
 		path := fmt.Sprintf("assessments.%d", i)
+		if n := a.TermID + "|" + strings.ToLower(strings.TrimSpace(a.Name)); names[n] {
+			v.add("assessment_name_duplicate", path+".name", fmt.Sprintf("two assessments of one term are called %s", a.Name), "name", a.Name)
+		} else {
+			names[n] = true
+		}
 		if !keyPattern.MatchString(a.Key) {
 			v.add("assessment_key_invalid", path+".key", "an assessment key is 1–16 capital letters, digits or _ starting with a letter", "key", a.Key)
 		} else if seen[a.Key] {

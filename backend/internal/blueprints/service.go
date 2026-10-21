@@ -191,3 +191,42 @@ func (s *Service) Sample(ctx context.Context, versionID string, req SampleReques
 	}
 	return SampleSubject(d, req.SubjectID, req.TermID, req.Marks, scheme)
 }
+
+func (s *Service) SetupPlan(ctx context.Context, termID string) (SetupPlan, error) {
+	if !isUUID(termID) {
+		return SetupPlan{}, ErrInvalid
+	}
+	return s.repo.SetupPlan(ctx, termID)
+}
+
+func (s *Service) SaveSetup(ctx context.Context, actor, termID string, in Setup) (SetupPlan, error) {
+	if !isUUID(actor) || !isUUID(termID) || len(in.ClassIDs) > 200 || len(in.Due) > 100 || len(in.Assign) > 2000 {
+		return SetupPlan{}, ErrInvalid
+	}
+	seen := map[string]bool{}
+	for _, id := range in.ClassIDs {
+		if !isUUID(id) || seen[id] {
+			return SetupPlan{}, ErrInvalid
+		}
+		seen[id] = true
+	}
+	for key, date := range in.Due {
+		if !keyPattern.MatchString(key) || date == "" || !validDate(date) {
+			return SetupPlan{}, ErrInvalid
+		}
+	}
+	for key, employee := range in.Assign {
+		class, subject, ok := strings.Cut(key, "|")
+		if !ok || !isUUID(class) || !isUUID(subject) || !isUUID(employee) {
+			return SetupPlan{}, ErrInvalid
+		}
+	}
+	return s.repo.SaveSetup(ctx, actor, termID, in)
+}
+
+func (s *Service) CreateTerm(ctx context.Context, actor, termID string) (SetupResult, error) {
+	if !isUUID(actor) || !isUUID(termID) {
+		return SetupResult{}, ErrInvalid
+	}
+	return s.repo.CreateTerm(ctx, actor, termID)
+}

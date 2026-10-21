@@ -209,3 +209,35 @@ func (h *blueprintHandler) saveChoices(c *gin.Context) {
 	v, err := h.service.SaveChoices(c.Request.Context(), examUser(c).ID, in.SessionID, in.ClassID, in.Choices)
 	h.respond(c, 200, v, err)
 }
+
+func (h *blueprintHandler) setup(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	v, err := h.service.SetupPlan(c.Request.Context(), c.Param("id"))
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) saveSetup(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	var in blueprints.Setup
+	if !decodeSchoolJSON(c, 128*1024, &in) {
+		return
+	}
+	v, err := h.service.SaveSetup(c.Request.Context(), examUser(c).ID, c.Param("id"), in)
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) createTerm(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	v, err := h.service.CreateTerm(c.Request.Context(), examUser(c).ID, c.Param("id"))
+	if errors.Is(err, blueprints.ErrSetupBlocked) {
+		failure(c, 409, "setup_blocked", "choose at least one ready class, give every assessment a due date and resolve name conflicts first")
+		return
+	}
+	h.respond(c, 200, v, err)
+}

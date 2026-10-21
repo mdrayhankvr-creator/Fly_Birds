@@ -1567,6 +1567,33 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '204': { description: Deleted }, '404': { description: Term not found }, '409': { description: In use }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/terms/{id}/setup:
+    get:
+      operationId: getTermSetup
+      summary: The exam setup wizard's plan for a term
+      description: Requires exams:read. Every active class with its blueprint state for the term (ready, needs_blueprint, no_assessments), the chosen classes, the assessments across them with marks due dates, sheet counts (all, new), exams that already exist, existing exams whose names the new ones would take (conflicts), subjects without a teacher (gaps) and the teachers who can take them.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Setup plan }, '404': { description: Term not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveTermSetup
+      summary: Keep the wizard's choices on the term
+      description: Requires exams:manage and an administrator. Body class_ids, due (assessment key → YYYY-MM-DD) and assignees ("classId|subjectId" → teacher employee id). Nothing reaches teachers until the term is created.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, properties: { class_ids: { type: array, items: { type: string, format: uuid } }, due: { type: object, additionalProperties: { type: string } }, assignees: { type: object, additionalProperties: { type: string } } } } } } }
+      responses: { '200': { description: Setup plan }, '400': { description: Invalid input }, '404': { description: Term not found }, '409': { description: The term is closed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/terms/{id}/create:
+    post:
+      operationId: createTermExams
+      summary: Create the term's exams and sheets
+      description: Requires exams:manage and an administrator. In one transaction, one draft exam per section per assessment of the term for every chosen ready class (linked by term, assessment and blueprint version, with the marks due date) and one sheet per subject with its components; chosen teachers are assigned to subjects nobody teaches; the term moves to running. Exams that already exist are left alone, so running it again creates nothing new. 409 setup_blocked without a ready class, with an assessment lacking a due date, or with a name conflict. Audited as exam.term_created.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Counts and the new plan }, '404': { description: Term not found }, '409': { description: Setup blocked }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/blueprints:
     get:
       operationId: listClassBlueprints

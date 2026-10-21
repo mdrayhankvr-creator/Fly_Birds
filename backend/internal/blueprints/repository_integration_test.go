@@ -259,3 +259,106 @@ func TestPostgresSubjectChoices(t *testing.T) {
 		t.Fatal("with no choices left the class's fourth subject applies again")
 	}
 }
+
+// The wizard creates a whole term: an exam per section per assessment and a
+// sheet per subject, with components; it refuses while a due date is missing
+// or a name clashes, and running it again creates nothing new.
+func TestPostgresTermSetupWizard(t *testing.T) {
+	f, done := newFixture(t, 2200)
+	defer done()
+	ctx, svc := f.ctx, f.svc
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if err := f.tx.Exec(q, args...).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var sectionB, teacher string
+	f.tx.Raw("INSERT INTO academic_sections(session_id,class_id,name,code) VALUES (?,?,'B','B') RETURNING id", f.session, f.class).Row().Scan(&sectionB)
+	user := f.admin // any user id works for an employee record
+	f.tx.Raw("INSERT INTO employees(employee_code,user_id,kind,name_en,designation,joined_on) VALUES (?,?,'teacher','E5 Teacher','Teacher','2020-01-01') RETURNING id", "E5T"+f.stamp[len(f.stamp)-8:], user).Row().Scan(&teacher)
+	exec("INSERT INTO teacher_assignments(employee_id,session_id,class_id,subject_id) VALUES (?,?,?,?)", teacher, f.session, f.class, f.subjects["S1"])
+
+	term, err := svc.SaveTerm(ctx, f.admin, "", TermInput{SessionID: f.session, Name: "First Term", Kind: "term"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := svc.CreateBlueprint(ctx, f.admin, f.session, f.class, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := draft.Definition
+	d.Assessments = append([]Assessment{
+		{Key: "CT1", Name: "CT 1", TermID: term.ID, Kind: "class_test", Visibility: "hidden"},
+		{Key: "CT2", Name: "CT 2", TermID: term.ID, Kind: "class_test", Visibility: "hidden"},
+	}, d.Assessments...)
+	for i := range d.Subjects {
+		s := &d.Subjects[i]
+		s.Sheets = append(s.Sheets, Sheet{Assessment: "CT1", Pass: 7, Components: total(20)}, Sheet{Assessment: "CT2", Pass: 7, Components: total(20)})
+		s.Terms[0].Contributions = []Contribution{{From: []string{"CT1", "CT2"}, Combine: "average", Worth: 20}, {From: []string{"EX1"}, Combine: "single", Worth: 80}}
+	}
+	d.Subjects[1].Sheets[0].Components = []Component{{Key: "CQ", Full: 60, Pass: f64(20)}, {Key: "MCQ", Full: 40, Pass: f64(13)}}
+	if v, err := svc.SaveDraft(ctx, f.admin, draft.ID, d); err != nil || len(v.Issues) != 0 {
+		t.Fatalf("draft: %+v %v", v.Issues, err)
+	}
+	version, err := svc.Activate(ctx, f.admin, draft.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Choices saved, but one assessment has no due date yet: nothing created.
+	setup := Setup{ClassIDs: []string{f.class}, Due: map[string]string{"CT1": "2200-02-01", "CT2": "2200-03-01"}, Assign: map[string]string{f.class + "|" + f.subjects["S2"]: teacher}}
+	plan, err := svc.SaveSetup(ctx, f.admin, term.ID, setup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Exams != 6 || plan.Sheets != 18 || plan.ToCreate != 18 || len(plan.Gaps) != 2 || len(plan.Assessments) != 3 {
+		t.Fatalf("plan: exams %d sheets %d new %d gaps %+v assessments %+v", plan.Exams, plan.Sheets, plan.ToCreate, plan.Gaps, plan.Assessments)
+	}
+	if _, err := svc.CreateTerm(ctx, f.admin, term.ID); !errors.Is(err, ErrSetupBlocked) {
+		t.Fatalf("missing due date: %v", err)
+	}
+	var none int64
+	f.tx.Table("exams").Where("term_id = ?", term.ID).Count(&none)
+	if none != 0 {
+		t.Fatal("a refused setup must create nothing")
+	}
+
+	// An unrelated exam already named like a new one blocks too.
+	exec("INSERT INTO exams(name,exam_type,session_id,class_id,section_id,created_by,updated_by) VALUES ('First Term · CT 1','class_test',?,?,?,?,?)", f.session, f.class, sectionB, f.admin, f.admin)
+	setup.Due["EX1"] = "2200-04-01"
+	if plan, err = svc.SaveSetup(ctx, f.admin, term.ID, setup); err != nil || len(plan.Conflicts) != 1 {
+		t.Fatalf("conflict: %+v %v", plan.Conflicts, err)
+	}
+	if _, err := svc.CreateTerm(ctx, f.admin, term.ID); !errors.Is(err, ErrSetupBlocked) {
+		t.Fatalf("name conflict: %v", err)
+	}
+	exec("DELETE FROM exams WHERE term_id IS NULL AND session_id = ?", f.session)
+
+	res, err := svc.CreateTerm(ctx, f.admin, term.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ExamsCreated != 6 || res.SheetsCreated != 18 || res.Assigned != 1 || res.Plan.Term.Status != "running" || res.Plan.ToCreate != 0 || len(res.Plan.Gaps) != 1 {
+		t.Fatalf("create: %+v gaps %+v", res, res.Plan.Gaps)
+	}
+	var check struct {
+		Linked, Components, Due int
+		Name                    string
+		Full                    float64
+	}
+	f.tx.Raw(`SELECT (SELECT count(*) FROM exams WHERE term_id = ? AND blueprint_version_id = ? AND assessment_key IN ('CT1','CT2','EX1')) AS linked,
+       (SELECT count(*) FROM exam_subject_components c JOIN exam_subjects es ON es.id = c.exam_subject_id JOIN exams e ON e.id = es.exam_id WHERE e.term_id = ?) AS components,
+       (SELECT count(*) FROM exams WHERE term_id = ? AND marks_due_on IS NOT NULL) AS due,
+       (SELECT name FROM exams WHERE term_id = ? AND assessment_key = 'CT1' AND section_id = ?) AS name,
+       (SELECT es.full_marks FROM exam_subjects es JOIN exams e ON e.id = es.exam_id WHERE e.term_id = ? AND e.assessment_key = 'EX1' AND es.subject_id = ? LIMIT 1) AS full`,
+		term.ID, version.ID, term.ID, term.ID, term.ID, f.sect, term.ID, f.subjects["S2"]).Scan(&check)
+	if check.Linked != 6 || check.Components != 4 || check.Due != 6 || check.Name != "First Term · CT 1" || check.Full != 100 {
+		t.Fatalf("created exams: %+v", check)
+	}
+	// Idempotent.
+	again, err := svc.CreateTerm(ctx, f.admin, term.ID)
+	if err != nil || again.ExamsCreated != 0 || again.SheetsCreated != 0 {
+		t.Fatalf("second create: %+v %v", again, err)
+	}
+}

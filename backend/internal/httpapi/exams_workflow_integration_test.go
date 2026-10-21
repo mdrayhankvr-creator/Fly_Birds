@@ -140,12 +140,14 @@ func TestPostgresExamWorkflowRouteProtection(t *testing.T) {
 	// and teachers reach none of it.
 	const versionID = "00000000-0000-4000-8000-0000000000e5"
 	session := "?session_id=" + examID
-	reads := []string{"/exams/terms" + session, "/exams/blueprints" + session, "/exams/blueprint-versions/" + versionID, "/exams/subject-choices" + session + "&class_id=" + examID}
+	reads := []string{"/exams/terms" + session, "/exams/blueprints" + session, "/exams/blueprint-versions/" + versionID, "/exams/subject-choices" + session + "&class_id=" + examID, "/exams/terms/" + versionID + "/setup"}
 	type write struct{ method, path, body string }
 	writes := []write{
 		{"POST", "/exams/terms", `{"session_id":"` + examID + `","name":"First Term","kind":"term"}`},
 		{"PUT", "/exams/terms/" + versionID, `{"name":"First Term","kind":"term"}`},
 		{"DELETE", "/exams/terms/" + versionID, ""},
+		{"PUT", "/exams/terms/" + versionID + "/setup", `{"class_ids":[],"due":{},"assignees":{}}`},
+		{"POST", "/exams/terms/" + versionID + "/create", ""},
 		{"POST", "/exams/blueprints", `{"session_id":"` + examID + `","class_id":"` + examID + `"}`},
 		{"POST", "/exams/blueprints/" + versionID + "/versions", `{"from_version_id":"` + versionID + `"}`},
 		{"PUT", "/exams/blueprint-versions/" + versionID, `{"definition":{}}`},
@@ -175,6 +177,9 @@ func TestPostgresExamWorkflowRouteProtection(t *testing.T) {
 	check("GET", "/exams/terms?session_id=not-a-uuid", "", admin, 400)
 	check("PUT", "/exams/terms/"+versionID, `{"name":"First Term","kind":"term"}`, admin, 404)
 	check("POST", "/exams/blueprint-versions/"+versionID+"/activate", "", admin, 404)
+	check("GET", "/exams/terms/"+versionID+"/setup", "", head, 404)
+	check("POST", "/exams/terms/"+versionID+"/create", "", admin, 404)
+	check("PUT", "/exams/terms/"+versionID+"/setup", `{"class_ids":["x"]}`, admin, 400)
 	check("POST", "/exams/blueprints", `{"session_id":"`+examID+`","class_id":"`+examID+`"}`, admin, 404)
 	check("PUT", "/exams/blueprint-versions/"+versionID, `{"definition":{},"extra":1}`, admin, 400)
 	// Administrators: everything.
