@@ -35,10 +35,11 @@ const server = async s => (await teacherAPI('GET', `/exams/assigned/${s.exam_id}
 const [big, second, third] = sheets
 const sheetPath = s => `/teacher/exams/${s.exam_id}/sheets/${s.sheet_id}`
 
-// In-page helpers: count save requests and their latency; collect slow input events.
+// In-page helpers: count save requests and their latency; collect slow input
+// events; and, while __mw.fail is set, answer saves with that HTTP status.
 const instrument = `(() => {
   if (window.__mw) return true
-  window.__mw = { saves: 0, latencies: [], events: [], api: 0, apiFailed: 0 }
+  window.__mw = { saves: 0, latencies: [], events: [], api: 0, apiFailed: 0, fail: 0, failed: 0 }
   const f = window.fetch
   window.fetch = async (...args) => {
     const req = args[1] || {}
@@ -46,7 +47,10 @@ const instrument = `(() => {
     const isAPI = String(args[0]).includes('/api/')
     const start = performance.now()
     let ok = false
-    try { const response = await f(...args); ok = response.ok; return response } finally {
+    try {
+      if (isSave && window.__mw.fail) { window.__mw.failed++; return new Response(JSON.stringify({ error: { code: 'forced', message: 'forced by the test' } }), { status: window.__mw.fail, headers: { 'Content-Type': 'application/json' } }) }
+      const response = await f(...args); ok = response.ok; return response
+    } finally {
       if (isSave) { window.__mw.saves++; window.__mw.latencies.push(performance.now() - start) }
       if (isAPI) { window.__mw.api++; if (!ok) window.__mw.apiFailed++ }
     }
@@ -136,6 +140,28 @@ await b.waitFor(allSaved, 10000)
 rows = (await server(big)).rows
 const repeatSaves = (await b.evaluate(`window.__mw.saves`)) - before
 check('rapid repeated edits save the last value in one or two requests', rows[5].marks === 41 && repeatSaves <= 2, `${repeatSaves} request(s)`)
+
+// ---- 4b. Failing saves: permanent errors stop, transient ones back off ----
+const failingRow = rows[10]
+await b.evaluate(`window.__mw.fail = 400; window.__mw.failed = 0`)
+await b.evaluate(`${marksInputs}[10].focus(); ${marksInputs}[10].select()`)
+await b.send('Input.insertText', { text: '17' })
+await b.waitFor(`document.querySelector('main').innerText.includes('Not saved. Change the mark to try again.')`, 8000)
+await sleep(4000)
+const permanentAttempts = await b.evaluate(`window.__mw.failed`)
+check('a refused save is shown on its cell and not retried in a loop', permanentAttempts === 1, `${permanentAttempts} attempt(s) in 4 s`)
+await b.evaluate(`window.__mw.fail = 500; window.__mw.failed = 0`)
+await b.evaluate(`${marksInputs}[11].focus(); ${marksInputs}[11].select()`)
+await b.send('Input.insertText', { text: '19' })
+await sleep(8000)
+const transientAttempts = await b.evaluate(`window.__mw.failed`)
+check('a server error is retried with backoff, not hammered', transientAttempts >= 2 && transientAttempts <= 4, `${transientAttempts} attempts in 8 s`)
+await b.evaluate(`window.__mw.fail = 0`)
+await b.evaluate(`${marksInputs}[10].focus(); ${marksInputs}[10].select()`)
+await b.send('Input.insertText', { text: '18' })
+await b.waitFor(allSaved, 40000)
+rows = (await server(big)).rows
+check('once the server recovers both marks save', rows[10].marks === 18 && rows[11].marks === 19 && rows[10].row_version > failingRow.row_version, `${rows[10].marks} ${rows[11].marks}`)
 
 // ---- 5. Conflict: someone else changed the cell -------------------------
 const row6 = rows[6]
