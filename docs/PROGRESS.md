@@ -10,6 +10,35 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E3 Mark Statuses and Sheet Workflow (2026-10-21)
+
+On `feature/e3-exam-workflow-foundation`, from `main` `0b0188ca`. Scope as in the E1 roadmap. Term grouping and blueprints are E5. Details: [docs/exams/E3_MARK_STATUSES_AND_SHEETS.md](exams/E3_MARK_STATUSES_AND_SHEETS.md).
+
+**Implementation:**
+- **Migration 1501:**
+  - mark `status`, `status_reason`, `row_version`; marks nullable for non-present statuses;
+  - `sheet_status` and review fields on `exam_subjects`;
+  - backfill without value changes;
+  - `exams:review` for admin and head teacher.
+- **APIs:** PATCH per-cell marks with version checks and error codes; sheets with readiness; submit, approve and return.
+- **Publication:** scores statuses through the E2 engine (absent fails, exempt leaves the result, incomplete blocks, withheld holds back), approves every sheet and refuses while sheets await review. Unpublishing reopens them.
+- **Locks and writes:** per-sheet locks and set-based writes replace the school-wide lock for marks.
+- **Frontend (existing page):** sheets panel, status per mark, per-cell errors, readiness before publishing, report-card statuses and the withheld view. 52 new keys in each language.
+
+**Verification (disposable resources only):**
+- **Go:** all 24 test packages pass on a fresh database; vet clean; no vulnerabilities.
+- **Upgrade of a disposable school from `main`:** exam data fingerprints identical, and sheets mapped as designed (18 approved, 1 in progress, 3 not started).
+- **E2E:** `e2e/exam-workflow.mjs` 17/17; browser 106/106; white-label 23/23; payment safety 12/12.
+- **`exam-verify`:** no differences.
+- **Performance:**
+  - one 500-mark save 8.1 s → 0.5 s;
+  - five teachers at once 8.1–8.5 s → 0.18–0.31 s.
+
+**Limitations:** see the E3 document, §9. In short:
+- head teachers cannot exempt;
+- review is optional before publication;
+- no component marks or result versions yet.
+
 ## Current Status — E2 Exact Result Engine (2026-10-21)
 
 On `feature/e2-exact-result-engine`, from `main` `cdd5d7e4`. No migration, API or UI change. Details: [docs/exams/E2_EXACT_RESULT_ENGINE.md](exams/E2_EXACT_RESULT_ENGINE.md).
