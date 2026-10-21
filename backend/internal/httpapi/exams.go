@@ -227,6 +227,41 @@ func (h *examHandler) sheetAction(action string) gin.HandlerFunc {
 		respondExam(c, v, err)
 	}
 }
+
+// mySheets is a teacher's work queue across exams (E4).
+func (h *examHandler) mySheets(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	if examUser(c).Role != "teacher" {
+		examError(c, exams.ErrForbidden)
+		return
+	}
+	v, err := h.service.MySheets(c.Request.Context(), examUser(c).ID)
+	respondExam(c, v, err)
+}
+
+// workspace serves one sheet; history its audited changes. scope "teacher"
+// limits them to assigned subjects; "admin" is the exams:read staff view.
+func (h *examHandler) workspace(scope string, history bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !h.ready(c) {
+			return
+		}
+		user := examUser(c)
+		if scope == "teacher" && user.Role != "teacher" {
+			examError(c, exams.ErrForbidden)
+			return
+		}
+		if history {
+			v, err := h.service.SheetHistory(c.Request.Context(), c.Param("id"), c.Param("sheetId"), user.ID, user.Role, scope)
+			respondExam(c, v, err)
+			return
+		}
+		v, err := h.service.Workspace(c.Request.Context(), c.Param("id"), c.Param("sheetId"), user.ID, user.Role, scope)
+		respondExam(c, v, err)
+	}
+}
 func respondExam(c *gin.Context, v any, err error) {
 	if err != nil {
 		examError(c, err)

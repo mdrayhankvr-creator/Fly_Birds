@@ -1532,6 +1532,50 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Sheets and readiness }, '403': { description: No assigned subject in this exam }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /exams/my-sheets:
+    get:
+      operationId: getMyExamSheets
+      summary: A teacher's mark sheets across exams (work queue)
+      description: Requires exams:enter_marks and the teacher role. Sheets of assigned subjects in draft exams of any session and in published or locked exams of the active session, with progress (students, entered, missing), status and return reason; work that needs the teacher first. At most 300.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Sheets }, '403': { description: Not a teacher }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /exams/{id}/sheets/{sheetId}:
+    get:
+      operationId: getExamSheetWorkspace
+      summary: One mark sheet with its rows and what the caller may do
+      description: Requires exams:read. Returns the exam, the sheet with progress, one row per active student (marks, status, reason, row_version) and permissions (can_edit, can_submit, can_review, statuses, read_only_reason exam_published, exam_locked, sheet_submitted, sheet_approved or review_only) that mirror the write routes.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sheetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Sheet workspace }, '404': { description: Exam or sheet not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/assigned/{id}/sheets/{sheetId}:
+    get:
+      operationId: getAssignedExamSheetWorkspace
+      summary: One of the teacher's own mark sheets with its rows and permissions
+      description: Requires exams:enter_marks and the teacher role; 403 unless the teacher is assigned to the subject.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sheetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Sheet workspace }, '403': { description: Not assigned }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /exams/{id}/sheets/{sheetId}/history:
+    get:
+      operationId: getExamSheetHistory
+      summary: Audited changes of a mark sheet, newest first
+      description: Requires exams:read. Mark changes (old and new marks and status) and sheet submissions, returns and approvals from the audit log, with the actor and student; at most 200.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sheetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: History }, '404': { description: Exam or sheet not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/assigned/{id}/sheets/{sheetId}/history:
+    get:
+      operationId: getAssignedExamSheetHistory
+      summary: Audited changes of one of the teacher's own mark sheets
+      description: Requires exams:enter_marks and the teacher role; 403 unless the teacher is assigned to the subject.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sheetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: History }, '403': { description: Not assigned }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /exams/{id}/sheets/{sheetId}/submit:
     post:
       operationId: submitExamSheet
