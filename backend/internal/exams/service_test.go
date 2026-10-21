@@ -64,3 +64,38 @@ func TestExactBandEdges(t *testing.T) {
 		t.Fatalf("exact totals: %s/%s %v", r.Total, r.Full, err)
 	}
 }
+
+// TestScoreLinesStatuses covers the publication rules for mark statuses.
+func TestScoreLinesStatuses(t *testing.T) {
+	bands := []Band{{"A+", 80, 100, 5}, {"A", 70, 79, 4}, {"A-", 60, 69, 3.5}, {"B", 50, 59, 3}, {"C", 40, 49, 2}, {"D", 33, 39, 1}, {"F", 0, 32, 0}}
+	m := func(v float64) *float64 { return &v }
+	present := func(v float64) MarkLine { return MarkLine{Marks: m(v), FullMarks: 100, PassMarks: 33, Status: StatusPresent} }
+	// All present: identical to Score.
+	s, err := ScoreLines([]MarkLine{present(80), present(70)}, bands)
+	if err != nil || s.Result.GPA != 450 || !s.Result.Passed || s.Result.Total != 15000 {
+		t.Fatalf("present: %+v %v", s, err)
+	}
+	// Absent fails like a 0 and stores F.
+	s, _ = ScoreLines([]MarkLine{present(80), {FullMarks: 100, PassMarks: 33, Status: StatusAbsent}}, bands)
+	if s.Result.Passed || s.Result.GPA != 0 || *s.Lines[1].Grade != "F" || *s.Lines[1].Passed || s.Result.Full != 20000 {
+		t.Fatalf("absent: %+v", s)
+	}
+	// Exempt leaves the result and the denominator; no grade is stored.
+	s, _ = ScoreLines([]MarkLine{present(80), {FullMarks: 100, PassMarks: 33, Status: StatusExempt}, present(70)}, bands)
+	if !s.Result.Passed || s.Result.GPA != 450 || s.Lines[1].Grade != nil || s.Result.Full != 20000 || *s.Lines[2].Grade != "A" {
+		t.Fatalf("exempt: %+v", s)
+	}
+	// Withheld holds the whole result back, even with marks.
+	if s, _ := ScoreLines([]MarkLine{present(80), {Marks: m(50), FullMarks: 100, PassMarks: 33, Status: StatusWithheld}}, bands); !s.Withheld {
+		t.Fatalf("withheld: %+v", s)
+	}
+	if _, err := ScoreLines([]MarkLine{present(80), {FullMarks: 100, PassMarks: 33, Status: StatusIncomplete}}, bands); !errors.Is(err, ErrMarksIncomplete) {
+		t.Fatalf("incomplete: %v", err)
+	}
+	if _, err := ScoreLines([]MarkLine{{FullMarks: 100, PassMarks: 33, Status: StatusExempt}, {Marks: m(90), FullMarks: 100, PassMarks: 33, Fourth: true, Status: StatusPresent}}, bands); !errors.Is(err, ErrAllSubjectsExempt) {
+		t.Fatalf("all required exempt: %v", err)
+	}
+	if _, err := ScoreLines([]MarkLine{{FullMarks: 100, PassMarks: 33, Status: StatusPresent}}, bands); !errors.Is(err, ErrMarksIncomplete) {
+		t.Fatalf("present without marks: %v", err)
+	}
+}
