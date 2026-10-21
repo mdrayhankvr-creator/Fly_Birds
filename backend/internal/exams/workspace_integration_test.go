@@ -120,6 +120,21 @@ func TestPostgresMarksWorkspace(t *testing.T) {
 	if len(undo.Saved) != 0 || len(undo.Errors) != 1 || undo.Errors[0].Code != "status_not_allowed" {
 		t.Fatalf("teacher changing an exempt mark: %+v", undo)
 	}
+	// The legacy all-or-nothing PUT turns every entry into a present mark; for
+	// a teacher it must refuse the whole request rather than lift the exemption.
+	if err := svc.SaveMarks(ctx, f.teacher, "teacher", exam.ID, []MarkInput{{ExamSubjectID: sheet["S2"], StudentID: f.students[2], Marks: 20}, {ExamSubjectID: sheet["S2"], StudentID: f.students[1], Marks: 50}}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("legacy PUT over an exempt mark: %v", err)
+	}
+	if rows, _ := svc.Workspace(ctx, exam.ID, sheet["S2"], f.admin, "admin", "admin"); func() bool {
+		for _, r := range rows.Rows {
+			if r.StudentID == f.students[1] && r.Status != StatusExempt || r.StudentID == f.students[2] && r.Marks != nil {
+				return true
+			}
+		}
+		return false
+	}() {
+		t.Fatalf("legacy PUT changed the sheet: %+v", rows.Rows)
+	}
 	if res, _ := svc.SaveMarkEntries(ctx, f.admin, "admin", exam.ID, []MarkEntry{{ExamSubjectID: sheet["S2"], StudentID: f.students[1], Status: StatusPresent, Marks: num(50), RowVersion: 1}}); len(res.Saved) != 1 {
 		t.Fatalf("admin lifts the exemption: %+v", res)
 	}
