@@ -120,6 +120,13 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
     if (!loaded.current && storageKey) {
       loaded.current = true
       try {
+        // Another account signed in to this tab (for example after its session
+        // expired): its drafts are not this user's to see or keep.
+        const mine = storageKey.slice(0, storageKey.lastIndexOf('.') + 1)
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const key = sessionStorage.key(i)
+          if (key?.startsWith(storagePrefix) && !key.startsWith(mine)) sessionStorage.removeItem(key)
+        }
         const stored = JSON.parse(sessionStorage.getItem(storageKey) || 'null') as Stored | null
         if (stored) {
           const pending = Object.entries(stored.drafts).filter(([id, d]) => { const cell = server.current.get(id); return cell && !sameValue(d, cell) })
@@ -204,19 +211,22 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
       if (!errors && !conflicts) setSavedAt(Date.now())
       if (blocked) blockedRef.current()
     } catch (cause) {
-      for (const id of sent.keys()) cells.current.delete(id)
       const api = cause instanceof ApiError ? cause : null
       const network = !api
-      if (api && (api.code === 'exam_not_draft' || api.status === 403 || api.status === 401)) {
-        setState('blocked')
-        blockedRef.current()
-      } else if (!api || api.status >= 500 || api.status === 429 || api.status === 408) {
+      if (!api || api.status >= 500 || api.status === 429 || api.status === 408) {
+        // Transient: the drafts stay pending and the batch is retried with
+        // backoff, then every 30 s, and at once when the browser is online.
+        for (const id of sent.keys()) cells.current.delete(id)
         setState(network ? 'offline' : 'error')
-        const delay = backoff[Math.min(attempt.current, backoff.length - 1)]
+        schedule(backoff[Math.min(attempt.current, backoff.length - 1)])
         attempt.current++
-        if (network || attempt.current <= backoff.length) schedule(delay)
       } else {
-        setState('error')
+        // Permanent: the same request would fail again, so these cells wait
+        // for the user (an edit retries them) instead of looping.
+        const blocked = api.code === 'exam_not_draft' || api.status === 403 || api.status === 401
+        for (const id of sent.keys()) cells.current.set(id, { kind: 'error', code: blocked ? 'sheet_locked' : 'save_failed' })
+        setState(blocked ? 'blocked' : 'error')
+        if (blocked) blockedRef.current()
       }
     } finally {
       inFlight.current = false
