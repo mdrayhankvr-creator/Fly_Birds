@@ -1,33 +1,20 @@
 import { ui, PageHeader, Notice, Skeleton, EmptyState, StatusBadge } from './attendanceUi'
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError, deleteResultExam, deleteResultSubject, examSheetAction, getAcademicClasses, getAcademicSections, getAcademicSessions, getAcademicSubjects, getExamMarksRoster, getExamRoutines, getExamSheets, getExamTabulation, getReportCard, getReportCards, getResultExam, getResultExams, saveExamMarkCells, saveResultExam, saveResultSubject, setResultExamState, type ExamMarkRow, type ExamMarkStatus, type ExamResult, type ExamSheet, type ExamSheets, type ReportCard, type ResultExam, type ResultExamInput } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import { SheetChip } from './marks/examUi'
 
 type Mode = 'admin'|'teacher'|'student'|'guardian'
 const field = ui.field
 const button = ui.primary
 const blank: ResultExamInput = { name:'',exam_type:'annual',session_id:'',class_id:'',section_id:'',routine_id:null }
 const types = ['class_test','half_yearly','annual','other'] as const
-// Sheet states use the exam status palette of the E1 UX spec, never the
-// attendance tones: words + colour, and a dashed outline for "not started".
-const sheetTones: Record<ExamSheet['status'], string> = {
- not_started: 'border border-dashed border-slate-400 text-slate-700 bg-white',
- in_progress: 'bg-sky-50 text-sky-800 ring-1 ring-inset ring-sky-600/25',
- submitted: 'bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-600/30',
- returned: 'bg-rose-50 text-rose-800 ring-1 ring-inset ring-rose-600/25',
- approved: 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-600/25',
-}
 const writable = (status?: ExamSheet['status']) => !status || status === 'not_started' || status === 'in_progress' || status === 'returned'
 const carriesMarks = (status: ExamMarkStatus) => status === 'present' || status === 'withheld'
 const needsReason = (status: ExamMarkStatus) => status === 'exempt' || status === 'withheld'
-
-function SheetChip({status}:{status:ExamSheet['status']}) {
- const {t}=useTranslation()
- return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${sheetTones[status]}`}>{t(`e3SheetStatus_${status}`)}</span>
-}
 
 function ReportCardView({card}:{card:ReportCard}) {
  const {t,i18n}=useTranslation()
@@ -35,7 +22,7 @@ function ReportCardView({card}:{card:ReportCard}) {
  const student=i18n.language==='bn'&&card.result.student_name_bn?card.result.student_name_bn:card.result.student_name
  return <article className="exam-report rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
   <header className="flex items-center gap-4 border-b pb-4">{card.logo_url&&<img src={card.logo_url} alt="" className="h-14 w-14 object-contain" />}<div><p className={ui.sectionTitle}>{school}</p><h2 className="text-lg font-semibold">{t('examReport')} · {card.exam.name}</h2><p className="text-sm text-slate-600">{card.exam.session_name} · {card.exam.class_name} / {card.exam.section_name}</p></div></header>
-  {card.withheld?<div className="mt-4 space-y-3"><p><strong>{student}</strong> · {card.result.admission_no}</p><p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-semibold text-amber-950">{t('e3ResultWithheld')}</p></div>:<>
+  {card.withheld?<div className="mt-4 space-y-3"><p><strong>{student}</strong> · {card.result.admission_no}</p><p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-semibold text-amber-900">{t('e3ResultWithheld')}</p></div>:<>
   <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2"><p><strong>{student}</strong> · {card.result.admission_no}</p><p>{t('examResult')}: <strong>{t(card.result.passed?'examPassed':'examFailed')}</strong></p><p>{t('examGpa')}: <strong>{card.result.gpa.toFixed(2)}</strong></p><p>{t('examTotal')}: {card.result.total_marks} / {card.result.full_marks}</p><p>{t('examClassPosition')}: {card.result.class_position}</p><p>{t('examSectionPosition')}: {card.result.section_position}</p></div>
   <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[28rem] border-collapse text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('examSubject')}</th><th className="px-3 py-2.5">{t('examMark')}</th><th className="px-3 py-2.5">{t('examGrade')}</th><th className="px-3 py-2.5">{t('examPoint')}</th><th className="px-3 py-2.5">{t('examResult')}</th></tr></thead><tbody>{card.subjects.map(s=>{
    const labelled=s.status&&s.status!=='present'
@@ -64,6 +51,7 @@ function SheetsPanel({data,mode,canManage,canReview,busy,onAction}:{data:ExamShe
      {s.status==='submitted'&&s.submitted_at&&<p className="mt-1 text-xs text-slate-600">{t('e3SubmittedBy',{name:s.submitted_by,time:s.submitted_at})}</p>}
      {s.status==='approved'&&s.reviewed_at&&s.reviewed_by&&<p className="mt-1 text-xs text-slate-600">{t('e3ReviewedBy',{name:s.reviewed_by,time:s.reviewed_at})}</p>}
     </div>
+    <div className="flex flex-wrap items-center gap-2 sm:justify-end"><Link to={`/admin/exams/${data.exam_id}/sheets/${s.id}`} className={`${ui.link} text-sm`}>{t('mwOpen')}</Link></div>
     {draft&&<div className="flex flex-wrap gap-2 sm:justify-end">
      {canSubmit&&<button type="button" disabled={busy} className={ui.secondary} onClick={()=>onAction(s,'submit')}>{t('e3Submit')}</button>}
      {canReview&&s.status==='submitted'&&<button type="button" disabled={busy} className={button} onClick={()=>onAction(s,'approve')}>{t('e3Approve')}</button>}
@@ -74,7 +62,7 @@ function SheetsPanel({data,mode,canManage,canReview,busy,onAction}:{data:ExamShe
      <button disabled={busy||!reason.trim()} className={button}>{t('e3Return')}</button><button type="button" className={ui.ghost} onClick={()=>setReturning('')}>{t('e3Cancel')}</button>
     </form>}
    </li>})}</ul>
-  {draft&&(mode==='admin')&&<div className="mt-3" role="status">{data.readiness.ready?<p className="text-sm font-semibold text-emerald-800">{t('e3ReadyToPublish')}</p>:<div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">{t('e3NotReady')}</p><ul className="mt-1 list-disc pl-5">{data.readiness.blockers.map((b,i)=><li key={i}>{t(`e3Blocker_${b.code}`,{subject:b.subject,count:b.count})}</li>)}</ul></div>}</div>}
+  {draft&&(mode==='admin')&&<div className="mt-3" role="status">{data.readiness.ready?<p className="text-sm font-semibold text-emerald-800">{t('e3ReadyToPublish')}</p>:<div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><p className="font-semibold">{t('e3NotReady')}</p><ul className="mt-1 list-disc pl-5">{data.readiness.blockers.map((b,i)=><li key={i}>{t(`e3Blocker_${b.code}`,{subject:b.subject,count:b.count})}</li>)}</ul></div>}</div>}
  </section>
 }
 
@@ -150,7 +138,7 @@ export function ExamsPage({mode,canManage,canReview=false}:{mode:Mode;canManage:
     {mode==='admin'&&<><h3 className="mt-7 font-bold">{t('examTabulation')}</h3>{tabulation.data&&<div className="mt-3 overflow-x-auto"><table className="w-full min-w-[38rem] text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('studentName')}</th><th className="px-3 py-2.5">{t('examTotal')}</th><th className="px-3 py-2.5">{t('examGpa')}</th><th className="px-3 py-2.5">{t('examClassPosition')}</th><th className="px-3 py-2.5">{t('examSectionPosition')}</th><th className="px-3 py-2.5">{t('examActions')}</th></tr></thead><tbody>{tabulation.data.map((r:ExamResult)=><tr key={r.student_id} className="border-b border-slate-100"><td className="px-3 py-2.5">{r.student_name}</td><td className="px-3 py-2.5">{r.total_marks}/{r.full_marks}</td><td className="px-3 py-2.5">{r.gpa.toFixed(2)}</td><td className="px-3 py-2.5">{r.class_position}</td><td className="px-3 py-2.5">{r.section_position}</td><td className="px-3 py-2.5"><button type="button" className={ui.ghost} onClick={()=>setSelectedStudent(r.student_id)}>{t('examReview')}</button></td></tr>)}</tbody></table></div>}</>}
    </>}</section>}
   </>}
-  {(mode==='student'||mode==='guardian')&&<section className="print:hidden" aria-label={t(heading)}>{cards.isPending?<Skeleton rows={2} />:cards.isError?<Notice tone="error">{t('examError')}</Notice>:cards.data.length===0?<EmptyState icon="grade" title={t('examNoResults')}>{t('uxResultsLater')}</EmptyState>:<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{cards.data.map(item=><li key={item.exam.id}><button type="button" aria-pressed={selected===item.exam.id} className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-slate-300 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${selected===item.exam.id?'border-[var(--brand-primary)] ring-2 ring-[color-mix(in_srgb,var(--brand-primary)_20%,transparent)]':'border-slate-200'}`} onClick={()=>setSelected(item.exam.id)}><span className="flex items-start justify-between gap-2"><span className="font-semibold text-slate-900">{item.exam.name}</span>{item.withheld?<span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-600/30">{t('e3Status_withheld')}</span>:<StatusBadge tone={item.result.passed?'present':'absent'}>{t(item.result.passed?'examPassed':'examFailed')}</StatusBadge>}</span><span className="mt-1 block text-sm text-slate-600">{item.exam.session_name}</span><span className="mt-4 flex items-end justify-between gap-2">{item.withheld?<span className="text-sm text-amber-950">{t('e3ResultWithheld')}</span>:<span><span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">{t('examGpa')}</span><span className="text-3xl font-bold tabular-nums text-slate-900">{item.result.gpa.toFixed(2)}</span></span>}<span className="text-sm font-semibold text-[var(--brand-ink)]">{t('uxViewReportCard')}</span></span></button></li>)}</ul>}</section>}
+  {(mode==='student'||mode==='guardian')&&<section className="print:hidden" aria-label={t(heading)}>{cards.isPending?<Skeleton rows={2} />:cards.isError?<Notice tone="error">{t('examError')}</Notice>:cards.data.length===0?<EmptyState icon="grade" title={t('examNoResults')}>{t('uxResultsLater')}</EmptyState>:<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{cards.data.map(item=><li key={item.exam.id}><button type="button" aria-pressed={selected===item.exam.id} className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-slate-300 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${selected===item.exam.id?'border-[var(--brand-primary)] ring-2 ring-[color-mix(in_srgb,var(--brand-primary)_20%,transparent)]':'border-slate-200'}`} onClick={()=>setSelected(item.exam.id)}><span className="flex items-start justify-between gap-2"><span className="font-semibold text-slate-900">{item.exam.name}</span>{item.withheld?<span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-600/30">{t('e3Status_withheld')}</span>:<StatusBadge tone={item.result.passed?'present':'absent'}>{t(item.result.passed?'examPassed':'examFailed')}</StatusBadge>}</span><span className="mt-1 block text-sm text-slate-600">{item.exam.session_name}</span><span className="mt-4 flex items-end justify-between gap-2">{item.withheld?<span className="text-sm text-amber-900">{t('e3ResultWithheld')}</span>:<span><span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">{t('examGpa')}</span><span className="text-3xl font-bold tabular-nums text-slate-900">{item.result.gpa.toFixed(2)}</span></span>}<span className="text-sm font-semibold text-[var(--brand-ink)]">{t('uxViewReportCard')}</span></span></button></li>)}</ul>}</section>}
   {selected&&card.data&&<ReportCardView card={card.data} />}
  </div>
 }

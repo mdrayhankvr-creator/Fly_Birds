@@ -28,6 +28,8 @@ import { StudentProfilePage } from './pages/StudentProfilePage'
 import { GuardianChildrenPage } from './pages/GuardianChildrenPage'
 import { RoutinePage } from './pages/RoutinePage'
 import { ExamsPage } from './pages/ExamsPage'
+import { MarksQueue } from './pages/marks/MarksQueue'
+import { MarksWorkspace } from './pages/marks/MarksWorkspace'
 import { FeesPage } from './pages/FeesPage'
 import { MyFeesPage } from './pages/MyFeesPage'
 import { NoticesPage } from './pages/NoticesPage'
@@ -212,6 +214,18 @@ function RoutineGate({ mode, permissions, role, enabled, loading, error }: { mod
   return <RoutinePage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('routine:manage')} />
 }
 
+// SheetGate opens one mark sheet: teachers through their own routes,
+// administrators and head teachers (exams:read) through the staff routes.
+function SheetGate({ scope, permissions, role, enabled, loading, error }: { scope: 'teacher' | 'staff'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <StateScreen kind="loading" message={t('mwLoading')} />
+  if (error) return <StateScreen kind="error" message={t('examError')} />
+  const allowed = scope === 'teacher' ? role === 'teacher' && !!permissions?.includes('exams:enter_marks') : role !== 'teacher' && !!permissions?.includes('exams:read')
+  if (!allowed) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" />
+  return <MarksWorkspace scope={scope} />
+}
+
 function ExamsGate({ mode, permissions, role, enabled, loading, error }: { mode: 'admin' | 'student' | 'teacher' | 'guardian'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
   if (loading) return <StateScreen kind="loading" message={t('examLoading')} />
@@ -219,6 +233,7 @@ function ExamsGate({ mode, permissions, role, enabled, loading, error }: { mode:
   const required = mode === 'admin' ? 'exams:read' : mode === 'teacher' ? 'exams:enter_marks' : mode === 'guardian' ? 'exams:read_children' : 'exams:read_self'
   if (!permissions?.includes(required) || mode !== 'admin' && role !== mode) return <StateScreen kind="denied" message={t('permissionDenied')} />
   if (!enabled) return <StateScreen kind="disabled" />
+  if (mode === 'teacher') return <MarksQueue />
   return <ExamsPage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('exams:manage')} canReview={mode === 'admin' && (role === 'admin' || role === 'head_teacher') && permissions.includes('exams:review')} />
 }
 
@@ -458,6 +473,8 @@ export default function App() {
         <Route path="/guardian/children/:id/routine" element={<ProtectedRoute><RoutineGate mode="guardian" permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
         <Route path="/admin/exams" element={<ProtectedRoute><ExamsGate mode="admin" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/teacher/exams" element={<ProtectedRoute><ExamsGate mode="teacher" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+        <Route path="/teacher/exams/:examId/sheets/:sheetId" element={<ProtectedRoute><SheetGate scope="teacher" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+        <Route path="/admin/exams/:examId/sheets/:sheetId" element={<ProtectedRoute><SheetGate scope="staff" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/student/results" element={<ProtectedRoute><ExamsGate mode="student" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/guardian/children/:id/results" element={<ProtectedRoute><ExamsGate mode="guardian" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/notices" element={<ProtectedRoute><CommGate kind="notices" permissions={myPermissions.data} role={user?.role} enabled={noticesEnabled} loading={commLoading} error={commError} /></ProtectedRoute>} />
