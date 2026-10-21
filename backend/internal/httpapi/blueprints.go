@@ -77,7 +77,7 @@ func (h *blueprintHandler) deleteTerm(c *gin.Context) {
 		blueprintError(c, err)
 		return
 	}
-	c.Status(204)
+	success(c, 200, gin.H{"deleted": true})
 }
 
 func (h *blueprintHandler) classBlueprints(c *gin.Context) {
@@ -148,7 +148,7 @@ func (h *blueprintHandler) deleteDraft(c *gin.Context) {
 		blueprintError(c, err)
 		return
 	}
-	c.Status(204)
+	success(c, 200, gin.H{"deleted": true})
 }
 
 func (h *blueprintHandler) activate(c *gin.Context) {

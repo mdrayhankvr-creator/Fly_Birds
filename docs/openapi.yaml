@@ -1566,7 +1566,7 @@ paths:
       tags: [exams]
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { '204': { description: Deleted }, '404': { description: Term not found }, '409': { description: In use }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Deleted }, '404': { description: Term not found }, '409': { description: In use }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/terms/{id}/results:
     get:
       operationId: getTermResultsPreview
@@ -1655,7 +1655,7 @@ paths:
       tags: [exams]
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { '204': { description: Deleted }, '404': { description: Version not found }, '409': { description: Not a draft }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Deleted }, '404': { description: Version not found }, '409': { description: Not a draft }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/blueprint-versions/{id}/activate:
     post:
       operationId: activateBlueprintVersion
