@@ -3,6 +3,8 @@ package exams
 import (
 	"errors"
 	"testing"
+
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/results/calc"
 )
 
 func TestBangladeshGradesAndFourthSubject(t *testing.T) {
@@ -99,5 +101,58 @@ func TestScoreLinesStatuses(t *testing.T) {
 	}
 	if _, err := ScoreLines([]MarkLine{{FullMarks: 100, PassMarks: 33, Status: StatusPresent}}, bands); !errors.Is(err, ErrMarksIncomplete) {
 		t.Fatalf("present without marks: %v", err)
+	}
+}
+
+// Blueprint rules on one exam: a component below its pass mark fails the
+// subject; papers combine into one subject (each-paper rule optional);
+// absent can mean missing; GPA can be truncated.
+func TestScoreLinesWithPolicy(t *testing.T) {
+	bands := []Band{{"A+", 80, 100, 5}, {"A", 70, 79, 4}, {"A-", 60, 69, 3.5}, {"B", 50, 59, 3}, {"C", 40, 49, 2}, {"D", 33, 39, 1}, {"F", 0, 32, 0}}
+	m := func(v float64) *float64 { return &v }
+	pass := func(v float64) *float64 { return &v }
+	// Example 3: CQ 16 below 17 fails Physics despite 66.
+	phy := MarkLine{Marks: m(66), FullMarks: 100, PassMarks: 33, Status: StatusPresent, Components: []ComponentLine{{Key: "CQ", Marks: 16, Pass: pass(17)}, {Key: "MCQ", Marks: 25, Pass: pass(8)}, {Key: "PRAC", Marks: 25, Pass: pass(8)}}}
+	eng := MarkLine{Marks: m(80), FullMarks: 100, PassMarks: 33, Status: StatusPresent}
+	s, err := ScoreLinesWith([]MarkLine{phy, eng}, bands, ScorePolicy{})
+	if err != nil || *s.Lines[0].Grade != "F" || s.Result.Passed {
+		t.Fatalf("component failure: %+v %v", s, err)
+	}
+	// Example 4: Bangla 58 + 30 = 88 / 200 → C on the combined rule; F for
+	// both papers when each must pass.
+	b1 := MarkLine{Marks: m(58), FullMarks: 100, PassMarks: 33, Status: StatusPresent, Combined: "BAN"}
+	b2 := MarkLine{Marks: m(30), FullMarks: 100, PassMarks: 33, Status: StatusPresent, Combined: "BAN"}
+	s, err = ScoreLinesWith([]MarkLine{b1, b2, eng}, bands, ScorePolicy{})
+	if err != nil || *s.Lines[0].Grade != "C" || *s.Lines[1].Grade != "C" || s.Result.GPA != 350 {
+		t.Fatalf("combined: %+v %v", s.Lines, err)
+	}
+	s, _ = ScoreLinesWith([]MarkLine{b1, b2, eng}, bands, ScorePolicy{EachPaper: true})
+	if *s.Lines[0].Grade != "F" || *s.Lines[1].Grade != "F" || s.Result.Passed {
+		t.Fatalf("each paper: %+v", s.Lines)
+	}
+	// An exempt paper leaves the combined subject to the other paper (58 / 100,
+	// B) and keeps no grade itself.
+	ex := b2
+	ex.Status, ex.Marks = StatusExempt, nil
+	s, _ = ScoreLinesWith([]MarkLine{b1, ex, eng}, bands, ScorePolicy{EachPaper: true})
+	if *s.Lines[0].Grade != "B" || s.Lines[1].Grade != nil {
+		t.Fatalf("exempt paper: %+v", s.Lines)
+	}
+	// Absent means missing: the result waits.
+	abs := MarkLine{FullMarks: 100, PassMarks: 33, Status: StatusAbsent}
+	if _, err := ScoreLinesWith([]MarkLine{abs, eng}, bands, ScorePolicy{Absent: calc.AbsentIsMissing}); !errors.Is(err, ErrMarksIncomplete) {
+		t.Fatalf("absent as missing: %v", err)
+	}
+	// Example 5's 4.4166… → 4.41 truncated.
+	lines := []MarkLine{}
+	for _, v := range []float64{85, 90, 75, 72, 65, 55} {
+		lines = append(lines, MarkLine{Marks: m(v), FullMarks: 100, PassMarks: 33, Status: StatusPresent})
+	}
+	lines = append(lines, MarkLine{Marks: m(74), FullMarks: 100, PassMarks: 33, Status: StatusPresent, Fourth: true})
+	if s, _ := ScoreLinesWith(lines, bands, ScorePolicy{GPA: calc.Truncate}); s.Result.GPA != 441 {
+		t.Fatalf("truncate: %s", s.Result.GPA)
+	}
+	if s, _ := ScoreLines(lines, bands); s.Result.GPA != 442 {
+		t.Fatalf("half up: %s", s.Result.GPA)
 	}
 }

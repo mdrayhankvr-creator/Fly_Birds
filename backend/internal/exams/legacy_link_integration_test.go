@@ -200,6 +200,22 @@ func TestPostgresLegacyBlueprintLink(t *testing.T) {
 	}
 	exec("ROLLBACK TO SAVEPOINT frozen")
 
+	// An exam made the old way after the upgrade, named like an upgraded
+	// term, joins that term and the class's legacy assessment, so its class
+	// positions group with the other sections as before (E1-05).
+	late, err := f.svc.SaveExam(ctx, f.admin, "", ExamInput{Name: "ct 1", ExamType: "class_test", SessionID: f.session, ClassID: f.classID, SectionID: sectionB})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if late.TermID == nil || *late.TermID != links[ct.ID].TermID || *late.AssessmentKey != links[ct.ID].AssessmentKey || late.BlueprintVersionID == nil {
+		t.Fatalf("a late class test: %+v", late)
+	}
+	// Renamed away from it, the exam leaves the term.
+	if late, err = f.svc.SaveExam(ctx, f.admin, late.ID, ExamInput{Name: "Spot test", ExamType: "class_test", SessionID: f.session, ClassID: f.classID, SectionID: sectionB}); err != nil || late.TermID != nil {
+		t.Fatalf("renamed: %+v %v", late, err)
+	}
+	exec("DELETE FROM exams WHERE id = ?", late.ID)
+
 	// Running it again changes nothing.
 	if err := tx.Raw("SELECT exam_link_legacy()::text").Row().Scan(&raw); err != nil {
 		t.Fatal(err)

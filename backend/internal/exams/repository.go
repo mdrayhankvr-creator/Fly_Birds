@@ -31,9 +31,14 @@ func lock(tx *gorm.DB) error {
 	var unused any
 	return tx.Raw("SELECT pg_advisory_xact_lock(517007)").Row().Scan(&unused)
 }
+
+// examColumns are the exam fields every exam query reads.
+const examColumns = "e.id,e.name,e.exam_type,e.session_id,e.class_id,e.section_id,e.routine_id,e.status,se.name AS session_name,c.name AS class_name,s.name AS section_name," +
+	"e.term_id,(SELECT t.name FROM exam_terms t WHERE t.id=e.term_id) AS term_name,e.assessment_key,e.blueprint_version_id,to_char(e.marks_due_on,'YYYY-MM-DD') AS marks_due_on"
+
 func examByID(tx *gorm.DB, id string) (Exam, error) {
 	var e Exam
-	err := tx.Table("exams e").Joins("JOIN academic_sessions se ON se.id=e.session_id").Joins("JOIN academic_classes c ON c.id=e.class_id").Joins("JOIN academic_sections s ON s.id=e.section_id").Select("e.id,e.name,e.exam_type,e.session_id,e.class_id,e.section_id,e.routine_id,e.status,se.name AS session_name,c.name AS class_name,s.name AS section_name").Where("e.id=?", id).Take(&e).Error
+	err := tx.Table("exams e").Joins("JOIN academic_sessions se ON se.id=e.session_id").Joins("JOIN academic_classes c ON c.id=e.class_id").Joins("JOIN academic_sections s ON s.id=e.section_id").Select(examColumns).Where("e.id=?", id).Take(&e).Error
 	if err != nil {
 		return Exam{}, dbErr(err)
 	}
@@ -93,6 +98,9 @@ func (r *GormRepository) SaveExam(ctx context.Context, actor, id string, in Exam
 				return dbErr(err)
 			}
 		}
+		if err := linkLegacyTerm(tx, id); err != nil {
+			return err
+		}
 		var err error
 		out, err = examByID(tx, id)
 		if err != nil {
@@ -145,7 +153,7 @@ func (r *GormRepository) ListExams(ctx context.Context, q Query, scope, actor st
 	if err := base.Count(&out.Total).Error; err != nil {
 		return out, err
 	}
-	err := base.Select("e.id,e.name,e.exam_type,e.session_id,e.class_id,e.section_id,e.routine_id,e.status,se.name AS session_name,c.name AS class_name,s.name AS section_name").Order("e.created_at DESC,e.id DESC").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&out.Items).Error
+	err := base.Select(examColumns).Order("e.created_at DESC,e.id DESC").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&out.Items).Error
 	return out, err
 }
 func (r *GormRepository) SaveSubject(ctx context.Context, actor, examID string, in SubjectInput) (Exam, error) {
@@ -239,22 +247,12 @@ func (r *GormRepository) Roster(ctx context.Context, examID, actor, scope string
 		}
 	}
 	rows := []MarkRow{}
-	q := r.db.WithContext(ctx).Table("students s").Joins("CROSS JOIN exam_subjects es").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Joins("LEFT JOIN exam_marks m ON m.student_id=s.id AND m.exam_subject_id=es.id").Where("s.session_id=? AND s.class_id=? AND s.section_id=? AND s.status='active' AND es.exam_id=?", e.SessionID, e.ClassID, e.SectionID, e.ID)
+	q := r.db.WithContext(ctx).Table("students s").Joins("CROSS JOIN exam_subjects es").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Joins("LEFT JOIN exam_marks m ON m.student_id=s.id AND m.exam_subject_id=es.id").Where("s.session_id=? AND s.class_id=? AND s.section_id=? AND s.status='active' AND es.exam_id=? AND student_takes_subject(s.id, s.session_id, s.class_id, es.subject_id)", e.SessionID, e.ClassID, e.SectionID, e.ID)
 	if scope == "teacher" {
 		q = q.Where("EXISTS (SELECT 1 FROM employees emp JOIN teacher_assignments ta ON ta.employee_id=emp.id WHERE emp.user_id=? AND emp.is_active AND ta.session_id=? AND ta.class_id=? AND ta.subject_id=es.subject_id)", actor, e.SessionID, e.ClassID)
 	}
 	err = q.Select("es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed,coalesce(m.status,'') AS status,coalesce(m.status_reason,'') AS status_reason,coalesce(m.row_version,0) AS row_version").Order("s.roll_no NULLS LAST,s.admission_no,sub.code").Find(&rows).Error
 	return rows, err
-}
-func classRanks(tx *gorm.DB, e Exam) error {
-	return tx.Exec(`WITH ranked AS (
- SELECT r.exam_id,r.student_id,
- rank() OVER (ORDER BY r.gpa DESC,r.total_marks DESC) AS class_rank,
- rank() OVER (PARTITION BY r.section_id ORDER BY r.gpa DESC,r.total_marks DESC) AS section_rank
- FROM exam_results r JOIN exams x ON x.id=r.exam_id
- WHERE x.session_id=? AND x.class_id=? AND lower(x.name)=lower(?) AND x.exam_type=? AND x.status IN ('published','locked')
- ) UPDATE exam_results r SET class_position=ranked.class_rank,section_position=ranked.section_rank
- FROM ranked WHERE r.exam_id=ranked.exam_id AND r.student_id=ranked.student_id`, e.SessionID, e.ClassID, e.Name, e.ExamType).Error
 }
 func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) (Exam, error) {
 	var out Exam
@@ -271,6 +269,10 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 		}
 		if e.Status == "locked" {
 			return ErrConflict
+		}
+		rules, err := rulesFor(tx, e)
+		if err != nil {
+			return err
 		}
 		if e.Status == state {
 			out = e
@@ -306,7 +308,8 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 					required++
 				}
 			}
-			if fourth > 1 || required == 0 {
+			// Several fourth subjects are fine once students choose theirs.
+			if (fourth > 1 && !rules.Choices) || required == 0 {
 				return ErrConflict
 			}
 			var pending int64
@@ -331,31 +334,24 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 				return ErrInvalid
 			}
 			for _, student := range students {
-				rows := []struct {
-					MarkID    string
-					Marks     *float64
-					Status    string
-					FullMarks float64
-					PassMarks float64
-					IsFourth  bool
-				}{}
-				err := tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Select("m.id AS mark_id,m.marks,m.status,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth").Where("m.exam_id=? AND m.student_id=?", id, student.ID).Order("es.subject_id").Find(&rows).Error
+				// Only the subjects the student takes (optional subjects they
+				// did not choose are not theirs), with component marks.
+				rows, lines, expected, err := studentLines(tx, e, student.ID, rules)
 				if err != nil {
 					return err
 				}
-				if len(rows) != len(e.Subjects) {
+				if len(rows) != expected {
 					return ErrMarksIncomplete
 				}
-				lines := make([]MarkLine, 0, len(rows))
 				for _, row := range rows {
 					if row.Status == StatusIncomplete {
 						return ErrMarksIncomplete
 					}
-					lines = append(lines, MarkLine{Marks: row.Marks, FullMarks: row.FullMarks, PassMarks: row.PassMarks, Fourth: row.IsFourth, Status: row.Status})
 				}
-				// Exact engine with mark statuses; values are written as
-				// two-decimal strings so no float reaches the numeric columns.
-				score, err := ScoreLines(lines, bands)
+				// Exact engine with mark statuses and the exam's policy; values
+				// are written as two-decimal strings so no float reaches the
+				// numeric columns.
+				score, err := ScoreLinesWith(lines, bands, rules.Policy)
 				if err != nil {
 					return err
 				}
@@ -402,7 +398,7 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 				return err
 			}
 		}
-		if err := classRanks(tx, e); err != nil {
+		if err := classRanks(tx, e, rules.Dense); err != nil {
 			return err
 		}
 		out, err = examByID(tx, id)
@@ -457,7 +453,9 @@ func (r *GormRepository) Cards(ctx context.Context, scope, actor, studentID, exa
 	ids := []string{}
 	q := tx.Table("exam_results er").Joins("JOIN exams e ON e.id=er.exam_id").Where("er.student_id=?", studentID).Select("er.exam_id").Order("e.published_at DESC,e.id DESC")
 	if scope != "admin" {
-		q = q.Where("e.status IN ('published','locked')")
+		// Students and guardians see published results of assessments they
+		// may see: class tests stay hidden (E1-06).
+		q = q.Where("e.status IN ('published','locked') AND exam_visible_to_students(e.id)")
 	}
 	if examID != "" {
 		q = q.Where("er.exam_id=?", examID)
@@ -466,7 +464,7 @@ func (r *GormRepository) Cards(ctx context.Context, scope, actor, studentID, exa
 		return nil, err
 	}
 	withheld := []string{}
-	wq := tx.Table("exams e").Where("e.status IN ('published','locked') AND EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_id=e.id AND m.student_id=? AND m.status='withheld') AND NOT EXISTS (SELECT 1 FROM exam_results er WHERE er.exam_id=e.id AND er.student_id=?)", studentID, studentID).Order("e.published_at DESC,e.id DESC")
+	wq := tx.Table("exams e").Where("e.status IN ('published','locked') AND (? = 'admin' OR exam_visible_to_students(e.id)) AND EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_id=e.id AND m.student_id=? AND m.status='withheld') AND NOT EXISTS (SELECT 1 FROM exam_results er WHERE er.exam_id=e.id AND er.student_id=?)", scope, studentID, studentID).Order("e.published_at DESC,e.id DESC")
 	if examID != "" {
 		wq = wq.Where("e.id=?", examID)
 	}
@@ -497,6 +495,15 @@ func (r *GormRepository) Card(ctx context.Context, scope, actor, studentID, exam
 	}
 	if scope != "admin" && card.Exam.Status == "draft" {
 		return Card{}, ErrNotFound
+	}
+	if scope != "admin" {
+		var visible bool
+		if err := tx.Raw("SELECT exam_visible_to_students(?)", examID).Row().Scan(&visible); err != nil {
+			return Card{}, err
+		}
+		if !visible {
+			return Card{}, ErrNotFound // a hidden assessment does not exist for students
+		}
 	}
 	err = tx.Table("exam_results er").Joins("JOIN students s ON s.id=er.student_id").Select("er.exam_id,er.student_id,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,s.roll_no,er.total_marks,er.full_marks,er.gpa,er.passed,er.class_position,er.section_position").Where("er.exam_id=? AND er.student_id=?", examID, studentID).Take(&card.Result).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) && card.Exam.Status != "draft" {

@@ -84,9 +84,11 @@ func beginReadOnly(ctx context.Context, db *gorm.DB) *gorm.DB {
 type verifyExam struct {
 	ID, Name, ExamType, SessionID, ClassID, SectionID string
 	SessionName, ClassName, SectionName               string
+	TermID, AssessmentKey, BlueprintVersionID         *string
 }
 
 type verifyMark struct {
+	MarkID                                            string
 	ExamID, StudentID, SubjectID, SubjectName, Status string
 	Marks                                             *float64
 	FullMarks, PassMarks                              float64
@@ -124,13 +126,15 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 	}
 	exams := []verifyExam{}
 	if err := session(tx.Table("exams e").Joins("JOIN academic_sessions se ON se.id=e.session_id").Joins("JOIN academic_classes c ON c.id=e.class_id").Joins("JOIN academic_sections s ON s.id=e.section_id").Where(published)).
-		Select("e.id,e.name,e.exam_type,e.session_id,e.class_id,e.section_id,se.name AS session_name,c.name AS class_name,s.name AS section_name").
+		Select("e.id,e.name,e.exam_type,e.session_id,e.class_id,e.section_id,se.name AS session_name,c.name AS class_name,s.name AS section_name,e.term_id,e.assessment_key,e.blueprint_version_id").
 		Order("se.name,c.name,e.name,s.name,e.id").Find(&exams).Error; err != nil {
 		return report, err
 	}
 	marks := []verifyMark{}
-	if err := session(tx.Table("exam_marks m").Joins("JOIN exams e ON e.id=m.exam_id").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Where(published)).
-		Select("m.exam_id,m.student_id,es.subject_id,sub.name_en AS subject_name,m.status,m.marks,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth,m.grade,m.grade_point,m.passed").
+	if err := session(tx.Table("exam_marks m").Joins("JOIN exams e ON e.id=m.exam_id").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Where(published).
+		// Only subjects the student takes, as publication scores them (E5).
+		Where("student_takes_subject(m.student_id, e.session_id, e.class_id, es.subject_id)")).
+		Select("m.id AS mark_id,m.exam_id,m.student_id,es.subject_id,sub.name_en AS subject_name,m.status,m.marks,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth,m.grade,m.grade_point,m.passed").
 		Order("m.exam_id,m.student_id,es.subject_id").Find(&marks).Error; err != nil {
 		return report, err
 	}
@@ -143,8 +147,29 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 	report.Exams, report.Results, report.Marks = len(exams), len(results), len(marks)
 
 	examByID := map[string]verifyExam{}
+	rulesOf := map[string]examRules{}
 	for _, e := range exams {
 		examByID[e.ID] = e
+		rules, err := rulesFor(tx, Exam{ID: e.ID, SessionID: e.SessionID, ClassID: e.ClassID, BlueprintVersionID: e.BlueprintVersionID})
+		if err != nil {
+			return report, err
+		}
+		rulesOf[e.ID] = rules
+	}
+	// Component marks of the published marks, by mark id, in one query.
+	componentsOf := map[string][]ComponentLine{}
+	comps := []struct {
+		MarkID, Key string
+		Marks       float64
+		Pass        *float64
+	}{}
+	if err := session(tx.Table("exam_component_marks cm").Joins("JOIN exam_subject_components c ON c.exam_subject_id=cm.exam_subject_id AND c.component_key=cm.component_key").
+		Joins("JOIN exam_marks m ON m.id=cm.exam_mark_id").Joins("JOIN exams e ON e.id=m.exam_id").Where(published)).
+		Select("cm.exam_mark_id AS mark_id,cm.component_key AS key,cm.marks::float8 AS marks,c.pass_marks::float8 AS pass").Order("c.display_order").Find(&comps).Error; err != nil {
+		return report, err
+	}
+	for _, c := range comps {
+		componentsOf[c.MarkID] = append(componentsOf[c.MarkID], ComponentLine{Key: c.Key, Marks: c.Marks, Pass: c.Pass})
 	}
 	marksOf := map[[2]string][]verifyMark{}
 	for _, m := range marks {
@@ -184,14 +209,15 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 		subjects := make([]ScoredSubject, 0, len(rows))
 		allPresent := true
 		for _, m := range rows {
-			lines = append(lines, MarkLine{Marks: m.Marks, FullMarks: m.FullMarks, PassMarks: m.PassMarks, Fourth: m.IsFourth, Status: m.Status})
+			lines = append(lines, MarkLine{Marks: m.Marks, FullMarks: m.FullMarks, PassMarks: m.PassMarks, Fourth: m.IsFourth, Status: m.Status,
+				Combined: rulesOf[e.ID].Combined[m.SubjectID], Components: componentsOf[m.MarkID]})
 			if m.Status != StatusPresent || m.Marks == nil {
 				allPresent = false
 				continue
 			}
 			subjects = append(subjects, ScoredSubject{Marks: *m.Marks, FullMarks: m.FullMarks, PassMarks: m.PassMarks, Fourth: m.IsFourth})
 		}
-		score, err := ScoreLines(lines, bands)
+		score, err := ScoreLinesWith(lines, bands, rulesOf[e.ID].Policy)
 		if err != nil {
 			add(Inconsistent, "result", e, r, "", "marks", "", "", "the stored marks cannot be graded with the current scheme")
 			continue
@@ -239,7 +265,12 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 		if storedTotal != exact.Total || storedFull != exact.Full {
 			add(Inconsistent, "result", e, r, "", "total", fmt.Sprintf("%s / %s", storedTotal, storedFull), fmt.Sprintf("%s / %s", exact.Total, exact.Full), "")
 		}
+		// Class positions join a term's assessment across sections (E5),
+		// or, for exams made outside a term, the name and type.
 		group := strings.Join([]string{e.SessionID, e.ClassID, strings.ToLower(e.Name), e.ExamType}, "|")
+		if e.TermID != nil && e.AssessmentKey != nil {
+			group = strings.Join([]string{e.SessionID, e.ClassID, "term", *e.TermID, *e.AssessmentKey}, "|")
+		}
 		legacyGPAPoints := calc.Points(math.Round(lgpa * 100))
 		if !lok { // statuses: the old engine has no value; rank with the exact one
 			legacyGPAPoints, lpassed = exact.GPA, exact.Passed
@@ -268,10 +299,14 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 			s := bySection[en.stored.SectionID]
 			bySection[en.stored.SectionID] = [2][]calc.Ranked{append(s[0], en.exact), append(s[1], en.legacy)}
 		}
-		exactClass, legacyClass := calc.Rank(exactAll, calc.Competition), calc.Rank(legacyAll, calc.Competition)
+		mode := calc.Competition
+		if rulesOf[entries[0].stored.ExamID].Dense {
+			mode = calc.Dense
+		}
+		exactClass, legacyClass := calc.Rank(exactAll, mode), calc.Rank(legacyAll, calc.Competition)
 		exactSection, legacySection := map[string]int{}, map[string]int{}
 		for _, s := range bySection {
-			for key, v := range calc.Rank(s[0], calc.Competition) {
+			for key, v := range calc.Rank(s[0], mode) {
 				exactSection[key] = v
 			}
 			for key, v := range calc.Rank(s[1], calc.Competition) {
