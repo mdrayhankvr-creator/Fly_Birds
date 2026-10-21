@@ -181,6 +181,15 @@ func TestInvalidInput(t *testing.T) {
 	if _, err := GradeSubject(5000, 0, 0, s); !errors.Is(err, ErrInvalid) {
 		t.Error("zero full marks accepted")
 	}
+	if _, err := MarksOf(10000000.01); !errors.Is(err, ErrInvalid) {
+		t.Error("marks above 10,000,000.00 accepted")
+	}
+	if _, err := s.Band(maxHundredths+1, maxHundredths+1); !errors.Is(err, ErrInvalid) {
+		t.Error("full marks above the bound accepted")
+	}
+	if b, err := s.Band(maxHundredths, maxHundredths); err != nil || b.Grade != "A+" {
+		t.Errorf("largest full marks: %+v %v", b, err)
+	}
 	if _, err := NewScheme(nil); !errors.Is(err, ErrInvalid) {
 		t.Error("empty scheme accepted")
 	}

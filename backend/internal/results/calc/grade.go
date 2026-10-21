@@ -47,7 +47,8 @@ type SubjectGrade struct {
 // integers exactly. A band's upper edge M includes everything below M + 1
 // percent (79.99 % is in 70–79), and the band ending at 100 includes 100 %.
 func (s Scheme) Band(marks, full Marks) (Band, error) {
-	if full <= 0 || marks < 0 || marks > full {
+	// The bound keeps marks × 100 and edge × full far inside int64.
+	if full <= 0 || full > maxHundredths || marks < 0 || marks > full {
 		return Band{}, ErrInvalid
 	}
 	scaled := int64(marks) * 100
