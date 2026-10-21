@@ -69,7 +69,9 @@ func TestExactBandEdges(t *testing.T) {
 func TestScoreLinesStatuses(t *testing.T) {
 	bands := []Band{{"A+", 80, 100, 5}, {"A", 70, 79, 4}, {"A-", 60, 69, 3.5}, {"B", 50, 59, 3}, {"C", 40, 49, 2}, {"D", 33, 39, 1}, {"F", 0, 32, 0}}
 	m := func(v float64) *float64 { return &v }
-	present := func(v float64) MarkLine { return MarkLine{Marks: m(v), FullMarks: 100, PassMarks: 33, Status: StatusPresent} }
+	present := func(v float64) MarkLine {
+		return MarkLine{Marks: m(v), FullMarks: 100, PassMarks: 33, Status: StatusPresent}
+	}
 	// All present: identical to Score.
 	s, err := ScoreLines([]MarkLine{present(80), present(70)}, bands)
 	if err != nil || s.Result.GPA != 450 || !s.Result.Passed || s.Result.Total != 15000 {

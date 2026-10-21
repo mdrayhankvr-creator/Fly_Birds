@@ -185,6 +185,7 @@ func (h *examHandler) marks(c *gin.Context) {
 	}
 	success(c, 200, gin.H{"saved": len(in.Entries)})
 }
+
 // patchMarks saves cells independently, with statuses and version checks.
 func (h *examHandler) patchMarks(c *gin.Context) {
 	if !h.ready(c) {

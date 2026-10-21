@@ -91,9 +91,9 @@ type verifyMark struct {
 	Marks                                             *float64
 	FullMarks, PassMarks                              float64
 	IsFourth                                          bool
-	Grade                                     *string
-	GradePoint                                *float64
-	Passed                                    *bool
+	Grade                                             *string
+	GradePoint                                        *float64
+	Passed                                            *bool
 }
 
 type verifyResult struct {
