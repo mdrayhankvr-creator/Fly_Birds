@@ -2,7 +2,7 @@
 // Run with: node --experimental-strip-types --test scripts/marks-input.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isMultiCell, parseCell, parseTable, planPaste, toLatinDigits } from '../src/pages/marks/marksInput.ts'
+import { isMultiCell, parseCell, parseTable, parseComponents, planPaste, toLatinDigits } from '../src/pages/marks/marksInput.ts'
 
 test('Bangla digits become ASCII', () => {
   assert.equal(toLatinDigits('৪৫.৫০'), '45.50')
@@ -78,4 +78,20 @@ test('paste by position starts at the focused row and never runs past the list',
   assert.equal(plan.mode, 'by_position')
   assert.deepEqual(plan.items.map(i => [i.student_id, i.result]), [['s2', 'apply'], ['s3', 'skip'], [null, 'reject'], [null, 'reject']])
   assert.equal(plan.items[2].reason, 'no_student')
+})
+
+test('a component sheet pastes one value per component, in order', () => {
+  const parts = [{ key: 'CQ', full: 50 }, { key: 'MCQ', full: 25 }, { key: 'PRAC', full: 25 }]
+  const targets = [{ student_id: 's1', admission_no: 'A-1' }, { student_id: 's2', admission_no: 'A-2' }, { student_id: 's3', admission_no: 'A-3' }, { student_id: 's4', admission_no: 'A-4' }]
+  const table = parseTable('A-2\tNila\t40\t20\t21\nA-1\t45\t25\t25\nA-3\t51\t20\t20\nA-4\t80\nA-9\t1\t2\t3')
+  const plan = planPaste(table, targets, 0, 100, parts)
+  assert.equal(plan.mode, 'by_admission')
+  assert.deepEqual(plan.items[0].parsed, { kind: 'components', values: { CQ: 40, MCQ: 20, PRAC: 21 } }) // the name column is ignored
+  assert.equal(plan.items[0].student_id, 's2')
+  assert.deepEqual(plan.items[1].parsed, { kind: 'components', values: { CQ: 45, MCQ: 25, PRAC: 25 } })
+  assert.equal(plan.items[2].reason, 'above_full_marks') // CQ 51 of 50
+  assert.equal(plan.items[3].reason, 'components_required') // one total cannot be split
+  assert.equal(plan.items[4].reason, 'unknown_student')
+  assert.deepEqual(parseComponents(['ab'], parts, 100), { kind: 'status', status: 'absent' })
+  assert.deepEqual(parseComponents(['', ''], parts, 100), { kind: 'empty' })
 })

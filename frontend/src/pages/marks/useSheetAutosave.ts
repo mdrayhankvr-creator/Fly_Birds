@@ -14,9 +14,13 @@ import { parseCell, type MarkStatus } from './marksInput'
 //     overwrite;
 //   - a retried request whose earlier attempt did land is recognised as saved.
 
-export type CellValue = { status: MarkStatus | ''; text: string; reason: string }
-export type ServerCell = { status: MarkStatus | ''; marks: number | null; reason: string; version: number }
-export type Draft = { status: MarkStatus; text: string; reason: string; base: number }
+// parts are a component sheet's typed values by component (E5); text is then
+// their sum, for display and the percentage.
+export type CellValue = { status: MarkStatus | ''; text: string; reason: string; parts: Record<string, string> }
+export type ServerCell = { status: MarkStatus | ''; marks: number | null; reason: string; version: number; components?: Record<string, number> }
+export type Draft = { status: MarkStatus; text: string; reason: string; base: number; parts?: Record<string, string> }
+/** A component of a component sheet. */
+export type SheetPart = { key: string; full: number }
 export type CellState =
   | { kind: 'saving' }
   | { kind: 'saved'; at: number }
@@ -35,6 +39,7 @@ type Options = {
   storageKey: string | null
   save: SaveFn
   onBlocked: () => void
+  components?: SheetPart[] // a component sheet's components, in order
 }
 
 const idleDelay = 600
@@ -59,7 +64,25 @@ export function marksDraftKey(userId: string, sheetId: string) {
 }
 
 function serverOf(row: ExamMarkRow): ServerCell {
-  return { status: (row.status || '') as ServerCell['status'], marks: row.marks, reason: row.status_reason || '', version: row.row_version }
+  return { status: (row.status || '') as ServerCell['status'], marks: row.marks, reason: row.status_reason || '', version: row.row_version, components: row.components }
+}
+
+const noParts: SheetPart[] = []
+
+/** Typed parts of a server cell, as text. */
+function partsOf(cell: ServerCell | undefined): Record<string, string> {
+  return Object.fromEntries(Object.entries(cell?.components || {}).map(([k, v]) => [k, String(v)]))
+}
+
+/** The exact sum of the parts as text, or '' while any part is not a mark. */
+export function sumParts(parts: Record<string, string>, components: SheetPart[]): string {
+  let total = 0
+  for (const c of components) {
+    const p = parseCell(parts[c.key] ?? '', c.full)
+    if (p.kind !== 'marks') return ''
+    total += Math.round(p.value * 100)
+  }
+  return String(total / 100)
 }
 
 function textOf(marks: number | null) {
@@ -68,9 +91,18 @@ function textOf(marks: number | null) {
 
 // sameValue compares what the user means, not how it is typed: "45.50" = 45.5.
 // A cell with no server row equals a present draft with nothing typed.
-function sameValue(draft: { status: string; text: string; reason: string }, server: ServerCell): boolean {
-  if (server.status === '') return draft.status === 'present' && draft.text.trim() === ''
+function sameValue(draft: { status: string; text: string; reason: string; parts?: Record<string, string> }, server: ServerCell, components: SheetPart[] = noParts): boolean {
+  const empty = Object.values(draft.parts || {}).every(v => v.trim() === '')
+  if (server.status === '') return draft.status === 'present' && draft.text.trim() === '' && empty
   if (draft.status !== server.status) return false
+  // A component sheet: every component equal (the total follows).
+  if (components.length > 0 && (draft.status === 'present' || (draft.status === 'withheld' && !empty))) {
+    return components.every(c => {
+      const p = parseCell(draft.parts?.[c.key] ?? '', c.full)
+      const stored = server.components?.[c.key]
+      return p.kind === 'marks' && stored != null && Math.round(p.value * 100) === Math.round(stored * 100)
+    })
+  }
   if ((draft.status === 'exempt' || draft.status === 'withheld') && draft.reason.trim() !== server.reason) return false
   if (draft.status !== 'present' && draft.status !== 'withheld') return true
   const parsed = parseCell(draft.text, 10_000_000)
@@ -78,7 +110,7 @@ function sameValue(draft: { status: string; text: string; reason: string }, serv
   return parsed.kind === 'marks' && server.marks != null && Math.round(parsed.value * 100) === Math.round(server.marks * 100)
 }
 
-export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey, save, onBlocked }: Options) {
+export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey, save, onBlocked, components = noParts }: Options) {
   const server = useRef(new Map<string, ServerCell>())
   const drafts = useRef(new Map<string, Draft>())
   const cells = useRef(new Map<string, CellState>())
@@ -115,7 +147,7 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
     for (const row of rows) server.current.set(row.student_id, serverOf(row))
     for (const [id, draft] of drafts.current) {
       const cell = server.current.get(id)
-      if (cell && sameValue(draft, cell)) { drafts.current.delete(id); cells.current.delete(id) }
+      if (cell && sameValue(draft, cell, components)) { drafts.current.delete(id); cells.current.delete(id) }
     }
     if (!loaded.current && storageKey) {
       loaded.current = true
@@ -129,14 +161,14 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
         }
         const stored = JSON.parse(sessionStorage.getItem(storageKey) || 'null') as Stored | null
         if (stored) {
-          const pending = Object.entries(stored.drafts).filter(([id, d]) => { const cell = server.current.get(id); return cell && !sameValue(d, cell) })
+          const pending = Object.entries(stored.drafts).filter(([id, d]) => { const cell = server.current.get(id); return cell && !sameValue(d, cell, components) })
           if (pending.length && enabled) setRecovery({ count: pending.length, savedAt: stored.savedAt, drafts: Object.fromEntries(pending) })
           else sessionStorage.removeItem(storageKey)
         }
       } catch { /* unreadable or unavailable storage: nothing to restore */ }
     }
     bump()
-  }, [rows, fullMarks, storageKey, enabled, bump])
+  }, [rows, fullMarks, storageKey, enabled, bump, components])
 
   const schedule = useCallback((ms = idleDelay) => {
     window.clearTimeout(timer.current)
@@ -152,6 +184,23 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
       const cell = cells.current.get(id)
       if (cell?.kind === 'conflict') continue
       let marks: number | null = null
+      // A component sheet sends its components and the server adds them up.
+      // A row still being filled in waits as an unsaved draft, quietly.
+      if (components.length > 0 && (draft.status === 'present' || (draft.status === 'withheld' && Object.values(draft.parts || {}).some(v => v.trim() !== '')))) {
+        if (components.some(c => (draft.parts?.[c.key] ?? '').trim() === '')) continue
+        const values: Record<string, number> = {}
+        let bad = ''
+        for (const c of components) {
+          const p = parseCell(draft.parts?.[c.key] ?? '', c.full)
+          if (p.kind === 'marks') values[c.key] = p.value
+          else bad = p.kind === 'error' ? p.code : 'not_a_number'
+        }
+        if (bad) { cells.current.set(id, { kind: 'error', code: bad }); localErrors++; continue }
+        entries.push({ exam_subject_id: sheetId, student_id: id, status: draft.status, marks: null, components: values, reason: draft.reason.trim(), row_version: draft.base })
+        sent.set(id, { ...draft })
+        cells.current.set(id, { kind: 'saving' })
+        continue
+      }
       if (draft.status === 'present' || draft.status === 'withheld') {
         const parsed = parseCell(draft.text, fullMarks)
         if (parsed.kind === 'error') { cells.current.set(id, { kind: 'error', code: parsed.code }); localErrors++; continue }
@@ -179,7 +228,7 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
       const apply = (id: string, cell: ServerCell) => {
         server.current.set(id, cell)
         const now = drafts.current.get(id), was = sent.get(id)
-        if (now && was && now.status === was.status && now.text === was.text && now.reason === was.reason) {
+        if (now && was && now.status === was.status && now.text === was.text && now.reason === was.reason && JSON.stringify(now.parts || {}) === JSON.stringify(was.parts || {})) {
           drafts.current.delete(id)
           cells.current.set(id, { kind: 'saved', at: Date.now() })
         } else if (now) {
@@ -188,13 +237,13 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
           cells.current.delete(id)
         }
       }
-      for (const c of result.saved) apply(c.student_id, { status: c.status, marks: c.marks, reason: c.reason, version: c.row_version })
+      for (const c of result.saved) apply(c.student_id, { status: c.status, marks: c.marks, reason: c.reason, version: c.row_version, components: c.components })
       let blocked = false
       for (const e of result.errors) {
         const was = sent.get(e.student_id)
         if (e.code === 'version_conflict' && e.current && was) {
-          const current: ServerCell = { status: e.current.status, marks: e.current.marks, reason: e.current.reason, version: e.current.row_version }
-          if (sameValue(was, current)) { apply(e.student_id, current); continue } // an earlier attempt landed
+          const current: ServerCell = { status: e.current.status, marks: e.current.marks, reason: e.current.reason, version: e.current.row_version, components: e.current.components }
+          if (sameValue(was, current, components)) { apply(e.student_id, current); continue } // an earlier attempt landed
           server.current.set(e.student_id, current)
           cells.current.set(e.student_id, { kind: 'conflict', server: current })
         } else {
@@ -234,7 +283,7 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
       const waiting = [...drafts.current.keys()].some(id => !cells.current.has(id))
       if (waiting && timer.current === undefined) schedule()
     }
-  }, [enabled, fullMarks, sheetId, persist, schedule, bump])
+  }, [enabled, fullMarks, sheetId, persist, schedule, bump, components])
   const flushRef = useRef(flush)
   flushRef.current = flush
 
@@ -258,9 +307,9 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
 
   const value = useCallback((id: string): CellValue => {
     const draft = drafts.current.get(id)
-    if (draft) return { status: draft.status, text: draft.text, reason: draft.reason }
+    if (draft) return { status: draft.status, text: draft.text, reason: draft.reason, parts: draft.parts || {} }
     const cell = server.current.get(id)
-    return { status: cell?.status || '', text: textOf(cell?.marks ?? null), reason: cell?.reason || '' }
+    return { status: cell?.status || '', text: textOf(cell?.marks ?? null), reason: cell?.reason || '', parts: partsOf(cell) }
   }, [])
 
   const edit = useCallback((id: string, patch: Partial<CellValue>) => {
@@ -270,8 +319,12 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
     const current = value(id)
     const base = drafts.current.get(id)?.base ?? cell.version
     const next: Draft = { status: ((patch.status ?? current.status) || 'present') as MarkStatus, text: patch.text ?? current.text, reason: patch.reason ?? current.reason, base }
-    if (next.status !== 'present' && next.status !== 'withheld') next.text = ''
-    if (sameValue(next, cell) && base === cell.version) {
+    if (components.length > 0) {
+      next.parts = patch.parts ? { ...current.parts, ...patch.parts } : current.parts
+      next.text = sumParts(next.parts, components)
+    }
+    if (next.status !== 'present' && next.status !== 'withheld') { next.text = ''; if (next.parts) next.parts = {} }
+    if (sameValue(next, cell, components) && base === cell.version) {
       drafts.current.delete(id)
       if (cells.current.get(id)?.kind !== 'conflict') cells.current.delete(id)
     } else {
@@ -282,7 +335,7 @@ export function useSheetAutosave({ sheetId, rows, fullMarks, enabled, storageKey
     persist()
     bump()
     schedule()
-  }, [enabled, value, fullMarks, persist, bump, schedule])
+  }, [enabled, value, fullMarks, persist, bump, schedule, components])
 
   const revert = useCallback((id: string) => {
     drafts.current.delete(id)

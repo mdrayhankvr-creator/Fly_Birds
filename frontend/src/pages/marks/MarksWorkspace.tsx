@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type Clipboard
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, examSheetAction, getExamSheetHistory, getExamSheetWorkspace, saveExamMarkCells, type ExamMarkRow, type ExamMarkStatus, type ExamSheetHistoryEntry, type ExamSheetPermissions } from '../../api/client'
+import { ApiError, examSheetAction, getExamSheetHistory, getExamSheetWorkspace, saveExamMarkCells, type ExamMarkRow, type ExamMarkStatus, type ExamSheetComponent, type ExamSheetHistoryEntry, type ExamSheetPermissions } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
 import { confirmAction } from '../../components/ConfirmDialog'
 import { Notice, Skeleton, ui } from '../attendanceUi'
@@ -44,9 +44,12 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
   const data = ws.data
   const perms = data?.permissions
   const full = data?.sheet.full_marks ?? 100
+  // A component sheet (CQ, MCQ, practical …): one input per component (E5).
+  const components = useMemo(() => data?.components ?? [], [data?.components])
+  const parts = useMemo(() => components.map(c => ({ key: c.key, full: c.full })), [components])
   const reload = useCallback(() => client.invalidateQueries({ queryKey: ['marks'] }), [client])
   const save = useCallback((entries: Parameters<typeof saveExamMarkCells>[2]) => authorized(token => saveExamMarkCells(token, examId, entries)), [authorized, examId])
-  const autosave = useSheetAutosave({ sheetId, rows: data?.rows, fullMarks: full, enabled: !!perms?.can_edit, storageKey: user ? marksDraftKey(user.id, sheetId) : null, save, onBlocked: () => void reload() })
+  const autosave = useSheetAutosave({ sheetId, rows: data?.rows, fullMarks: full, enabled: !!perms?.can_edit, storageKey: user ? marksDraftKey(user.id, sheetId) : null, save, onBlocked: () => void reload(), components: parts })
 
   const [search, setSearch] = useState(''), [filter, setFilter] = useState<RowFilter>('all')
   const [single, setSingle] = useState(false), [cursor, setCursor] = useState(0)
@@ -77,10 +80,10 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
   const counts = { absent: 0, incomplete: 0, exempt: 0, withheld: 0 }
   for (const row of rows) { const s = autosave.value(row.student_id).status; if (s in counts) counts[s as keyof typeof counts]++ }
 
-  const focusRow = useCallback((index: number) => {
+  const focusRow = useCallback((index: number, part?: string) => {
     const row = visibleRef.current[Math.max(0, Math.min(index, visibleRef.current.length - 1))]
     if (!row) return
-    const el = inputs.current.get(row.student_id)
+    const el = inputs.current.get(part ? `${row.student_id}|${part}` : row.student_id)
     if (el && !el.disabled) { el.focus(); el.select() }
     setCursor(Math.max(0, Math.min(index, visibleRef.current.length - 1)))
   }, [])
@@ -93,19 +96,20 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
   const openPaste = useCallback((text: string, start: number) => {
     const table = parseTable(text)
     const all = rows.map(r => ({ student_id: r.student_id, admission_no: r.admission_no }))
-    const plan = planPaste(table, all, start, full)
+    const plan = planPaste(table, all, start, full, parts)
     if (plan.mode === 'by_position' && filtered) { setPaste({ plan: null, error: t('mwPasteFiltered'), box: false, text: '' }); return }
     for (const item of plan.items) {
       const row = rows.find(r => r.student_id === item.student_id)
       if (item.result === 'apply' && row && !editableRow(row)) { item.result = 'reject'; item.reason = 'locked_by_admin' }
     }
     setPaste({ plan, error: '', box: false, text: '' })
-  }, [rows, full, filtered, t, editableRow])
+  }, [rows, full, filtered, t, editableRow, parts])
   function applyPaste() {
     if (!paste?.plan) return
     for (const item of paste.plan.items) {
       if (item.result !== 'apply' || !item.student_id) continue
       if (item.parsed.kind === 'marks') autosave.edit(item.student_id, { status: 'present', text: String(item.parsed.value) })
+      else if (item.parsed.kind === 'components') autosave.edit(item.student_id, { status: 'present', parts: Object.fromEntries(Object.entries(item.parsed.values).map(([k, v]) => [k, String(v)])) })
       else if (item.parsed.kind === 'status') autosave.edit(item.student_id, { status: item.parsed.status })
     }
     setPaste(null)
@@ -127,11 +131,12 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
   rowsRef.current = rows
 
   // ---- keyboard ------------------------------------------------------------
-  const onMarksKey = useCallback((event: KeyboardEvent<HTMLInputElement>, index: number, row: ExamMarkRow) => {
+  const onMarksKey = useCallback((event: KeyboardEvent<HTMLInputElement>, index: number, row: ExamMarkRow, part?: string) => {
     const id = row.student_id
     if (event.key === 'Enter' || event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      focusRow(index + (event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey) ? -1 : 1))
+      // Down the same column: a component sheet keeps the component.
+      focusRow(index + (event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey) ? -1 : 1), part)
       return
     }
     if (event.key === 'Escape') { event.preventDefault(); autosaveRef.current.revert(id); return }
@@ -144,8 +149,8 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
   }, [focusRow])
   const permsRef = useRef(perms)
   permsRef.current = perms
-  const ctx = useMemo<RowCtx>(() => ({ edit: autosave.edit, resolve: autosave.resolve, inputs, errText, onMarksKey, onCellPaste, t }),
-    [autosave.edit, autosave.resolve, errText, onMarksKey, onCellPaste, t])
+  const ctx = useMemo<RowCtx>(() => ({ edit: autosave.edit, resolve: autosave.resolve, inputs, errText, onMarksKey, onCellPaste, t, components }),
+    [autosave.edit, autosave.resolve, errText, onMarksKey, onCellPaste, t, components])
 
   // Reviewers and teachers: submit, approve, return.
   async function act(action: 'submit' | 'approve' | 'return', reason?: string) {
@@ -280,11 +285,12 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
         {/* Tablets and desktops: the grid */}
         {wide && <div className="max-h-[70vh] overflow-auto">
           <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup><col className="w-14 lg:w-16" /><col className="w-52 lg:w-80" /><col className="w-32 lg:w-36" /><col className="w-14 lg:w-16" /><col className="w-40 lg:w-44" /><col /></colgroup>
+            <colgroup><col className="w-14 lg:w-16" /><col className="w-52 lg:w-80" />{components.length ? <col style={{ width: `${components.length * 4.25 + 4.5}rem` }} /> : <col className="w-32 lg:w-36" />}<col className="w-14 lg:w-16" /><col className="w-40 lg:w-44" /><col /></colgroup>
             <thead><tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th scope="col" className="sticky left-0 top-0 z-20 border-b border-slate-200 bg-slate-50 px-3 py-2.5">{t('mwRoll')}</th>
               <th scope="col" className="sticky left-14 lg:left-16 top-0 z-20 border-b border-slate-200 bg-slate-50 px-3 py-2.5">{t('mwStudent')}</th>
-              <th scope="col" className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-right">{t('mwMarks')} <span className="font-normal normal-case">/ {data.sheet.full_marks}</span></th>
+              <th scope="col" className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-right">{t('mwMarks')} <span className="font-normal normal-case">/ {data.sheet.full_marks}</span>
+                {components.length > 0 && <span className="block font-normal normal-case tracking-normal">{components.map(c => `${c.key} ${c.full}`).join(' · ')}</span>}</th>
               <th scope="col" className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-right">{t('mwPercent')}</th>
               <th scope="col" className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2.5">{t('mwStatus')}</th>
               <th scope="col" className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-2 py-2.5"><span className="sr-only">{t('mwCellSaved')}</span></th>
@@ -307,7 +313,7 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
   function rowProps(row: ExamMarkRow) {
     const id = row.student_id
     const v = autosave.value(id)
-    const view: View = { status: v.status, text: v.text, reason: v.reason, cell: autosave.cell(id), draft: autosave.isDraft(id), server: autosave.serverCell(id), editable: editableRow(row) }
+    const view: View = { status: v.status, text: v.text, reason: v.reason, parts: v.parts, cell: autosave.cell(id), draft: autosave.isDraft(id), server: autosave.serverCell(id), editable: editableRow(row) }
     return { view, perms: perms!, full, ctx }
   }
 }
@@ -339,9 +345,10 @@ type RowCtx = {
   resolve: ReturnType<typeof useSheetAutosave>['resolve']
   inputs: MutableRefObject<Map<string, HTMLInputElement>>
   errText: (code: string) => string
-  onMarksKey: (event: KeyboardEvent<HTMLInputElement>, index: number, row: ExamMarkRow) => void
+  onMarksKey: (event: KeyboardEvent<HTMLInputElement>, index: number, row: ExamMarkRow, part?: string) => void
   onCellPaste: (event: ClipboardEvent<HTMLInputElement>, index: number) => void
   t: (key: string, options?: Record<string, unknown>) => string
+  components: ExamSheetComponent[] // empty: one total per student
 }
 type RowProps = { row: ExamMarkRow; index: number; view: View; perms: ExamSheetPermissions; full: number; ctx: RowCtx; large?: boolean }
 
@@ -377,7 +384,38 @@ function StatusControl({ row, view, perms, ctx }: RowProps) {
   </div>
 }
 
-function MarksControl({ row, index, view, full, ctx, large }: RowProps) {
+function MarksControl(p: RowProps) {
+  return p.ctx.components.length > 0 ? <ComponentInputs {...p} /> : <TotalInput {...p} />
+}
+
+// ComponentInputs: one input per component and their exact total (E5).
+function ComponentInputs({ row, index, view, ctx, large }: RowProps) {
+  const { t } = ctx
+  const errorId = `mw-err-${row.student_id}`
+  const error = view.cell?.kind === 'error' ? ctx.errText(view.cell.code) : ''
+  const marks = carries(view.status)
+  return <div className="flex flex-col items-end gap-1">
+    <div className="flex items-end gap-1.5">
+      {ctx.components.map((c, k) => <label key={c.key} className="block text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">{c.key}
+        <input ref={el => {
+          const key = `${row.student_id}|${c.key}`
+          if (el) { ctx.inputs.current.set(key, el); if (k === 0) ctx.inputs.current.set(row.student_id, el) }
+          else { ctx.inputs.current.delete(key); if (k === 0) ctx.inputs.current.delete(row.student_id) }
+        }}
+          type="text" inputMode="decimal" autoComplete="off" spellCheck={false} disabled={!view.editable}
+          aria-label={t('mwPartFor', { part: c.key, name: row.student_name, full: c.full })} aria-invalid={!!error} aria-describedby={error ? errorId : undefined}
+          className={`${large ? 'min-h-14 w-20 text-xl' : 'min-h-10 w-16 text-sm sm:min-h-9'} mt-0.5 block rounded-lg border bg-white px-2 text-right font-medium normal-case tabular-nums tracking-normal text-slate-900 transition-colors focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--brand-primary)_18%,transparent)] disabled:bg-slate-50 disabled:text-slate-500 ${error ? 'border-rose-300' : view.cell?.kind === 'conflict' ? 'border-amber-300' : 'border-slate-300'}`}
+          value={marks ? view.parts[c.key] ?? '' : ''} placeholder={marks || k > 0 ? '' : t(`e3Status_${view.status}`)}
+          onChange={e => ctx.edit(row.student_id, { parts: { [c.key]: e.target.value }, status: marks && view.status ? view.status as ExamMarkStatus : 'present' })}
+          onKeyDown={e => ctx.onMarksKey(e, index, row, c.key)} onPaste={e => ctx.onCellPaste(e, index)} />
+      </label>)}
+      <span className="min-w-[3rem] pb-2 text-right text-sm font-semibold tabular-nums text-slate-800" aria-label={t('mwPartsTotal', { name: row.student_name })}>{marks && view.text ? `= ${view.text}` : '—'}</span>
+    </div>
+    {error && <p id={errorId} className="max-w-[16rem] text-right text-xs font-medium text-rose-700">{error}</p>}
+  </div>
+}
+
+function TotalInput({ row, index, view, full, ctx, large }: RowProps) {
   const { t } = ctx
   const errorId = `mw-err-${row.student_id}`
   const error = view.cell?.kind === 'error' ? ctx.errText(view.cell.code) : ''
@@ -407,8 +445,11 @@ function StateIcon({ view, t }: { view: View; t: RowCtx['t'] }) {
 function ConflictNote({ row, view, ctx, server }: RowProps & { server: ServerCell }) {
   const { t } = ctx
   const show = (status: string, text: string) => status && status !== 'present' ? t(`e3Status_${status}`) : text || t('mwEmptyValue')
+  // On a component sheet, both sides show their components.
+  const split = (values: Record<string, string | number> | undefined, total: string) => ctx.components.length && values && Object.keys(values).length
+    ? `${ctx.components.map(c => `${c.key} ${values[c.key] ?? '—'}`).join(' · ')} = ${total || '—'}` : total
   return <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-    <span>{t('mwConflict', { theirs: show(server.status, server.marks == null ? '' : String(server.marks)), mine: show(view.status, view.text) })}</span>
+    <span>{t('mwConflict', { theirs: show(server.status, split(server.components, server.marks == null ? '' : String(server.marks))), mine: show(view.status, split(view.parts, view.text)) })}</span>
     <button type="button" className={`${ui.secondary} min-h-8 px-2 py-1 text-xs`} onClick={() => ctx.resolve(row.student_id, 'theirs')}>{t('mwUseTheirs')}</button>
     <button type="button" className={`${ui.secondary} min-h-8 px-2 py-1 text-xs`} onClick={() => ctx.resolve(row.student_id, 'mine')}>{t('mwKeepMine')}</button>
   </div>
@@ -448,6 +489,7 @@ function sameRow(a: RowProps, b: RowProps) {
   const x = a.view, y = b.view
   return a.row === b.row && a.index === b.index && a.perms === b.perms && a.full === b.full && a.large === b.large && a.ctx === b.ctx
     && x.status === y.status && x.text === y.text && x.reason === y.reason && x.cell === y.cell && x.draft === y.draft && x.server === y.server && x.editable === y.editable
+    && JSON.stringify(x.parts) === JSON.stringify(y.parts)
 }
 
 function PasteDialog({ state, rows, errText, full, onText, onPreview, onApply, onCancel, value }: {
@@ -475,7 +517,8 @@ function PasteDialog({ state, rows, errText, full, onText, onPreview, onApply, o
           <tbody>{plan.items.map(item => {
             const row = item.student_id ? byId.get(item.student_id) : undefined
             const now = row ? value(row.student_id) : null
-            const shown = item.parsed.kind === 'marks' ? String(item.parsed.value) : item.parsed.kind === 'status' ? t(`e3Status_${item.parsed.status}`) : item.raw || '—'
+            const shown = item.parsed.kind === 'marks' ? String(item.parsed.value) : item.parsed.kind === 'status' ? t(`e3Status_${item.parsed.status}`)
+              : item.parsed.kind === 'components' ? Object.entries(item.parsed.values).map(([k, v]) => `${k} ${v}`).join(' · ') : item.raw || '—'
             return <tr key={item.line} className={`border-t border-slate-100 ${item.result === 'reject' ? 'text-rose-800' : item.result === 'skip' ? 'text-slate-500' : 'text-slate-900'}`}>
               <td className="py-1.5 pr-2 tabular-nums">{item.line}</td>
               <td className="py-1.5 pr-2">{row ? <>{row.student_name} <span className="text-xs text-slate-500">{row.admission_no}</span></> : '—'}</td>
