@@ -230,3 +230,10 @@ func (s *Service) CreateTerm(ctx context.Context, actor, termID string) (SetupRe
 	}
 	return s.repo.CreateTerm(ctx, actor, termID)
 }
+
+func (s *Service) TermPreview(ctx context.Context, termID, classID string) (TermPreview, error) {
+	if !isUUID(termID) || !isUUID(classID) {
+		return TermPreview{}, ErrInvalid
+	}
+	return s.repo.TermPreview(ctx, termID, classID)
+}

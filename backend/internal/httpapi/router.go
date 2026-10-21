@@ -228,6 +228,7 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	management.POST("/exams/terms", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveTerm)
 	management.PUT("/exams/terms/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveTerm)
 	management.DELETE("/exams/terms/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.deleteTerm)
+	management.GET("/exams/terms/:id/results", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.termPreview)
 	management.GET("/exams/terms/:id/setup", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.setup)
 	management.PUT("/exams/terms/:id/setup", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveSetup)
 	management.POST("/exams/terms/:id/create", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.createTerm)

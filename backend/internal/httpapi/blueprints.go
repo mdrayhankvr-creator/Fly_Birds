@@ -241,3 +241,11 @@ func (h *blueprintHandler) createTerm(c *gin.Context) {
 	}
 	h.respond(c, 200, v, err)
 }
+
+func (h *blueprintHandler) termPreview(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	v, err := h.service.TermPreview(c.Request.Context(), c.Param("id"), c.Query("class_id"))
+	h.respond(c, 200, v, err)
+}

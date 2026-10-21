@@ -1567,6 +1567,15 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '204': { description: Deleted }, '404': { description: Term not found }, '409': { description: In use }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/terms/{id}/results:
+    get:
+      operationId: getTermResultsPreview
+      summary: A class's provisional term results (staff only)
+      description: Requires exams:read. Computes every student's term result from the marks entered so far with the blueprint version the term's exams were created from - each subject's contributions (CT + final, best-N), component and paper pass rules, combined papers, optional subjects, GPA, outcome and section and class positions - and lists the sheets not yet approved. Nothing is stored or published; students never see it. state is ready, pending, no_exams or mixed_versions.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Provisional term results }, '400': { description: Invalid input }, '404': { description: Term or class not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/terms/{id}/setup:
     get:
       operationId: getTermSetup
