@@ -530,6 +530,34 @@ func TestPostgresConcurrentMarkWrites(t *testing.T) {
 	if version != 2 {
 		t.Fatalf("row version %d, want 2", version)
 	}
+	// A cell nobody has entered yet: four writers all read "no row" (version
+	// 0). The sheet lock serialises them, and each one re-reads the cell after
+	// taking it, so only the first creates the cell; the rest are told.
+	results, errs = make([]MarksResult, 4), make([]error, 4)
+	var wg3 sync.WaitGroup
+	for i := range results {
+		wg3.Add(1)
+		go func(i int) {
+			defer wg3.Done()
+			results[i], errs[i] = f.svc.SaveMarkEntries(ctx, f.teacher, "teacher", exam.ID, []MarkEntry{{ExamSubjectID: sheet["S1"], StudentID: f.students[1], Status: StatusPresent, Marks: num(float64(20 + i)), RowVersion: 0}})
+		}(i)
+	}
+	wg3.Wait()
+	created, refused := 0, 0
+	for i := range results {
+		if errs[i] != nil {
+			t.Fatal(errs[i])
+		}
+		created += len(results[i].Saved)
+		for _, e := range results[i].Errors {
+			if e.Code == "version_conflict" && e.Current != nil && e.Current.RowVersion == 1 {
+				refused++
+			}
+		}
+	}
+	if created != 1 || refused != 3 {
+		t.Fatalf("new cell, four writers: %d created, %d refused", created, refused)
+	}
 	// Two teachers on different sheets of the same exam, at the same time.
 	var wg2 sync.WaitGroup
 	var e1, e2 error
