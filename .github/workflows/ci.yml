@@ -60,6 +60,8 @@ jobs:
         run: npm ci
       - name: Translation keys
         run: npm run check:i18n
+      - name: Unit tests
+        run: npm run test:unit
       - name: Type check and build
         run: npm run build
       - name: Dependency audit
