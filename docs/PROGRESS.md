@@ -32,7 +32,7 @@ On `feature/e4-premium-marks-workspace`, from `main` `a5affd81`. Scope as in the
 **Verification (disposable resources only):**
 - **Go:** all packages pass on a fresh database; vet clean; govulncheck finds nothing reachable.
 - **Frontend:** build, i18n (1,997 keys) and `npm run test:unit` pass.
-- **E2E:** `e2e/marks-workspace.mjs` 46/46 at 1440, 768 and 390 px, in English and Bangla, light and dark, with three school colours and axe clean. Existing suites: browser 106/106, white-label 23/23, payment safety 12/12, E3 exam workflow 17/17.
+- **E2E:** `e2e/marks-workspace.mjs` 49/49 at 1440, 768 and 390 px, in English and Bangla, light and dark, with three school colours and axe clean. Existing suites: browser 106/106, white-label 23/23, payment safety 12/12, E3 exam workflow 17/17.
 - **Measured on one laptop (not a production claim):**
   - 56 marks by keyboard: 158 keystrokes, saved about 1 s after the last key in 1–2 requests;
   - 42-line paste: saved in 0.5 s, in 1 request;

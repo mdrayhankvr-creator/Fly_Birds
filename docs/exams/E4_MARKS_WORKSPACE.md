@@ -73,7 +73,7 @@ and status words (`ab`, `absent`, `অনুপস্থিত`, `inc`).
 | "Mark selected: Absent" bulk action | Not built; A/I/P keys per row | Single-key status entry covers the measured flows. |
 | Ctrl+Z, Delete, Ctrl+F | Native browser behaviour (field undo, clear, find in page) | No custom handling needed. |
 | Rows virtualise above 60 students | Not virtualised; rows are memoised and only one layout renders | At 56 rows, keystroke handling stays at p95 18–24 ms. Virtualisation would break the browser's find and screen-reader table navigation. |
-| Typing latency under 16 ms per keystroke | Handler p95 18–24 ms, max ≤ 38 ms; 95 % of keystrokes painted within 88–112 ms | Measured on one laptop (§7). The 16 ms target is not met on this machine. |
+| Typing latency under 16 ms per keystroke | Handler p95 18–24 ms, max ≤ 38 ms; 95 % of keystrokes painted within 80–112 ms | Measured on one laptop (§7). The 16 ms target is not met on this machine. |
 | Sticky bottom bar on mobile one-student mode | Previous / Next directly under the input | The input and the buttons stay within one screen at 390 px. |
 | Mobile: paste unavailable | Paste dialog available everywhere (a text box), and CSV import | Teachers on tablets paste from Sheets. |
 | Submit notifies the head teacher | Not built | E3 added no notification. It is a small follow-up. |
@@ -103,7 +103,11 @@ and status words (`ab`, `absent`, `অনুপস্থিত`, `inc`).
 - **One write-path change:** `SaveMarkEntries` refuses with
   `status_not_allowed` when anyone but the administrator changes a mark the
   administrator made exempt or withheld. Before, a teacher could overwrite it
-  with a number.
+  with a number. The legacy all-or-nothing `PUT /exams/:id/marks` writes
+  every entry as present, so a teacher's `PUT` that includes such a student
+  is now refused as a whole (400) instead of silently lifting the exemption.
+  The current frontend does not use `PUT`; an administrator's `PUT` is
+  unchanged.
 - **Routes:**
   - `GET /exams/my-sheets` needs `exams:enter_marks` and the teacher role;
   - `GET /exams/assigned/:id/sheets/:sheetId[/history]` needs
@@ -153,10 +157,12 @@ and status words (`ab`, `absent`, `অনুপস্থিত`, `inc`).
   - state **Offline** or **Error**, with the number of kept changes;
   - retries after 2, 4, 8, 15, then every 30 s, and at once when the browser
     reports it is back online.
-- **Permanent failures** (403, `exam_not_draft`, sheet locked, or assignment
-  removed):
-  - saving stops;
-  - the sheet reloads and shows why it is read-only.
+- **Permanent failures** (any other 4xx):
+  - the cells of that request show "Not saved. Change the mark to try
+    again." and are not retried until the teacher edits them, so a refused
+    request never repeats in a loop;
+  - for 401, 403 or `exam_not_draft` (sheet locked, assignment removed),
+    saving stops and the sheet reloads to show why it is read-only.
 - **Leaving the page** with unsent changes asks for confirmation
   (`beforeunload`).
 - **Submit** is disabled while anything is pending, failing or in conflict.
@@ -197,11 +203,14 @@ and status words (`ab`, `absent`, `অনুপস্থিত`, `inc`).
 
 - **Recovery storage:**
   - kept in `sessionStorage` under `flybirds.marks.v1.<userId>.<sheetId>`;
-  - holds student IDs, statuses, values and base versions only. It holds no
-    names, admission numbers or reasons;
+  - holds student IDs, statuses, values and base versions only, never names
+    or admission numbers. The reason field is empty except for an
+    administrator's unsaved exempt or withheld edit;
   - lasts for that browser tab only;
   - cleared when everything is saved, when the teacher discards the
-    recovery, and at sign-out (all keys).
+    recovery, and at sign-out (all keys);
+  - when a sheet opens, drafts left in the tab by any other account (for
+    example after a session expired and someone else signed in) are deleted.
 
   A shared school computer therefore keeps no marks after the tab closes or
   the teacher signs out. The E2E checks the stored shape.
@@ -235,8 +244,8 @@ These numbers describe this machine only. They are not a production claim.
 |---|---|
 | Queue → sheet | 1 click; 2 clicks including focusing the first cell |
 | 56 marks by keyboard | 158 keystrokes, 3.3–4.9 s of typing, all saved 0.9 s after the last key, **1–2 save requests** |
-| Save latency (56 cells in one PATCH) | 109–144 ms |
-| Keystroke handling | handler p95 18–24 ms, max 25–38 ms; event p50 40 ms, p95 88–112 ms; single outliers up to 712 ms are paint delay in headless Chrome |
+| Save latency (56 cells in one PATCH) | 81–144 ms |
+| Keystroke handling | handler p95 18–24 ms, max 25–38 ms; event p50 32–40 ms, p95 80–112 ms; single outliers up to 712 ms are paint delay in headless Chrome |
 | Paste of 42 lines (shuffled, with 5 bad lines) | preview → saved 0.5 s, **1 request**, 39 applied, 5 rejected with reasons |
 | Rapid repeated edits of one cell | 1 request, last value saved |
 | Conflict (admin changes a cell under the teacher) | visible conflict with server value; no overwrite |
@@ -266,7 +275,8 @@ path.
   - `go vet` clean;
   - `go test ./... -p 1 -count=1` passes on a fresh database, including
     `TestPermissionsFor` (12 cases), `TestPostgresMarksWorkspace` (queue,
-    access per role, the exempt guard, submit, review and scoped history)
+    access per role, the exempt guard on PATCH and on the legacy PUT, submit,
+    review and scoped history)
     and route protection for the 5 new routes;
   - govulncheck reports no reachable vulnerabilities.
 - **Frontend:**
@@ -274,7 +284,7 @@ path.
   - i18n check passes with 1,997 keys per language;
   - `npm run test:unit` passes (5 tests).
 - **Browser, on a freshly provisioned and seeded school:**
-  - `e2e/marks-workspace.mjs`: **46/46**;
+  - `e2e/marks-workspace.mjs`: **49/49**;
   - existing `suite.mjs` 106/106, `whitelabel.mjs` 23/23,
     `payment-safety.mjs` (off) 12/12 and E3 `exam-workflow.mjs` 17/17.
 - **Layouts:**
@@ -296,7 +306,9 @@ path.
   - the save state and paste results are live regions;
   - progress is a `progressbar`.
 
-To repeat the browser run on a disposable school:
+To repeat the browser run on a disposable school (the setup adds students to
+the demo sections, so run `suite.mjs` and `exam-workflow.mjs` first; they
+expect the seeded section sizes):
 
 ```sh
 E2E_BASE_URL=http://localhost:8104 DEMO_PASSWORD=... EXAM_NAME="E4 Marks Test" node e2e/marks-workspace-setup.mjs sheets.json
