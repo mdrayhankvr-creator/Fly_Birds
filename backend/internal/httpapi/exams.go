@@ -20,6 +20,18 @@ func (h *examHandler) ready(c *gin.Context) bool {
 }
 func examError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, exams.ErrExamNotDraft):
+		failure(c, 409, "exam_not_draft", "the exam is published; unpublish it to change marks or sheets")
+	case errors.Is(err, exams.ErrSheetState):
+		failure(c, 409, "sheet_state", "the sheet's review state does not allow this; it may need to be returned first")
+	case errors.Is(err, exams.ErrSheetIncomplete):
+		failure(c, 409, "sheet_incomplete", "every student needs marks or a status before the sheet is submitted or approved")
+	case errors.Is(err, exams.ErrSheetsPending):
+		failure(c, 409, "exam_sheets_pending", "approve or resolve the sheets awaiting review before publishing")
+	case errors.Is(err, exams.ErrMarksIncomplete):
+		failure(c, 409, "exam_marks_incomplete", "some marks are missing or marked incomplete")
+	case errors.Is(err, exams.ErrAllSubjectsExempt):
+		failure(c, 400, "all_subjects_exempt", "a student is exempt from every required subject")
 	case errors.Is(err, exams.ErrInvalid):
 		failure(c, 400, "invalid_request", "invalid examination input")
 	case errors.Is(err, exams.ErrNotFound):
@@ -172,6 +184,54 @@ func (h *examHandler) marks(c *gin.Context) {
 		return
 	}
 	success(c, 200, gin.H{"saved": len(in.Entries)})
+}
+// patchMarks saves cells independently, with statuses and version checks.
+func (h *examHandler) patchMarks(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	var in exams.MarkEntriesInput
+	if !decodeSchoolJSON(c, 256*1024, &in) {
+		return
+	}
+	v, err := h.service.SaveMarkEntries(c.Request.Context(), examUser(c).ID, examUser(c).Role, c.Param("id"), in.Entries)
+	respondExam(c, v, err)
+}
+func (h *examHandler) sheets(c *gin.Context) { h.sheetsFor(c, "admin") }
+func (h *examHandler) assignedSheets(c *gin.Context) {
+	if examUser(c).Role != "teacher" {
+		examError(c, exams.ErrForbidden)
+		return
+	}
+	h.sheetsFor(c, "teacher")
+}
+func (h *examHandler) sheetsFor(c *gin.Context, scope string) {
+	if h.ready(c) {
+		v, err := h.service.Sheets(c.Request.Context(), c.Param("id"), examUser(c).ID, scope)
+		respondExam(c, v, err)
+	}
+}
+func (h *examHandler) sheetAction(action string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !h.ready(c) {
+			return
+		}
+		var in struct {
+			Reason string `json:"reason"`
+		}
+		if action == exams.ActionReturn && !decodeSchoolJSON(c, 4*1024, &in) {
+			return
+		}
+		v, err := h.service.SheetAction(c.Request.Context(), examUser(c).ID, examUser(c).Role, c.Param("id"), c.Param("sheetId"), action, in.Reason)
+		respondExam(c, v, err)
+	}
+}
+func respondExam(c *gin.Context, v any, err error) {
+	if err != nil {
+		examError(c, err)
+		return
+	}
+	success(c, 200, v)
 }
 func (h *examHandler) state(c *gin.Context) {
 	if !h.ready(c) {
