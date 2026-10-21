@@ -296,6 +296,40 @@ After every installation, upgrade or rollback:
 If any check fails, stop and roll back as in
 [DEPLOYMENT.md](DEPLOYMENT.md#8-rolling-back).
 
+### 8.1 Checking published exam results (`exam-verify`)
+
+`exam-verify` recalculates every published or locked exam result from the
+stored marks and the school's current grading bands, using the exact result
+engine, and lists any stored grade, GPA, total or merit position that would
+differ. **It only reads:** it runs in one read-only database transaction and
+never changes marks, results or publication. Run it after upgrading past the
+exact result engine (E2), and whenever results are questioned:
+
+```sh
+fb exec backend /app/exam-verify            # a table; exit 0 = no differences, 3 = differences
+fb exec backend /app/exam-verify -json      # the same report as JSON
+fb exec backend /app/exam-verify -session <session id>
+```
+
+The report names the exam, class, section, student, subject and both
+values. Each difference has a kind:
+
+- **boundary_correction:** the stored value was produced by the earlier
+  engine, which graded a mark lying exactly on a band edge one band too low
+  (for example 16.83 of 51, exactly 33 %, stored as F and failed instead of D
+  and passed). To correct it, check the exam with the office, then unpublish
+  and publish it again in **Examinations**: results are recalculated with the
+  exact engine, and students and guardians see the corrected result. Run
+  `exam-verify` again to confirm there are no differences.
+- **inconsistent:** neither engine reproduces the stored value from today's
+  marks and grading bands. Usually the grading bands or a class's fourth
+  subject were changed after the exam was published. Republishing would apply
+  today's settings, so decide with the school first; do not republish only to
+  silence the report.
+
+The output contains student names and admission numbers. Keep it with the
+school's records, not in shared chat or tickets.
+
 ## 9. Data protection checklist before go-live
 
 - [ ] No demo accounts (`@demo.flybirds.test`) exist in the school's database.

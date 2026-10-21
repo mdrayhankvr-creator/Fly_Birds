@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/results/calc"
 )
 
 var (
@@ -129,49 +131,86 @@ type Grade struct {
 	Passed bool
 }
 
+// GradeFor and GPA keep their float signatures for callers, but grade
+// through the exact engine in internal/results/calc: band edges are compared
+// in integer hundredths, so a mark exactly on an edge (16.83 of 51 is 33 %)
+// gets that band.
 func GradeFor(marks, full, pass float64, bands []Band) (Grade, error) {
-	if !finiteMoney(marks) || !finiteMoney(full) || !finiteMoney(pass) || full <= 0 || marks > full || pass > full {
+	scheme, err := exactScheme(bands)
+	if err != nil {
+		return Grade{}, err
+	}
+	m, f, p, err := exactMarks(marks, full, pass)
+	if err != nil {
+		return Grade{}, err
+	}
+	g, err := calc.GradeSubject(m, f, p, scheme)
+	if err != nil {
 		return Grade{}, ErrInvalid
 	}
-	pct := marks * 100 / full
-	for _, b := range bands {
-		if pct >= float64(b.MinMarks) && (pct < float64(b.MaxMarks+1) || b.MaxMarks == 100 && pct <= 100) {
-			return Grade{Name: b.Grade, Point: b.GPA, Passed: marks >= pass && b.GPA > 0}, nil
-		}
-	}
-	return Grade{}, ErrInvalid
+	return Grade{Name: g.Grade, Point: g.Point.Float(), Passed: g.Passed}, nil
 }
 func GPA(subjects []ScoredSubject, bands []Band) (float64, bool, []Grade, error) {
-	if len(subjects) == 0 {
-		return 0, false, nil, ErrInvalid
+	r, err := Score(subjects, bands)
+	if err != nil {
+		return 0, false, nil, err
 	}
-	required, optional := 0, 0
-	sum, bonus, passed := 0.0, 0.0, true
-	grades := make([]Grade, 0, len(subjects))
+	return r.GPA.Float(), r.Passed, gradesOf(r), nil
+}
+
+// Score is GPA with exact totals, for the publish path.
+func Score(subjects []ScoredSubject, bands []Band) (calc.Result, error) {
+	scheme, err := exactScheme(bands)
+	if err != nil {
+		return calc.Result{}, err
+	}
+	in := make([]calc.Subject, 0, len(subjects))
 	for _, s := range subjects {
-		g, err := GradeFor(s.Marks, s.FullMarks, s.PassMarks, bands)
+		m, f, p, err := exactMarks(s.Marks, s.FullMarks, s.PassMarks)
 		if err != nil {
-			return 0, false, nil, err
+			return calc.Result{}, err
 		}
-		grades = append(grades, g)
-		if s.Fourth {
-			optional++
-			bonus = math.Max(0, g.Point-2)
-			continue
+		in = append(in, calc.Subject{Marks: m, Full: f, Pass: p, Optional: s.Fourth})
+	}
+	r, err := calc.Calculate(in, scheme, calc.Policy{})
+	if err != nil {
+		return calc.Result{}, ErrInvalid
+	}
+	return r, nil
+}
+
+func gradesOf(r calc.Result) []Grade {
+	out := make([]Grade, 0, len(r.Grades))
+	for _, g := range r.Grades {
+		out = append(out, Grade{Name: g.Grade, Point: g.Point.Float(), Passed: g.Passed})
+	}
+	return out
+}
+
+func exactScheme(bands []Band) (calc.Scheme, error) {
+	in := make([]calc.Band, 0, len(bands))
+	for _, b := range bands {
+		p, err := calc.PointsOf(b.GPA)
+		if err != nil {
+			return calc.Scheme{}, ErrInvalid
 		}
-		required++
-		sum += g.Point
-		if !g.Passed {
-			passed = false
-		}
+		in = append(in, calc.Band{Grade: b.Grade, Min: b.MinMarks, Max: b.MaxMarks, Point: p})
 	}
-	if required == 0 || optional > 1 {
-		return 0, false, nil, ErrInvalid
+	s, err := calc.NewScheme(in)
+	if err != nil {
+		return calc.Scheme{}, ErrInvalid
 	}
-	if !passed {
-		return 0, false, grades, nil
+	return s, nil
+}
+
+func exactMarks(marks, full, pass float64) (calc.Marks, calc.Marks, calc.Marks, error) {
+	m, err1 := calc.MarksOf(marks)
+	f, err2 := calc.MarksOf(full)
+	p, err3 := calc.MarksOf(pass)
+	if err1 != nil || err2 != nil || err3 != nil || f <= 0 || m > f || p > f {
+		return 0, 0, 0, ErrInvalid
 	}
-	return math.Round(math.Min(5, (sum+bonus)/float64(required))*100) / 100, true, grades, nil
+	return m, f, p, nil
 }
 func finiteMoney(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= 0 && math.Abs(v*100-math.Round(v*100)) < 0.000001
