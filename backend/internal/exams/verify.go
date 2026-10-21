@@ -66,12 +66,19 @@ type VerifyOptions struct {
 // Verify runs the check in one read-only, repeatable-read transaction, so
 // it sees a consistent snapshot and PostgreSQL refuses any write.
 func Verify(ctx context.Context, db *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
-	tx := db.WithContext(ctx).Begin(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	tx := beginReadOnly(ctx, db)
 	if tx.Error != nil {
 		return VerifyReport{}, tx.Error
 	}
 	defer tx.Rollback()
 	return verifyIn(tx, opts)
+}
+
+// beginReadOnly starts the transaction Verify reads in: READ ONLY, so
+// PostgreSQL itself refuses any write, and REPEATABLE READ, so every query
+// sees the same snapshot. The caller must roll it back.
+func beginReadOnly(ctx context.Context, db *gorm.DB) *gorm.DB {
+	return db.WithContext(ctx).Begin(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 }
 
 type verifyExam struct {

@@ -230,6 +230,48 @@ func TestPostgresVerifyNeedsNoWrites(t *testing.T) {
 	}
 }
 
+// TestPostgresVerifyTransactionRefusesWrites opens the transaction Verify
+// uses on a normal, writable connection and checks that PostgreSQL refuses
+// writes in it, so the tool cannot change a school database even if a future
+// change added a write by mistake.
+func TestPostgresVerifyTransactionRefusesWrites(t *testing.T) {
+	dsn := os.Getenv("AUTH_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("AUTH_TEST_DATABASE_URL is unset")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db, err := database.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, _ := db.DB()
+	defer sqlDB.Close()
+	if err := database.Migrate(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	for _, write := range []string{
+		"CREATE TEMP TABLE e2_probe(x int)",
+		"UPDATE exam_results SET gpa=gpa WHERE false",
+		"DELETE FROM exam_marks WHERE false",
+		"INSERT INTO schema_migrations(version) SELECT 999999 WHERE false",
+	} {
+		tx := beginReadOnly(ctx, db)
+		if tx.Error != nil {
+			t.Fatal(tx.Error)
+		}
+		err := tx.Exec(write).Error
+		tx.Rollback()
+		if err == nil || !strings.Contains(err.Error(), "read-only transaction") {
+			t.Errorf("%s: %v, want a read-only refusal", write, err)
+		}
+	}
+	// The same connection still writes outside that transaction.
+	if err := db.Exec("CREATE TEMP TABLE e2_probe(x int)").Error; err != nil {
+		t.Fatalf("control write failed: %v", err)
+	}
+}
+
 // readOnlyDSN asks PostgreSQL to make every transaction of the connection
 // read-only (pgx passes unknown URL parameters as run-time parameters).
 func readOnlyDSN(dsn string) string {
