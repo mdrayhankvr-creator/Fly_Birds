@@ -220,6 +220,25 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	management.PATCH("/routines/exams/:id/slots/:slotId", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.updateExamSlot)
 	management.DELETE("/routines/exams/:id/slots/:slotId", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.deleteExamSlot)
 	eh := &examHandler{service: examService}
+	bh := &blueprintHandler{}
+	if examService != nil {
+		bh.service = examService.Blueprints()
+	}
+	management.GET("/exams/terms", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.terms)
+	management.POST("/exams/terms", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveTerm)
+	management.PUT("/exams/terms/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveTerm)
+	management.DELETE("/exams/terms/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.deleteTerm)
+	management.GET("/exams/blueprints", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.classBlueprints)
+	management.POST("/exams/blueprints", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.createBlueprint)
+	management.POST("/exams/blueprints/:id/versions", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.newVersion)
+	management.GET("/exams/blueprint-versions/:id", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.version)
+	management.PUT("/exams/blueprint-versions/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveDraft)
+	management.DELETE("/exams/blueprint-versions/:id", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.deleteDraft)
+	management.POST("/exams/blueprint-versions/:id/activate", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.activate)
+	management.PUT("/exams/blueprint-versions/:id/visibility", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.visibility)
+	management.POST("/exams/blueprint-versions/:id/sample", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.sample)
+	management.GET("/exams/subject-choices", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.choices)
+	management.PUT("/exams/subject-choices", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveChoices)
 	management.GET("/exams", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.list)
 	management.POST("/exams", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.save)
 	management.GET("/exams/assigned", RequirePermission(service, "exams:enter_marks"), moduleGuard("examinations"), eh.assigned)
