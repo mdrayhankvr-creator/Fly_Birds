@@ -78,7 +78,7 @@ function PreviewBody({ p }: { p: TermPreview }) {
     <section aria-labelledby="bp-preview-title" className="relative rounded-2xl border-2 border-dashed border-indigo-300 bg-white p-3 sm:p-4">
       <p id="bp-preview-title" className="mb-3 inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-indigo-800 ring-1 ring-inset ring-indigo-600/20">{t('bpProvisional')}</p>
       {/* Wide screens: a tabulation with the student column pinned. */}
-      <div className="hidden max-h-[70vh] overflow-auto md:block">
+      <div className="hidden max-h-[70vh] overflow-auto md:block" tabIndex={0} role="region" aria-label={t('bpResultsTable')}>
         <table className="w-full border-separate border-spacing-0 text-left text-sm">
           <thead><tr>
             <th scope="col" className={`${ui.th} sticky left-0 top-0 z-20`}>{t('bpStudent')}</th>
@@ -88,8 +88,8 @@ function PreviewBody({ p }: { p: TermPreview }) {
             <th scope="col" className={`${ui.th} sticky top-0 z-10 text-right`}>{t('bpPositions')}</th>
           </tr></thead>
           <tbody>{p.students.map(s => <tr key={s.student_id} className="group">
-            <th scope="row" className="sticky left-0 z-[1] border-b border-slate-100 bg-white px-3 py-2 text-left font-medium group-hover:bg-slate-50">{s.name}<span className="block text-xs font-normal text-slate-500">{s.section_name} · {s.roll_no ?? '—'}</span></th>
-            {ordered.map(k => { const c = cell(s.result.subjects, k); return <td key={k} className="border-b border-slate-100 px-3 py-2 text-right tabular-nums group-hover:bg-slate-50" title={c ? explainCell(c, assessmentName, t) : undefined}><SubjectCell c={c} /></td> })}
+            <th scope="row" className="sticky left-0 z-[1] min-w-[12rem] border-b border-slate-100 bg-white px-3 py-2 text-left font-medium group-hover:bg-slate-50">{s.name}<span className="block text-xs font-normal text-slate-500">{s.section_name} · {s.roll_no ?? '—'}</span></th>
+            {ordered.map(k => { const c = cell(s.result.subjects, k); return <td key={k} className="whitespace-nowrap border-b border-slate-100 px-3 py-2 text-right tabular-nums group-hover:bg-slate-50" title={c ? explainCell(c, assessmentName, t) : undefined}><SubjectCell c={c} /></td> })}
             <td className="border-b border-slate-100 px-3 py-2 text-right font-semibold tabular-nums group-hover:bg-slate-50">{s.result.gpa || '—'}</td>
             <td className="border-b border-slate-100 px-3 py-2 group-hover:bg-slate-50"><Outcome o={s.result.outcome} /></td>
             <td className="border-b border-slate-100 px-3 py-2 text-right tabular-nums text-slate-600 group-hover:bg-slate-50">{s.result.class_position ? `${s.result.class_position} · ${s.result.section_position}` : '—'}</td>
@@ -116,7 +116,7 @@ function explainCell(c: TermSubjectResult, name: (key: string) => string, t: (ke
 
 function SubjectCell({ c }: { c?: TermSubjectResult }) {
   const { t } = useTranslation()
-  if (!c) return <span className="text-slate-400">—</span>
+  if (!c) return <span className="text-slate-500">—</span>
   if (c.status !== 'graded') return <span className="font-semibold text-slate-600">{t(`bpLine_${c.status}`)}</span>
   return <span className={c.passed ? 'text-slate-900' : 'font-semibold text-rose-700'}>{c.marks} <span className="text-xs font-semibold">{c.grade}</span>{c.optional && <span className="ml-1 text-xs text-slate-500">({t('bpOptionalShort')})</span>}</span>
 }

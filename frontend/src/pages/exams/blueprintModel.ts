@@ -122,7 +122,8 @@ export function removeAssessment(def: BlueprintDefinition, key: string): Bluepri
     subjects: def.subjects.map(s => ({
       ...s,
       sheets: s.sheets.filter(x => x.assessment !== key),
-      terms: s.terms.map(t => ({ ...t, contributions: t.contributions.map(c => ({ ...c, from: c.from.filter(f => f !== key) })).filter(c => c.from.length > 0) })),
+      // A term rule left with nothing to draw from goes too.
+      terms: s.terms.map(t => ({ ...t, contributions: t.contributions.map(c => ({ ...c, from: c.from.filter(f => f !== key) })).filter(c => c.from.length > 0) })).filter(t => t.contributions.length > 0),
     })),
   }
 }

@@ -396,7 +396,8 @@ function ComponentInputs({ row, index, view, ctx, large }: RowProps) {
   const marks = carries(view.status)
   return <div className="flex flex-col items-end gap-1">
     <div className="flex items-end gap-1.5">
-      {ctx.components.map((c, k) => <label key={c.key} className="block text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">{c.key}
+      {/* The grid's header names the components; cards on phones show them. */}
+      {ctx.components.map((c, k) => <label key={c.key} className="block text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500"><span className="sm:sr-only">{c.key}</span>
         <input ref={el => {
           const key = `${row.student_id}|${c.key}`
           if (el) { ctx.inputs.current.set(key, el); if (k === 0) ctx.inputs.current.set(row.student_id, el) }

@@ -121,6 +121,8 @@ export function BlueprintBuilder({ canManage }: { canManage: boolean }) {
   const subject = def.subjects[subjectIndex]
   const ref = v.subjects.find(s => s.id === subject?.subject_id)
   const termsWith = v.terms.filter(term => def.assessments.some(a => a.term_id === term.id))
+  // The chosen term, or the first with assessments once it has none left.
+  const activeTerm = termsWith.some(term => term.id === termId) ? termId : termsWith[0]?.id || ''
 
   return <div className="space-y-5">
     <PageHeader eyebrow={t('bpSetupTitle')} title={`${v.class_name} · ${v.session_name}`} description={t(editable ? 'bpBuilderIntro' : 'bpBuilderReadOnly')}
@@ -130,7 +132,7 @@ export function BlueprintBuilder({ canManage }: { canManage: boolean }) {
         <VersionChip version={v} />
         {v.activated_at && <span className="text-sm text-slate-600">{t('bpActivatedAt', { time: v.activated_at })}</span>}
         {editable && <span data-save-state={save} aria-live="polite" className="text-sm text-slate-600">{t(`bpSave_${save}`)}</span>}
-        <span className="text-sm text-slate-600">{t(issues.length ? 'bpIssueCount' : 'bpNoIssues', { count: issues.length })}</span>
+        {v.status === 'draft' && <span className="text-sm text-slate-600">{t(issues.length ? 'bpIssueCount' : 'bpNoIssues', { count: issues.length })}</span>}
       </div>
       <div className="flex flex-wrap gap-2">
         {editable && <button type="button" disabled={busy} className={ui.danger} onClick={() => void discard()}>{t('bpDiscard')}</button>}
@@ -146,15 +148,16 @@ export function BlueprintBuilder({ canManage }: { canManage: boolean }) {
     <div className="grid gap-5 lg:grid-cols-[19rem_minmax(0,1fr)_21rem] lg:items-start">
       <div className={`${pane === 'structure' ? '' : 'hidden'} space-y-5 lg:block`}>
         <Structure v={v} def={def} editable={editable} change={change} onVisibility={visibility} canChangeVisibility={canManage && v.status === 'active'} />
-        <SubjectList v={v} def={def} issues={issues} selected={subjectIndex} onSelect={i => { setSubjectIndex(i); setPane('rules') }} />
+        <SubjectList v={v} def={def} issues={issues} selected={subjectIndex} onSelect={i => { setSubjectIndex(i); setPane('rules') }} editable={editable} change={change} />
       </div>
       <div className={`${pane === 'rules' ? '' : 'hidden'} min-w-0 lg:block`}>
-        {subject && <SubjectRules v={v} def={def} index={subjectIndex} name={subjectName(ref)} fourth={!!ref?.fourth} editable={editable} change={change}
-          terms={termsWith} termId={termId} onTerm={setTermId} issues={issues} />}
+        {/* Keyed by subject and term, so a Custom choice belongs to one rule. */}
+        {subject && <SubjectRules key={`${subject.subject_id}|${activeTerm}`} v={v} def={def} index={subjectIndex} name={subjectName(ref)} fourth={!!ref?.fourth} editable={editable} change={change}
+          terms={termsWith} termId={activeTerm} onTerm={setTermId} issues={issues} />}
       </div>
       <div className={`${pane === 'check' ? '' : 'hidden'} space-y-5 lg:block`}>
         <Check v={v} def={def} issues={issues} onPick={issue => { const i = issueSubject(issue); if (i != null) { setSubjectIndex(i); setPane('rules') } }} />
-        {subject && termId && subject.role !== 'non_graded' && <Sample versionId={versionId} def={def} subject={subject} termId={termId} draft={editable} />}
+        {subject && activeTerm && subject.role !== 'non_graded' && <Sample versionId={versionId} def={def} subject={subject} termId={activeTerm} draft={editable} />}
         <Policies def={def} terms={v.terms} editable={editable} change={change} />
         <Bands v={v} />
       </div>
@@ -175,7 +178,8 @@ function Structure({ v, def, editable, change, onVisibility, canChangeVisibility
     <h2 id="bp-structure" className={ui.sectionTitle}>{t('bpAssessments')}</h2>
     {v.terms.length === 0 && <p className="mt-2 text-sm text-slate-600">{t('bpNoTermsForBlueprint')}</p>}
     <ol className="mt-3 space-y-4">
-      {v.terms.map(term => {
+      {/* Terms the upgrade made belong to the legacy blueprint: shown only when used. */}
+      {v.terms.filter(term => !term.legacy || def.assessments.some(a => a.term_id === term.id)).map(term => {
         const list = def.assessments.filter(a => a.term_id === term.id)
         return <li key={term.id}>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{term.name}</p>
@@ -212,9 +216,11 @@ function Structure({ v, def, editable, change, onVisibility, canChangeVisibility
   </section>
 }
 
-function SubjectList({ v, def, issues, selected, onSelect }: { v: BlueprintVersion; def: BlueprintDefinition; issues: BlueprintIssue[]; selected: number; onSelect: (i: number) => void }) {
+function SubjectList({ v, def, issues, selected, onSelect, editable, change }: { v: BlueprintVersion; def: BlueprintDefinition; issues: BlueprintIssue[]; selected: number; onSelect: (i: number) => void; editable: boolean; change: (d: BlueprintDefinition) => void }) {
   const { t } = useTranslation()
   const subjectName = useSubjectName()
+  // Class subjects the design does not cover yet (e.g. added after it was made).
+  const missing = v.subjects.filter(s => !def.subjects.some(x => x.subject_id === s.id))
   return <section className={`${ui.card} p-4`} aria-labelledby="bp-subjects">
     <h2 id="bp-subjects" className={ui.sectionTitle}>{t('bpSubjects')}</h2>
     <ul className="mt-3 space-y-1">
@@ -222,7 +228,7 @@ function SubjectList({ v, def, issues, selected, onSelect }: { v: BlueprintVersi
         const ref = v.subjects.find(x => x.id === s.subject_id)
         const count = issues.filter(issue => issueSubject(issue) === i).length
         return <li key={s.subject_id}>
-          <button type="button" aria-current={selected === i ? 'true' : undefined} onClick={() => onSelect(i)}
+          <button type="button" data-subject-id={s.subject_id} aria-current={selected === i ? 'true' : undefined} onClick={() => onSelect(i)}
             className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${selected === i ? 'bg-[var(--brand-soft)] font-semibold text-slate-900' : 'text-slate-700 hover:bg-slate-50'}`}>
             <span className="min-w-0 truncate">{subjectName(ref) || s.subject_id}{s.combined_key && <span className="ml-1.5 rounded bg-slate-100 px-1 font-mono text-xs text-slate-600">{s.combined_key}</span>}</span>
             <span className="flex shrink-0 items-center gap-1.5">
@@ -233,6 +239,11 @@ function SubjectList({ v, def, issues, selected, onSelect }: { v: BlueprintVersi
         </li>
       })}
     </ul>
+    {editable && missing.length > 0 && <div className="mt-3 border-t border-slate-100 pt-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('bpMissingSubjects')}</p>
+      <div className="mt-1.5 flex flex-wrap gap-1">{missing.map(s => <button key={s.id} type="button" className={ui.ghost}
+        onClick={() => { change({ ...def, subjects: [...def.subjects, { subject_id: s.id, role: s.fourth ? 'optional' : 'required', sheets: [], terms: [] }] }); onSelect(def.subjects.length) }}>+ {subjectName(s)}</button>)}</div>
+    </div>}
   </section>
 }
 
@@ -245,11 +256,16 @@ function SubjectRules({ v, def, index, name, fourth, editable, change, terms, te
   const { t } = useTranslation()
   const subject = def.subjects[index]
   const rule = subject.terms.find(x => x.term_id === termId)
-  const preset = presetOf(rule, def)
+  // No rule yet: no preset is chosen.
+  // Custom is a way of editing: chosen, it stays even while the rule still
+  // matches a preset, so a preset can be adjusted contribution by contribution.
+  const [custom, setCustom] = useState(false)
+  const preset = custom && rule ? 'custom' : rule ? presetOf(rule, def) : null
   const [options, setOptions] = useState<PresetOptions>(defaultPresetOptions)
   const update = (s: BlueprintSubject) => change({ ...def, subjects: def.subjects.map((x, i) => (i === index ? s : x)) })
   const setRule = (r: BlueprintTermRule) => update(setTermRule(subject, r, def))
   const choose = (p: Preset, opts = options) => {
+    setCustom(p === 'custom')
     if (p === 'custom') { if (!rule) setRule({ term_id: termId, full: 100, pass: 33, contributions: [] }); return }
     const r = presetRule(def, termId, p, opts)
     if (r) setRule(r)

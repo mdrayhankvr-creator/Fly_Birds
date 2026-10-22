@@ -55,8 +55,10 @@ export function TermWizard({ canManage }: { canManage: boolean }) {
       await authorized(token => saveTermSetup(token, termId, setup))
       const done = await authorized(token => createTermExams(token, termId))
       setResult(done)
-      await client.invalidateQueries({ queryKey: ['e5'] })
-      await client.invalidateQueries({ queryKey: ['m7-exams'] })
+      // The reply carries the new plan: show it at once; other lists refresh behind.
+      client.setQueryData(['e5', 'setup', termId], done.plan)
+      void client.invalidateQueries({ queryKey: ['e5'], predicate: q => q.queryKey[1] !== 'setup' })
+      void client.invalidateQueries({ queryKey: ['m7-exams'] })
     } catch (cause) { setError(explain(cause)) }
     finally { setBusy(false) }
   }
