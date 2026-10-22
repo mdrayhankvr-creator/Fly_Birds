@@ -33,6 +33,35 @@ DEMO_PASSWORD='...' E2E_BASE_URL=http://localhost:8081 node e2e/whitelabel.mjs
 | `DEMO_PASSWORD` | (required) | Demo account password. |
 | `E2E_BROWSER` | auto-detected | Path to a Chrome or Edge executable. |
 | `E2E_INSECURE_TLS` | unset | `1` accepts a self-signed certificate (local HTTPS only). |
+| `E2E_BROWSER_TIMEOUT_MS` | `30000` | How long one browser start may take to become ready. |
+| `E2E_BROWSER_ATTEMPTS` | `2` | Browser starts to try before the script stops. |
+
+## Browser startup
+
+`cdp.mjs` starts a private browser for each `launch()` and connects only to
+that browser:
+
+- **Port.** The browser picks a free DevTools port and records it in its own
+  throwaway profile (`DevToolsActivePort`). The `port` that scripts pass is
+  accepted but unused, so a leftover browser or another program on a fixed
+  port can never answer instead.
+- **Readiness and errors.** Readiness is polled up to `E2E_BROWSER_TIMEOUT_MS`.
+  A browser that cannot be started, exits during startup or never becomes
+  ready fails that attempt at once, with the last lines of its own error
+  output. One failed start is retried; if every attempt fails, the script
+  stops with an error and runs no checks.
+- **Lost connection.** If the browser exits or its connection drops during a
+  run, pending and later commands fail with "browser connection closed"
+  instead of hanging.
+- **Cleanup.** Only the browser process this run started is stopped (on
+  `close()`, on a failed start, or when the script exits), and its profile is
+  deleted. `E2E_BROWSER` must point to an existing file; a wrong path is an
+  error, not a silent fallback to another browser.
+
+`node --test e2e/cdp.test.mjs` checks this behaviour. Most cases use
+`testdata/fake-browser.mjs`, a stand-in that can start slowly, crash, hang or
+drop its connection; one case starts the real browser three times while
+another program holds the old fixed port.
 
 Screenshots and `suite.json` results are written to `e2e/shots/`, which Git
 ignores. Each script exits non-zero when any check fails.
