@@ -210,10 +210,15 @@ Exact throughout (integer hundredths and `math/big.Rat`), reusing E2's
   - `exam.blueprint_drafted`, `exam.blueprint_draft_deleted` and
     `exam.blueprint_activated` (with the SHA-256);
   - `exam.assessment_visibility_changed`;
-  - `exam.subject_choices_saved` and `exam.term_created`;
+  - `exam.subject_choices_saved` (each student's previous and new subject,
+    and how many published exams the class has) and `exam.term_created`;
   - component marks inside `exam.mark_saved`.
 - **Frozen versions** are protected by database triggers, not only by the
-  application.
+  application. A trigger also keeps a component sheet's full marks equal to
+  the sum of its components, so the old exam page cannot set them apart.
+- **Published results are stored.** Report cards read the stored grades and
+  results, so a later blueprint or choice change cannot alter what students
+  see. Blueprint versions in use are frozen; changes go into a new version.
 - **Each school is its own deployment and database,** so no data crosses
   schools.
 
@@ -226,7 +231,8 @@ Migration 1502 links existing exams:
 - term, assessment and version on every exam.
 
 It writes no mark, grade, sheet or result. The audit log records
-`exam.blueprints_migrated` with the counts.
+`exam.blueprints_migrated` with the counts, including `class_tests_hidden`:
+the published class tests students no longer see on their own.
 
 **Measured on a disposable school built from `main`:**
 
@@ -320,10 +326,13 @@ E2E_BASE_URL=http://localhost:8107 DEMO_PASSWORD=... node e2e/exam-setup.mjs
 
 ## 9. Limitations
 
-- Changing a student's optional subject after an exam is published makes
-  `exam-verify` report that student's result. Publishing again would change
-  it, so the report is correct, but schools should set choices before
-  marks.
+- Changing a student's optional subject after an exam is published does
+  not change the published card (it is stored), but `exam-verify` then
+  reports that student's result and publishing again would change it. The
+  audit records who moved from which subject. Corrections to published
+  results are E6; schools should set choices before marks.
+- Once a class uses choices, an old-style exam may hold several fourth
+  subjects; each student is graded on the one they chose.
 - The old exam page's roster cannot enter component marks. Its saves on a
   component sheet are refused with "Enter every component". Teachers use the
   marks workspace.
