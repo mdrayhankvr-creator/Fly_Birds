@@ -76,6 +76,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - name: Browser harness self-test
+        run: node --test e2e/cdp.test.mjs
       - name: Development Compose file is valid
         run: docker compose config --quiet
       - uses: actions/setup-go@v6

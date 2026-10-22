@@ -1,32 +1,116 @@
 // Minimal headless Chromium/Edge driver over the Chrome DevTools Protocol.
 // No dependencies: Node 22's built-in fetch and WebSocket are enough.
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 export const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 // E2E_BROWSER overrides the browser; otherwise the first installed one is used.
-function browserPath() {
-  const candidates = [process.env.E2E_BROWSER, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+// A set but missing E2E_BROWSER is an error, not a silent fallback.
+export function browserPath() {
+  if (process.env.E2E_BROWSER) {
+    if (!existsSync(process.env.E2E_BROWSER)) throw new Error(`E2E_BROWSER does not exist: ${process.env.E2E_BROWSER}`)
+    return process.env.E2E_BROWSER
+  }
+  const candidates = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe',
     '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
-  const found = candidates.find(p => p && existsSync(p))
+  const found = candidates.find(p => existsSync(p))
   if (!found) throw new Error('No Chromium-based browser found; set E2E_BROWSER')
   return found
 }
 
-export async function launch({ base, shots, port = 9341 }) {
+const positive = (value, fallback) => Number(value) > 0 ? Number(value) : fallback
+
+// Starts the browser, retrying a failed start once by default. Each attempt is
+// bounded; a browser that cannot start stops the run with its own error output
+// instead of letting checks run against nothing.
+//   timeoutMs (E2E_BROWSER_TIMEOUT_MS, 30000): readiness limit per attempt.
+//   attempts (E2E_BROWSER_ATTEMPTS, 2): total starts before giving up.
+// `port` is accepted for compatibility but unused: the browser picks a free
+// port and reports it in its own profile, so a stale browser or another
+// process on a fixed port can never answer for this one.
+export async function launch({ base, shots, port: _unusedPort, browser, browserArgs = [], timeoutMs = positive(process.env.E2E_BROWSER_TIMEOUT_MS, 30000), attempts = positive(process.env.E2E_BROWSER_ATTEMPTS, 2) }) {
   mkdirSync(shots, { recursive: true })
+  const executable = browser || browserPath()
+  const failures = []
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await connect(await startBrowser(executable, browserArgs, timeoutMs), base, shots, timeoutMs)
+    } catch (error) {
+      failures.push(`attempt ${attempt}: ${error.message}`)
+      if (attempt < attempts) console.warn(`warning: browser start failed (${error.message}); retrying`)
+    }
+  }
+  throw new Error(`Browser did not start (${executable}).\n${failures.join('\n')}`)
+}
+
+async function startBrowser(executable, browserArgs, timeoutMs) {
   const profile = mkdtempSync(join(tmpdir(), 'flybirds-e2e-'))
-  const edge = spawn(browserPath(), ['--headless=new', '--no-sandbox', ...(process.env.E2E_INSECURE_TLS === '1' ? ['--ignore-certificate-errors'] : []), `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--disable-gpu', '--force-prefers-reduced-motion', 'about:blank'], { stdio: 'ignore' })
-  let ok = false
-  for (let i = 0; i < 60 && !ok; i++) { try { await fetch(`http://127.0.0.1:${port}/json/version`); ok = true } catch { await sleep(200) } }
-  const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json()
-  const ws = new WebSocket(target.webSocketDebuggerUrl)
-  await new Promise(r => ws.addEventListener('open', r))
-  let seq = 0
+  const flags = ['--headless=new', '--no-sandbox', ...(process.env.E2E_INSECURE_TLS === '1' ? ['--ignore-certificate-errors'] : []), '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--disable-gpu', '--force-prefers-reduced-motion', 'about:blank']
+  const child = spawn(executable, [...browserArgs, ...flags], { stdio: ['ignore', 'ignore', 'pipe'] })
+  const state = { child, profile, stderr: '', exit: null, spawnError: null }
+  child.stderr.on('data', chunk => { state.stderr = (state.stderr + chunk).slice(-2000) })
+  child.once('error', error => { state.spawnError = error })
+  child.once('exit', (code, signal) => { state.exit = { code, signal } })
+  const deadline = Date.now() + timeoutMs
+  try {
+    while (Date.now() < deadline) {
+      if (state.spawnError) throw new Error(`could not start: ${state.spawnError.message}`)
+      if (state.exit) throw new Error(`exited during startup (code ${state.exit.code}${state.exit.signal ? `, signal ${state.exit.signal}` : ''})${detail(state)}`)
+      // Chrome writes the chosen port here once DevTools is listening.
+      const active = readPort(join(profile, 'DevToolsActivePort'))
+      if (active) {
+        try {
+          const version = await fetch(`http://127.0.0.1:${active}/json/version`, { signal: AbortSignal.timeout(2000) })
+          if (version.ok) { state.port = active; return state }
+        } catch { /* not answering yet */ }
+      }
+      await sleep(100)
+    }
+    throw new Error(`did not become ready within ${timeoutMs} ms${detail(state)}`)
+  } catch (error) {
+    await stopBrowser(state)
+    throw error
+  }
+}
+
+function readPort(file) {
+  try { return Number(readFileSync(file, 'utf8').split('\n')[0]) || 0 } catch { return 0 }
+}
+
+function detail(state) {
+  const text = state.stderr.trim().split('\n').slice(-5).join('\n')
+  return text ? `; browser output:\n${text}` : ''
+}
+
+// Stops only the browser this run started, then deletes its profile.
+async function stopBrowser(state) {
+  if (!state.exit && !state.spawnError) {
+    const exited = new Promise(resolve => state.child.once('exit', resolve))
+    state.child.kill()
+    await Promise.race([exited, sleep(5000)])
+  }
+  await removeProfile(state.profile)
+}
+
+async function connect(state, base, shots, timeoutMs) {
+  const ws = await openTarget(state, timeoutMs).catch(async error => { await stopBrowser(state); throw error })
+  let seq = 0, closed = null
   const pending = new Map(), errors = [], consoleErrors = []
+  // Fail outstanding and later commands instead of hanging if the browser goes away.
+  const disconnect = reason => {
+    if (closed) return
+    closed = new Error(`browser connection closed: ${reason}${detail(state)}`)
+    for (const { reject } of pending.values()) reject(closed)
+    pending.clear()
+  }
+  ws.addEventListener('close', () => disconnect('DevTools socket closed'))
+  state.child.once('exit', (code, signal) => disconnect(`browser exited (code ${code}${signal ? `, signal ${signal}` : ''})`))
+  // Never leave this run's browser behind if the script stops without close().
+  const killOnExit = () => { if (!state.exit) state.child.kill() }
+  process.once('exit', killOnExit)
   ws.addEventListener('message', ev => {
     const msg = JSON.parse(ev.data)
     if (msg.id && pending.has(msg.id)) { const { resolve, reject } = pending.get(msg.id); pending.delete(msg.id); msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result) }
@@ -34,10 +118,21 @@ export async function launch({ base, shots, port = 9341 }) {
     if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') consoleErrors.push(msg.params.args.map(a => a.value ?? a.description).join(' '))
     if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') consoleErrors.push(msg.params.entry.text)
   })
-  const send = (method, params = {}) => new Promise((resolve, reject) => { const id = ++seq; pending.set(id, { resolve, reject }); ws.send(JSON.stringify({ id, method, params })) })
-  await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable')
+  const send = (method, params = {}) => new Promise((resolve, reject) => {
+    if (closed) return reject(closed)
+    const id = ++seq; pending.set(id, { resolve, reject }); ws.send(JSON.stringify({ id, method, params }))
+  })
+  try {
+    await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable')
+  } catch (error) {
+    process.removeListener('exit', killOnExit)
+    ws.close()
+    await stopBrowser(state)
+    throw error
+  }
   const b = {
     errors, consoleErrors, send,
+    browserPid: state.child.pid, profileDir: state.profile,
     async evaluate(expression) {
       const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
       if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text)
@@ -69,10 +164,30 @@ export async function launch({ base, shots, port = 9341 }) {
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode })
     },
     // Each launch gets a throwaway browser profile (hundreds of MB once pages
-    // have loaded); delete it when the browser exits so runs do not fill the disk.
-    close() { edge.once('exit', () => void removeProfile(profile)); ws.close(); edge.kill() },
+    // have loaded); it is deleted once the browser exits so runs do not fill
+    // the disk. Callers may await the returned promise; existing callers do not.
+    close() {
+      process.removeListener('exit', killOnExit)
+      disconnect('closed by the test')
+      ws.close()
+      return stopBrowser(state)
+    },
   }
   return b
+}
+
+// Opens a page target on this run's browser and its DevTools socket, both bounded.
+async function openTarget(state, timeoutMs) {
+  const response = await fetch(`http://127.0.0.1:${state.port}/json/new?about:blank`, { method: 'PUT', signal: AbortSignal.timeout(timeoutMs) })
+  if (!response.ok) throw new Error(`could not open a page: HTTP ${response.status}`)
+  const target = await response.json()
+  const ws = new WebSocket(target.webSocketDebuggerUrl)
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { ws.close(); reject(new Error(`DevTools socket did not open within ${timeoutMs} ms`)) }, timeoutMs)
+    ws.addEventListener('open', () => { clearTimeout(timer); resolve() }, { once: true })
+    ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('DevTools socket failed to open')) }, { once: true })
+  })
+  return ws
 }
 
 // Chrome's helper processes can keep writing to the profile for a moment after
