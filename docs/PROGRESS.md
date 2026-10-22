@@ -10,6 +10,54 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E5 Terms, Blueprints and Exam Setup (2026-10-22)
+
+On `feature/e5-flexible-assessment-blueprints`, from `main` `8790b391`. Scope as in the E1 roadmap's E5 row; result versions, term and annual publication are E6. Details and the differences from the E1 design: [docs/exams/E5_TERMS_AND_BLUEPRINTS.md](exams/E5_TERMS_AND_BLUEPRINTS.md).
+
+**Implementation:**
+- **Migration 1502:**
+  - terms;
+  - blueprints with frozen versions and their normalised assessments, subjects and components;
+  - exam links (term, assessment, version, marks due date);
+  - sheet components and component marks;
+  - per-student optional subjects;
+  - enrolment and visibility functions;
+  - the legacy link of existing exams (no value changes).
+- **`internal/blueprints`:**
+  - definition, validation (58 issue codes) and exact term results;
+  - terms, versions, activation and copy forward;
+  - the setup wizard, choices, the worked sample and the term preview.
+  - 19 new routes under `/exams`; existing routes keep their contracts.
+- **Publication of blueprint exams:**
+  - component and paper pass rules, combined papers, choices and the version's policy;
+  - exams outside a blueprint publish as before.
+- **Positions and visibility:** class positions by term (E1-05); class tests hidden from students and guardians, notifications included (E1-06); `exam-verify` uses the same rules.
+- **Frontend:**
+  - exam setup (terms, blueprints, optional subjects), the blueprint builder, the five-step wizard and the provisional term results;
+  - component columns in the marks workspace;
+  - 374 new keys in each language.
+
+**Verification (disposable resources only):**
+- **Go:** all packages pass on a fresh database; vet clean; govulncheck finds nothing reachable.
+- **Frontend:** build, i18n (2,372 keys) and 11 unit tests pass.
+- **Upgrade of a school built from `main`:**
+  - exam data fingerprints identical;
+  - `exam-verify` reports no differences, before and after further E5 use (15 exams, 425 results).
+- **E2E, fresh school:**
+  - `exam-setup.mjs` 83/83 (also 83/83 on the upgraded school);
+  - browser 106/106, white-label 23/23, payment safety 12/12, exam workflow 17/17, marks workspace 49/49.
+- **Measured on one laptop (not a production claim):**
+  - a whole term (6 exams, 36 sheets) in 9–12 interactions and about 15 s;
+  - 48–56 students' component marks in one save request;
+  - term results for 100 students in 0.37 s.
+
+**Visible change on upgrade:** published class-test results are no longer listed for students and guardians (E1-06). An administrator can show them again per assessment.
+
+**Limitations:** see the E5 document, §8–9. In short:
+- no group-specific blueprints;
+- one status per subject mark;
+- term and annual publication wait for E6.
+
 ## Current Status — E4 Teacher Marks Workspace (2026-10-21)
 
 On `feature/e4-premium-marks-workspace`, from `main` `a5affd81`. Scope as in the E1 roadmap, without components, weighting or PDFs. Details and the differences from the E1 spec: [docs/exams/E4_MARKS_WORKSPACE.md](exams/E4_MARKS_WORKSPACE.md).

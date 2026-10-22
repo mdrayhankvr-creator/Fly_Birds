@@ -366,6 +366,26 @@ From E4, teachers enter marks in **Marks entry → My exam sheets**: one sheet p
 - **Approving and returning sheets:** the head teacher and the administrator use **Open sheet** in the exam's sheets panel.
 - **Exempt and withheld** stay administrator-only. A teacher sees these rows as "Set by the administrator".
 
+### 8.4 Terms, blueprints and setting up a term
+
+From E5, an administrator designs the year in **Examinations → Terms & blueprints**:
+
+1. **Terms:** add the session's terms (one click adds First Term, Half-Yearly and Annual).
+2. **Blueprints:** for each class, start a blueprint (or copy last session's), then:
+   - add its class tests;
+   - choose how each subject's term mark is made (for example "CT average + final");
+   - set components such as CQ and MCQ, and combine Bangla 1st and 2nd papers;
+   - when the check is clear, **Activate**. An active version never changes; make a new version for changes.
+3. **Optional subjects:** record each student's fourth subject. Once one student in a class has a choice, choices decide for the whole class.
+4. **Set up exams:** on the term, give the marks due dates and the teachers for any subject nobody teaches, then **Create term**. Every exam and sheet is made at once; creating again only adds what is missing.
+
+**Term results** (provisional, staff only) show how each student's term mark comes out. Publishing term and annual results comes in a later release; each exam is still published from the exam page as before.
+
+**After the upgrade:**
+- **Existing exams:** they keep their marks and results exactly. They are linked to terms and to a "from existing exams" blueprint for each class.
+- **Published class tests:** students and guardians no longer see them on their own. To show one again, open the class's blueprint version and set the class test's **Students see** to **When published** (audited).
+- **Optional-subject changes:** make them before marks are entered. Changing one after an exam is published makes `exam-verify` list that student, because publishing again would change the result.
+
 ## 9. Data protection checklist before go-live
 
 - [ ] No demo accounts (`@demo.flybirds.test`) exist in the school's database.
