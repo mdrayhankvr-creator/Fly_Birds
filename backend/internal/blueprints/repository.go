@@ -786,6 +786,7 @@ type Choice struct {
 func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID string, choices []Choice) (ChoicesView, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		changed := 0
+		var changes []map[string]string // who moved from which subject to which, for the audit
 		for _, c := range choices {
 			var ok int64
 			if err := tx.Raw("SELECT count(*) FROM students WHERE id = ? AND session_id = ? AND class_id = ?", c.StudentID, sessionID, classID).Row().Scan(&ok); err != nil {
@@ -793,6 +794,13 @@ func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID 
 			}
 			if ok == 0 {
 				return ErrInvalid
+			}
+			var before string
+			if err := tx.Raw("SELECT coalesce((SELECT subject_id::text FROM student_subject_choices WHERE student_id = ? AND session_id = ? AND role = 'optional'), '')", c.StudentID, sessionID).Row().Scan(&before); err != nil {
+				return err
+			}
+			if before != c.SubjectID {
+				changes = append(changes, map[string]string{"student_id": c.StudentID, "from": before, "to": c.SubjectID})
 			}
 			if c.SubjectID == "" {
 				res := tx.Exec("DELETE FROM student_subject_choices WHERE student_id = ? AND session_id = ?", c.StudentID, sessionID)
@@ -816,7 +824,14 @@ WHERE student_subject_choices.subject_id <> EXCLUDED.subject_id`, c.StudentID, s
 			}
 			changed += int(res.RowsAffected)
 		}
-		return audit.Record(tx, &actor, "exam.subject_choices_saved", "class", classID, map[string]any{"session_id": sessionID, "changed": changed})
+		// Published results keep their stored figures; the audit says whose
+		// choice changed while published exams of the class exist, so a later
+		// check (E6) can tell why a recomputation differs.
+		var published int64
+		if err := tx.Raw("SELECT count(*) FROM exams WHERE session_id = ? AND class_id = ? AND status = 'published'", sessionID, classID).Row().Scan(&published); err != nil {
+			return err
+		}
+		return audit.Record(tx, &actor, "exam.subject_choices_saved", "class", classID, map[string]any{"session_id": sessionID, "changed": changed, "changes": changes, "published_exams": published})
 	})
 	if err != nil {
 		return ChoicesView{}, dbErr(err)

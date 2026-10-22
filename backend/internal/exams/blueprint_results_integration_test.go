@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,6 +117,34 @@ func TestPostgresBlueprintResults(t *testing.T) {
 	if _, err := bp.SaveChoices(ctx, f.admin, f.session, f.classID, []blueprints.Choice{{StudentID: f.students[0], SubjectID: f.subjects["S3"]}}); err != nil {
 		t.Fatal(err)
 	}
+	var audited string
+	scan(&audited, "SELECT metadata::text FROM audit_events WHERE action='exam.subject_choices_saved' AND target_id=? ORDER BY created_at DESC LIMIT 1", f.classID)
+	if !strings.Contains(audited, f.students[0]) || !strings.Contains(audited, `"to": "`+f.subjects["S3"]) {
+		t.Fatalf("the audit names whose choice changed: %s", audited)
+	}
+
+	// A component sheet's full marks stay the sum of its components.
+	exec("SAVEPOINT component_full")
+	if err := tx.Exec("UPDATE exam_subjects SET full_marks = 90 WHERE id = ?", sheet["AEX1S1"]).Error; err == nil {
+		t.Fatal("a component sheet's full marks cannot drift from its components")
+	}
+	exec("ROLLBACK TO SAVEPOINT component_full")
+
+	// Once students choose, an old-style exam may carry several fourth subjects.
+	var s5 string
+	scan(&s5, "INSERT INTO academic_subjects(name_en,name_bn,code) VALUES (?,?,?) RETURNING id", "S5 "+f.stamp, "বিষয়", "E5S5"+f.stamp[len(f.stamp)-8:])
+	exec("INSERT INTO academic_class_subjects(class_id,subject_id,is_required,is_fourth_subject) VALUES (?,?,false,true)", f.classID, s5)
+	extra, err := svc.SaveExam(ctx, f.admin, "", ExamInput{Name: "Spot test", ExamType: "class_test", SessionID: f.session, ClassID: f.classID, SectionID: f.section})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{f.subjects["S3"], s5} {
+		if _, err := svc.SaveSubject(ctx, f.admin, extra.ID, SubjectInput{SubjectID: id, FullMarks: 50, PassMarks: 17}); err != nil {
+			t.Fatalf("fourth subject %s: %v", id, err)
+		}
+	}
+	exec("DELETE FROM exams WHERE id = ?", extra.ID)
+	exec("DELETE FROM academic_class_subjects WHERE class_id = ? AND subject_id = ?", f.classID, s5)
 
 	save := func(examKey string, entries []MarkEntry) MarksResult {
 		t.Helper()

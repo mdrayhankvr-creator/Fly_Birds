@@ -186,7 +186,12 @@ func (r *GormRepository) SaveSubject(ctx context.Context, actor, examID string, 
 			if err := tx.Table("exam_subjects es").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Where("es.exam_id=? AND acs.is_fourth_subject AND es.subject_id<>?", examID, in.SubjectID).Count(&count).Error; err != nil {
 				return err
 			}
-			if count > 0 {
+			// Several fourth subjects are fine once students choose theirs (E5).
+			var choices bool
+			if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN students s ON s.id = c.student_id WHERE c.session_id = ? AND s.session_id = ? AND s.class_id = ?)", e.SessionID, e.SessionID, e.ClassID).Row().Scan(&choices); err != nil {
+				return err
+			}
+			if count > 0 && !choices {
 				return ErrConflict
 			}
 		}
