@@ -29,6 +29,7 @@ type QueueItem struct {
 	Missing      int     `json:"missing"`
 	ReturnReason string  `json:"return_reason"`
 	UpdatedAt    *string `json:"updated_at"`
+	DueOn        *string `json:"due_on"` // marks due date set by the setup wizard (E5)
 }
 
 // SheetPermissions are what the actor may do on a sheet now, and why not.
@@ -46,8 +47,16 @@ type SheetPermissions struct {
 type Workspace struct {
 	Exam        Exam             `json:"exam"`
 	Sheet       Sheet            `json:"sheet"`
+	Components  []SheetComponent `json:"components"` // empty: one total per student
 	Rows        []MarkRow        `json:"rows"`
 	Permissions SheetPermissions `json:"permissions"`
+}
+
+// SheetComponent is one component of a component sheet (E5).
+type SheetComponent struct {
+	Key  string   `json:"key"`
+	Full float64  `json:"full"`
+	Pass *float64 `json:"pass"`
 }
 
 // HistoryEntry is one audited change of a sheet.
@@ -93,20 +102,23 @@ func (r *GormRepository) MySheets(ctx context.Context, actor string) ([]QueueIte
 SELECT e.id AS exam_id, e.name AS exam_name, e.exam_type, e.status AS exam_status, se.name AS session_name, c.name AS class_name, s.name AS section_name,
        es.id AS sheet_id, es.subject_id, sub.name_en AS subject_en, sub.name_bn AS subject_bn, es.full_marks, es.sheet_status AS status, es.return_reason,
        st.students, coalesce(m.entered, 0) AS entered, greatest(st.students - coalesce(m.entered, 0), 0) AS missing,
-       to_char(m.updated_at AT TIME ZONE 'Asia/Dhaka', 'YYYY-MM-DD HH24:MI') AS updated_at
+       to_char(m.updated_at AT TIME ZONE 'Asia/Dhaka', 'YYYY-MM-DD HH24:MI') AS updated_at, to_char(e.marks_due_on, 'YYYY-MM-DD') AS due_on
 FROM exam_subjects es
 JOIN exams e ON e.id = es.exam_id
 JOIN academic_sessions se ON se.id = e.session_id
 JOIN academic_classes c ON c.id = e.class_id
 JOIN academic_sections s ON s.id = e.section_id
 JOIN academic_subjects sub ON sub.id = es.subject_id
-JOIN LATERAL (SELECT count(*) AS students FROM students x WHERE x.session_id = e.session_id AND x.class_id = e.class_id AND x.section_id = e.section_id AND x.status = 'active') st ON true
-LEFT JOIN LATERAL (SELECT count(*) AS entered, max(mk.updated_at) AS updated_at FROM exam_marks mk JOIN students x ON x.id = mk.student_id AND x.status = 'active' WHERE mk.exam_subject_id = es.id) m ON true
+JOIN LATERAL (SELECT count(*) AS students FROM students x WHERE x.session_id = e.session_id AND x.class_id = e.class_id AND x.section_id = e.section_id AND x.status = 'active'
+               AND student_takes_subject(x.id, x.session_id, x.class_id, es.subject_id)) st ON true
+LEFT JOIN LATERAL (SELECT count(*) AS entered, max(mk.updated_at) AS updated_at FROM exam_marks mk JOIN students x ON x.id = mk.student_id AND x.status = 'active'
+                   AND student_takes_subject(x.id, x.session_id, x.class_id, es.subject_id) WHERE mk.exam_subject_id = es.id) m ON true
 WHERE EXISTS (SELECT 1 FROM employees emp JOIN teacher_assignments ta ON ta.employee_id = emp.id
               WHERE emp.user_id = ? AND emp.is_active AND ta.session_id = e.session_id AND ta.class_id = e.class_id AND ta.subject_id = es.subject_id)
   AND (e.status = 'draft' OR se.is_active)
 ORDER BY (e.status <> 'draft'),
          CASE es.sheet_status WHEN 'returned' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'not_started' THEN 2 WHEN 'submitted' THEN 3 ELSE 4 END,
+         e.marks_due_on NULLS LAST,
          e.created_at DESC, c.name, s.name, sub.code
 LIMIT 300`, actor).Scan(&out).Error
 	return out, err
@@ -144,11 +156,36 @@ func (r *GormRepository) Workspace(ctx context.Context, examID, sheetID, actor, 
 		Joins("JOIN exam_subjects es ON es.id=?", sheetID).
 		Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").
 		Joins("LEFT JOIN exam_marks m ON m.student_id=s.id AND m.exam_subject_id=es.id").
-		Where("s.session_id=? AND s.class_id=? AND s.section_id=? AND s.status='active'", exam.SessionID, exam.ClassID, exam.SectionID).
+		Where("s.session_id=? AND s.class_id=? AND s.section_id=? AND s.status='active' AND student_takes_subject(s.id, s.session_id, s.class_id, es.subject_id)", exam.SessionID, exam.ClassID, exam.SectionID).
 		Select(`es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,
  m.marks,m.grade,m.grade_point,m.passed,coalesce(m.status,'') AS status,coalesce(m.status_reason,'') AS status_reason,coalesce(m.row_version,0) AS row_version`).
 		Order("s.roll_no NULLS LAST,s.admission_no").Scan(&w.Rows).Error; err != nil {
 		return w, err
+	}
+	// Component sheets: the components and each row's component marks.
+	w.Components = []SheetComponent{}
+	if err := tx.Raw("SELECT component_key AS key, full_marks::float8 AS full, pass_marks::float8 AS pass FROM exam_subject_components WHERE exam_subject_id = ? ORDER BY display_order", sheetID).Scan(&w.Components).Error; err != nil {
+		return w, err
+	}
+	if len(w.Components) > 0 {
+		comps := []struct {
+			StudentID, Key string
+			Marks          float64
+		}{}
+		if err := tx.Raw(`SELECT m.student_id, cm.component_key AS key, cm.marks::float8 AS marks
+  FROM exam_component_marks cm JOIN exam_marks m ON m.id = cm.exam_mark_id WHERE cm.exam_subject_id = ?`, sheetID).Scan(&comps).Error; err != nil {
+			return w, err
+		}
+		byStudent := map[string]map[string]float64{}
+		for _, c := range comps {
+			if byStudent[c.StudentID] == nil {
+				byStudent[c.StudentID] = map[string]float64{}
+			}
+			byStudent[c.StudentID][c.Key] = c.Marks
+		}
+		for i := range w.Rows {
+			w.Rows[i].Components = byStudent[w.Rows[i].StudentID]
+		}
 	}
 	w.Permissions = permissionsFor(exam.Status, w.Sheet.Status, role)
 	return w, nil

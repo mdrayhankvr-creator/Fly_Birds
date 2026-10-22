@@ -318,10 +318,10 @@ export const getAbsenceEvents = (token: string, params: URLSearchParams) => bear
 export type AttendanceSection = { id: string; name: string; class_name: string; session_id: string }
 export const getAttendanceSections = (token: string, sessionId: string) => bearerRequest<AttendanceSection[]>(`/attendance/students/sections?session_id=${encodeURIComponent(sessionId)}`, token)
 
-export type ResultExam = { id: string; name: string; exam_type: 'class_test'|'half_yearly'|'annual'|'other'; session_id: string; class_id: string; section_id: string; routine_id: string|null; status: 'draft'|'published'|'locked'; session_name: string; class_name: string; section_name: string; subjects: ExamSubject[] }
+export type ResultExam = { id: string; name: string; exam_type: 'class_test'|'half_yearly'|'annual'|'other'; session_id: string; class_id: string; section_id: string; routine_id: string|null; status: 'draft'|'published'|'locked'; session_name: string; class_name: string; section_name: string; subjects: ExamSubject[]; term_id?: string|null; term_name?: string|null; assessment_key?: string|null; blueprint_version_id?: string|null; marks_due_on?: string|null }
 export type ResultExamInput = Pick<ResultExam,'name'|'exam_type'|'session_id'|'class_id'|'section_id'|'routine_id'>
 export type ExamSubject = { id: string; exam_id: string; subject_id: string; name_en: string; name_bn: string; full_marks: number; pass_marks: number; is_fourth_subject: boolean }
-export type ExamMarkRow = { exam_subject_id: string; student_id: string; student_name: string; admission_no: string; roll_no: number|null; subject_name: string; subject_name_bn: string; marks: number|null; grade: string|null; grade_point: number|null; passed: boolean|null; status: ExamMarkStatus|''; status_reason: string; row_version: number }
+export type ExamMarkRow = { exam_subject_id: string; student_id: string; student_name: string; admission_no: string; roll_no: number|null; subject_name: string; subject_name_bn: string; marks: number|null; grade: string|null; grade_point: number|null; passed: boolean|null; status: ExamMarkStatus|''; status_reason: string; row_version: number; components?: Record<string, number> }
 export type ExamMarkStatus = 'present'|'absent'|'exempt'|'incomplete'|'withheld'
 export type ExamResult = { exam_id: string; student_id: string; student_name: string; student_name_bn: string; admission_no: string; roll_no: number|null; total_marks: number; full_marks: number; gpa: number; passed: boolean; class_position: number; section_position: number }
 export type ReportCard = { withheld: boolean; exam: ResultExam; result: ExamResult; subjects: ExamMarkRow[]; school_name_en: string; school_name_bn: string; logo_url: string }
@@ -337,14 +337,15 @@ export type ExamSheetStatus = 'not_started'|'in_progress'|'submitted'|'returned'
 export type ExamSheet = { id: string; subject_id: string; name_en: string; name_bn: string; full_marks: number; pass_marks: number; is_fourth_subject: boolean; status: ExamSheetStatus; students: number; entered: number; missing: number; absent: number; exempt: number; incomplete: number; withheld: number; submitted_by: string; submitted_at: string|null; reviewed_by: string; reviewed_at: string|null; return_reason: string }
 export type ExamBlocker = { code: 'no_subjects'|'no_students'|'marks_missing'|'marks_incomplete'|'awaiting_review'|'returned'; sheet_id?: string; subject?: string; count?: number }
 export type ExamSheets = { exam_id: string; exam_status: ResultExam['status']; sheets: ExamSheet[]; readiness: { ready: boolean; blockers: ExamBlocker[] } }
-export type ExamMarkCell = { exam_subject_id: string; student_id: string; status: ExamMarkStatus; marks: number|null; reason: string; row_version: number }
+export type ExamMarkCell = { exam_subject_id: string; student_id: string; status: ExamMarkStatus; marks: number|null; reason: string; row_version: number; components?: Record<string, number> }
 export type ExamCellError = { exam_subject_id: string; student_id: string; code: string; message: string; current?: ExamMarkCell }
 export const getExamSheets = (token:string,examId:string,teacher:boolean) => bearerRequest<ExamSheets>(teacher?`/exams/assigned/${encodeURIComponent(examId)}/sheets`:`/exams/${encodeURIComponent(examId)}/sheets`,token)
 export const saveExamMarkCells = (token:string,examId:string,entries:ExamMarkCell[]) => bearerRequest<{saved:ExamMarkCell[];errors:ExamCellError[]}>(`/exams/${encodeURIComponent(examId)}/marks`,token,json('PATCH',{entries}))
 export const examSheetAction = (token:string,examId:string,sheetId:string,action:'submit'|'approve'|'return',reason?:string) => bearerRequest<ExamSheet>(`/exams/${encodeURIComponent(examId)}/sheets/${encodeURIComponent(sheetId)}/${action}`,token,json('POST',action==='return'?{reason}:{}))
-export type ExamSheetQueueItem = { exam_id: string; exam_name: string; exam_type: ResultExam['exam_type']; exam_status: ResultExam['status']; session_name: string; class_name: string; section_name: string; sheet_id: string; subject_id: string; subject_name_en: string; subject_name_bn: string; full_marks: number; status: ExamSheetStatus; students: number; entered: number; missing: number; return_reason: string; updated_at: string|null }
+export type ExamSheetQueueItem = { exam_id: string; exam_name: string; exam_type: ResultExam['exam_type']; exam_status: ResultExam['status']; session_name: string; class_name: string; section_name: string; sheet_id: string; subject_id: string; subject_name_en: string; subject_name_bn: string; full_marks: number; status: ExamSheetStatus; students: number; entered: number; missing: number; return_reason: string; updated_at: string|null; due_on?: string|null }
 export type ExamSheetPermissions = { can_edit: boolean; can_submit: boolean; can_review: boolean; statuses: ExamMarkStatus[]; read_only_reason?: 'exam_published'|'exam_locked'|'sheet_submitted'|'sheet_approved'|'review_only' }
-export type ExamSheetWorkspace = { exam: ResultExam; sheet: ExamSheet; rows: ExamMarkRow[]; permissions: ExamSheetPermissions }
+export type ExamSheetComponent = { key: string; full: number; pass: number|null }
+export type ExamSheetWorkspace = { exam: ResultExam; sheet: ExamSheet; components?: ExamSheetComponent[]; rows: ExamMarkRow[]; permissions: ExamSheetPermissions }
 export type ExamSheetHistoryEntry = { at: string; action: 'exam.mark_saved'|'exam.sheet_submitted'|'exam.sheet_returned'|'exam.sheet_approved'; actor: string; student_name: string; admission_no: string; metadata: { old_marks?: number|string|null; new_marks?: number|string|null; old_status?: string|null; new_status?: string|null; reason?: string; from?: string } }
 export const getMyExamSheets = (token:string) => bearerRequest<ExamSheetQueueItem[]>('/exams/my-sheets',token)
 const sheetPath = (examId:string,sheetId:string,teacher:boolean) => `/exams/${teacher?'assigned/':''}${encodeURIComponent(examId)}/sheets/${encodeURIComponent(sheetId)}`
@@ -353,6 +354,62 @@ export const getExamSheetHistory = (token:string,examId:string,sheetId:string,te
 export const setResultExamState = (token:string,examId:string,status:ResultExam['status']) => bearerRequest<ResultExam>(`/exams/${encodeURIComponent(examId)}/state`,token,json('PATCH',{status}))
 export const getExamTabulation = (token:string,examId:string) => bearerRequest<ExamResult[]>(`/exams/${encodeURIComponent(examId)}/tabulation`,token)
 export const getReportCards = (token:string,path:string) => bearerRequest<ReportCard[]>(path,token)
+
+// E5: exam terms, assessment blueprints, the setup wizard, optional subject
+// choices and the provisional term results.
+export type ExamTermKind = 'term'|'annual'
+export type ExamTerm = { id: string; session_id: string; name: string; sequence: number; kind: ExamTermKind; starts_on: string|null; ends_on: string|null; status: 'planning'|'running'|'results'|'closed'; legacy: boolean; exams: number; setup: TermSetup }
+export type ExamTermInput = { session_id: string; name: string; kind: ExamTermKind; starts_on: string; ends_on: string }
+export type AssessmentKind = 'class_test'|'continuous'|'performance'|'term_exam'
+export type StudentVisibility = 'hidden'|'after_term_publication'|'with_assessment_publication'
+export type BlueprintAssessment = { key: string; name: string; term_id: string; kind: AssessmentKind; visibility: StudentVisibility }
+export type BlueprintComponent = { key: string; full: number; pass?: number|null }
+export type BlueprintSheet = { assessment: string; pass: number; components: BlueprintComponent[] }
+export type CombineMethod = 'single'|'sum'|'average'|'best'|'latest'
+export type BlueprintContribution = { from: string[]; combine: CombineMethod; best?: number; worth: number }
+export type BlueprintTermRule = { term_id: string; full: number; pass: number; contributions: BlueprintContribution[] }
+export type SubjectRole = 'required'|'optional'|'non_graded'
+export type BlueprintSubject = { subject_id: string; role: SubjectRole; combined_key?: string; sheets: BlueprintSheet[]; terms: BlueprintTermRule[] }
+export type BlueprintPolicy = { round_contributions: boolean; whole_marks: boolean; gpa_rounding: 'half_up'|'truncate'; absent: 'zero'|'missing'; ranking: 'competition'|'dense' }
+export type BlueprintAnnual = { method: 'final_only'|'equal'|'weighted'; weights?: Record<string, number>; final_must_pass: boolean }
+export type BlueprintDefinition = { assessments: BlueprintAssessment[]; subjects: BlueprintSubject[]; paper_rule: 'combined'|'each_paper'; annual: BlueprintAnnual; policy: BlueprintPolicy }
+export type BlueprintIssue = { code: string; path: string; params?: Record<string, string>; message: string }
+export type BlueprintVersionSummary = { id: string; version: number; status: 'draft'|'active'|'retired'; legacy: boolean; activated_at: string|null; created_at: string; exams: number }
+export type ClassBlueprint = { class_id: string; class_name: string; blueprint_id: string|null; name: string; active: BlueprintVersionSummary|null; draft: BlueprintVersionSummary|null; versions: BlueprintVersionSummary[] }
+export type BlueprintTermRef = { id: string; name: string; sequence: number; kind: ExamTermKind; status: ExamTerm['status']; legacy: boolean }
+export type BlueprintSubjectRef = { id: string; code: string; name_en: string; name_bn: string; fourth: boolean }
+export type BlueprintBand = { grade: string; min: number; max: number; gpa: number }
+export type BlueprintVersion = { id: string; blueprint_id: string; blueprint_name: string; session_id: string; session_name: string; class_id: string; class_name: string; version: number; status: BlueprintVersionSummary['status']; legacy: boolean; activated_at: string|null; sha256: string; exams: number; definition: BlueprintDefinition; terms: BlueprintTermRef[]; subjects: BlueprintSubjectRef[]; bands: BlueprintBand[]; issues: BlueprintIssue[]; versions: BlueprintVersionSummary[] }
+export type SampleMark = { status?: ExamMarkStatus; marks?: number|null; components?: Record<string, number> }
+export type TermReason = { code: 'component_below_pass'|'paper_below_pass'; subject_id: string; assessment?: string; component?: string }
+export type TermContribution = { from: string[]; combine: CombineMethod; worth: string; value: string; exempt: boolean }
+export type TermSubjectResult = { subject_ids: string[]; combined_key?: string; optional: boolean; status: 'graded'|'exempt'|'incomplete'|'withheld'; marks: string; full: string; grade: string; point: string; passed: boolean; reasons: TermReason[]; contributions: TermContribution[] }
+export type TermStudentResult = { student_id: string; section_id: string; outcome: 'passed'|'failed'|'incomplete'|'withheld'; gpa: string; total: string; full: string; section_position: number; class_position: number; subjects: TermSubjectResult[] }
+export type TermSetup = { class_ids: string[]; due: Record<string, string>; assignees: Record<string, string> }
+export type SetupClass = { class_id: string; class_name: string; selected: boolean; blueprint_id: string|null; version_id: string|null; version: number; has_draft: boolean; state: 'ready'|'needs_blueprint'|'no_assessments'; sections: number; assessments: string[]; sheets: number; existing: number; students: number }
+export type SetupPlan = { term: ExamTerm; setup: TermSetup; classes: SetupClass[]; assessments: { key: string; name: string; kind: AssessmentKind; classes: number; due: string }[]; gaps: { class_id: string; class_name: string; subject_id: string; subject_name: string; sheets: number; assignee: string|null }[]; teachers: { employee_id: string; name: string }[]; conflicts: { class_name: string; section_name: string; exam_name: string }[]; sheets: number; to_create: number; exams: number; new_exams: number }
+export type SetupResult = { plan: SetupPlan; exams_created: number; sheets_created: number; assigned: number }
+export type SubjectChoices = { optional: BlueprintSubjectRef[]; students: { student_id: string; name: string; admission_no: string; roll_no: number|null; section_name: string; subject_id: string|null }[]; in_use: boolean; counts: Record<string, number> }
+export type TermPreview = { term: ExamTerm; class_id: string; class_name: string; state: 'ready'|'pending'|'no_exams'|'mixed_versions'; version_id: string; version: number; definition: BlueprintDefinition|null; subjects: BlueprintSubjectRef[]; students: { student_id: string; name: string; admission_no: string; roll_no: number|null; section_id: string; section_name: string; result: TermStudentResult }[]; sheets: number; approved: number; pending: { exam_id: string; sheet_id: string; section_name: string; assessment: string; subject_name: string; status: ExamSheetStatus; missing: number }[]; outcomes: Record<string, number>; provisional: boolean }
+const enc = encodeURIComponent
+export const getExamTerms = (token:string,sessionId:string) => bearerRequest<ExamTerm[]>(`/exams/terms?session_id=${enc(sessionId)}`,token)
+export const saveExamTerm = (token:string,input:ExamTermInput,id?:string) => bearerRequest<ExamTerm>(id?`/exams/terms/${enc(id)}`:'/exams/terms',token,json(id?'PUT':'POST',input))
+export const deleteExamTerm = (token:string,id:string) => bearerRequest<{deleted:boolean}>(`/exams/terms/${enc(id)}`,token,{method:'DELETE'})
+export const getClassBlueprints = (token:string,sessionId:string) => bearerRequest<ClassBlueprint[]>(`/exams/blueprints?session_id=${enc(sessionId)}`,token)
+export const createBlueprint = (token:string,sessionId:string,classId:string,copyFrom?:string) => bearerRequest<BlueprintVersion>('/exams/blueprints',token,json('POST',{session_id:sessionId,class_id:classId,...(copyFrom?{copy_from:copyFrom}:{})}))
+export const newBlueprintVersion = (token:string,blueprintId:string,fromVersionId:string) => bearerRequest<BlueprintVersion>(`/exams/blueprints/${enc(blueprintId)}/versions`,token,json('POST',{from_version_id:fromVersionId}))
+export const getBlueprintVersion = (token:string,id:string) => bearerRequest<BlueprintVersion>(`/exams/blueprint-versions/${enc(id)}`,token)
+export const saveBlueprintDraft = (token:string,id:string,definition:BlueprintDefinition) => bearerRequest<BlueprintVersion>(`/exams/blueprint-versions/${enc(id)}`,token,json('PUT',{definition}))
+export const deleteBlueprintDraft = (token:string,id:string) => bearerRequest<{deleted:boolean}>(`/exams/blueprint-versions/${enc(id)}`,token,{method:'DELETE'})
+export const activateBlueprint = (token:string,id:string) => bearerRequest<BlueprintVersion>(`/exams/blueprint-versions/${enc(id)}/activate`,token,json('POST',{}))
+export const setAssessmentVisibility = (token:string,id:string,key:string,visibility:StudentVisibility) => bearerRequest<BlueprintVersion>(`/exams/blueprint-versions/${enc(id)}/visibility`,token,json('PUT',{key,visibility}))
+export const sampleBlueprintSubject = (token:string,id:string,input:{subject_id:string;term_id:string;marks:Record<string,SampleMark>;definition?:BlueprintDefinition}) => bearerRequest<TermSubjectResult>(`/exams/blueprint-versions/${enc(id)}/sample`,token,json('POST',input))
+export const getTermSetup = (token:string,termId:string) => bearerRequest<SetupPlan>(`/exams/terms/${enc(termId)}/setup`,token)
+export const saveTermSetup = (token:string,termId:string,setup:TermSetup) => bearerRequest<SetupPlan>(`/exams/terms/${enc(termId)}/setup`,token,json('PUT',setup))
+export const createTermExams = (token:string,termId:string) => bearerRequest<SetupResult>(`/exams/terms/${enc(termId)}/create`,token,json('POST',{}))
+export const getSubjectChoices = (token:string,sessionId:string,classId:string) => bearerRequest<SubjectChoices>(`/exams/subject-choices?session_id=${enc(sessionId)}&class_id=${enc(classId)}`,token)
+export const saveSubjectChoices = (token:string,sessionId:string,classId:string,choices:{student_id:string;subject_id:string}[]) => bearerRequest<SubjectChoices>('/exams/subject-choices',token,json('PUT',{session_id:sessionId,class_id:classId,choices}))
+export const getTermPreview = (token:string,termId:string,classId:string) => bearerRequest<TermPreview>(`/exams/terms/${enc(termId)}/results?class_id=${enc(classId)}`,token)
 export const getReportCard = (token:string,path:string) => bearerRequest<ReportCard>(path,token)
 
 // Attachments require the bearer token, so they are fetched as blobs rather

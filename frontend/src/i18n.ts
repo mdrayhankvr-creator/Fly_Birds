@@ -12,6 +12,7 @@ import { peopleTranslations } from './peopleTranslations'
 import { routineTranslations } from './routineTranslations'
 import { examTranslations } from './examTranslations'
 import { marksTranslations } from './marksTranslations'
+import { examSetupTranslations } from './examSetupTranslations'
 import { feeTranslations } from './feeTranslations'
 import { commTranslations } from './commTranslations'
 import { adminTranslations } from './adminTranslations'
@@ -163,6 +164,8 @@ i18n.addResourceBundle('en', 'translation', examTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', examTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', marksTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', marksTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', examSetupTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', examSetupTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', feeTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', feeTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', commTranslations.en, true, true)

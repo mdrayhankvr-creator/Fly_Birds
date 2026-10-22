@@ -1532,6 +1532,176 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Sheets and readiness }, '403': { description: No assigned subject in this exam }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /exams/terms:
+    get:
+      operationId: listExamTerms
+      summary: The exam terms of a session, in order
+      description: Requires exams:read. Each term has its order (sequence), kind (term or annual), optional dates, status (planning, running, results, closed), the number of exams linked to it, whether the upgrade made it from existing exams (legacy) and the setup wizard's saved choices.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Terms }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createExamTerm
+      summary: Add a term to a session (after its last term)
+      description: Requires exams:manage and an administrator. Body session_id, name (≤120, unique in the session), kind (term or annual), optional starts_on and ends_on (YYYY-MM-DD). Audited as exam.term_saved.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [session_id, name, kind], properties: { session_id: { type: string, format: uuid }, name: { type: string, maxLength: 120 }, kind: { type: string, enum: [term, annual] }, starts_on: { type: string }, ends_on: { type: string } } } } } }
+      responses: { '201': { description: Created term }, '400': { description: Invalid input }, '409': { description: A term with that name already exists }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/terms/{id}:
+    put:
+      operationId: updateExamTerm
+      summary: Rename a term or change its dates (or its kind while it has no exams)
+      description: Requires exams:manage and an administrator. Same body as creation; session_id is ignored. 409 in_use when the kind changes on a term with exams.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, properties: { session_id: { type: string }, name: { type: string, maxLength: 120 }, kind: { type: string, enum: [term, annual] }, starts_on: { type: string }, ends_on: { type: string } } } } } }
+      responses: { '200': { description: Updated term }, '400': { description: Invalid input }, '404': { description: Term not found }, '409': { description: In use or name taken }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteExamTerm
+      summary: Delete an unused term
+      description: Requires exams:manage and an administrator. 409 in_use when exams or blueprint assessments use the term, or the upgrade made it.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '404': { description: Term not found }, '409': { description: In use }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/terms/{id}/results:
+    get:
+      operationId: getTermResultsPreview
+      summary: A class's provisional term results (staff only)
+      description: Requires exams:read. Computes every student's term result from the marks entered so far with the blueprint version the term's exams were created from - each subject's contributions (CT + final, best-N), component and paper pass rules, combined papers, optional subjects, GPA, outcome and section and class positions - and lists the sheets not yet approved. Nothing is stored or published; students never see it. state is ready, pending, no_exams or mixed_versions.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Provisional term results }, '400': { description: Invalid input }, '404': { description: Term or class not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/terms/{id}/setup:
+    get:
+      operationId: getTermSetup
+      summary: The exam setup wizard's plan for a term
+      description: Requires exams:read. Every active class with its blueprint state for the term (ready, needs_blueprint, no_assessments), the chosen classes, the assessments across them with marks due dates, sheet counts (all, new), exams that already exist, existing exams whose names the new ones would take (conflicts), subjects without a teacher (gaps) and the teachers who can take them.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Setup plan }, '404': { description: Term not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveTermSetup
+      summary: Keep the wizard's choices on the term
+      description: Requires exams:manage and an administrator. Body class_ids, due (assessment key → YYYY-MM-DD) and assignees ("classId|subjectId" → teacher employee id). Nothing reaches teachers until the term is created.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, properties: { class_ids: { type: array, items: { type: string, format: uuid } }, due: { type: object, additionalProperties: { type: string } }, assignees: { type: object, additionalProperties: { type: string } } } } } } }
+      responses: { '200': { description: Setup plan }, '400': { description: Invalid input }, '404': { description: Term not found }, '409': { description: The term is closed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/terms/{id}/create:
+    post:
+      operationId: createTermExams
+      summary: Create the term's exams and sheets
+      description: Requires exams:manage and an administrator. In one transaction, one draft exam per section per assessment of the term for every chosen ready class (linked by term, assessment and blueprint version, with the marks due date) and one sheet per subject with its components; chosen teachers are assigned to subjects nobody teaches; the term moves to running. Exams that already exist are left alone, so running it again creates nothing new. 409 setup_blocked without a ready class, with an assessment lacking a due date, or with a name conflict. Audited as exam.term_created.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Counts and the new plan }, '404': { description: Term not found }, '409': { description: Setup blocked }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/blueprints:
+    get:
+      operationId: listClassBlueprints
+      summary: Every class of a session with its assessment blueprint, if any
+      description: Requires exams:read. For each class, the blueprint's active version, open draft and version history; classes without a blueprint have blueprint_id null.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Classes and blueprints }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createBlueprintDraft
+      summary: Open a blueprint draft for a class
+      description: Requires exams:manage and an administrator. Without copy_from the draft starts from today's model (one term exam per term, every class subject out of 100, pass 33, final only). With copy_from it copies that version; from another session its terms are mapped by order, and missing terms are created in planning. 409 when the class already has an open draft. Audited as exam.blueprint_drafted.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [session_id, class_id], properties: { session_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, copy_from: { type: string, format: uuid } } } } } }
+      responses: { '201': { description: Draft version, as returned by getBlueprintVersion }, '400': { description: Invalid input }, '404': { description: Class or version not found }, '409': { description: A draft is already open }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/blueprints/{id}/versions:
+    post:
+      operationId: createBlueprintVersion
+      summary: Open the next version of a blueprint from one of its versions
+      description: Requires exams:manage and an administrator. Exams keep the version they were created from; new exams use the newly activated one. 409 when a draft is already open.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [from_version_id], properties: { from_version_id: { type: string, format: uuid } } } } } }
+      responses: { '201': { description: Draft version }, '400': { description: Invalid input }, '404': { description: Version not found }, '409': { description: A draft is already open }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/blueprint-versions/{id}:
+    get:
+      operationId: getBlueprintVersion
+      summary: One blueprint version with its definition, context and issues
+      description: Requires exams:read. The definition (assessments, subjects with sheets, components and term rules, paper rule, annual method, policy), the session's terms, the class's subjects, the school's grading bands, the current validation issues of a draft (code, path, params, message) and the version history. A legacy version's definition is rebuilt from its rows.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version }, '404': { description: Version not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveBlueprintDraft
+      summary: Save a draft's definition
+      description: Requires exams:manage and an administrator. Saving is allowed with issues; the response lists them. 409 in_use for an activated version (it is frozen).
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [definition], properties: { definition: { type: object } } } } } }
+      responses: { '200': { description: Draft with issues }, '400': { description: Invalid input }, '404': { description: Version not found }, '409': { description: Not a draft }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteBlueprintDraft
+      summary: Discard a draft
+      description: Requires exams:manage and an administrator. Only drafts; a blueprint left without versions is removed too.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '404': { description: Version not found }, '409': { description: Not a draft }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/blueprint-versions/{id}/activate:
+    post:
+      operationId: activateBlueprintVersion
+      summary: Validate and activate a draft
+      description: Requires exams:manage and an administrator. Refused with 422 blueprint_invalid and the list of issues when any activation rule fails. Activation writes the normalised assessments, subjects and components, snapshots the grading bands, records the definition's SHA-256, freezes the version and retires the previous active version (its exams keep it). Audited as exam.blueprint_activated.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Active version }, '404': { description: Version not found }, '409': { description: Not a draft }, '422': { description: Issues to fix }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/blueprint-versions/{id}/visibility:
+    put:
+      operationId: setAssessmentVisibility
+      summary: Choose whether students see an assessment's own results
+      description: Requires exams:manage and an administrator. visibility is hidden, after_term_publication or with_assessment_publication. A display policy, so it may change on an active version; audited as exam.assessment_visibility_changed.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [key, visibility], properties: { key: { type: string }, visibility: { type: string, enum: [hidden, after_term_publication, with_assessment_publication] } } } } } }
+      responses: { '200': { description: Version }, '400': { description: Invalid input }, '404': { description: Version or assessment not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/blueprint-versions/{id}/sample:
+    post:
+      operationId: sampleBlueprintSubject
+      summary: Work one subject's term mark from sample marks
+      description: Requires exams:read. Body subject_id, term_id, marks by assessment key (status, marks or component marks) and, for a draft, the unsaved definition. Returns the subject line with each contribution's exact value, the term mark, grade, point and any reason it fails. Nothing is stored.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, properties: { subject_id: { type: string }, term_id: { type: string }, definition: { type: object }, marks: { type: object } } } } } }
+      responses: { '200': { description: Worked subject line }, '400': { description: Invalid input }, '404': { description: Version not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/subject-choices:
+    get:
+      operationId: listSubjectChoices
+      summary: A class's fourth subjects and each student's optional subject
+      description: Requires exams:read. While no student of the class has a choice, the class's fourth subject applies to everyone, as before; once any student has one, choices decide and a student without one takes no optional subject.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Choices }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveSubjectChoices
+      summary: Set or clear students' optional subjects
+      description: Requires exams:manage and an administrator. Each choice names a student of the class and session and a fourth subject of the class, or an empty subject_id to clear it; at most 500. Published results do not change. Audited as exam.subject_choices_saved.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [session_id, class_id, choices], properties: { session_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, choices: { type: array, maxItems: 500, items: { type: object, additionalProperties: false, properties: { student_id: { type: string, format: uuid }, subject_id: { type: string } } } } } } } } }
+      responses: { '200': { description: Choices }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/my-sheets:
     get:
       operationId: getMyExamSheets

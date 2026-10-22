@@ -20,18 +20,25 @@ var (
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 type Exam struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	ExamType    string    `json:"exam_type"`
-	SessionID   string    `json:"session_id"`
-	ClassID     string    `json:"class_id"`
-	SectionID   string    `json:"section_id"`
-	RoutineID   *string   `json:"routine_id"`
-	Status      string    `json:"status"`
-	SessionName string    `json:"session_name"`
-	ClassName   string    `json:"class_name"`
-	SectionName string    `json:"section_name"`
-	Subjects    []Subject `json:"subjects" gorm:"-"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	ExamType    string  `json:"exam_type"`
+	SessionID   string  `json:"session_id"`
+	ClassID     string  `json:"class_id"`
+	SectionID   string  `json:"section_id"`
+	RoutineID   *string `json:"routine_id"`
+	Status      string  `json:"status"`
+	SessionName string  `json:"session_name"`
+	ClassName   string  `json:"class_name"`
+	SectionName string  `json:"section_name"`
+	// E5: the term and assessment the exam belongs to, and the blueprint
+	// version it was created from (all empty for exams made outside a term).
+	TermID             *string   `json:"term_id"`
+	TermName           *string   `json:"term_name"`
+	AssessmentKey      *string   `json:"assessment_key"`
+	BlueprintVersionID *string   `json:"blueprint_version_id"`
+	MarksDueOn         *string   `json:"marks_due_on"`
+	Subjects           []Subject `json:"subjects" gorm:"-"`
 }
 type ExamInput struct {
 	Name      string  `json:"name"`
@@ -80,6 +87,8 @@ type MarkRow struct {
 	Status       string `json:"status"`
 	StatusReason string `json:"status_reason"`
 	RowVersion   int    `json:"row_version"`
+	// Components of a component sheet's mark (E5).
+	Components map[string]float64 `json:"components,omitempty" gorm:"-"`
 }
 type Result struct {
 	ExamID          string  `json:"exam_id"`

@@ -19,7 +19,9 @@ export type ParsedCell =
   | { kind: 'empty' }
   | { kind: 'marks'; value: number }
   | { kind: 'status'; status: 'absent' | 'incomplete' }
-  | { kind: 'error'; code: 'not_a_number' | 'too_many_decimals' | 'negative' | 'above_full_marks' | 'needs_reason' }
+  | { kind: 'error'; code: 'not_a_number' | 'too_many_decimals' | 'negative' | 'above_full_marks' | 'needs_reason' | 'components_required' }
+  // A component sheet's row: one value per component (E5).
+  | { kind: 'components'; values: Record<string, number> }
 
 const statusWords: Record<string, 'absent' | 'incomplete'> = {
   a: 'absent', ab: 'absent', abs: 'absent', absent: 'absent', 'অনুপস্থিত': 'absent', 'অ': 'absent',
@@ -92,6 +94,32 @@ export type PlanItem = {
 
 export type PastePlan = { mode: 'by_admission' | 'by_position'; items: PlanItem[] }
 
+/** A component of a component sheet, as pasting needs it. */
+export type PasteComponent = { key: string; full: number }
+
+// parseComponents reads a pasted row of a component sheet: one value per
+// component, in order (the last N non-empty cells, so a name column before
+// them is ignored), or a single status word. A single total cannot be split
+// into components, so it is refused.
+export function parseComponents(cells: string[], components: PasteComponent[], full: number): ParsedCell {
+  const values = cells.filter(c => c !== '')
+  if (values.length === 0) return { kind: 'empty' }
+  if (values.length === 1) {
+    const one = parseCell(values[0], full)
+    if (one.kind === 'status' || one.kind === 'error') return one
+  }
+  if (values.length < components.length) return { kind: 'error', code: 'components_required' }
+  const used = values.slice(values.length - components.length)
+  const out: Record<string, number> = {}
+  for (let i = 0; i < components.length; i++) {
+    const p = parseCell(used[i], components[i].full)
+    if (p.kind === 'error') return p
+    if (p.kind !== 'marks') return { kind: 'error', code: 'not_a_number' }
+    out[components[i].key] = p.value
+  }
+  return { kind: 'components', values: out }
+}
+
 // planPaste maps pasted rows to students by stable id, never by what happens
 // to be on screen later:
 //   - by admission number when the first column of any row is the
@@ -102,7 +130,7 @@ export type PastePlan = { mode: 'by_admission' | 'by_position'; items: PlanItem[
 //     cell);
 //   - a student named on more than one line gets none of them.
 // Every planned item names its student id, and the preview shows the name.
-export function planPaste(table: string[][], targets: PasteTarget[], start: number, full: number): PastePlan {
+export function planPaste(table: string[][], targets: PasteTarget[], start: number, full: number, components: PasteComponent[] = []): PastePlan {
   const byAdmission = new Map(targets.map(t => [t.admission_no.trim().toLowerCase(), t.student_id]))
   const keyed = table.some(row => row.length > 1 && byAdmission.has((row[0] || '').toLowerCase()))
   // A student named on two lines is ambiguous: every one of those lines is
@@ -114,13 +142,13 @@ export function planPaste(table: string[][], targets: PasteTarget[], start: numb
   table.forEach((row, index) => {
     const line = index + 1
     const values = keyed ? row.slice(1) : row
-    const raw = [...values].reverse().find(cell => cell !== '') ?? ''
-    const parsed = parseCell(raw, full)
+    const raw = components.length ? values.filter(cell => cell !== '').join(' · ') : [...values].reverse().find(cell => cell !== '') ?? ''
+    const parsed = components.length ? parseComponents(values, components, full) : parseCell(raw, full)
     const student = resolve(row, index)
     if (!student) {
       // keyed: a header line ("Admission no, Marks") or a stranger; by position: past the list.
       const reason = keyed ? 'unknown_student' : 'no_student'
-      items.push({ line, student_id: null, raw, parsed, result: keyed && parsed.kind !== 'marks' && parsed.kind !== 'status' ? 'skip' : 'reject', reason })
+      items.push({ line, student_id: null, raw, parsed, result: keyed && parsed.kind !== 'marks' && parsed.kind !== 'status' && parsed.kind !== 'components' ? 'skip' : 'reject', reason })
       return
     }
     if ((lines.get(student) ?? 0) > 1) items.push({ line, student_id: student, raw, parsed, result: 'reject', reason: 'duplicate_student' })

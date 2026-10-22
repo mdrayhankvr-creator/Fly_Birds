@@ -31,9 +31,11 @@ const me = (await student('GET', '/students/me')).data
 const subjectOf = async t => (await t('GET', '/staff/me/assignments?page=1&page_size=100')).data.items.find(a => a.class_id === me.class_id && a.session_id === me.session_id).subject_id
 const [subjectA, subjectB] = [await subjectOf(teacher), await subjectOf(teacher2)]
 
-// The administrator sets up an exam in the demo student's section.
+// The administrator sets up an exam in the demo student's section. It is a
+// term exam: class tests are never shown to students on their own (E1-06,
+// checked by e2e/exam-setup.mjs), and this suite checks what students see.
 const name = `E3 Workflow ${Date.now()}`
-const created = await admin('POST', '/exams', { name, exam_type: 'class_test', session_id: me.session_id, class_id: me.class_id, section_id: me.section_id, routine_id: null })
+const created = await admin('POST', '/exams', { name, exam_type: 'half_yearly', session_id: me.session_id, class_id: me.class_id, section_id: me.section_id, routine_id: null })
 const examID = created.data.id
 await admin('POST', `/exams/${examID}/subjects`, { subject_id: subjectA, full_marks: 50, pass_marks: 17 })
 const exam = (await admin('POST', `/exams/${examID}/subjects`, { subject_id: subjectB, full_marks: 100, pass_marks: 33 })).data
