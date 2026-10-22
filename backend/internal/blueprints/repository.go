@@ -232,6 +232,7 @@ type TermRef struct {
 	Sequence int    `json:"sequence"`
 	Kind     string `json:"kind"`
 	Status   string `json:"status"`
+	Legacy   bool   `json:"legacy"` // made by the upgrade from existing exams
 }
 
 type SubjectRef struct {
@@ -300,7 +301,7 @@ func (r *Repository) versionRow(tx *gorm.DB, id string, lock bool) (versionRow, 
 // context loads what a definition is validated against.
 func (r *Repository) context(tx *gorm.DB, sessionID, classID string) ([]TermRef, []SubjectRef, []BandRef, Context, error) {
 	terms := []TermRef{}
-	if err := tx.Raw("SELECT id, name, sequence, kind, status FROM exam_terms WHERE session_id = ? ORDER BY sequence", sessionID).Scan(&terms).Error; err != nil {
+	if err := tx.Raw("SELECT id, name, sequence, kind, status, (legacy_key IS NOT NULL) AS legacy FROM exam_terms WHERE session_id = ? ORDER BY sequence", sessionID).Scan(&terms).Error; err != nil {
 		return nil, nil, nil, Context{}, err
 	}
 	subjects := []SubjectRef{}
@@ -410,11 +411,15 @@ func (r *Repository) view(tx *gorm.DB, id string) (VersionView, error) {
 }
 
 // seed is the starting design for a class without a blueprint: one term
-// exam per term of the session, every class subject out of 100 (pass 33),
-// final only — today's model.
+// exam per term of the session (not the terms the upgrade made from existing
+// exams, which belong to the legacy blueprint), every class subject out of
+// 100 (pass 33), final only — today's model.
 func seed(terms []TermRef, subjects []SubjectRef) Definition {
 	d := Definition{}
 	for _, t := range terms {
+		if t.Legacy {
+			continue
+		}
 		d.Assessments = append(d.Assessments, Assessment{Key: fmt.Sprintf("EX%d", t.Sequence), Name: t.Name, TermID: t.ID, Kind: "term_exam", Visibility: "with_assessment_publication"})
 	}
 	for _, s := range subjects {

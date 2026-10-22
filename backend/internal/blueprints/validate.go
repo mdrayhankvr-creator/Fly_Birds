@@ -61,6 +61,9 @@ func Validate(d Definition, c Context) []Issue {
 	v.annual(d)
 	v.policy(d)
 	v.bands()
+	if v.issues == nil {
+		return []Issue{} // encoded as [], never null
+	}
 	return v.issues
 }
 
