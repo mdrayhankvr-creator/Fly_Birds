@@ -198,6 +198,21 @@ CREATE TABLE exam_subject_components (
     PRIMARY KEY (exam_subject_id, component_key)
 );
 
+-- A component sheet's full marks are always the sum of its components, so a
+-- later edit of the sheet (the exam page) cannot set them apart.
+CREATE FUNCTION exam_subjects_component_full() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE total numeric(7,2);
+BEGIN
+    SELECT sum(full_marks) INTO total FROM exam_subject_components WHERE exam_subject_id = NEW.id;
+    IF total IS NOT NULL AND NEW.full_marks <> total THEN
+        RAISE EXCEPTION 'a component sheet''s full marks are the sum of its components' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER exam_subjects_component_full_trigger BEFORE UPDATE OF full_marks ON exam_subjects
+FOR EACH ROW EXECUTE FUNCTION exam_subjects_component_full();
+
 -- Component marks of a present mark; exam_marks.marks is their sum, written
 -- in the same transaction, so analytics keep reading exam_marks unchanged.
 CREATE TABLE exam_component_marks (
@@ -381,7 +396,10 @@ BEGIN
     GET DIAGNOSTICS exams_linked = ROW_COUNT;
 
     DROP TABLE legacy_versions;
-    RETURN jsonb_build_object('terms', terms_made, 'blueprint_versions', versions_made, 'exams', exams_linked);
+    -- Published class tests students could open before and no longer see on
+    -- their own (E1-06); recorded so the change is on the audit trail.
+    RETURN jsonb_build_object('terms', terms_made, 'blueprint_versions', versions_made, 'exams', exams_linked,
+        'class_tests_hidden', (SELECT count(*) FROM exams WHERE exam_type = 'class_test' AND status IN ('published', 'locked') AND term_id IS NOT NULL));
 END;
 $$;
 

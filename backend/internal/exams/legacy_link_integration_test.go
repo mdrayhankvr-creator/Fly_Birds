@@ -117,6 +117,10 @@ func TestPostgresLegacyBlueprintLink(t *testing.T) {
 	if after := examFingerprint(t, tx, f.session); after != before {
 		t.Fatal("linking changed a mark, grade, sheet or result")
 	}
+	var first map[string]int
+	if err := json.Unmarshal([]byte(raw), &first); err != nil || first["class_tests_hidden"] < 1 {
+		t.Fatalf("the audit counts published class tests now hidden: %s %v", raw, err)
+	}
 
 	type link struct {
 		ID, Name, TermID, AssessmentKey, Kind, Visibility, VersionID string
