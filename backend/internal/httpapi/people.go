@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"encoding/base64"
 	"errors"
 	"io"
 	"mime"
@@ -10,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
-	qrcode "github.com/skip2/go-qrcode"
 )
 
 type peopleHandler struct{ service *people.Service }
@@ -164,23 +162,6 @@ func (h *peopleHandler) photo(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Data(200, v.ContentType, v.Content)
-}
-func (h *peopleHandler) card(c *gin.Context) {
-	if !h.available(c) {
-		return
-	}
-	v, err := h.service.GetStudent(c.Request.Context(), actorFrom(c), c.Param("id"))
-	if err != nil {
-		peopleError(c, err)
-		return
-	}
-	payload := "FB-STUDENT:" + v.ID
-	png, err := qrcode.Encode(payload, qrcode.Medium, 192)
-	if err != nil {
-		peopleError(c, err)
-		return
-	}
-	success(c, 200, gin.H{"student": v, "qr_payload": payload, "qr_data_url": "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)})
 }
 func (h *peopleHandler) guardians(c *gin.Context) {
 	if !h.available(c) {

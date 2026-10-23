@@ -10,6 +10,41 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Student Profile and Double-Sided ID Card (2026-10-23)
+
+On `feature/student-profile-duplex-id-card`, from `main` `7b3723f`, with `main` `4b1807d` (E6, PR #32) merged in. This extends M3; the completion figures above do not change. Details: [STUDENT_PROFILE_ID_CARD.md](STUDENT_PROFILE_ID_CARD.md).
+
+**Implementation:**
+- **Migration 1601 (additive):**
+  - optional student profile fields;
+  - card token;
+  - a single-row `id_card_settings`.
+- **Profile:** parents' names, addresses, student ID, gender, blood group and admission date. The guardian is read from the existing primary link; nothing is duplicated.
+- **Card:** CR80 front and back in English or Bangla with school branding.
+  - Print layouts: single-card printing (CR80 pages) and section printing (A4 duplex sheets with mirrored backs and crop marks).
+  - Card settings and a principal's signature.
+  - A verification QR that reveals no personal data, and reissue.
+- **QR attendance:** accepts the new verification link and the legacy `FB-STUDENT:<id>`.
+
+**Verification after merging E6 (disposable resources only):**
+- Go: all 25 packages pass on a fresh database; vet, gofmt and govulncheck clean.
+- Frontend: type check and build, i18n (2,676 keys in each language), 11 unit tests, browser harness self-test 8/8.
+- Fresh install: migrations through 1503 and 1601.
+- Fresh school, in order:
+  - browser 106/106, white-label 23/23, payment safety 12/12;
+  - E3 exam workflow 17/17, E4 marks workspace 44/44 (axe was not installed for this run);
+  - E5 exam setup 83/83, E6 result publication 101/101;
+  - ID card 24/24.
+- Upgrade of an E5 school (built and used with `7b3723f`: 9 published exams, 137 results, 1,500 marks, 73 payments): 1503 and 1601 applied in order.
+  - Every pre-upgrade column of all 68 data tables is identical, apart from sign-in timestamps.
+  - `exam-verify` is clean, and the student's and guardian's 9 report cards are unchanged; E6 snapshots add the student name, admission number and roll.
+  - Afterwards: white-label 23/23, payment safety 12/12, E4 49/49 (with axe), E5 83/83, E6 101/101 and ID card 24/24.
+  - The browser suite was 99/106 there: its attendance checks expect a six-student section, which the earlier E5 exam setup had enlarged.
+- Guardians: 36 on each school, with no duplicate guardians, links or primary guardians.
+- PDFs: CR80 and A4 duplex in English and Bangla with two brandings. On the fresh school a 56-student section gave 7 sheets, with fronts and backs within 0.1 mm and all 112 faces inside the card.
+
+**Not covered:** server-side PDF generation; Bangla class and section names.
+
 ## Current Status — E6 Result Versions, Publication and Corrections (2026-10-23)
 
 On `feature/e6-result-versioning-snapshots`, from `main` `7b3723f5`. Scope as in the E1 roadmap's E6 row (the prompt matches it; PDFs are E7). Details, the upgrade measurements and the differences from the E1 design: [docs/exams/E6_RESULT_VERSIONS.md](exams/E6_RESULT_VERSIONS.md).

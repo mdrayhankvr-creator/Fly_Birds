@@ -180,19 +180,46 @@ export const getAcademicSections = (token: string, params: URLSearchParams) => b
 export const getAcademicSection = (token: string, id: string) => bearerRequest<AcademicSection>(`/academic/sections/${encodeURIComponent(id)}`, token)
 export const saveAcademicSection = (token: string, input: AcademicSectionInput, id?: string) => bearerRequest<AcademicSection>(id ? `/academic/sections/${encodeURIComponent(id)}` : '/academic/sections', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 
-export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; session_name: string; class_name: string; section_name: string; has_photo: boolean }
-export type StudentInput = Omit<Student, 'id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo'>
+export type Gender = '' | 'male' | 'female' | 'other'
+export const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
+export type StudentProfileDetails = { student_code: string; gender: Gender; blood_group: string; father_name_en: string; father_name_bn: string; mother_name_en: string; mother_name_bn: string; present_address: string; permanent_address: string; admission_date: string }
+export type GuardianSummary = { name_en: string; name_bn: string; relationship: string; phone: string }
+export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; session_name: string; class_name: string; section_name: string; has_photo: boolean; primary_guardian?: GuardianSummary } & StudentProfileDetails
+// Profile details are optional on input: an omitted detail keeps its stored value.
+export type StudentInput = Omit<Student, 'id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails> & Partial<StudentProfileDetails>
 export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
 export type GuardianInput = Omit<Guardian, 'id'>
 export type StudentGuardian = { student_id: string; guardian_id: string; guardian_name: string; relationship: string; is_primary: boolean }
-export type StudentCard = { student: Student; qr_payload: string; qr_data_url: string }
+export type CardSchool = { name_en: string; name_bn: string; logo_url: string; address: string; phone: string; email: string; primary_color: string; secondary_color: string }
+export type CardSettingsInput = { valid_until: string; signatory_title_en: string; signatory_title_bn: string; emergency_phone: string; usage_note_en: string; usage_note_bn: string; return_note_en: string; return_note_bn: string; show_qr: boolean }
+export type CardSettings = CardSettingsInput & { has_signature: boolean }
+export type CardData = { student: Student; valid_until: string; qr_payload: string; qr_data_url: string }
+export type StudentCard = CardData & { school: CardSchool; settings: CardSettings }
+export type SectionCards = { cards: CardData[]; school: CardSchool; settings: CardSettings }
+export type CardVerification = { state: 'valid' | 'expired' | 'inactive'; valid_until: string; school_name_en: string; school_name_bn: string; logo_url: string }
+// The page's origin goes into the card QR's verification link.
+const cardOrigin = () => encodeURIComponent(window.location.origin)
+export const getSectionCards = (token: string, sectionId: string) => bearerRequest<SectionCards>(`/students/cards?section_id=${encodeURIComponent(sectionId)}&origin=${cardOrigin()}`, token)
+export const getCardSettings = (token: string) => bearerRequest<CardSettings>('/students/card-settings', token)
+export const saveCardSettings = (token: string, input: CardSettingsInput) => bearerRequest<CardSettings>('/students/card-settings', token, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+export const saveCardSignature = (token: string, file: File) => bearerRequest<{ saved: boolean }>('/students/card-settings/signature', token, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+export const deleteCardSignature = (token: string) => bearerRequest<{ removed: boolean }>('/students/card-settings/signature', token, { method: 'DELETE' })
+export async function getCardSignature(token: string): Promise<Blob> {
+  const response = await authRequest('/students/card-settings/signature', { headers: { Authorization: `Bearer ${token}` } })
+  return response.blob()
+}
+export const reissueStudentCard = (token: string, id: string) => bearerRequest<{ reissued: boolean }>(`/students/${encodeURIComponent(id)}/card/reissue`, token, { method: 'POST' })
+export async function verifyStudentCard(cardToken: string): Promise<CardVerification> {
+  const response = await authRequest(`/public/id-cards/${encodeURIComponent(cardToken)}`, {})
+  return (await response.json()).data as CardVerification
+}
 export const getStudents = (token: string, params: URLSearchParams) => bearerRequest<Page<Student>>(`/students?${params}`, token)
 export const getStudent = (token: string, id: string) => bearerRequest<Student>(`/students/${encodeURIComponent(id)}`, token)
 export const getMyStudent = (token: string) => bearerRequest<Student>('/students/me', token)
 export const saveStudent = (token: string, input: StudentInput, id?: string) => bearerRequest<Student>(id ? `/students/${encodeURIComponent(id)}` : '/students', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 export const deleteStudent = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/students/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
 export const importStudents = (token: string, params: URLSearchParams, csv: string) => bearerRequest<{ imported: number }>(`/students/import?${params}`, token, { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv })
-export const getStudentCard = (token: string, id: string) => bearerRequest<StudentCard>(`/students/${encodeURIComponent(id)}/card`, token)
+export const getStudentCard = (token: string, id: string) => bearerRequest<StudentCard>(`/students/${encodeURIComponent(id)}/card?origin=${cardOrigin()}`, token)
 export const saveStudentPhoto = (token: string, id: string, file: File) => bearerRequest<{ saved: boolean }>(`/students/${encodeURIComponent(id)}/photo`, token, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
 export async function getStudentPhoto(token: string, id: string): Promise<Blob> {
   const response = await authRequest(`/students/${encodeURIComponent(id)}/photo`, { headers: { Authorization: `Bearer ${token}` } })

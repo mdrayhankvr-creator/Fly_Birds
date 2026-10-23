@@ -11,6 +11,7 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -177,8 +178,9 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 			QRDataURL string `json:"qr_data_url"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(cardBody, &cardResult); err != nil || cardResult.Data.QRPayload != "FB-STUDENT:"+studentID || !strings.HasPrefix(cardResult.Data.QRDataURL, "data:image/png;base64,") {
-		t.Fatalf("invalid card QR: %v", err)
+	// The QR holds a verification link with an opaque token, never the student ID.
+	if err := json.Unmarshal(cardBody, &cardResult); err != nil || !regexp.MustCompile(`^https?://[^/]+/verify/[A-Za-z0-9_-]{22}$`).MatchString(cardResult.Data.QRPayload) || strings.Contains(cardResult.Data.QRPayload, studentID) || !strings.HasPrefix(cardResult.Data.QRDataURL, "data:image/png;base64,") {
+		t.Fatalf("invalid card QR %q: %v", cardResult.Data.QRPayload, err)
 	}
 	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	img.Set(0, 0, color.RGBA{R: 255, A: 255})

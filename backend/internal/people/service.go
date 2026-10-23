@@ -42,6 +42,25 @@ type Student struct {
 	ClassName   string  `json:"class_name"`
 	SectionName string  `json:"section_name"`
 	HasPhoto    bool    `json:"has_photo"`
+	// Profile details (migration 1601); empty when not recorded.
+	StudentCode      string `json:"student_code"`
+	Gender           string `json:"gender"`
+	BloodGroup       string `json:"blood_group"`
+	FatherNameEN     string `json:"father_name_en"`
+	FatherNameBN     string `json:"father_name_bn"`
+	MotherNameEN     string `json:"mother_name_en"`
+	MotherNameBN     string `json:"mother_name_bn"`
+	PresentAddress   string `json:"present_address"`
+	PermanentAddress string `json:"permanent_address"`
+	AdmissionDate    string `json:"admission_date"`
+	// Primary guardian from the existing relationship; only on single-student reads.
+	PrimaryGuardian *GuardianSummary `json:"primary_guardian,omitempty" gorm:"-"`
+}
+type GuardianSummary struct {
+	NameEN       string `json:"name_en"`
+	NameBN       string `json:"name_bn"`
+	Relationship string `json:"relationship"`
+	Phone        string `json:"phone"`
 }
 type StudentInput struct {
 	AdmissionNo string `json:"admission_no"`
@@ -54,6 +73,18 @@ type StudentInput struct {
 	SectionID   string `json:"section_id"`
 	RollNo      *int   `json:"roll_no"`
 	UserID      string `json:"user_id"`
+	// Optional profile details. An omitted field keeps the stored value on
+	// update (and is empty on create), so older clients cannot erase them.
+	StudentCode      *string `json:"student_code,omitempty"`
+	Gender           *string `json:"gender,omitempty"`
+	BloodGroup       *string `json:"blood_group,omitempty"`
+	FatherNameEN     *string `json:"father_name_en,omitempty"`
+	FatherNameBN     *string `json:"father_name_bn,omitempty"`
+	MotherNameEN     *string `json:"mother_name_en,omitempty"`
+	MotherNameBN     *string `json:"mother_name_bn,omitempty"`
+	PresentAddress   *string `json:"present_address,omitempty"`
+	PermanentAddress *string `json:"permanent_address,omitempty"`
+	AdmissionDate    *string `json:"admission_date,omitempty"`
 }
 type Guardian struct {
 	ID      string  `json:"id"`
@@ -118,6 +149,15 @@ type Repository interface {
 	Unlink(context.Context, Actor, string, string) error
 	Children(context.Context, Actor) ([]Student, error)
 	GuardianStudents(context.Context, string) ([]Student, error)
+	CardSettings(context.Context) (CardSettings, error)
+	SaveCardSettings(context.Context, Actor, CardSettingsInput) (CardSettings, error)
+	SaveSignature(context.Context, Actor, *Photo) error
+	Signature(context.Context, Actor) (Photo, error)
+	CardSchool(context.Context) (CardSchool, error)
+	StudentCard(context.Context, Actor, string) (Card, error)
+	SectionCards(context.Context, Actor, string) ([]Card, error)
+	ReissueCard(context.Context, Actor, string) error
+	VerifyCard(context.Context, string, string) (CardVerification, error)
 }
 type Service struct{ repo Repository }
 
@@ -140,6 +180,43 @@ func normalizeStudent(v StudentInput) (StudentInput, error) {
 	if v.DateOfBirth != "" {
 		birthday, err := time.Parse("2006-01-02", v.DateOfBirth)
 		if err != nil || birthday.After(time.Now().UTC()) {
+			return v, ErrInvalid
+		}
+	}
+	return normalizeProfile(v)
+}
+
+var bloodGroups = map[string]bool{"": true, "A+": true, "A-": true, "B+": true, "B-": true, "AB+": true, "AB-": true, "O+": true, "O-": true}
+
+// normalizeProfile trims and validates the optional details; nil fields are
+// left nil so the repository keeps their stored values.
+func normalizeProfile(v StudentInput) (StudentInput, error) {
+	texts := []struct {
+		field *string
+		max   int
+	}{{v.StudentCode, 64}, {v.FatherNameEN, 160}, {v.FatherNameBN, 160}, {v.MotherNameEN, 160}, {v.MotherNameBN, 160}, {v.PresentAddress, 500}, {v.PermanentAddress, 500}}
+	for _, t := range texts {
+		if t.field == nil {
+			continue
+		}
+		*t.field = strings.TrimSpace(*t.field)
+		if !validText(*t.field, t.max, false) {
+			return v, ErrInvalid
+		}
+	}
+	if v.Gender != nil && *v.Gender != "" && *v.Gender != "male" && *v.Gender != "female" && *v.Gender != "other" {
+		return v, ErrInvalid
+	}
+	if v.BloodGroup != nil && !bloodGroups[*v.BloodGroup] {
+		return v, ErrInvalid
+	}
+	if v.AdmissionDate != nil && *v.AdmissionDate != "" {
+		admitted, err := time.Parse("2006-01-02", *v.AdmissionDate)
+		// An admission may be recorded ahead of term, but not years ahead.
+		if err != nil || admitted.After(time.Now().UTC().AddDate(1, 0, 0)) || admitted.Before(time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)) {
+			return v, ErrInvalid
+		}
+		if v.DateOfBirth != "" && *v.AdmissionDate < v.DateOfBirth {
 			return v, ErrInvalid
 		}
 	}

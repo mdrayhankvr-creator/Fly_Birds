@@ -3,6 +3,7 @@ package people
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -44,5 +45,41 @@ func TestImportCSVRejectsNUL(t *testing.T) {
 	body := []byte("admission_no,name_en,name_bn,date_of_birth,roll_no,status\nA-1,Nul\x00Name,,2014-01-20,1,active\n")
 	if _, err := s.ImportCSV(context.Background(), Actor{ID: testUUID, Role: "admin"}, testUUID, testUUID, testUUID, body); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("NUL CSV: got %v, want invalid", err)
+	}
+}
+
+func TestStudentProfileValidation(t *testing.T) {
+	text := func(s string) *string { return &s }
+	good := StudentInput{AdmissionNo: "A-1", NameEN: "Amina", DateOfBirth: "2014-01-20", Status: "active", SessionID: testUUID, ClassID: testUUID, SectionID: testUUID,
+		StudentCode: text(" FB-1 "), Gender: text("female"), BloodGroup: text("AB-"), FatherNameBN: text("করিম"), AdmissionDate: text("2026-01-05")}
+	v, err := normalizeStudent(good)
+	if err != nil || *v.StudentCode != "FB-1" {
+		t.Fatalf("valid profile rejected or not trimmed: %v %q", err, *v.StudentCode)
+	}
+	legacy := StudentInput{AdmissionNo: "A-1", NameEN: "Amina", Status: "active", SessionID: testUUID, ClassID: testUUID, SectionID: testUUID}
+	if v, err := normalizeStudent(legacy); err != nil || v.Gender != nil || v.AdmissionDate != nil {
+		t.Fatalf("omitted details must stay omitted: %v %+v", err, v)
+	}
+	cases := map[string]func(*StudentInput){
+		"gender":           func(v *StudentInput) { v.Gender = text("unknown") },
+		"blood group":      func(v *StudentInput) { v.BloodGroup = text("C+") },
+		"long parent name": func(v *StudentInput) { v.FatherNameEN = text(strings.Repeat("a", 161)) },
+		"long address":     func(v *StudentInput) { v.PresentAddress = text(strings.Repeat("ঠ", 200)) },
+		"bad date":         func(v *StudentInput) { v.AdmissionDate = text("2026-13-01") },
+		"before birth":     func(v *StudentInput) { v.AdmissionDate = text("2013-12-31") },
+		"years ahead":      func(v *StudentInput) { v.AdmissionDate = text("2099-01-01") },
+	}
+	for name, modify := range cases {
+		t.Run(name, func(t *testing.T) {
+			input := good
+			input.StudentCode, input.Gender, input.BloodGroup, input.FatherNameBN, input.AdmissionDate = text("FB-1"), text("female"), text("AB-"), text("করিম"), text("2026-01-05")
+			modify(&input)
+			if _, err := normalizeStudent(input); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("got %v, want invalid", err)
+			}
+		})
+	}
+	if !IsCardToken("AbCdEfGhIjKlMnOpQrSt-_") || IsCardToken("short") || IsCardToken("AbCdEfGhIjKlMnOpQrSt-'") {
+		t.Fatal("card token shape check")
 	}
 }

@@ -3,11 +3,13 @@ import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, deleteStudent, getAcademicClasses, getAcademicSections, getAcademicSessions, getStudents, getUsers, importStudents, saveStudent, type Student, type StudentInput } from '../api/client'
+import { ApiError, bloodGroups, deleteStudent, getAcademicClasses, getAcademicSections, getAcademicSessions, getStudents, getUsers, importStudents, saveStudent, type Gender, type Student, type StudentInput, type StudentProfileDetails } from '../api/client'
 import { peopleField, usePeopleApi } from './peopleShared'
 import { ui, PageHeader, LinkTabs } from './attendanceUi'
 
-const blank: StudentInput = { admission_no: '', name_en: '', name_bn: '', date_of_birth: '', status: 'active', session_id: '', class_id: '', section_id: '', roll_no: null, user_id: '' }
+const blankProfile: StudentProfileDetails = { student_code: '', gender: '', blood_group: '', father_name_en: '', father_name_bn: '', mother_name_en: '', mother_name_bn: '', present_address: '', permanent_address: '', admission_date: '' }
+type StudentForm = StudentInput & StudentProfileDetails
+const blank: StudentForm = { admission_no: '', name_en: '', name_bn: '', date_of_birth: '', status: 'active', session_id: '', class_id: '', section_id: '', roll_no: null, user_id: '', ...blankProfile }
 
 export function StudentsPage({ canManage }: { canManage: boolean }) {
   const { t, i18n } = useTranslation()
@@ -19,7 +21,7 @@ export function StudentsPage({ canManage }: { canManage: boolean }) {
   const [classFilter, setClassFilter] = useState('')
   const [sectionFilter, setSectionFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [form, setForm] = useState<StudentInput>(blank)
+  const [form, setForm] = useState<StudentForm>(blank)
   const [editing, setEditing] = useState('')
   const [accountSearch, setAccountSearch] = useState('')
   const [optionSearch, setOptionSearch] = useState('')
@@ -49,7 +51,7 @@ export function StudentsPage({ canManage }: { canManage: boolean }) {
   }, retry: false })
   const accounts = useQuery({ queryKey: ['people', 'student-accounts', accountSearch], enabled: canManage, queryFn: () => authorized(token => getUsers(token, new URLSearchParams({ role: 'student', search: accountSearch, page_size: '100' }))), retry: false })
   const pages = Math.max(1, Math.ceil((listing.data?.total ?? 0) / 10))
-  function edit(item: Student) { setEditing(item.id); setForm({ admission_no: item.admission_no, name_en: item.name_en, name_bn: item.name_bn, date_of_birth: item.date_of_birth, status: item.status, session_id: item.session_id, class_id: item.class_id, section_id: item.section_id, roll_no: item.roll_no, user_id: item.user_id ?? '' }); setError(''); setMessage('') }
+  function edit(item: Student) { setEditing(item.id); setForm({ admission_no: item.admission_no, name_en: item.name_en, name_bn: item.name_bn, date_of_birth: item.date_of_birth, status: item.status, session_id: item.session_id, class_id: item.class_id, section_id: item.section_id, roll_no: item.roll_no, user_id: item.user_id ?? '', ...Object.fromEntries(Object.keys(blankProfile).map(key => [key, item[key as keyof StudentProfileDetails] ?? ''])) as StudentProfileDetails }); setError(''); setMessage('') }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(''); setMessage('')
     try { await authorized(token => saveStudent(token, form, editing || undefined)); setEditing(''); setForm(blank); await cache.invalidateQueries({ queryKey: ['people', 'students'] }); setMessage(t('peopleSaved')) }
@@ -75,7 +77,7 @@ export function StudentsPage({ canManage }: { canManage: boolean }) {
     finally { setBusy(false) }
   }
   return <div className="space-y-6">
-    <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} />
+    <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} actions={canManage ? <Link to="/admin/students/cards" className={ui.secondary}>{t('idCardPrintBulk')}</Link> : undefined} />
     <LinkTabs label={t('m12Group_people')} items={[{ to: '/admin/students', label: t('studentsHeading') }, { to: '/admin/guardians', label: t('guardiansHeading') }]} />
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}{message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</p>}
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(19rem,1fr)]">
@@ -102,6 +104,24 @@ export function StudentsPage({ canManage }: { canManage: boolean }) {
         <label className={ui.label}>{t('sectionLabel')}<select required className={peopleField} value={form.section_id} onChange={e => setForm({ ...form, section_id: e.target.value })}><option value="">{t('selectSection')}</option>{sections.data?.items.filter(s => s.session_id === form.session_id && s.class_id === form.class_id).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('rollNo')}<input type="number" min="1" max="999999" className={peopleField} value={form.roll_no ?? ''} onChange={e => setForm({ ...form, roll_no: e.target.value ? Number(e.target.value) : null })} /></label>
         <label className={ui.label}>{t('studentAccount')}<input className={peopleField} aria-label={`${t('studentAccount')} · ${t('search')}`} placeholder={t('search')} value={accountSearch} onChange={e => setAccountSearch(e.target.value)} /><select className={peopleField} aria-label={t('studentAccount')} value={form.user_id ?? ''} onChange={e => setForm({ ...form, user_id: e.target.value })}><option value="">{t('optionalAccount')}</option>{accounts.data?.items.map(u => <option key={u.id} value={u.id}>{u.display_name || u.email} ({u.email})</option>)}{form.user_id && !accounts.data?.items.some(u => u.id === form.user_id) && <option value={form.user_id}>{form.user_id}</option>}</select></label>
+        <fieldset className="space-y-3 rounded-xl border border-slate-200 p-3">
+          <legend className="px-1 text-sm font-semibold text-slate-900">{t('profileDetails')}</legend>
+          <p className="text-xs text-slate-500">{t('profileDetailsHelp')}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={ui.label}>{t('idCardStudentId')}<input maxLength={64} className={peopleField} value={form.student_code} onChange={e => setForm({ ...form, student_code: e.target.value })} /></label>
+            <label className={ui.label}>{t('profileAdmissionDate')}<input type="date" className={peopleField} value={form.admission_date} onChange={e => setForm({ ...form, admission_date: e.target.value })} /></label>
+            <label className={ui.label}>{t('profileGender')}<select className={peopleField} value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value as Gender })}><option value="">{t('profileNotProvided')}</option>{(['female', 'male', 'other'] as const).map(g => <option key={g} value={g}>{t(`gender_${g}`)}</option>)}</select></label>
+            <label className={ui.label}>{t('profileBloodGroup')}<select className={peopleField} value={form.blood_group} onChange={e => setForm({ ...form, blood_group: e.target.value })}><option value="">{t('profileNotProvided')}</option>{bloodGroups.map(g => <option key={g} value={g}>{g}</option>)}</select></label>
+            <label className={ui.label}>{t('profileFatherEN')}<input maxLength={160} className={peopleField} value={form.father_name_en} onChange={e => setForm({ ...form, father_name_en: e.target.value })} /></label>
+            <label className={ui.label}>{t('profileFatherBN')}<input maxLength={160} lang="bn" className={peopleField} value={form.father_name_bn} onChange={e => setForm({ ...form, father_name_bn: e.target.value })} /></label>
+            <label className={ui.label}>{t('profileMotherEN')}<input maxLength={160} className={peopleField} value={form.mother_name_en} onChange={e => setForm({ ...form, mother_name_en: e.target.value })} /></label>
+            <label className={ui.label}>{t('profileMotherBN')}<input maxLength={160} lang="bn" className={peopleField} value={form.mother_name_bn} onChange={e => setForm({ ...form, mother_name_bn: e.target.value })} /></label>
+          </div>
+          <label className={ui.label}>{t('profilePresentAddress')}<textarea rows={2} maxLength={500} className={peopleField} value={form.present_address} onChange={e => setForm({ ...form, present_address: e.target.value })} /></label>
+          <label className={ui.label}>{t('profilePermanentAddress')}<textarea rows={2} maxLength={500} className={peopleField} value={form.permanent_address} onChange={e => setForm({ ...form, permanent_address: e.target.value })} /></label>
+          <button type="button" className={ui.secondary} disabled={!form.present_address} onClick={() => setForm({ ...form, permanent_address: form.present_address })}>{t('profileSameAddress')}</button>
+          <p className="text-xs text-slate-500">{t('profileGuardianNote')}</p>
+        </fieldset>
         <div className="flex flex-wrap gap-2"><button disabled={busy} className={ui.primary}>{t('saveChanges')}</button>{editing && <><button type="button" className={ui.secondary} onClick={() => { setEditing(''); setForm(blank) }}>{t('cancel')}</button><button type="button" disabled={busy} className={ui.danger} onClick={() => void remove()}>{t('deleteStudent')}</button></>}</div>
       </form></section><section className={`${ui.card} min-w-0 p-4 sm:p-6`}><h2 className={ui.sectionTitle}>{t('importCSV')}</h2><p className="mt-2 break-all text-sm text-slate-600">{t('importHelp')}</p><form className="mt-4 space-y-3" onSubmit={e => void importCSV(e)}><label className={ui.label}>{t('chooseCSV')}<input required accept=".csv,text/csv" type="file" className={peopleField} onChange={e => setCSV(e.target.files?.[0] ?? null)} /></label><button disabled={busy || !form.session_id || !form.class_id || !form.section_id} className={ui.primary}>{t('importCSV')}</button></form></section></div>}
     </div>
