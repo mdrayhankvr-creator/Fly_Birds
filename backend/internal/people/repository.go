@@ -146,6 +146,7 @@ func withPrimaryGuardian(tx *gorm.DB, v *Student) error {
 	}
 	return err
 }
+
 // profileArgs lists the optional text details in column order; nil means "not sent".
 func profileArgs(v StudentInput) []any {
 	return []any{v.StudentCode, v.Gender, v.BloodGroup, v.FatherNameEN, v.FatherNameBN, v.MotherNameEN, v.MotherNameBN, v.PresentAddress, v.PermanentAddress}
