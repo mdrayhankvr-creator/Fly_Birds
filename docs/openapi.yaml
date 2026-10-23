@@ -253,6 +253,17 @@ paths:
       responses:
         '200': { description: Public branding, content: { application/json: { schema: { $ref: '#/components/schemas/BrandingResponse' } } } }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /public/id-cards/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{22}$' } }]
+    get:
+      operationId: verifyStudentCard
+      summary: Publicly check a student ID card
+      description: Unauthenticated by design. Returns whether the card is valid, expired or inactive, its validity date and the school identity only. Unknown, malformed and reissued tokens, and a disabled Students module, all return 404.
+      tags: [students]
+      security: []
+      responses:
+        '200': { description: Card state, content: { application/json: { schema: { $ref: '#/components/schemas/CardVerificationResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
   /school/settings:
     get:
       operationId: getSchoolSettings
@@ -950,10 +961,68 @@ paths:
     get:
       operationId: getStudentCard
       tags: [students]
-      summary: Read printable card data and student UUID QR code
-      description: Same record scope as getStudent; QR carries only the student UUID.
+      summary: Read printable double-sided card data
+      description: 'Same record scope as getStudent. The QR carries a verification link with an opaque token (issued on first read), not the student UUID. The optional origin query (a bare http(s) origin) sets the link''s host; otherwise the request host is used.'
+      parameters: [{ name: origin, in: query, schema: { type: string } }]
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Student card data, content: { application/json: { schema: { $ref: '#/components/schemas/StudentCardResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/{id}/card/reissue:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    post:
+      operationId: reissueStudentCard
+      tags: [students]
+      summary: Reissue a student's card
+      description: Requires students:manage and the administrator role. Replaces the card's verification token, so the old card no longer verifies or marks QR attendance. Audited without the token.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Card reissued }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /students/cards:
+    get:
+      operationId: getSectionStudentCards
+      tags: [students]
+      summary: Read ID card data for a section's active students
+      description: Requires students:manage and the administrator role. Returns up to 300 active students of the section in roll order, with school identity and card settings, for bulk printing.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: section_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: origin, in: query, schema: { type: string } }]
+      responses: { '200': { description: Section cards, content: { application/json: { schema: { $ref: '#/components/schemas/SectionCardsResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/card-settings:
+    get:
+      operationId: getIDCardSettings
+      tags: [students]
+      summary: Read ID card settings
+      description: Requires students:read.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Card settings, content: { application/json: { schema: { $ref: '#/components/schemas/CardSettingsResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: updateIDCardSettings
+      tags: [students]
+      summary: Update ID card settings
+      description: Requires students:manage and the administrator role. Audited.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CardSettingsInput' } } } }
+      responses: { '200': { description: Card settings, content: { application/json: { schema: { $ref: '#/components/schemas/CardSettingsResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/card-settings/signature:
+    get:
+      operationId: getIDCardSignature
+      tags: [students]
+      summary: Read the signatory's signature image
+      description: Requires students:manage and the administrator role. Never cached.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: PNG or JPEG image, content: { image/png: { schema: { type: string, format: binary } }, image/jpeg: { schema: { type: string, format: binary } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      operationId: updateIDCardSignature
+      tags: [students]
+      summary: Upload the signatory's signature image
+      description: Requires students:manage and the administrator role. PNG or JPEG, at most 512 KiB and 2000 px, re-encoded before storage. Audited.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/png: { schema: { type: string, format: binary } }, image/jpeg: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: Signature saved }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteIDCardSignature
+      tags: [students]
+      summary: Remove the signatory's signature image
+      description: Requires students:manage and the administrator role. Audited.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Signature removed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /students/{id}/photo:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:
@@ -3140,10 +3209,72 @@ components:
         section_id: { type: string, format: uuid }
         roll_no: { type: integer, minimum: 1, maximum: 999999, nullable: true }
         user_id: { type: string, format: uuid, nullable: true, description: Must reference a student-role user }
+        student_code: { type: string, maxLength: 64, description: 'School-issued student ID, unique (case-insensitive) when set. Omit to keep the stored value; send an empty string to clear.' }
+        gender: { type: string, enum: ['', male, female, other], description: Omit to keep the stored value. }
+        blood_group: { type: string, enum: ['', A+, A-, B+, B-, AB+, AB-, O+, O-], description: Omit to keep the stored value. }
+        father_name_en: { type: string, maxLength: 160 }
+        father_name_bn: { type: string, maxLength: 160 }
+        mother_name_en: { type: string, maxLength: 160 }
+        mother_name_bn: { type: string, maxLength: 160 }
+        present_address: { type: string, maxLength: 500 }
+        permanent_address: { type: string, maxLength: 500 }
+        admission_date: { type: string, description: 'YYYY-MM-DD, not before date_of_birth and at most one year ahead. Omit to keep; empty clears.' }
     Student:
-      allOf: [{ $ref: '#/components/schemas/StudentInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string }, section_name: { type: string }, has_photo: { type: boolean } } }]
+      allOf: [{ $ref: '#/components/schemas/StudentInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string }, section_name: { type: string }, has_photo: { type: boolean }, primary_guardian: { $ref: '#/components/schemas/GuardianSummary' } } }]
+    GuardianSummary:
+      type: object
+      description: The primary guardian from the existing student-guardian link; present on single-student reads only.
+      properties:
+        name_en: { type: string }
+        name_bn: { type: string }
+        relationship: { type: string }
+        phone: { type: string }
+    CardSchool:
+      type: object
+      properties: { name_en: { type: string }, name_bn: { type: string }, logo_url: { type: string }, address: { type: string }, phone: { type: string }, email: { type: string }, primary_color: { type: string }, secondary_color: { type: string } }
+    CardSettingsInput:
+      type: object
+      required: [valid_until, signatory_title_en, signatory_title_bn, emergency_phone, usage_note_en, usage_note_bn, return_note_en, return_note_bn, show_qr]
+      properties:
+        valid_until: { type: string, description: 'YYYY-MM-DD, or empty for the end of each student''s academic session' }
+        signatory_title_en: { type: string, maxLength: 80 }
+        signatory_title_bn: { type: string, maxLength: 160 }
+        emergency_phone: { type: string, maxLength: 32, pattern: '^[+0-9() -]*$' }
+        usage_note_en: { type: string, maxLength: 400, description: Empty uses the built-in text }
+        usage_note_bn: { type: string, maxLength: 800 }
+        return_note_en: { type: string, maxLength: 400 }
+        return_note_bn: { type: string, maxLength: 800 }
+        show_qr: { type: boolean }
+    CardSettings:
+      allOf: [{ $ref: '#/components/schemas/CardSettingsInput' }, { type: object, properties: { has_signature: { type: boolean } } }]
+    CardSettingsResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/CardSettings' } } }
+    StudentCardData:
+      type: object
+      required: [student, valid_until, qr_payload, qr_data_url]
+      properties:
+        student: { $ref: '#/components/schemas/Student' }
+        valid_until: { type: string, description: Card settings date or the end of the student's session }
+        qr_payload: { type: string, description: 'Verification link <origin>/verify/<token>; accepted by QR attendance' }
+        qr_data_url: { type: string, description: Base64 PNG data URL }
+    SectionCardsResponse:
+      type: object
+      required: [data]
+      properties: { data: { type: object, required: [cards, school, settings], properties: { cards: { type: array, items: { $ref: '#/components/schemas/StudentCardData' } }, school: { $ref: '#/components/schemas/CardSchool' }, settings: { $ref: '#/components/schemas/CardSettings' } } } }
+    CardVerificationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          description: No name, photo, identifier or contact detail of the student.
+          properties:
+            state: { type: string, enum: [valid, expired, inactive] }
+            valid_until: { type: string }
+            school_name_en: { type: string }
+            school_name_bn: { type: string }
+            logo_url: { type: string }
     StudentResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Student' } } }
-    StudentCardResponse: { type: object, required: [data], properties: { data: { type: object, required: [student, qr_payload, qr_data_url], properties: { student: { $ref: '#/components/schemas/Student' }, qr_payload: { type: string }, qr_data_url: { type: string, description: Base64 PNG data URL } } } } }
+    StudentCardResponse: { type: object, required: [data], properties: { data: { allOf: [{ $ref: '#/components/schemas/StudentCardData' }, { type: object, properties: { school: { $ref: '#/components/schemas/CardSchool' }, settings: { $ref: '#/components/schemas/CardSettings' } } }] } } }
     StudentPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/Student' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
     GuardianInput:
       type: object

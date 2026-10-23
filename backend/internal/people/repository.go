@@ -58,7 +58,7 @@ func requireScopedGrant(tx *gorm.DB, a Actor) error {
 	return nil
 }
 
-const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo"
+const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo,s.student_code,s.gender,s.blood_group,s.father_name_en,s.father_name_bn,s.mother_name_en,s.mother_name_bn,s.present_address,s.permanent_address,COALESCE(to_char(s.admission_date,'YYYY-MM-DD'),'') AS admission_date"
 
 func studentBase(db *gorm.DB) *gorm.DB {
 	return db.Table("students AS s").Joins("JOIN academic_sessions AS a ON a.id=s.session_id").Joins("JOIN academic_classes AS c ON c.id=s.class_id").Joins("JOIN academic_sections AS sec ON sec.id=s.section_id").Joins("LEFT JOIN student_photos AS p ON p.student_id=s.id")
@@ -110,7 +110,10 @@ func (r *GormRepository) GetStudent(ctx context.Context, a Actor, id string) (St
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return Student{}, ErrNotFound
 	}
-	return v, err
+	if err != nil {
+		return Student{}, err
+	}
+	return v, withPrimaryGuardian(r.db.WithContext(ctx), &v)
 }
 func (r *GormRepository) OwnStudent(ctx context.Context, a Actor) (Student, error) {
 	if a.Role != "student" {
@@ -124,14 +127,39 @@ func (r *GormRepository) OwnStudent(ctx context.Context, a Actor) (Student, erro
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return Student{}, ErrNotFound
 	}
-	return v, err
+	if err != nil {
+		return Student{}, err
+	}
+	return v, withPrimaryGuardian(r.db.WithContext(ctx), &v)
 }
+
+// withPrimaryGuardian attaches the student's primary guardian, if one is
+// linked, from the existing relationship (no separate copy is stored).
+func withPrimaryGuardian(tx *gorm.DB, v *Student) error {
+	var g GuardianSummary
+	err := tx.Table("student_guardians AS sg").Joins("JOIN guardians AS g ON g.id=sg.guardian_id").Select("g.name_en,g.name_bn,sg.relationship,g.phone").Where("sg.student_id=? AND sg.is_primary", v.ID).Take(&g).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err == nil {
+		v.PrimaryGuardian = &g
+	}
+	return err
+}
+// profileArgs lists the optional text details in column order; nil means "not sent".
+func profileArgs(v StudentInput) []any {
+	return []any{v.StudentCode, v.Gender, v.BloodGroup, v.FatherNameEN, v.FatherNameBN, v.MotherNameEN, v.MotherNameBN, v.PresentAddress, v.PermanentAddress}
+}
+
 func saveStudentTx(tx *gorm.DB, id string, v StudentInput) (string, error) {
+	base := []any{v.AdmissionNo, v.NameEN, v.NameBN, v.DateOfBirth, v.Status, v.SessionID, v.ClassID, v.SectionID, v.RollNo, v.UserID}
 	if id == "" {
-		err := tx.Raw("INSERT INTO students (admission_no,name_en,name_bn,date_of_birth,status,session_id,class_id,section_id,roll_no,user_id) VALUES (?,?,?,NULLIF(?,'')::date,?,?,?,?,?,NULLIF(?,'')::uuid) RETURNING id", v.AdmissionNo, v.NameEN, v.NameBN, v.DateOfBirth, v.Status, v.SessionID, v.ClassID, v.SectionID, v.RollNo, v.UserID).Scan(&id).Error
+		args := append(append(base, profileArgs(v)...), v.AdmissionDate)
+		err := tx.Raw("INSERT INTO students (admission_no,name_en,name_bn,date_of_birth,status,session_id,class_id,section_id,roll_no,user_id,student_code,gender,blood_group,father_name_en,father_name_bn,mother_name_en,mother_name_bn,present_address,permanent_address,admission_date) VALUES (?,?,?,NULLIF(?,'')::date,?,?,?,?,?,NULLIF(?,'')::uuid,COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),NULLIF(?::text,'')::date) RETURNING id", args...).Scan(&id).Error
 		return id, err
 	}
-	res := tx.Exec("UPDATE students SET admission_no=?,name_en=?,name_bn=?,date_of_birth=NULLIF(?,'')::date,status=?,session_id=?,class_id=?,section_id=?,roll_no=?,user_id=NULLIF(?,'')::uuid,updated_at=now() WHERE id=?", v.AdmissionNo, v.NameEN, v.NameBN, v.DateOfBirth, v.Status, v.SessionID, v.ClassID, v.SectionID, v.RollNo, v.UserID, id)
+	args := append(append(base, profileArgs(v)...), v.AdmissionDate, v.AdmissionDate, id)
+	res := tx.Exec("UPDATE students SET admission_no=?,name_en=?,name_bn=?,date_of_birth=NULLIF(?,'')::date,status=?,session_id=?,class_id=?,section_id=?,roll_no=?,user_id=NULLIF(?,'')::uuid,student_code=COALESCE(?,student_code),gender=COALESCE(?,gender),blood_group=COALESCE(?,blood_group),father_name_en=COALESCE(?,father_name_en),father_name_bn=COALESCE(?,father_name_bn),mother_name_en=COALESCE(?,mother_name_en),mother_name_bn=COALESCE(?,mother_name_bn),present_address=COALESCE(?,present_address),permanent_address=COALESCE(?,permanent_address),admission_date=CASE WHEN ?::text IS NULL THEN admission_date ELSE NULLIF(?::text,'')::date END,updated_at=now() WHERE id=?", args...)
 	if res.Error != nil {
 		return "", res.Error
 	}
