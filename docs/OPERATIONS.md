@@ -379,12 +379,48 @@ From E5, an administrator designs the year in **Examinations → Terms & bluepri
 3. **Optional subjects:** record each student's fourth subject. Once one student in a class has a choice, choices decide for the whole class.
 4. **Set up exams:** on the term, give the marks due dates and the teachers for any subject nobody teaches, then **Create term**. Every exam and sheet is made at once; creating again only adds what is missing.
 
-**Term results** (provisional, staff only) show how each student's term mark comes out. Publishing term and annual results comes in a later release; each exam is still published from the exam page as before.
+**Term results** (provisional, staff only) show how each student's term mark comes out. They are published from **Results & publication** (§8.5); each exam is still published from the exam page.
 
 **After the upgrade:**
 - **Existing exams:** they keep their marks and results exactly. They are linked to terms and to a "from existing exams" blueprint for each class.
 - **Published class tests:** students and guardians no longer see them on their own. To show one again, open the class's blueprint version and set the class test's **Students see** to **When published** (audited).
-- **Optional-subject changes:** make them before marks are entered. Changing one after an exam is published makes `exam-verify` list that student, because publishing again would change the result.
+- **Optional-subject changes:** make them before marks are entered. Changing one after publication never changes a published result; the review then shows the difference, which reaches families only as an approved revision (§8.5).
+
+### 8.5 Publishing, correcting and withdrawing results (E6)
+
+Every published result is a version that never changes. Corrections add a
+version; earlier versions stay readable to staff under **History**.
+
+1. **Exams:** publish each exam from the exam page as before. When another
+   section's results move a student's class position, that student gets a
+   position update (a new version).
+2. **Term results:** open **Examinations → Results & publication**, choose the
+   session and, for a class marked *Ready for review*, **Review**. The head
+   teacher checks the provisional tabulation and **Approves these results**.
+   An administrator then **Publishes results** and confirms. If marks change
+   after approval, publication is refused until the results are approved
+   again.
+3. **Annual results:** once every term of the class's blueprint is
+   published, review, approve and publish the annual result the same way.
+4. **Correcting a published result:** on the exam page, under
+   **Corrections**, choose the student, give a reason and **Open
+   correction**. Change the marks shown beside the published values and
+   **Save corrected marks**. Then **Review and publish corrections**: the head
+   teacher approves the revision, an administrator publishes it. Families
+   keep seeing the published result until then. **Cancel correction** puts the
+   published marks back. Afterwards, review the class's term (and annual)
+   result: it shows the change, which is approved and published as its own
+   revision.
+5. **Withdrawing an exam's results** (**Withdraw results**, with a reason)
+   hides them from families and reopens the sheets; the versions are kept as
+   withdrawn and publishing again adds the next version. Such an exam can no
+   longer be deleted.
+
+**After the upgrade (migration 1503):** every result already published is
+recorded as version 1 exactly as stored; the audit log records
+`exam.result_versions_migrated` with the counts. Nothing is recalculated and
+nothing families see changes. Run `exam-verify` before and after, as in §8.1;
+it now checks each exam against the grading bands it was published with.
 
 ## 9. Data protection checklist before go-live
 

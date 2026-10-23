@@ -182,7 +182,10 @@ await ab.waitFor(`[...document.querySelectorAll('main button')].some(x => x.inne
 await ab.evaluate(`[...document.querySelectorAll('main button')].find(x => x.innerText.includes(${JSON.stringify(failing.exam.name)}) && x.innerText.includes(${JSON.stringify(failing.exam.section_name)})).click()`)
 await waitText(ab, 'Corrections', 20000)
 await ab.waitFor(`!!document.querySelector('#rv-corrections-title')`, 20000)
-await setValue(ab, '#rv-corrections-title ~ * select, section[aria-labelledby=rv-corrections-title] select', failing.student)
+const correctionSelect = 'section[aria-labelledby=rv-corrections-title] select'
+await ab.waitFor(`!!document.querySelector('${correctionSelect} option[value="${failing.student}"]')`, 20000)
+await setValue(ab, correctionSelect, failing.student)
+await ab.waitFor(`document.querySelector('${correctionSelect}').value === ${JSON.stringify(failing.student)}`)
 await setValue(ab, 'section[aria-labelledby=rv-corrections-title] form input', 'CQ script re-marked')
 await sleep(200)
 await clickText(ab, 'Open correction', 'section[aria-labelledby=rv-corrections-title]')
