@@ -275,11 +275,12 @@ func (h *examHandler) state(c *gin.Context) {
 	}
 	var in struct {
 		Status string `json:"status"`
+		Reason string `json:"reason"`
 	}
-	if !decodeSchoolJSON(c, 1024, &in) {
+	if !decodeSchoolJSON(c, 4096, &in) {
 		return
 	}
-	v, err := h.service.SetState(c.Request.Context(), examUser(c).ID, c.Param("id"), in.Status)
+	v, err := h.service.SetStateReason(c.Request.Context(), examUser(c).ID, c.Param("id"), in.Status, in.Reason)
 	if err != nil {
 		examError(c, err)
 		return

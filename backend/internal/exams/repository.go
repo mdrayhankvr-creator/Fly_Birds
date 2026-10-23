@@ -125,6 +125,14 @@ func (r *GormRepository) DeleteExam(ctx context.Context, actor, id string) error
 		if e.Status != "draft" {
 			return ErrConflict
 		}
+		// An exam whose results were ever published keeps its history (E6).
+		var versions int64
+		if err := tx.Table("result_versions").Where("scope='assessment' AND scope_id=?", id).Count(&versions).Error; err != nil {
+			return err
+		}
+		if versions > 0 {
+			return ErrHasVersions
+		}
 		res := tx.Exec("DELETE FROM exams WHERE id=?", id)
 		if res.Error != nil {
 			return res.Error
@@ -260,6 +268,13 @@ func (r *GormRepository) Roster(ctx context.Context, examID, actor, scope string
 	return rows, err
 }
 func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) (Exam, error) {
+	return r.SetStateReason(ctx, actor, id, state, "")
+}
+
+// SetStateReason publishes, withdraws (back to draft) or locks an exam.
+// Publishing makes every student's result a version (E6); withdrawing keeps
+// the versions as "withdrawn" and removes only the projection rows.
+func (r *GormRepository) SetStateReason(ctx context.Context, actor, id, state, reason string) (Exam, error) {
 	var out Exam
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lock(tx); err != nil {
@@ -301,7 +316,9 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 				return ErrConflict
 			}
 		}
-		if state == "published" {
+		meta := map[string]any{"from": e.Status, "to": state}
+		switch state {
+		case "published":
 			if len(e.Subjects) == 0 {
 				return ErrConflict
 			}
@@ -324,70 +341,34 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 			if pending > 0 {
 				return ErrSheetsPending
 			}
-			students := []struct{ ID string }{}
-			if err := tx.Table("students").Select("id").Where("session_id=? AND class_id=? AND section_id=? AND status='active'", e.SessionID, e.ClassID, e.SectionID).Order("id").Find(&students).Error; err != nil {
+			var students int64
+			if err := tx.Table("students").Where("session_id=? AND class_id=? AND section_id=? AND status='active'", e.SessionID, e.ClassID, e.SectionID).Count(&students).Error; err != nil {
 				return err
 			}
-			if len(students) == 0 {
+			if students == 0 {
 				return ErrConflict
 			}
-			bands := []Band{}
-			if err := tx.Table("grading_bands b").Joins("JOIN school_settings ss ON ss.grading_scheme_id=b.scheme_id AND ss.id=1").Select("b.grade,b.min_marks,b.max_marks,b.gpa").Order("b.min_marks DESC").Find(&bands).Error; err != nil {
+			pubID, moved, err := publishAssessment(tx, actor, e)
+			if err != nil {
 				return err
 			}
-			if len(bands) == 0 {
-				return ErrInvalid
-			}
-			for _, student := range students {
-				// Only the subjects the student takes (optional subjects they
-				// did not choose are not theirs), with component marks.
-				rows, lines, expected, err := studentLines(tx, e, student.ID, rules)
-				if err != nil {
-					return err
-				}
-				if len(rows) != expected {
-					return ErrMarksIncomplete
-				}
-				for _, row := range rows {
-					if row.Status == StatusIncomplete {
-						return ErrMarksIncomplete
-					}
-				}
-				// Exact engine with mark statuses and the exam's policy; values
-				// are written as two-decimal strings so no float reaches the
-				// numeric columns.
-				score, err := ScoreLinesWith(lines, bands, rules.Policy)
-				if err != nil {
-					return err
-				}
-				if score.Withheld {
-					continue // no grades and no result: the student sees "withheld"
-				}
-				for i, row := range rows {
-					g := score.Lines[i]
-					var point any
-					if g.Point != nil {
-						point = g.Point.String()
-					}
-					if err := tx.Exec("UPDATE exam_marks SET grade=?,grade_point=?::numeric,passed=? WHERE id=?", g.Grade, point, g.Passed, row.MarkID).Error; err != nil {
-						return err
-					}
-				}
-				result := score.Result
-				if err := tx.Exec("INSERT INTO exam_results(exam_id,student_id,session_id,class_id,section_id,total_marks,full_marks,gpa,passed,class_position,section_position) VALUES (?,?,?,?,?,?::numeric,?::numeric,?::numeric,?,1,1)", id, student.ID, e.SessionID, e.ClassID, e.SectionID, result.Total.String(), result.Full.String(), result.GPA.String(), result.Passed).Error; err != nil {
-					return dbErr(err)
-				}
-			}
+			meta["publication_id"], meta["position_updates"] = pubID, moved
 			if err := tx.Exec("UPDATE exams SET status='published',published_at=now(),updated_by=?,updated_at=now() WHERE id=?", actor, id).Error; err != nil {
 				return err
 			}
 			if err := tx.Exec("UPDATE exam_subjects SET sheet_status='approved',reviewed_by=?,reviewed_at=now(),return_reason='' WHERE exam_id=? AND sheet_status<>'approved'", actor, id).Error; err != nil {
 				return err
 			}
-		} else if state == "draft" {
-			if err := tx.Exec("DELETE FROM exam_results WHERE exam_id=?", id).Error; err != nil {
+		case "draft":
+			// A withdrawal: versions stay (withdrawn), never deleted.
+			if reason == "" {
+				reason = "Results withdrawn by an administrator"
+			}
+			withdrawn, moved, err := withdrawAssessment(tx, actor, e, reason)
+			if err != nil {
 				return err
 			}
+			meta["withdrawn_versions"], meta["position_updates"], meta["reason"] = withdrawn, moved, reason
 			if err := tx.Exec("UPDATE exam_marks SET grade=NULL,grade_point=NULL,passed=NULL WHERE exam_id=?", id).Error; err != nil {
 				return err
 			}
@@ -398,17 +379,24 @@ func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) 
 			if err := tx.Exec("UPDATE exams SET status='draft',published_at=NULL,updated_by=?,updated_at=now() WHERE id=?", actor, id).Error; err != nil {
 				return err
 			}
-		} else {
+		default:
 			if err := tx.Exec("UPDATE exams SET status='locked',updated_by=?,updated_at=now() WHERE id=?", actor, id).Error; err != nil {
 				return err
 			}
 		}
-		if err := classRanks(tx, e, rules.Dense); err != nil {
-			return err
-		}
 		out, err = examByID(tx, id)
 		if err != nil {
 			return err
+		}
+		if state == "published" {
+			if err := audit.Record(tx, &actor, "exam.results_published", "exam", id, meta); err != nil {
+				return err
+			}
+		}
+		if state == "draft" {
+			if err := audit.Record(tx, &actor, "exam.results_withdrawn", "exam", id, meta); err != nil {
+				return err
+			}
 		}
 		return audit.Record(tx, &actor, "exam.state_changed", "exam", id, map[string]any{"from": e.Status, "to": state})
 	})
@@ -455,28 +443,21 @@ func (r *GormRepository) Cards(ctx context.Context, scope, actor, studentID, exa
 	if err != nil {
 		return nil, err
 	}
+	// Current published versions only (E6); withheld results are versions
+	// too, shown as "withheld" without marks.
 	ids := []string{}
-	q := tx.Table("exam_results er").Joins("JOIN exams e ON e.id=er.exam_id").Where("er.student_id=?", studentID).Select("er.exam_id").Order("e.published_at DESC,e.id DESC")
+	q := tx.Table("result_versions v").Joins("JOIN exams e ON e.id=v.scope_id").Where("v.scope='assessment' AND v.status='published' AND v.student_id=?", studentID)
 	if scope != "admin" {
 		// Students and guardians see published results of assessments they
 		// may see: class tests stay hidden (E1-06).
 		q = q.Where("e.status IN ('published','locked') AND exam_visible_to_students(e.id)")
 	}
 	if examID != "" {
-		q = q.Where("er.exam_id=?", examID)
+		q = q.Where("v.scope_id=?", examID)
 	}
-	if err := q.Pluck("er.exam_id", &ids).Error; err != nil {
+	if err := q.Order("e.published_at DESC,e.id DESC").Pluck("v.scope_id", &ids).Error; err != nil {
 		return nil, err
 	}
-	withheld := []string{}
-	wq := tx.Table("exams e").Where("e.status IN ('published','locked') AND (? = 'admin' OR exam_visible_to_students(e.id)) AND EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_id=e.id AND m.student_id=? AND m.status='withheld') AND NOT EXISTS (SELECT 1 FROM exam_results er WHERE er.exam_id=e.id AND er.student_id=?)", scope, studentID, studentID).Order("e.published_at DESC,e.id DESC")
-	if examID != "" {
-		wq = wq.Where("e.id=?", examID)
-	}
-	if err := wq.Pluck("e.id", &withheld).Error; err != nil {
-		return nil, err
-	}
-	ids = append(ids, withheld...)
 	out := make([]Card, 0, len(ids))
 	for _, id := range ids {
 		card, err := r.Card(ctx, scope, actor, studentID, id)
@@ -510,34 +491,16 @@ func (r *GormRepository) Card(ctx context.Context, scope, actor, studentID, exam
 			return Card{}, ErrNotFound // a hidden assessment does not exist for students
 		}
 	}
-	err = tx.Table("exam_results er").Joins("JOIN students s ON s.id=er.student_id").Select("er.exam_id,er.student_id,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,s.roll_no,er.total_marks,er.full_marks,er.gpa,er.passed,er.class_position,er.section_position").Where("er.exam_id=? AND er.student_id=?", examID, studentID).Take(&card.Result).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) && card.Exam.Status != "draft" {
-		// A withheld result: the student learns it is held back, nothing more.
-		var n int64
-		if err := tx.Table("exam_marks").Where("exam_id=? AND student_id=? AND status='withheld'", examID, studentID).Count(&n).Error; err != nil {
-			return Card{}, err
-		}
-		if n == 0 {
-			return Card{}, ErrNotFound
-		}
-		if err := tx.Table("students s").Select("? AS exam_id,s.id AS student_id,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,s.roll_no", examID).Where("s.id=?", studentID).Take(&card.Result).Error; err != nil {
-			return Card{}, dbErr(err)
-		}
-		card.Withheld = true
-		err = tx.Raw("SELECT name_en,name_bn,logo_url FROM school_settings WHERE id=1").Row().Scan(&card.SchoolNameEN, &card.SchoolNameBN, &card.LogoURL)
-		return card, err
-	}
-	if err != nil {
-		return Card{}, dbErr(err)
-	}
-	err = tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Select("m.exam_subject_id,m.student_id,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed,m.status,m.status_reason,m.row_version").Where("m.exam_id=? AND m.student_id=?", examID, studentID).Order("sub.code").Find(&card.Subjects).Error
+	// The card is the published snapshot, never the live marks (E6).
+	v, err := currentAssessmentVersion(tx, examID, studentID)
 	if err != nil {
 		return Card{}, err
 	}
-	if scope != "admin" {
-		for i := range card.Subjects {
-			card.Subjects[i].StatusReason, card.Subjects[i].RowVersion = "", 0
-		}
+	if v == nil {
+		return Card{}, ErrNotFound
+	}
+	if err := cardFromVersion(&card, *v, scope); err != nil {
+		return Card{}, err
 	}
 	err = tx.Raw("SELECT name_en,name_bn,logo_url FROM school_settings WHERE id=1").Row().Scan(&card.SchoolNameEN, &card.SchoolNameBN, &card.LogoURL)
 	return card, err

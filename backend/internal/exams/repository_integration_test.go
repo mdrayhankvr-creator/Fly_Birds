@@ -194,8 +194,13 @@ func TestPostgresExamLifecycle(t *testing.T) {
 	if _, err := svc.SetState(ctx, admin, examB.ID, "draft"); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.DeleteExam(ctx, admin, examB.ID); err != nil {
-		t.Fatal(err)
+	// Its results were published once: the withdrawn versions are history,
+	// so the exam is kept (E6).
+	if err := svc.DeleteExam(ctx, admin, examB.ID); !errors.Is(err, ErrHasVersions) {
+		t.Fatalf("delete of an exam with published history: %v", err)
+	}
+	if again, err := svc.Card(ctx, "admin", admin, student1, exam.ID); err != nil || again.Result.ClassPosition != 1 {
+		t.Fatalf("class position after the withdrawal: %+v %v", again.Result, err)
 	}
 	if err := svc.SaveMarks(ctx, admin, "admin", exam.ID, []MarkInput{{subjectMap[subjectIDs[0]], student1, 90}}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("published marks edit: %v", err)
