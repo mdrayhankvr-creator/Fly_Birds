@@ -120,6 +120,16 @@ jobs:
           DEMO_PASSWORD: CiDemoPassword!2026
           PAYMENT_MODE: 'off'
         run: node e2e/payment-safety.mjs
+      - name: Result versions, review, publication and corrections (E6)
+        # Self-contained on the seeded demo school: it adds its own term,
+        # blueprint version, exams and marks, then publishes, corrects and
+        # withdraws results. The frontend's packages provide axe-core.
+        env:
+          E2E_BASE_URL: http://localhost:8081
+          DEMO_PASSWORD: CiDemoPassword!2026
+        run: |
+          npm ci --prefix frontend --no-audit --no-fund
+          node e2e/result-publication.mjs
       # After the browser suite: these checks use up the login rate limit for
       # this runner's address for about a minute.
       - name: HTTPS edge, proxy trust and login rate limit

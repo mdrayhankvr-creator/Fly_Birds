@@ -154,6 +154,22 @@ JOIN exam_results er ON er.exam_id = x.id
 JOIN students s ON s.id = er.student_id
 ` + recipients + `
 WHERE x.status IN ('published', 'locked') AND x.published_at >= now() - interval '60 days' AND exam_visible_to_students(x.id)`},
+	// Term and annual results (E6): one notification per published scope and
+	// student; corrections do not notify again.
+	{category: "result", module: "examinations", sql: `SELECT u.id AS user_id, 'result_' || v.scope || ':' || v.scope_id || ':' || s.id AS source_key,
+  left(CASE WHEN v.scope = 'term' THEN 'Term results published: ' || t.name ELSE 'Annual results published: ' || se.name END, 70) AS title_en,
+  left(CASE WHEN v.scope = 'term' THEN 'টার্মের ফলাফল প্রকাশিত: ' || t.name ELSE 'বার্ষিক ফলাফল প্রকাশিত: ' || se.name END, 220) AS title_bn,
+  left(s.name_en || ' — ' || CASE WHEN v.scope = 'term' THEN t.name ELSE 'annual result ' || se.name END || '. Open Results for the subjects and GPA.', 240) AS body_en,
+  left(COALESCE(NULLIF(s.name_bn, ''), s.name_en) || ' — ' || CASE WHEN v.scope = 'term' THEN t.name ELSE 'বার্ষিক ফলাফল ' || se.name END || '। বিষয় ও জিপিএ দেখতে ফলাফল খুলুন।', 700) AS body_bn,
+  CASE WHEN rcp.guardian THEN '/guardian/children/' || s.id || '/results' ELSE '/student/results' END AS link, false AS urgent,
+  regexp_replace(rcp.phone_raw, '[^0-9+]', '', 'g') AS phone, rcp.guardian AS wants_sms,
+  ` + schoolName + ` || ': ' || CASE WHEN ` + school + ` = 'bn' THEN COALESCE(NULLIF(s.name_bn, ''), s.name_en) || '-এর ' || CASE WHEN v.scope = 'term' THEN t.name ELSE 'বার্ষিক' END || ' ফলাফল প্রকাশিত হয়েছে।' ELSE CASE WHEN v.scope = 'term' THEN t.name ELSE 'Annual' END || ' results are published for ' || s.name_en || '.' END AS sms_body
+FROM result_versions v
+JOIN students s ON s.id = v.student_id
+JOIN academic_sessions se ON se.id = v.session_id
+LEFT JOIN exam_terms t ON t.id = v.scope_id
+` + recipients + `
+WHERE v.scope IN ('term', 'annual') AND v.status = 'published' AND v.published_at >= now() - interval '60 days' AND (v.scope = 'annual' OR t.id IS NOT NULL)`},
 	{category: "fee", module: "fees", sql: `SELECT u.id AS user_id, 'fee:' || f.id AS source_key,
   left('Fee overdue: ' || c.name_en, 70) AS title_en, left('বকেয়া ফি: ' || COALESCE(NULLIF(c.name_bn, ''), c.name_en), 220) AS title_bn,
   left(s.name_en || ' has Tk ' || f.balance || ' outstanding, due ' || to_char(f.due_date, 'DD Mon YYYY') || '.', 240) AS body_en,

@@ -36,6 +36,8 @@ import { ExamSetup } from './pages/exams/ExamSetup'
 import { BlueprintBuilder } from './pages/exams/BlueprintBuilder'
 import { TermWizard } from './pages/exams/TermWizard'
 import { TermResults } from './pages/exams/TermResults'
+import { ResultsCentre } from './pages/exams/ResultsCentre'
+import { ResultReview } from './pages/exams/ResultReview'
 import { FeesPage } from './pages/FeesPage'
 import { MyFeesPage } from './pages/MyFeesPage'
 import { NoticesPage } from './pages/NoticesPage'
@@ -235,7 +237,7 @@ function SheetGate({ scope, permissions, role, enabled, loading, error }: { scop
 
 // SetupGate guards the E5 exam setup screens: staff with exams:read may look
 // (the head teacher), administrators with exams:manage may change them.
-function SetupGate({ page, permissions, role, enabled, loading, error }: { page: 'setup' | 'builder' | 'wizard' | 'results'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+function SetupGate({ page, permissions, role, enabled, loading, error }: { page: 'setup' | 'builder' | 'wizard' | 'results' | 'centre' | 'review'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
   if (loading) return <StateScreen kind="loading" message={t('examLoading')} />
   if (error) return <StateScreen kind="error" message={t('examError')} />
@@ -246,6 +248,9 @@ function SetupGate({ page, permissions, role, enabled, loading, error }: { page:
     case 'setup': return <ExamSetup canManage={canManage} />
     case 'builder': return <BlueprintBuilder canManage={canManage} />
     case 'wizard': return <TermWizard canManage={canManage} />
+    // E6: the head teacher approves (exams:review); administrators publish.
+    case 'centre': return <ResultsCentre />
+    case 'review': return <ResultReview canApprove={(role === 'admin' || role === 'head_teacher') && permissions.includes('exams:review')} canPublish={canManage} />
     default: return <TermResults />
   }
 }
@@ -505,6 +510,8 @@ export default function App() {
         <Route path="/admin/exams/blueprints/:versionId" element={<ProtectedRoute><SetupGate page="builder" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/admin/exams/terms/:termId/setup" element={<ProtectedRoute><SetupGate page="wizard" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/admin/exams/terms/:termId/results" element={<ProtectedRoute><SetupGate page="results" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+        <Route path="/admin/exams/results" element={<ProtectedRoute><SetupGate page="centre" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+        <Route path="/admin/exams/results/review" element={<ProtectedRoute><SetupGate page="review" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/admin/exams/:examId/sheets/:sheetId" element={<ProtectedRoute><SheetGate scope="staff" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/student/results" element={<ProtectedRoute><ExamsGate mode="student" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/guardian/children/:id/results" element={<ProtectedRoute><ExamsGate mode="guardian" permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />

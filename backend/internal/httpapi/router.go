@@ -243,6 +243,18 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	management.POST("/exams/blueprint-versions/:id/sample", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.sample)
 	management.GET("/exams/subject-choices", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.choices)
 	management.PUT("/exams/subject-choices", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveChoices)
+	rh := &resultHandler{service: examService}
+	// E6 result versions: staff read with exams:read; approval needs
+	// exams:review (head teacher or administrator); publication and
+	// corrections need exams:manage and an administrator.
+	management.GET("/exams/results/overview", RequirePermission(service, "exams:read"), moduleGuard("examinations"), rh.overview)
+	management.GET("/exams/results/review", RequirePermission(service, "exams:read"), moduleGuard("examinations"), rh.review)
+	management.POST("/exams/results/approve", RequirePermission(service, "exams:review"), moduleGuard("examinations"), RequireAnyRole("admin", "head_teacher"), rh.approve)
+	management.POST("/exams/results/publish", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), rh.publish)
+	management.GET("/exams/results/history", RequirePermission(service, "exams:read"), moduleGuard("examinations"), rh.history)
+	management.GET("/exams/results/versions/:versionId", RequirePermission(service, "exams:read"), moduleGuard("examinations"), rh.version)
+	management.GET("/exams/me/term-results", RequirePermission(service, "exams:read_self"), moduleGuard("examinations"), rh.mine)
+	management.GET("/exams/children/:studentId/term-results", RequirePermission(service, "exams:read_children"), moduleGuard("examinations"), rh.children)
 	management.GET("/exams", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.list)
 	management.POST("/exams", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.save)
 	management.GET("/exams/assigned", RequirePermission(service, "exams:enter_marks"), moduleGuard("examinations"), eh.assigned)
@@ -273,6 +285,9 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	management.PATCH("/exams/:id/state", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), eh.state)
 	management.GET("/exams/:id/tabulation", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.tabulation)
 	management.GET("/exams/:id/results/:studentId", RequirePermission(service, "exams:read"), moduleGuard("examinations"), eh.adminCard)
+	management.GET("/exams/:id/corrections", RequirePermission(service, "exams:read"), moduleGuard("examinations"), rh.corrections)
+	management.POST("/exams/:id/corrections", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), rh.openCorrection)
+	management.POST("/exams/:id/corrections/:correctionId/cancel", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), rh.cancelCorrection)
 	fh := &feeHandler{service: feeService}
 	feeWriters := RequireAnyRole("admin", "accountant")
 	management.GET("/fees/options", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.options)
