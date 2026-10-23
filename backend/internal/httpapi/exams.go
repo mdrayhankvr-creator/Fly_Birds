@@ -21,7 +21,9 @@ func (h *examHandler) ready(c *gin.Context) bool {
 func examError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, exams.ErrExamNotDraft):
-		failure(c, 409, "exam_not_draft", "the exam is published; unpublish it to change marks or sheets")
+		failure(c, 409, "exam_not_draft", "the exam is published; open a correction to change a student's marks")
+	case errors.Is(err, exams.ErrHasVersions):
+		failure(c, 409, "exam_has_versions", "results of this exam were published; it is kept as history")
 	case errors.Is(err, exams.ErrSheetState):
 		failure(c, 409, "sheet_state", "the sheet's review state does not allow this; it may need to be returned first")
 	case errors.Is(err, exams.ErrSheetIncomplete):

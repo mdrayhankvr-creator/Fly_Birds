@@ -1445,7 +1445,7 @@ paths:
     delete:
       operationId: deleteExam
       summary: Delete a draft exam
-      description: Requires exams:manage and administrator role.
+      description: Requires exams:manage and administrator role. An exam whose results were ever published is kept as history (exam_has_versions).
       tags: [exams]
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
@@ -1576,6 +1576,110 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Provisional term results }, '400': { description: Invalid input }, '404': { description: Term or class not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/results/overview:
+    get:
+      operationId: getResultsOverview
+      summary: The result publication centre of a session
+      description: Requires exams:read. For each term and class - exams, sheets approved, state (no_exams, sheets_pending, ready, approved, published), the latest publication (revision, who, when) and any approval waiting - and for each class with an active blueprint its annual result (terms_pending lists the terms not yet published).
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Publication overview }, '400': { description: Invalid input }, '404': { description: Session not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/results/review:
+    get:
+      operationId: reviewResults
+      summary: Review a scope's results before approval (staff only, provisional)
+      description: Requires exams:read. scope is assessment (scope_id an exam; reviews a correction of a published exam), term (scope_id a term, class_id required) or annual (scope_id a session, class_id required). Computes every student's result now with the exact engine - with the rules of the first publication for a correction - beside the published version, marks what changed (new, changed, same with the fields), lists what blocks publication and returns inputs_sha256, the hash an approval binds to. state is blocked, ready, approved, changes or published. Nothing is stored; students never see it.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: scope, in: query, required: true, schema: { type: string, enum: [assessment, term, annual] } }
+        - { name: scope_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: class_id, in: query, required: false, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Results for review }, '400': { description: Invalid input }, '404': { description: Scope not found }, '409': { description: results_not_published (an exam is first published from the exam page) }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/results/approve:
+    post:
+      operationId: approveResults
+      summary: Approve reviewed results
+      description: Requires exams:review and the head teacher or an administrator. Body scope, scope_id, class_id, inputs_sha256 (from the review) and reason (required for a correction; an exam's open corrections give it by default). Records who approved exactly these inputs; any later change makes the approval stale. Refused while results are incomplete or sheets await approval (results_not_ready), when the results changed since the review (review_stale) or when nothing changed since publication (nothing_to_approve). Audited as exam.results_approved.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [scope, scope_id, inputs_sha256], properties: { scope: { type: string, enum: [assessment, term, annual] }, scope_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, inputs_sha256: { type: string, pattern: '^[0-9a-f]{64}$' }, reason: { type: string, maxLength: 500 } } } } } }
+      responses: { '200': { description: The review with the approval }, '400': { description: Invalid input or reason_required }, '404': { description: Scope not found }, '409': { description: results_not_ready, review_stale or nothing_to_approve }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/results/publish:
+    post:
+      operationId: publishResults
+      summary: Publish approved results
+      description: Requires exams:manage and an administrator. Body scope, scope_id, class_id and publication_id (the approval). Recomputes and refuses if anything changed since approval (approval_stale). In one transaction every student of the class becomes a version (first publication) or, for a correction, every student whose result changed gets the next version and the previous one is superseded - never changed or deleted. A correction of an exam also updates the exam_results projection, the class positions of other sections (as position updates) and closes its open corrections. Concurrent publication of one approval publishes once (already_published). Audited as exam.results_published, exam.result_corrected or exam.locked_result_corrected.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [scope, scope_id, publication_id], properties: { scope: { type: string, enum: [assessment, term, annual] }, scope_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, publication_id: { type: string, format: uuid } } } } } }
+      responses: { '200': { description: The review after publication }, '400': { description: Invalid input }, '404': { description: Scope not found }, '409': { description: results_not_approved, approval_stale, already_published or results_not_ready }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/results/history:
+    get:
+      operationId: getResultHistory
+      summary: Every version of a student's result in a scope
+      description: Requires exams:read. Newest first - published, superseded and withdrawn versions with outcome, GPA, totals, positions, the publication kind (publication, correction, position_update) and revision, who published and closed each and why, and the inputs hash.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: scope, in: query, required: true, schema: { type: string, enum: [assessment, term, annual] } }
+        - { name: scope_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: student_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Versions }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/results/versions/{versionId}:
+    get:
+      operationId: getResultVersion
+      summary: One result version with its snapshot and a reproducibility check
+      description: Requires exams:read. The snapshot (student, context, inputs, outputs), the publication's rules and their hash, and a verification - whether the stored inputs hash matches and whether recalculating from the inputs and rules reproduces the published values exactly (positions, which depend on the whole class, are checked by exam-verify).
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: versionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version detail }, '400': { description: Invalid input }, '404': { description: Version not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/me/term-results:
+    get:
+      operationId: getOwnTermResults
+      summary: The student's published term and annual results
+      description: Requires exams:read_self. Current published versions only, newest first, with version, revised and publication date. A withheld result shows no marks or GPA. Class-test contributions and component detail are never included.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Published results }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { description: Student not found } }
+  /exams/children/{studentId}/term-results:
+    get:
+      operationId: getChildTermResults
+      summary: A linked child's published term and annual results
+      description: Requires exams:read_children and a guardian linked to the student. The same view as /exams/me/term-results.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Published results }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { description: Student not linked } }
+  /exams/{id}/corrections:
+    get:
+      operationId: listResultCorrections
+      summary: An exam's result corrections
+      description: Requires exams:read. Newest first; an open correction includes the student's current marks beside the published ones.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Corrections }, '400': { description: Invalid input }, '404': { description: Exam not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: openResultCorrection
+      summary: Open a correction of one student's published result
+      description: Requires exams:manage and an administrator. Body student_id and reason (3 to 500 characters). The exam must be published or locked and the student must have a published result. An administrator can then change that student's marks (PATCH /exams/{id}/marks); nothing reaches the family until the correction is reviewed, approved and published. Audited as exam.correction_opened (exam.locked_correction_opened for a locked exam).
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [student_id, reason], properties: { student_id: { type: string, format: uuid }, reason: { type: string, minLength: 3, maxLength: 500 } } } } } }
+      responses: { '201': { description: The correction with the student's marks }, '400': { description: Invalid input or reason_required }, '404': { description: Exam or published result not found }, '409': { description: A correction is already open or the exam is not published }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/{id}/corrections/{correctionId}/cancel:
+    post:
+      operationId: cancelResultCorrection
+      summary: Cancel an open correction
+      description: Requires exams:manage and an administrator. Closes the correction without publishing and restores the student's marks and grades to the published values. Audited as exam.correction_cancelled.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: correctionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Cancelled }, '400': { description: Invalid input }, '404': { description: Correction not found }, '409': { description: The correction is not open }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/terms/{id}/setup:
     get:
       operationId: getTermSetup
@@ -1777,12 +1881,12 @@ paths:
   /exams/{id}/state:
     patch:
       operationId: setExamState
-      summary: Publish, unpublish, or lock exam results
-      description: Requires exams:manage and administrator role. Publication requires marks or a status for every active eligible student, no incomplete mark (exam_marks_incomplete) and no sheet awaiting review or returned (exam_sheets_pending); it uses the current school grading scheme, approves every sheet, scores absent as 0 (fail), leaves exempt subjects out and holds withheld results back. Unpublishing reopens the sheets. Locked results cannot be changed.
+      summary: Publish, withdraw, or lock exam results
+      description: Requires exams:manage and administrator role. Publication requires marks or a status for every active eligible student, no incomplete mark (exam_marks_incomplete) and no sheet awaiting review or returned (exam_sheets_pending); it grades with the blueprint version's band snapshot (the school's current bands for exams outside a blueprint and legacy versions), approves every sheet, scores absent as 0 (fail), leaves exempt subjects out and holds withheld results back. Every student's result becomes an immutable version (E6); other sections whose class positions move get a position update. Back to draft is a withdrawal - the versions are kept as withdrawn with the reason, the sheets reopen and republishing adds the next version. Locked results are changed only through a correction.
       tags: [exams]
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [draft, published, locked] } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [draft, published, locked] }, reason: { type: string, maxLength: 500, description: Why results are withdrawn } } } } } }
       responses: { '200': { description: Exam state changed }, '409': { description: Incomplete marks or locked exam }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/{id}/tabulation:
     get:
