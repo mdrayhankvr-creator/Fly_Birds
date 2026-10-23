@@ -141,7 +141,7 @@ check('the head teacher can approve but not publish', headReview.includes('Appro
 await clickText(hb, 'Approve these results')
 check('the head teacher approves exactly what was reviewed', await waitText(hb, 'Approved by'), 'approved')
 await hb.shot('rv-review-approved-head', false)
-hb.close()
+await hb.close()
 
 const ab = await launch({ base, shots, port: 9602 })
 await ab.viewport(1440, 900)
@@ -212,7 +212,7 @@ await hb2.go(`/admin/exams/results/review?scope=assessment&scope_id=${failing.ex
 await hb2.waitFor(`!!document.querySelector('#rv-table-title')`, 20000)
 await clickText(hb2, 'Approve this revision')
 check('the head teacher approves the correction (the correction gives its reason)', await waitText(hb2, 'Approved by'), 'approved')
-hb2.close()
+await hb2.close()
 // I. Two administrators publish the same approval at once: it publishes once.
 const aRef = { scope: 'assessment', scope_id: failing.exam.id }
 const approval = (await must(admin('GET', `/exams/results/review?scope=assessment&scope_id=${failing.exam.id}`), 'review')).approval
@@ -329,7 +329,7 @@ await waitText(sb, 'Term and annual results', 20000)
 const studentScreen = await textOf(sb)
 check('the student results page lists the term result as withheld at 390 px', studentScreen.includes(term.name) && studentScreen.includes('Result withheld') && !(await sb.overflow()), 'mobile')
 await sb.shot('rv-student-mobile', false)
-sb.close()
+await sb.close()
 
 // ---- 11. Layouts, languages, themes and accessibility ---------------------------------
 const { updated_at: _ignored, ...settings } = (await admin('GET', '/school/settings')).data
@@ -382,8 +382,8 @@ for (const [label, width, height, mobile, lang, theme, colour] of [
   }
 }
 await putSettings({ primary_color: settings.primary_color, dashboard_theme: settings.dashboard_theme })
-v.close()
-ab.close()
+await v.close()
+await ab.close()
 
 const failed = (await must(admin('GET', '/exams/results/overview?session_id=' + session), 'overview')).terms.length >= 1
 check('the publication overview still loads after the run', failed, 'ok')
