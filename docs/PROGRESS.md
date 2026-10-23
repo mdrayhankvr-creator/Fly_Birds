@@ -26,14 +26,22 @@ On `feature/student-profile-duplex-id-card`, from `main` `7b3723f`, with `main` 
   - A verification QR that reveals no personal data, and reissue.
 - **QR attendance:** accepts the new verification link and the legacy `FB-STUDENT:<id>`.
 
-**Verification (disposable resources only):**
-- Go: all packages pass on a fresh database; vet clean.
-- Frontend: build, i18n (2,474 keys in each language) and 11 unit tests pass.
-- Upgrade: two upgraded schools kept their student and guardian-link counts.
-- ID card browser and PDF checks: 24/24, with the PDFs measured and rendered.
-- Regression:
-  - browser suite 106/106 and payment safety 12/12, both on fresh fixtures;
-  - white-label 23/23.
+**Verification after merging E6 (disposable resources only):**
+- Go: all 25 packages pass on a fresh database; vet, gofmt and govulncheck clean.
+- Frontend: type check and build, i18n (2,676 keys in each language), 11 unit tests, browser harness self-test 8/8.
+- Fresh install: migrations through 1503 and 1601.
+- Fresh school, in order:
+  - browser 106/106, white-label 23/23, payment safety 12/12;
+  - E3 exam workflow 17/17, E4 marks workspace 44/44 (axe was not installed for this run);
+  - E5 exam setup 83/83, E6 result publication 101/101;
+  - ID card 24/24.
+- Upgrade of an E5 school (built and used with `7b3723f`: 9 published exams, 137 results, 1,500 marks, 73 payments): 1503 and 1601 applied in order.
+  - Every pre-upgrade column of all 68 data tables is identical, apart from sign-in timestamps.
+  - `exam-verify` is clean, and the student's and guardian's 9 report cards are unchanged; E6 snapshots add the student name, admission number and roll.
+  - Afterwards: white-label 23/23, payment safety 12/12, E4 49/49 (with axe), E5 83/83, E6 101/101 and ID card 24/24.
+  - The browser suite was 99/106 there: its attendance checks expect a six-student section, which the earlier E5 exam setup had enlarged.
+- Guardians: 36 on each school, with no duplicate guardians, links or primary guardians.
+- PDFs: CR80 and A4 duplex in English and Bangla with two brandings. On the fresh school a 56-student section gave 7 sheets, with fronts and backs within 0.1 mm and all 112 faces inside the card.
 
 **Not covered:** server-side PDF generation; Bangla class and section names.
 
