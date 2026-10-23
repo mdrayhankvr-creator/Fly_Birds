@@ -299,8 +299,9 @@ function QrPanel({ open, onToggle, date, disabled, onScanned, authorized }: { op
     const value = payload.trim()
     if (!value) return
     try {
-      await authorized(token => scanStudentAttendance(token, { payload: value, attendance_date: date }))
-      setQr(''); onScanned(value.replace(/^FB-STUDENT:/, ''), true, t('studentAttendanceScanned'))
+      // Card QR codes are verification links; the server reports which student they belong to.
+      const record = await authorized(token => scanStudentAttendance(token, { payload: value, attendance_date: date }))
+      setQr(''); onScanned(record.student_id, true, t('studentAttendanceScanned'))
     } catch (cause) { onScanned('', false, t(cause instanceof ApiError && cause.code === 'duplicate_attendance' ? 'studentAttendanceDuplicate' : 'studentAttendanceScanError')) }
   }
   useEffect(() => {
@@ -330,7 +331,7 @@ function QrPanel({ open, onToggle, date, disabled, onScanned, authorized }: { op
     {open && <div id="qr-body" className="mt-4 space-y-3 border-t border-slate-100 pt-4">
       <p className="text-sm text-slate-600">{t('studentAttendanceQRHelp')}</p>
       <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={(event: FormEvent) => { event.preventDefault(); void scan(qr) }}>
-        <label className={`${ui.label} flex-1`}>{t('studentAttendanceQRValue')}<input className={ui.field} value={qr} disabled={disabled} onChange={event => setQr(event.target.value)} autoComplete="off" placeholder="FB-STUDENT:…" /></label>
+        <label className={`${ui.label} flex-1`}>{t('studentAttendanceQRValue')}<input className={ui.field} value={qr} disabled={disabled} onChange={event => setQr(event.target.value)} autoComplete="off" placeholder="https://…/verify/…" /></label>
         <button className={ui.primary} type="submit" disabled={disabled || !qr.trim()}>{t('studentAttendanceScan')}</button>
         <button className={ui.secondary} type="button" disabled={disabled} onClick={() => { setCameraError(''); setCameraOn(v => !v) }}>{t(cameraOn ? 'studentAttendanceStopCamera' : 'studentAttendanceStartCamera')}</button>
       </form>
