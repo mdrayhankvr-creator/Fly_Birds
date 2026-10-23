@@ -3,6 +3,7 @@ package exams
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -50,12 +51,14 @@ type Difference struct {
 
 // VerifyReport is the outcome of a verification run.
 type VerifyReport struct {
-	Exams               int          `json:"exams"`
-	Results             int          `json:"results"`
-	Marks               int          `json:"marks"`
-	BoundaryCorrections int          `json:"boundary_corrections"`
-	Inconsistent        int          `json:"inconsistent"`
-	Differences         []Difference `json:"differences"`
+	Exams               int `json:"exams"`
+	Results             int `json:"results"`
+	Marks               int `json:"marks"`
+	BoundaryCorrections int `json:"boundary_corrections"`
+	Inconsistent        int `json:"inconsistent"`
+	// Correcting: results skipped because a correction is open (E6).
+	Correcting  int          `json:"correcting"`
+	Differences []Difference `json:"differences"`
 }
 
 // VerifyOptions narrows a run; the zero value checks every published exam.
@@ -148,13 +151,34 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 
 	examByID := map[string]verifyExam{}
 	rulesOf := map[string]examRules{}
+	bandsOf := map[string][]Band{}
 	for _, e := range exams {
 		examByID[e.ID] = e
 		rules, err := rulesFor(tx, Exam{ID: e.ID, SessionID: e.SessionID, ClassID: e.ClassID, BlueprintVersionID: e.BlueprintVersionID})
 		if err != nil {
 			return report, err
 		}
+		bandsOf[e.ID] = bands
+		// Results are checked against the rules they were published with
+		// (E6): a later change of the grading bands is not a difference.
+		if stored, _, err := storedAssessmentRules(tx, e.ID, e.ClassID); err == nil {
+			b, policy, mode := stored.engine()
+			rules.Policy, rules.Dense, rules.Combined = policy, mode == calc.Dense, stored.Combined
+			bandsOf[e.ID] = b
+		} else if !errors.Is(err, ErrNotPublished) {
+			return report, err
+		}
 		rulesOf[e.ID] = rules
+	}
+	// A student with an open correction is being corrected: their marks may
+	// differ from what is published until the correction is published.
+	correcting := map[[2]string]bool{}
+	open := []struct{ ExamID, StudentID string }{}
+	if err := tx.Raw("SELECT exam_id, student_id FROM result_corrections WHERE status = 'open'").Scan(&open).Error; err != nil {
+		return report, err
+	}
+	for _, o := range open {
+		correcting[[2]string{o.ExamID, o.StudentID}] = true
 	}
 	// Component marks of the published marks, by mark id, in one query.
 	componentsOf := map[string][]ComponentLine{}
@@ -200,6 +224,11 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 	groups := map[string][]ranking{}
 	for _, r := range results {
 		e := examByID[r.ExamID]
+		if correcting[[2]string{r.ExamID, r.StudentID}] {
+			report.Correcting++
+			continue
+		}
+		bands := bandsOf[e.ID]
 		rows := marksOf[[2]string{r.ExamID, r.StudentID}]
 		if len(rows) == 0 {
 			add(Inconsistent, "result", e, r, "", "marks", "none", "", "a published result has no marks")

@@ -117,6 +117,11 @@ main table tbody tr:hover { background-color: #f8fafc; }
 [data-theme="dark"] .border-violet-300 { border-color: rgb(139 92 246 / 0.45); }
 [data-theme="dark"] .text-sky-700 { color: #7dd3fc; }
 [data-theme="dark"] .text-violet-900 { color: #c4b5fd; }
+/* E6 result screens: provisional frames (indigo) and revisions (violet). */
+[data-theme="dark"] .bg-violet-50 { background-color: rgb(139 92 246 / 0.14); }
+[data-theme="dark"] .bg-indigo-50 { background-color: rgb(99 102 241 / 0.16); }
+[data-theme="dark"] .text-indigo-800 { color: #c7d2fe; }
+[data-theme="dark"] .border-indigo-300 { border-color: rgb(99 102 241 / 0.5); }
 .shell-sidebar nav { scrollbar-width: thin; }
 
 /* Respect reduced-motion preferences across the app. */

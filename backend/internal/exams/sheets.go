@@ -448,8 +448,19 @@ func (r *GormRepository) SaveMarkEntries(ctx context.Context, actor, role, examI
 		if err != nil {
 			return err
 		}
+		// A published exam's marks change only through a correction (E6): an
+		// administrator, for a student with an open correction.
+		correcting := map[string]string{}
 		if exam.Status != "draft" {
-			return ErrExamNotDraft
+			if legacy || role != "admin" {
+				return ErrExamNotDraft
+			}
+			if correcting, err = openCorrectionStudents(tx, examID); err != nil {
+				return err
+			}
+			if len(correcting) == 0 {
+				return ErrExamNotDraft
+			}
 		}
 		sheetIDs, studentIDs := []string{}, []string{}
 		seenSheet, seenStudent := map[string]bool{}, map[string]bool{}
@@ -551,7 +562,12 @@ func (r *GormRepository) SaveMarkEntries(ctx context.Context, actor, role, examI
 				fail(e, "not_assigned", "you are not assigned to this subject", nil)
 				continue
 			}
-			if !writableSheet(sheet.SheetStatus) {
+			if exam.Status != "draft" {
+				if correcting[e.StudentID] == "" {
+					fail(e, "correction_required", "open a correction for this student before changing a published mark", nil)
+					continue
+				}
+			} else if !writableSheet(sheet.SheetStatus) {
 				fail(e, "sheet_locked", "the sheet has been submitted or approved; it must be returned before marks change", nil)
 				continue
 			}
@@ -712,6 +728,9 @@ RETURNING id,exam_subject_id,student_id,status,marks,status_reason,row_version`,
 			}
 			if a.reason != "" {
 				meta["reason"] = a.reason
+			}
+			if id := correcting[a.entry.StudentID]; id != "" {
+				meta["correction_id"] = id
 			}
 			if len(a.comps) > 0 {
 				meta["new_components"] = a.comps

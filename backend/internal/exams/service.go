@@ -106,7 +106,13 @@ type Result struct {
 }
 type Card struct {
 	// Withheld: the school holds this result back; no marks are included.
-	Withheld     bool      `json:"withheld"`
+	Withheld bool `json:"withheld"`
+	// E6: the published version the card shows, and whether it revises an
+	// earlier one (a correction or a position update).
+	VersionID    string    `json:"version_id"`
+	Version      int       `json:"version"`
+	Revised      bool      `json:"revised"`
+	PublishedAt  string    `json:"published_at"`
 	Exam         Exam      `json:"exam"`
 	Result       Result    `json:"result"`
 	Subjects     []MarkRow `json:"subjects"`
@@ -249,6 +255,7 @@ type Repository interface {
 	Workspace(context.Context, string, string, string, string, string) (Workspace, error)
 	SheetHistory(context.Context, string, string) ([]HistoryEntry, error)
 	SetState(context.Context, string, string, string) (Exam, error)
+	SetStateReason(context.Context, string, string, string, string) (Exam, error)
 	Tabulation(context.Context, string) ([]Result, error)
 	Cards(context.Context, string, string, string, string) ([]Card, error)
 	Card(context.Context, string, string, string, string) (Card, error)
@@ -329,10 +336,16 @@ func (s *Service) SaveMarks(ctx context.Context, actor, role, examID string, ent
 	return err
 }
 func (s *Service) SetState(ctx context.Context, actor, id, state string) (Exam, error) {
-	if !uuid.MatchString(actor) || !uuid.MatchString(id) || (state != "draft" && state != "published" && state != "locked") {
+	return s.SetStateReason(ctx, actor, id, state, "")
+}
+
+// SetStateReason changes an exam's state; reason explains a withdrawal.
+func (s *Service) SetStateReason(ctx context.Context, actor, id, state, reason string) (Exam, error) {
+	reason = strings.TrimSpace(reason)
+	if !uuid.MatchString(actor) || !uuid.MatchString(id) || (state != "draft" && state != "published" && state != "locked") || utf8.RuneCountInString(reason) > 500 || !utf8.ValidString(reason) {
 		return Exam{}, ErrInvalid
 	}
-	return s.repo.SetState(ctx, actor, id, state)
+	return s.repo.SetStateReason(ctx, actor, id, state, reason)
 }
 func (s *Service) Tabulation(ctx context.Context, id string) ([]Result, error) {
 	if !uuid.MatchString(id) {

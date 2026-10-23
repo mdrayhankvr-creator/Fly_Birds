@@ -68,11 +68,14 @@ type SubjectResult struct {
 	Status        string             `json:"status"` // graded, exempt, incomplete or withheld
 	Marks         string             `json:"marks"`
 	Full          string             `json:"full"`
+	Pass          string             `json:"pass"` // the pass mark on Full (graded lines)
 	Grade         string             `json:"grade"`
 	Point         string             `json:"point"`
 	Passed        bool               `json:"passed"`
 	Reasons       []Reason           `json:"reasons"`
 	Contributions []ContributionLine `json:"contributions"`
+	// Terms: each term's part in an annual line (annual results only).
+	Terms []AnnualTermLine `json:"terms,omitempty"`
 }
 
 // StudentResult is a student's term result.
@@ -108,7 +111,6 @@ type line struct {
 func TermResults(d Definition, termID string, students []Student, scheme calc.Scheme) ([]StudentResult, error) {
 	out := make([]StudentResult, 0, len(students))
 	ranked := []calc.Ranked{}
-	sectionOf := map[string]string{}
 	for _, st := range students {
 		r, key, err := studentTerm(d, termID, st, scheme)
 		if err != nil {
@@ -117,28 +119,9 @@ func TermResults(d Definition, termID string, students []Student, scheme calc.Sc
 		out = append(out, r)
 		if r.Outcome == "passed" || r.Outcome == "failed" {
 			ranked = append(ranked, key)
-			sectionOf[r.StudentID] = r.SectionID
 		}
 	}
-	mode := calc.Competition
-	if d.Policy.Ranking == "dense" {
-		mode = calc.Dense
-	}
-	class := calc.Rank(ranked, mode)
-	bySection := map[string][]calc.Ranked{}
-	for _, e := range ranked {
-		bySection[sectionOf[e.Key]] = append(bySection[sectionOf[e.Key]], e)
-	}
-	section := map[string]int{}
-	for _, entries := range bySection {
-		for k, p := range calc.Rank(entries, mode) {
-			section[k] = p
-		}
-	}
-	for i := range out {
-		out[i].ClassPosition = class[out[i].StudentID]
-		out[i].SectionPosition = section[out[i].StudentID]
-	}
+	assignPositions(out, ranked, d.Policy.Ranking)
 	return out, nil
 }
 
@@ -188,7 +171,7 @@ func studentTerm(d Definition, termID string, st Student, scheme calc.Scheme) (S
 			sr.Status = "withheld"
 		default:
 			sr.Status = "graded"
-			sr.Marks, sr.Full = l.marks.String(), l.full.String()
+			sr.Marks, sr.Full, sr.Pass = l.marks.String(), l.full.String(), l.pass.String()
 			in = append(in, calc.Line{Marks: l.marks, Full: l.full, Pass: l.pass, Optional: l.optional, Failed: len(l.reasons) > 0})
 			graded = append(graded, i)
 		}

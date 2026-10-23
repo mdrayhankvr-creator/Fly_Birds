@@ -109,28 +109,6 @@ func componentLines(tx *gorm.DB, rows []lineRow) (map[string][]ComponentLine, er
 	return out, nil
 }
 
-// classRanks positions the published results of an exam's class: within
-// each section and across the class. Exams of one term and assessment are
-// ranked together (E1-05); exams made outside a term, by name as before.
-func classRanks(tx *gorm.DB, e Exam, dense bool) error {
-	fn := "rank()"
-	if dense {
-		fn = "dense_rank()"
-	}
-	group, args := "lower(x.name)=lower(?) AND x.exam_type=? AND x.term_id IS NULL", []any{e.SessionID, e.ClassID, e.Name, e.ExamType}
-	if e.TermID != nil && e.AssessmentKey != nil {
-		group, args = "x.term_id=? AND x.assessment_key=?", []any{e.SessionID, e.ClassID, *e.TermID, *e.AssessmentKey}
-	}
-	return tx.Exec(`WITH ranked AS (
- SELECT r.exam_id,r.student_id,
- `+fn+` OVER (ORDER BY r.gpa DESC,r.total_marks DESC) AS class_rank,
- `+fn+` OVER (PARTITION BY r.section_id ORDER BY r.gpa DESC,r.total_marks DESC) AS section_rank
- FROM exam_results r JOIN exams x ON x.id=r.exam_id
- WHERE x.session_id=? AND x.class_id=? AND `+group+` AND x.status IN ('published','locked')
- ) UPDATE exam_results r SET class_position=ranked.class_rank,section_position=ranked.section_rank
- FROM ranked WHERE r.exam_id=ranked.exam_id AND r.student_id=ranked.student_id`, args...).Error
-}
-
 // linkLegacyTerm keeps an exam made outside the setup wizard with the exams
 // the upgrade linked: one named and typed like an upgraded term joins that
 // term (and its class's legacy assessment), so class positions group the

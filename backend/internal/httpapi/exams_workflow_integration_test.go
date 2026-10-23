@@ -182,6 +182,56 @@ func TestPostgresExamWorkflowRouteProtection(t *testing.T) {
 	check("PUT", "/exams/terms/"+versionID+"/setup", `{"class_ids":["x"]}`, admin, 400)
 	check("POST", "/exams/blueprints", `{"session_id":"`+examID+`","class_id":"`+examID+`"}`, admin, 404)
 	check("PUT", "/exams/blueprint-versions/"+versionID, `{"definition":{},"extra":1}`, admin, 400)
+	// E6 result versions: staff with exams:read review and read history; the
+	// head teacher (or an administrator) approves; only administrators
+	// publish and correct; students and guardians read only their own
+	// published results, teachers none of it.
+	scope := "?scope=term&scope_id=" + versionID + "&class_id=" + examID
+	resultReads := []string{"/exams/results/overview" + session, "/exams/results/review" + scope, "/exams/results/history?scope=term&scope_id=" + versionID + "&student_id=" + examID,
+		"/exams/results/versions/" + versionID, "/exams/" + examID + "/corrections"}
+	for _, path := range resultReads {
+		check("GET", path, "", nil, 401)
+		for _, who := range []map[string]string{student, guardian, teacher} {
+			check("GET", path, "", who, 403)
+		}
+	}
+	check("GET", resultReads[0], "", head, 404)
+	check("GET", resultReads[1], "", head, 404)
+	check("GET", resultReads[2], "", head, 200)
+	check("GET", resultReads[3], "", head, 404)
+	check("GET", "/exams/results/review?scope=nonsense&scope_id="+versionID, "", admin, 400)
+	approveBody := `{"scope":"term","scope_id":"` + versionID + `","class_id":"` + examID + `","inputs_sha256":"` + fmt.Sprintf("%064d", 0) + `"}`
+	publishBody := `{"scope":"term","scope_id":"` + versionID + `","class_id":"` + examID + `","publication_id":"` + versionID + `"}`
+	check("POST", "/exams/results/approve", approveBody, nil, 401)
+	for _, who := range []map[string]string{student, guardian, teacher} {
+		check("POST", "/exams/results/approve", approveBody, who, 403)
+	}
+	check("POST", "/exams/results/approve", approveBody, head, 404)
+	check("POST", "/exams/results/approve", approveBody, admin, 404)
+	adminOnly := []write{
+		{"POST", "/exams/results/publish", publishBody},
+		{"POST", "/exams/" + examID + "/corrections", `{"student_id":"` + examID + `","reason":"Re-marked"}`},
+		{"POST", "/exams/" + examID + "/corrections/" + versionID + "/cancel", ""},
+	}
+	for _, w := range adminOnly {
+		check(w.method, w.path, w.body, nil, 401)
+		for _, who := range []map[string]string{student, guardian, teacher, head} {
+			check(w.method, w.path, w.body, who, 403)
+		}
+	}
+	check("POST", "/exams/results/publish", publishBody, admin, 404)
+	check("POST", "/exams/"+examID+"/corrections", `{"student_id":"`+examID+`","reason":"Re-marked"}`, admin, 404)
+	check("POST", "/exams/"+examID+"/corrections/"+versionID+"/cancel", "", admin, 404)
+	mine, child := "/exams/me/term-results", "/exams/children/"+examID+"/term-results"
+	check("GET", mine, "", nil, 401)
+	for _, who := range []map[string]string{guardian, teacher, head, admin} {
+		check("GET", mine, "", who, 403)
+	}
+	check("GET", mine, "", student, 404) // no student record for this account
+	for _, who := range []map[string]string{student, teacher, head, admin} {
+		check("GET", child, "", who, 403)
+	}
+	check("GET", child, "", guardian, 404) // not linked
 	// Administrators: everything.
 	check("GET", sheets, "", admin, 404)
 	check("PATCH", marks, cell, admin, 404)

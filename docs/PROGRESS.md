@@ -10,6 +10,29 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E6 Result Versions, Publication and Corrections (2026-10-23)
+
+On `feature/e6-result-versioning-snapshots`, from `main` `7b3723f5`. Scope as in the E1 roadmap's E6 row (the prompt matches it; PDFs are E7). Details, the upgrade measurements and the differences from the E1 design: [docs/exams/E6_RESULT_VERSIONS.md](exams/E6_RESULT_VERSIONS.md).
+
+**Acceptance (roadmap):**
+- every published result has a reproducible snapshot — recalculation from the snapshot is checked on every version ("Verified");
+- corrections supersede, never delete — enforced by database triggers;
+- annual examples match — Example 7 of the calculation rules is a test.
+
+**Implementation:**
+- **Migration 1503:** `result_publications`, `result_versions` (immutable snapshots, database-computed hashes), `result_corrections`, `exam_results.result_version_id`; the upgrade records published results as version 1 without recalculating.
+- **Backend:** exam publication into versions with position updates across sections; withdrawal instead of destructive unpublish; term and annual review, approval bound to the inputs hash and publication; corrections with restore on cancel; report cards from snapshots; family term/annual results; version history and verification; 10 routes; notifications for term and annual results.
+- **Frontend:** Results & publication centre, review/approve/publish screen with before/after tables and version history, corrections and withdrawal on the exam page, term and annual results for students and guardians; 202 new keys in each language.
+
+**Verification (disposable resources only):**
+- **Go:** all 25 packages pass on a fresh database; vet clean; govulncheck finds nothing reachable.
+- **Frontend:** build and type check, i18n (2,574 keys), 11 unit tests.
+- **Upgrade** (a school built from `main` with a copy of the E5 regression school's database): fingerprints of exam, mark, result, sheet, E5, student, account and payment data identical; all 153 staff, 3 student and 3 guardian report cards identical; `exam-verify` clean; `result-publication.mjs` 101/101 and `exam-setup.mjs` 83/83 on the upgraded school, after which the original 153 cards are still identical.
+- **E2E, fresh school:** in order — browser 106/106, white-label 23/23, payment safety 12/12, E3 exam workflow 17/17, E4 marks workspace 49/49, E5 exam setup 83/83, E6 `result-publication.mjs` 101/101 (new). On Windows a suite that does not await `close()` can finish its checks and then not exit: the browser's stderr pipe, opened by `cdp.mjs` since PR #30, can stay open through surviving helper processes (reproduced in 2 of 18 runs; releasing the pipe in `stopBrowser` fixed it in 21 runs). That fix is proposed as a separate PR; the E6 suite awaits every close and exits cleanly. Separately, a crashpad and a utility helper sometimes outlive their browser on Windows (not fixed by a tree kill; under investigation). CI runs E6 in the release-stack job.
+- **Measured on one laptop (not a production claim):** a class term result published from the centre in 3 clicks; review of 100 students in 1.2 s.
+
+**Limitations:** see the E6 document, §10. In short: revisions do not notify again; position updates show as *Revised*; only exams can be withdrawn; PDFs are E7.
+
 ## Current Status — E5 Terms, Blueprints and Exam Setup (2026-10-22)
 
 On `feature/e5-flexible-assessment-blueprints`, from `main` `8790b391`. Scope as in the E1 roadmap's E5 row; result versions, term and annual publication are E6. Details and the differences from the E1 design: [docs/exams/E5_TERMS_AND_BLUEPRINTS.md](exams/E5_TERMS_AND_BLUEPRINTS.md).
