@@ -61,7 +61,7 @@ func corrections(tx *gorm.DB, examID string, openOnly bool) ([]Correction, error
 	q := tx.Table("result_corrections c").Joins("JOIN students st ON st.id = c.student_id").
 		Select(`c.id, c.exam_id, c.student_id, st.name_en AS student_name, st.admission_no, st.roll_no, c.reason, c.status,
  (SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = c.opened_by) AS opened_by,
- to_char(c.opened_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS opened_at, to_char(c.closed_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS closed_at, c.publication_id`).
+ to_char(c.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS opened_at, to_char(c.closed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS closed_at, c.publication_id`).
 		Where("c.exam_id = ?", examID)
 	if openOnly {
 		q = q.Where("c.status = 'open'")

@@ -243,8 +243,8 @@ type versionRow struct {
 
 const versionColumns = `v.id, v.publication_id, v.scope, v.scope_id, v.session_id, v.class_id, v.section_id, v.student_id, v.version, v.status, v.outcome,
  v.total_marks::text AS total_marks, v.full_marks::text AS full_marks, v.gpa::text AS gpa, v.class_position, v.section_position,
- v.inputs_sha256, v.snapshot::text AS snapshot, v.reason, to_char(v.published_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS published_at, v.published_by,
- to_char(v.closed_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS closed_at, v.close_reason, v.supersedes_id`
+ v.inputs_sha256, v.snapshot::text AS snapshot, v.reason, to_char(v.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at, v.published_by,
+ to_char(v.closed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS closed_at, v.close_reason, v.supersedes_id`
 
 // currentVersions are a scope's published versions, by student; classID
 // narrows term and annual scopes to one class.
@@ -299,8 +299,8 @@ type publicationRow struct {
 
 const publicationColumns = `p.id, p.scope, p.scope_id, p.session_id, p.class_id, p.section_id, p.revision, p.kind, p.status, p.source, p.blueprint_version_id,
  p.rules::text AS rules, p.rules_sha256, p.inputs_sha256, p.reason, p.students, p.changed,
- p.approved_by, (SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = p.approved_by) AS approved_by_name, to_char(p.approved_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS approved_at,
- p.published_by, (SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = p.published_by) AS published_by_name, to_char(p.published_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS published_at`
+ p.approved_by, (SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = p.approved_by) AS approved_by_name, to_char(p.approved_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS approved_at,
+ p.published_by, (SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = p.published_by) AS published_by_name, to_char(p.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at`
 
 // latestPublished is a scope's most recent published publication, if any.
 func latestPublished(tx *gorm.DB, scope, scopeID, classID string) (*publicationRow, error) {

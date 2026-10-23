@@ -42,9 +42,9 @@ type VersionView struct {
 
 const versionViewColumns = `v.id, v.publication_id, v.scope, v.scope_id, v.student_id, v.version, v.status, p.kind, p.revision, p.source, v.outcome,
  v.gpa::text AS gpa, v.total_marks::text AS total, v.full_marks::text AS full, v.class_position, v.section_position, v.reason,
- to_char(v.published_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS published_at,
+ to_char(v.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
  coalesce((SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = v.published_by), '') AS published_by,
- to_char(v.closed_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS closed_at,
+ to_char(v.closed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS closed_at,
  coalesce((SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = v.closed_by), '') AS closed_by,
  v.close_reason, v.inputs_sha256, v.supersedes_id`
 
