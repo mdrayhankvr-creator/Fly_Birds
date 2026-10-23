@@ -10,6 +10,33 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Student Profile and Double-Sided ID Card (2026-10-23)
+
+On `feature/student-profile-duplex-id-card`, from `main` `7b3723f`. This extends M3; the completion figures above do not change. Details: [STUDENT_PROFILE_ID_CARD.md](STUDENT_PROFILE_ID_CARD.md).
+
+**Implementation:**
+- **Migration 1601 (additive):**
+  - optional student profile fields;
+  - card token;
+  - a single-row `id_card_settings`.
+- **Profile:** parents' names, addresses, student ID, gender, blood group and admission date. The guardian is read from the existing primary link; nothing is duplicated.
+- **Card:** CR80 front and back in English or Bangla with school branding.
+  - Print layouts: single-card printing (CR80 pages) and section printing (A4 duplex sheets with mirrored backs and crop marks).
+  - Card settings and a principal's signature.
+  - A verification QR that reveals no personal data, and reissue.
+- **QR attendance:** accepts the new verification link and the legacy `FB-STUDENT:<id>`.
+
+**Verification (disposable resources only):**
+- Go: all packages pass on a fresh database; vet clean.
+- Frontend: build, i18n (2,474 keys in each language) and 11 unit tests pass.
+- Upgrade: two upgraded schools kept their student and guardian-link counts.
+- ID card browser and PDF checks: 24/24, with the PDFs measured and rendered.
+- Regression:
+  - browser suite 106/106 and payment safety 12/12, both on fresh fixtures;
+  - white-label 23/23.
+
+**Not covered:** server-side PDF generation; Bangla class and section names.
+
 ## Current Status — E5 Terms, Blueprints and Exam Setup (2026-10-22)
 
 On `feature/e5-flexible-assessment-blueprints`, from `main` `8790b391`. Scope as in the E1 roadmap's E5 row; result versions, term and annual publication are E6. Details and the differences from the E1 design: [docs/exams/E5_TERMS_AND_BLUEPRINTS.md](exams/E5_TERMS_AND_BLUEPRINTS.md).
