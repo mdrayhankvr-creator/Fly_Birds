@@ -3,6 +3,7 @@ package attendance
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -132,6 +133,7 @@ type StudentRepository interface {
 	StudentMonthly(context.Context, string, StudentQuery) (Page[StudentSummary], error)
 	StudentReport(context.Context, string, string, string, string) (StudentReport, error)
 	AbsenceEvents(context.Context, string, StudentQuery) (Page[AbsenceEvent], error)
+	StudentIDByCardToken(context.Context, string) (string, error)
 }
 type StudentService struct{ repo StudentRepository }
 
@@ -160,12 +162,31 @@ func (s *StudentService) Record(ctx context.Context, actor string, in StudentInp
 	in.Note = strings.TrimSpace(in.Note)
 	return s.repo.RecordStudent(ctx, actor, in, "manual")
 }
+
+// cardLink matches the verification link printed on double-sided ID cards.
+var cardLink = regexp.MustCompile(`^(?:https?://[^/\s]+)?/verify/([A-Za-z0-9_-]{22})$`)
+
 func (s *StudentService) Scan(ctx context.Context, actor string, in ScanInput) (StudentRecord, error) {
-	// The M3 card QR carries a student UUID. It is an identifier, never authorization.
-	if !uuid.MatchString(actor) || !strings.HasPrefix(in.Payload, "FB-STUDENT:") || !uuid.MatchString(strings.TrimPrefix(in.Payload, "FB-STUDENT:")) || !validDate(in.AttendanceDate) {
+	// A card QR identifies a student; it never authorizes. Older cards carry
+	// FB-STUDENT:<id>; current cards carry their verification link, whose
+	// token is resolved here (a reissued card's old link no longer resolves).
+	payload := strings.TrimSpace(in.Payload)
+	if !uuid.MatchString(actor) || !validDate(in.AttendanceDate) {
 		return StudentRecord{}, ErrInvalid
 	}
-	return s.repo.RecordStudent(ctx, actor, StudentInput{StudentID: strings.TrimPrefix(in.Payload, "FB-STUDENT:"), AttendanceDate: in.AttendanceDate, Status: "present"}, "qr")
+	var studentID string
+	if id := strings.TrimPrefix(payload, "FB-STUDENT:"); strings.HasPrefix(payload, "FB-STUDENT:") && uuid.MatchString(id) {
+		studentID = id
+	} else if match := cardLink.FindStringSubmatch(payload); match != nil {
+		id, err := s.repo.StudentIDByCardToken(ctx, match[1])
+		if err != nil {
+			return StudentRecord{}, err
+		}
+		studentID = id
+	} else {
+		return StudentRecord{}, ErrInvalid
+	}
+	return s.repo.RecordStudent(ctx, actor, StudentInput{StudentID: studentID, AttendanceDate: in.AttendanceDate, Status: "present"}, "qr")
 }
 func (s *StudentService) Correct(ctx context.Context, actor, id string, in StudentCorrection) (StudentRecord, error) {
 	if !uuid.MatchString(actor) || !uuid.MatchString(id) || !validStudentStatus(in.Status) || !validNote(in.Note) {

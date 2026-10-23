@@ -433,3 +433,13 @@ func (r *StudentGormRepository) SaveRoster(ctx context.Context, actor string, in
 	}
 	return out, nil
 }
+
+// StudentIDByCardToken resolves a card verification token to its student.
+func (r *StudentGormRepository) StudentIDByCardToken(ctx context.Context, token string) (string, error) {
+	var id string
+	err := r.db.WithContext(ctx).Table("students").Select("id").Where("card_token=?", token).Take(&id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", ErrNotFound
+	}
+	return id, err
+}

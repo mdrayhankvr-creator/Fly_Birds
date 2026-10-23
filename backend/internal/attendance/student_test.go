@@ -62,3 +62,43 @@ func TestSaveRosterValidation(t *testing.T) {
 		t.Fatal("stale error identity")
 	}
 }
+
+type scanRepo struct {
+	StudentRepository
+	recorded []string
+}
+
+func (r *scanRepo) StudentIDByCardToken(_ context.Context, token string) (string, error) {
+	if token == "AbCdEfGhIjKlMnOpQrSt-_" {
+		return "55555555-5555-5555-5555-555555555555", nil
+	}
+	return "", ErrNotFound
+}
+func (r *scanRepo) RecordStudent(_ context.Context, _ string, in StudentInput, source string) (StudentRecord, error) {
+	r.recorded = append(r.recorded, in.StudentID+" "+source)
+	return StudentRecord{StudentID: in.StudentID}, nil
+}
+
+func TestScanAcceptsLegacyAndVerificationQR(t *testing.T) {
+	const actor = "11111111-1111-1111-1111-111111111111"
+	repo := &scanRepo{}
+	s := NewStudentService(repo)
+	ctx := context.Background()
+	for _, payload := range []string{"FB-STUDENT:44444444-4444-4444-4444-444444444444", "https://school.example.test/verify/AbCdEfGhIjKlMnOpQrSt-_", " /verify/AbCdEfGhIjKlMnOpQrSt-_ "} {
+		if _, err := s.Scan(ctx, actor, ScanInput{Payload: payload, AttendanceDate: "2026-10-20"}); err != nil {
+			t.Fatalf("%q: %v", payload, err)
+		}
+	}
+	want := []string{"44444444-4444-4444-4444-444444444444 qr", "55555555-5555-5555-5555-555555555555 qr", "55555555-5555-5555-5555-555555555555 qr"}
+	if strings.Join(repo.recorded, ",") != strings.Join(want, ",") {
+		t.Fatalf("recorded %v", repo.recorded)
+	}
+	if _, err := s.Scan(ctx, actor, ScanInput{Payload: "https://x.test/verify/ZZZZZZZZZZZZZZZZZZZZZZ", AttendanceDate: "2026-10-20"}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown card: %v", err)
+	}
+	for _, bad := range []string{"FB-STUDENT:nope", "https://x.test/verify/short", "https://x.test/other/AbCdEfGhIjKlMnOpQrSt-_", "javascript:alert(1)"} {
+		if _, err := s.Scan(ctx, actor, ScanInput{Payload: bad, AttendanceDate: "2026-10-20"}); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%q: %v", bad, err)
+		}
+	}
+}
