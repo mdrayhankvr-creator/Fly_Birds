@@ -131,11 +131,17 @@ main table tbody tr:hover { background-color: #f8fafc; }
 [data-theme="dark"] .viz { --viz-1: #3987e5; --viz-2: #d95926; --viz-grid: #334155; --viz-axis: #64748b; --viz-track: #24324a; --viz-surface: #172337; }
 
 [data-theme-preview="dark"] { background-color: #0b1424; color: #f8fafc; }
+/* ID cards print from a separate root under <body>; on screen it is hidden. */
+.idcard-print-root { display: none; }
 @media print {
-  body:has(.student-card) * { visibility: hidden !important; }
-  body:has(.student-card) .student-card,
-  body:has(.student-card) .student-card * { visibility: visible !important; }
-  .student-card { position: fixed; top: 12mm; left: 12mm; width: 86mm; margin: 0; box-shadow: none; }
+  /* display: none (not visibility) so the app adds no blank pages. */
+  body:has(> .idcard-print-root) > :not(.idcard-print-root) { display: none !important; }
+  body:has(> .idcard-print-root) { margin: 0; background: #ffffff !important; }
+  .idcard-print-root { display: block; }
+  .idcard-print-root, .idcard-print-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .idcard-page { break-after: page; break-inside: avoid; }
+  .idcard-page:last-child { break-after: auto; }
+  .idcard-print-root .idcard-face { box-shadow: none; }
   body:has(.exam-report) * { visibility: hidden !important; }
   body:has(.exam-report) .exam-report,
   body:has(.exam-report) .exam-report * { visibility: visible !important; }
