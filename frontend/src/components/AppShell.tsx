@@ -106,7 +106,6 @@ const BOTTOM_TABS: Record<string, string[]> = {
   teacher: ['dashboard', 'routine_me', 'diary', 'student_attendance'],
   accountant: ['dashboard', 'fees', 'reports', 'notices'],
   student: ['dashboard', 'routine_me', 'diary_me', 'results'],
-  guardian: ['dashboard', 'children', 'progress', 'notifications'],
 }
 const SHORT_LABEL: Record<string, string> = {
   dashboard: 'p1Tab_home', students: 'p1Tab_students', fees: 'p1Tab_fees', fees_me: 'p1Tab_fees', notices: 'p1Tab_notices', student_attendance: 'p1Tab_attendance',

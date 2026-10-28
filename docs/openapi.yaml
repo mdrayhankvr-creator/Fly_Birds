@@ -932,6 +932,14 @@ paths:
       description: Requires students:read_self and the students module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/me/guardians:
+    get:
+      operationId: listOwnStudentGuardians
+      tags: [guardians]
+      summary: Read the guardians linked to the signed-in student's own profile
+      description: Requires students:read_self and the students module. Takes no student ID, so it only ever returns the caller's own guardians (name, Bangla name, relationship, primary flag and phone).
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Relationships }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /students/{id}:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:

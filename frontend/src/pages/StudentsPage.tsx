@@ -5,7 +5,7 @@ import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError, bloodGroups, deleteStudent, getAcademicClasses, getAcademicSections, getAcademicSessions, getStudents, getUsers, importStudents, saveStudent, type Gender, type Student, type StudentInput, type StudentProfileDetails } from '../api/client'
 import { peopleField, usePeopleApi } from './peopleShared'
-import { ui, PageHeader, LinkTabs } from './attendanceUi'
+import { ui, PageHeader } from './attendanceUi'
 
 const blankProfile: StudentProfileDetails = { student_code: '', gender: '', blood_group: '', father_name_en: '', father_name_bn: '', mother_name_en: '', mother_name_bn: '', present_address: '', permanent_address: '', admission_date: '' }
 type StudentForm = StudentInput & StudentProfileDetails
@@ -78,7 +78,6 @@ export function StudentsPage({ canManage }: { canManage: boolean }) {
   }
   return <div className="space-y-6">
     <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} actions={canManage ? <Link to="/admin/students/cards" className={ui.secondary}>{t('idCardPrintBulk')}</Link> : undefined} />
-    <LinkTabs label={t('m12Group_people')} items={[{ to: '/admin/students', label: t('studentsHeading') }, { to: '/admin/guardians', label: t('guardiansHeading') }]} />
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}{message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</p>}
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(19rem,1fr)]">
       <section className={`${ui.card} min-w-0 p-4 sm:p-6`}>

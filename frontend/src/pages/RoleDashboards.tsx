@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { getMyPermissions, getOwnAssignments, type AuthUser, type SchoolBranding } from '../api/client'
 import { getAdminOverview } from '../api/admin'
-import { getAttendance, getChildren, getFees, getMySummary, getOverview, getRisks, type StudentSummary } from '../api/analytics'
+import { getAttendance, getFees, getMySummary, getOverview, getRisks, type StudentSummary } from '../api/analytics'
 import { getDiaryFeed, getEvents, getNoticeFeed, type Notice, type SchoolEvent } from '../api/communication'
 import { getFeePayments } from '../api/fees'
 import { Icon, type IconName } from '../components/icons'
@@ -383,53 +383,19 @@ function StudentDashboard({ ctx }: { ctx: Ctx }) {
     </>} />
 }
 
-function GuardianDashboard({ ctx }: { ctx: Ctx }) {
+// Families use the student's account. A guardian login that still exists is
+// told so instead of getting a separate dashboard; guardian records and their
+// links are kept and managed on the student's profile.
+function GuardianAccountNotice({ ctx }: { ctx: Ctx }) {
   const { t } = useTranslation()
-  const f = useFmt()
-  const api = useApi()
-  const local = useLocal()
   const g = useGreeting(ctx.user, ctx.branding)
-  const analytics = ctx.nav.has('analytics_guardian')
-  const q = useQuery({ queryKey: ['analytics', 'children'], enabled: analytics, queryFn: () => api(getChildren), retry: false })
-  const [selected, setSelected] = useState('')
-  const children = q.data?.items ?? []
-  const child = children.find(c => c.student.id === selected) ?? children[0]
-  const fallback = useNavActions(['children', 'notifications', 'notices', 'events'])
-  // Links for the selected child; each is shown only when its module is on for guardians.
-  const childLinks: QuickAction[] = child ? ([
-    { key: 'guardian_attendance', to: `/guardian/children/${child.student.id}/attendance`, icon: 'check', label: t('m12ChildAttendance'), module: 'attendance' },
-    { key: 'exam_guardian', to: `/guardian/children/${child.student.id}/results`, icon: 'grade', label: t('m12ChildResults'), module: 'exams' },
-    { key: 'routine_guardian', to: `/guardian/children/${child.student.id}/routine`, icon: 'clock', label: t('m12ChildRoutine'), module: 'routine' },
-    { key: 'fees_guardian', to: `/guardian/children/${child.student.id}/fees`, icon: 'money', label: t('m12ChildFees'), module: 'fees' },
-    { key: 'diary_guardian', to: `/guardian/children/${child.student.id}/diary`, icon: 'notebook', label: t('m12ChildDiary'), module: 'diary' },
-  ] as QuickAction[]).filter(l => ctx.nav.has(l.key)) : []
-  const picker = children.length > 1 && <div role="radiogroup" aria-label={t('m11ChooseChild')} className="ds-scroll-x -mx-1 mb-4 flex gap-2 px-1 pb-0.5">
-    {children.map(c => {
-      const on = c.student.id === child?.student.id
-      return <button key={c.student.id} type="button" role="radio" aria-checked={on} onClick={() => setSelected(c.student.id)}
-        className={`flex min-h-[44px] shrink-0 items-center gap-2.5 rounded-full border py-1 pl-1 pr-4 text-left transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${on ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-        <span aria-hidden="true" className="ds-fill grid h-9 w-9 place-items-center rounded-full text-xs font-bold">{[...local(c.student.name_en, c.student.name_bn)][0]}</span>
-        <span><span className="block text-sm font-semibold leading-tight text-slate-900">{local(c.student.name_en, c.student.name_bn)}</span><span className="text-xs text-slate-500">{c.student.class_name} · {c.student.section_name}</span></span>
-        {c.alert && <span className="h-2 w-2 rounded-full bg-amber-500" aria-label={t('m11NeedsAttention')} />}</button>
-    })}
+  return <div className="space-y-6">
+    <RoleHead accent={ACCENT.guardian} eyebrow={g.eyebrow} title={g.title} lead={<Avatar name={g.name} />} sub={t('p1GuardianRetiredSub')} />
+    <section role="status" aria-labelledby="guardian-notice-title" className={`${ui.card} p-5 sm:p-6`}>
+      <h2 id="guardian-notice-title" className="flex items-center gap-2 text-base font-semibold text-slate-900"><Icon name="info" className="h-5 w-5 text-[var(--brand-ink)]" />{t('p1GuardianRetiredTitle')}</h2>
+      <p className="mt-2 max-w-2xl text-sm text-slate-700">{t('p1GuardianRetiredBody')}</p>
+    </section>
   </div>
-  return <DashLayout
-    head={<>
-      <RoleHead accent={ACCENT.guardian} top={picker || undefined} eyebrow={g.eyebrow} title={g.title} lead={<Avatar name={g.name} />}
-        sub={child ? `${local(child.student.name_en, child.student.name_bn)} · ${studentLine(child.student, t, f)}` : t('m12RoleIntro_guardian')}
-        stats={child ? studentStats(child, t, f) : undefined} />
-      {analytics && (q.isPending ? <Lines rows={1} /> : q.isError ? <Unavailable error={q.error} /> : children.length === 0 ? <Empty>{t('m11NoChildrenHint')}</Empty> : child && <RiskAlert data={child} />)}
-    </>}
-    actions={<QuickActions items={child ? childLinks : fallback} label={t('p1QuickActions')} />}
-    main={<>
-      {child && ctx.nav.has('routine_guardian') && <ClassStrip key={child.student.id} path={`/routines/classes/children/${encodeURIComponent(child.student.id)}`} link={`/guardian/children/${child.student.id}/routine`}
-        title={t('m12ChildToday', { name: local(child.student.name_en, child.student.name_bn).split(' ')[0] })} />}
-      {child && ctx.nav.has('diary_guardian') && <DiaryPanel key={child.student.id} studentId={child.student.id} link={`/guardian/children/${child.student.id}/diary`} />}
-    </>}
-    side={<>
-      {ctx.nav.has('notices') && <NoticesPanel />}
-      {ctx.nav.has('events') && <EventsPanel />}
-    </>} />
 }
 
 // ---------- accountant ----------
@@ -526,7 +492,7 @@ export function RoleDashboard({ user, branding, navigation }: { user: AuthUser; 
   switch (user.role) {
     case 'teacher': return <TeacherDashboard ctx={ctx} />
     case 'student': return <StudentDashboard ctx={ctx} />
-    case 'guardian': return <GuardianDashboard ctx={ctx} />
+    case 'guardian': return <GuardianAccountNotice ctx={ctx} />
     case 'accountant': return <AccountantDashboard ctx={ctx} />
     case 'head_teacher': return <HeadTeacherDashboard ctx={ctx} />
     default: return <AdminDashboard ctx={ctx} />

@@ -189,7 +189,7 @@ export type Student = { id: string; admission_no: string; name_en: string; name_
 export type StudentInput = Omit<Student, 'id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails> & Partial<StudentProfileDetails>
 export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
 export type GuardianInput = Omit<Guardian, 'id'>
-export type StudentGuardian = { student_id: string; guardian_id: string; guardian_name: string; relationship: string; is_primary: boolean }
+export type StudentGuardian = { student_id: string; guardian_id: string; guardian_name: string; guardian_name_bn?: string; phone?: string; relationship: string; is_primary: boolean }
 export type CardSchool = { name_en: string; name_bn: string; logo_url: string; address: string; phone: string; email: string; primary_color: string; secondary_color: string }
 export type CardSettingsInput = { valid_until: string; signatory_title_en: string; signatory_title_bn: string; emergency_phone: string; usage_note_en: string; usage_note_bn: string; return_note_en: string; return_note_bn: string; show_qr: boolean }
 export type CardSettings = CardSettingsInput & { has_signature: boolean }
@@ -230,6 +230,7 @@ export const getGuardian = (token: string, id: string) => bearerRequest<Guardian
 export const getMyGuardian = (token: string) => bearerRequest<Guardian>('/guardians/me', token)
 export const saveGuardian = (token: string, input: GuardianInput, id?: string) => bearerRequest<Guardian>(id ? `/guardians/${encodeURIComponent(id)}` : '/guardians', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 export const deleteGuardian = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/guardians/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
+export const getMyStudentGuardians = (token: string) => bearerRequest<StudentGuardian[]>('/students/me/guardians', token)
 export const getStudentGuardians = (token: string, id: string) => bearerRequest<StudentGuardian[]>(`/students/${encodeURIComponent(id)}/guardians`, token)
 export const linkStudentGuardian = (token: string, id: string, guardian_id: string, relationship: string, is_primary: boolean) => bearerRequest<StudentGuardian>(`/students/${encodeURIComponent(id)}/guardians`, token, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guardian_id, relationship, is_primary }) })
 export const unlinkStudentGuardian = (token: string, id: string, guardianId: string) => bearerRequest<{ deleted: boolean }>(`/students/${encodeURIComponent(id)}/guardians/${encodeURIComponent(guardianId)}`, token, { method: 'DELETE' })

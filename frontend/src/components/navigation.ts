@@ -8,6 +8,10 @@ export type NavGroup = { key: string; label: string; items: NavItem[] }
 export type NavContext = { role: string; has: (permission: string) => boolean; on: (module: string) => boolean }
 
 export function buildNavigation({ role, has, on }: NavContext): NavGroup[] {
+  // Families use the student's account, so a legacy guardian login only gets
+  // the home page, which explains this. Guardian records and their links are
+  // managed on the student's profile.
+  if (role === 'guardian') return [{ key: 'overview', label: 'm12Group_overview', items: [{ key: 'dashboard', label: 'm12Nav_dashboard', path: '/dashboard', icon: 'home' }] }]
   const admin = role === 'admin'
   const groups: NavGroup[] = [
     {
@@ -16,17 +20,14 @@ export function buildNavigation({ role, has, on }: NavContext): NavGroup[] {
         ...(on('analytics') && (has('analytics:read') || has('analytics:finance')) ? [{ key: 'analytics', label: 'm12Nav_analytics', path: '/analytics', icon: 'chart' as const, exact: true }] : []),
         ...(on('analytics') && !has('analytics:read') && has('analytics:read_assigned') ? [{ key: 'analytics_teacher', label: 'm12Nav_classAnalytics', path: '/teacher/analytics', icon: 'chart' as const }] : []),
         ...(on('analytics') && role === 'student' && has('analytics:read_self') ? [{ key: 'progress', label: 'm12Nav_myProgress', path: '/student/progress', icon: 'trend' as const }] : []),
-        ...(on('analytics') && role === 'guardian' && has('analytics:read_children') ? [{ key: 'progress', label: 'm12Nav_childrenProgress', path: '/guardian/progress', icon: 'trend' as const }] : []),
         ...(on('analytics') && (has('analytics:read') || has('analytics:read_assigned') || has('analytics:finance')) ? [{ key: 'reports', label: 'm12Nav_reports', path: '/reports', icon: 'report' as const }] : []),
       ],
     },
     {
       key: 'people', label: 'm12Group_people', items: [
         ...(on('students') && has('students:read') && (admin || role === 'head_teacher') ? [{ key: 'students', label: 'm12Nav_students', path: '/admin/students', icon: 'users' as const }] : []),
-        ...(on('students') && has('guardians:read') && (admin || role === 'head_teacher') ? [{ key: 'guardians', label: 'm12Nav_guardians', path: '/admin/guardians', icon: 'user' as const }] : []),
         ...(on('staff') && has('staff:read') ? [{ key: 'staff', label: 'm12Nav_staff', path: '/admin/staff', icon: 'teacher' as const }] : []),
         ...(on('students') && has('students:read_self') && role === 'student' ? [{ key: 'me', label: 'm12Nav_myProfile', path: '/student/me', icon: 'user' as const }] : []),
-        ...(on('students') && has('guardians:read_children') && role === 'guardian' ? [{ key: 'children', label: 'm12Nav_myChildren', path: '/guardian/children', icon: 'users' as const }] : []),
         ...(on('staff') && has('staff:read_self') && !admin ? [{ key: 'staff_me', label: 'm12Nav_myStaffProfile', path: '/staff/me', icon: 'user' as const }] : []),
       ],
     },

@@ -7,6 +7,9 @@ import { useAuth } from '../auth/AuthProvider'
 import { ui, PageHeader, Notice, Skeleton, EmptyState, StatusBadge } from './attendanceUi'
 
 const roles = ['admin', 'head_teacher', 'teacher', 'student', 'guardian', 'accountant']
+// Families use the student's account, so new accounts cannot be given the
+// guardian role. It stays in the filter so existing guardian logins can be found.
+const assignableRoles = roles.filter(role => role !== 'guardian')
 const inputClass = ui.field
 
 export function UsersPage({ permissions }: { permissions: string[] }) {
@@ -96,7 +99,7 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
     {selectedId && <section className={`${ui.card} p-4 sm:p-6`}><h2 className={ui.sectionTitle}>{t('userDetails')}</h2>
       {selected.isPending ? <p role="status">{t('loadingUsers')}</p> : selected.isError ? <p role="alert">{t('loadUsersError')}</p> : <div className="mt-4 space-y-4"><p className="break-all text-sm text-slate-600">{selected.data.id}</p><p>{t('status')}: {t(selected.data.is_active ? 'active' : 'inactive')}</p>
         {canUpdate && edit && <form onSubmit={update} className="grid gap-3 sm:grid-cols-2"><label className={ui.label}>{t('displayName')}<input className={inputClass} required maxLength={160} value={edit.display_name} onChange={(e) => setEdit({ ...edit, display_name: e.target.value })} /></label><label className={ui.label}>{t('email')}<input className={inputClass} type="email" required maxLength={254} value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></label><button disabled={busy} className={`${ui.primary} sm:justify-self-start`}>{t('saveChanges')}</button></form>}
-        <div className="flex flex-wrap items-end gap-3">{canAssign && <label className={ui.label}>{t('role')}<select className={inputClass} value={chosenRole} onChange={(e) => setChosenRole(e.target.value)}>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>}{canAssign && chosenRole !== selected.data.role && <button disabled={busy} onClick={() => changeRole(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t('assignRole')}</button>}{canUpdate && <button disabled={busy} onClick={() => changeStatus(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t(selected.data.is_active ? 'deactivate' : 'activate')}</button>}</div>
+        <div className="flex flex-wrap items-end gap-3">{canAssign && <label className={ui.label}>{t('role')}<select className={inputClass} value={chosenRole} onChange={(e) => setChosenRole(e.target.value)}>{(chosenRole === 'guardian' ? roles : assignableRoles).map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>}{canAssign && chosenRole !== selected.data.role && <button disabled={busy} onClick={() => changeRole(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t('assignRole')}</button>}{canUpdate && <button disabled={busy} onClick={() => changeStatus(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t(selected.data.is_active ? 'deactivate' : 'activate')}</button>}</div>
       </div>}
     </section>}
       </div>
@@ -104,7 +107,7 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
       <h2 className={ui.sectionTitle}>{t('createUser')}</h2>
       <label className={ui.label}>{t('displayName')}<input className={inputClass} required maxLength={160} value={newUser.display_name} onChange={(e) => setNewUser({ ...newUser, display_name: e.target.value })} /></label>
       <label className={ui.label}>{t('email')}<input className={inputClass} type="email" required maxLength={254} value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></label>
-      <label className={ui.label}>{t('role')}<select className={inputClass} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>{roles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>
+      <label className={ui.label}>{t('role')}<select className={inputClass} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>{assignableRoles.map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>
       <label className={ui.label}>{t('initialPassword')}<input className={inputClass} type="password" minLength={12} required autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} /></label>
       <p className="text-sm leading-6 text-slate-600">{t('provisioningLimit')}</p>
       <button disabled={busy} className={`${ui.primary} justify-self-start`}>{t('createUser')}</button>

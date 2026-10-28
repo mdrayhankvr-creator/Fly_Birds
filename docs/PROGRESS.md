@@ -12,7 +12,7 @@ M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `
 
 ## Current Status — Premium UI, Checkpoint 1 (2026-10-28)
 
-On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card merged). Frontend only: no backend, migration, authentication, payment, result or ID-card change. The approved prototype (`feature/ui-design-prototype`, `108df01`, mock data at `/design-preview`) is the visual reference and is not merged. The completion figures above do not change.
+On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card merged). Frontend only, apart from the guardian correction below (one read-only route): no migration, authentication, payment, result or ID-card change. The approved prototype (`feature/ui-design-prototype`, `108df01`, mock data at `/design-preview`) is the visual reference and is not merged. The completion figures above do not change.
 
 **Implementation:**
 - **Design system** (`styles.css`, `components/dashboard/kit.tsx`): light and dark surface and ink tokens; one colour per module (routine, homework, diary, notices, events, exams, attendance, fees, people); `ds-*` classes that take a module or subject colour through `--s`, with fills darkened so white text stays readable; shared panels, metrics, stat tiles, role headers, quick actions, a progress ring, and the empty, loading and unavailable states.
@@ -27,6 +27,11 @@ On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card 
 - **Visual check against mock data (isolated):** a throwaway mock API (fixture data, no database) behind a separate Vite dev server on 127.0.0.1 served all six dashboards at 360, 390, 430, 820 and 1440px, in English/light and Bangla/dark (60 runs), with spot checks in English/dark and Bangla/light. After the two fixes below: no page overflow, nothing past the viewport, no truncated figures, bottom bar below 1024px and sidebar above it, no JavaScript errors.
   - Fixed: tile labels and hints that cut off figures on phones; long school names clipped in the sidebar header; Bangla vowel signs clipped in bottom-bar labels.
   - The mock data checks layout only. It is not the seeded demo school, and the role permissions in it are approximations.
+
+**Guardian facilities moved into the student account (2026-10-29, product correction):**
+- Families use the student's account; there is no separate guardian dashboard or guardian menu. A guardian login that still exists sees only a notice on its home page asking them to sign in with the child's student account; old `/guardian/...` links lead there, and `/admin/guardians` leads to the student list. New accounts cannot be given the guardian role (it stays in the Users filter so existing guardian logins can be found).
+- Student profile: a student sees all their guardians (relationship, phone, primary), read-only. Administrators add a new guardian, edit a guardian's details, link one already on record, set the primary guardian and remove a link, all on the student's profile; head teachers see the list read-only. `GuardiansPage` and `GuardianChildrenPage` are removed.
+- Backend: one read-only route, `GET /students/me/guardians` (`students:read_self`). It takes no student ID, so it only ever returns the caller's own guardians. Relationship rows also carry the guardian's Bangla name and phone. Guardian tables, links, `guardians:*` permissions and every guardian endpoint are unchanged; no migration.
 
 **Next:** run the browser and white-label suites against a seeded stack, check the dashboards at 360/390/430px, tablet and desktop in both languages and themes, then Checkpoint 2 (routine, homework, diary and notice screens).
 

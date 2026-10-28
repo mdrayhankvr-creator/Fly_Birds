@@ -169,6 +169,17 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 	check("GET", "/guardians/me/children/"+studentID, "", otherGuardianH, 404)
 	check("PUT", "/students/"+studentID+"/guardians", fmt.Sprintf(`{"guardian_id":%q,"relationship":"mother","is_primary":true}`, guardianID), adminH, 200)
 	check("GET", "/guardians/me/children/"+studentID, "", guardianH, 200)
+	// The student's own account lists its guardians, with phone; other roles
+	// cannot use the self route.
+	if own := check("GET", "/students/me/guardians", "", studentH, 200); !bytes.Contains(own, []byte(guardianID)) || !bytes.Contains(own, []byte("01800000000")) {
+		t.Fatalf("own guardians missing link: %s", own)
+	}
+	// A student account with no student record of its own gets nothing.
+	if other := check("GET", "/students/me/guardians", "", otherStudentH, 404); bytes.Contains(other, []byte(guardianID)) {
+		t.Fatalf("another student saw this student's guardian: %s", other)
+	}
+	check("GET", "/students/me/guardians", "", guardianH, 403)
+	check("GET", "/students/me/guardians", "", headH, 403)
 	check("GET", "/students/"+studentID, "", guardianH, 200)
 	check("GET", "/students/"+studentID+"/card", "", guardianH, 200)
 
@@ -265,6 +276,7 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 	check("DELETE", "/students/"+studentID, "", studentH, 403)
 	check("DELETE", "/students/"+studentID, "", adminH, 200)
 	check("GET", "/students/me", "", studentH, 404)
+	check("GET", "/students/me/guardians", "", studentH, 404)
 	check("GET", "/guardians/me/children/"+studentID, "", guardianH, 404)
 	check("DELETE", "/guardians/"+guardianID, "", adminH, 200)
 	check("GET", "/guardians/me", "", guardianH, 404)
@@ -272,5 +284,6 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("GET", "/students/me", "", studentH, 403)
+	check("GET", "/students/me/guardians", "", studentH, 403)
 	check("GET", "/guardians/me/children", "", guardianH, 403)
 }

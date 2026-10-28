@@ -254,6 +254,17 @@ func (h *peopleHandler) relationships(c *gin.Context) {
 	}
 	success(c, 200, v)
 }
+func (h *peopleHandler) myGuardians(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	v, err := h.service.OwnGuardians(c.Request.Context(), actorFrom(c))
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 200, v)
+}
 func (h *peopleHandler) link(c *gin.Context) {
 	if !h.available(c) {
 		return
