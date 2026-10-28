@@ -2250,8 +2250,8 @@ paths:
   /fees/online/intents:
     post:
       operationId: startSimulatedMobilePayment
-      summary: Start a simulated bKash or Nagad checkout for a linked child's dues
-      description: Requires fees:pay_online (guardians by default; students no longer hold it) and simulation mode, otherwise 403 online_payments_disabled. Simulated references start with SIM and are never provider transaction IDs. The session expires after 15 minutes.
+      summary: Start a simulated bKash or Nagad checkout for the student's own dues or a linked child's dues
+      description: Requires fees:pay_online (students, for their own fees only, and guardians, for linked children) and simulation mode, otherwise 403 online_payments_disabled. Simulated references start with SIM and are never provider transaction IDs. The session expires after 15 minutes.
       tags: [fees]
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeIntentInput' } } } }

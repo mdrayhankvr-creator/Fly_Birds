@@ -98,9 +98,10 @@ check('collections exclude the legacy simulated payments', cents(report.total) =
 check('collections report the simulated payments separately', cents(report.simulated_total) === legacyCents && report.simulated_count === before.legacy.length, `${report.simulated_total} in ${report.simulated_count}`)
 check('ledger income excludes the legacy simulated payments', (await income()) === before.income - legacyCents, `${before.income / 100} → ${(await income()) / 100}`)
 
-// Online payment is off and the student grant is gone.
+// Online payment is off. Students hold the grant again (1750: families use
+// the student's account), but the payment-safety switch still refuses them.
 const studentTry = await student('POST', '/fees/online/intents', { provider: 'bkash', amount: 10 })
-check('a student can no longer start an online payment', studentTry.status === 403 && studentTry.code !== 'online_payments_disabled', `HTTP ${studentTry.status} ${studentTry.code}`)
+check('a student is refused: online payment is off', studentTry.status === 403 && studentTry.code === 'online_payments_disabled', `HTTP ${studentTry.status} ${studentTry.code}`)
 const guardianTry = await guardian('POST', '/fees/online/intents', { student_id: childA.id, provider: 'bkash', amount: 10 })
 check('a guardian is refused: online payment is off', guardianTry.status === 403 && guardianTry.code === 'online_payments_disabled', `HTTP ${guardianTry.status} ${guardianTry.code}`)
 const enable = await admin('PUT', '/fees/online/settings', { simulation_enabled: true })
@@ -127,19 +128,21 @@ const due = await balanceOf(childB.id), c0 = await collections()
 const paid = await accountant('POST', '/fees/payments', { student_id: childB.id, amount: 50.05, method: 'bank', reference: 'TRX-UPG-1', note: 'after upgrade', paid_on: c0.to, idempotency_key: randomUUID() })
 check('a counter payment after the upgrade is real and exact', paid.status === 201 && paid.data.payment.simulated === false && (await balanceOf(childB.id)) === due - 5005 && cents((await collections()).total) === cents(c0.total) + 5005, paid.data?.payment?.receipt_no)
 
-// Browser: labels on the guardian's page and receipt, and the admin review panel.
+// Browser: labels on the student's own fees page and receipt, and the admin review panel.
 const b = await launch({ base, shots: join(here, 'shots'), port: 9471 })
 await b.viewport(390, 844, true)
-await b.login('demo.guardian@demo.flybirds.test', password)
-const other = before.legacy.find(p => p.child === childB.id)
-await b.go(`/guardian/children/${childB.id}/fees`); await b.waitFor(`document.querySelector('main').innerText.includes('${other.receipt_no}')`)
+await b.login('demo.student@demo.flybirds.test', password)
+const mine = (await student('GET', '/students/me')).data.id
+// The student's own legacy payment that was not voided above.
+const other = before.legacy.find(p => p.child === mine && p.id !== target.id)
+await b.go('/student/fees'); await b.waitFor(`document.querySelector('main').innerText.includes('${other.receipt_no}')`)
 const page = await b.evaluate(`document.querySelector('main').innerText`)
-check('the guardian page labels the legacy payment and warns about it', page.includes('SIMULATED — NO MONEY TRANSFERRED') && page.includes('were simulated'), 'label and warning')
+check("the student's fees page labels the legacy payment and warns about it", page.includes('SIMULATED — NO MONEY TRANSFERRED') && page.includes('were simulated'), 'label and warning')
 await b.evaluate(`[...document.querySelectorAll('main tr')].find(tr => tr.innerText.includes('${other.receipt_no}')).querySelector('button').click()`)
 await b.waitFor(`document.querySelector('main').innerText.includes('not a receipt')`)
 const receipt = await b.evaluate(`document.querySelector('main').innerText`)
 check('the receipt is titled a simulation record, not proof of payment', receipt.includes('Simulation record — not a receipt') && receipt.includes('not proof of payment'), 'simulation record')
-await b.shot('payment-upgrade-guardian-receipt')
+await b.shot('payment-upgrade-student-receipt')
 b.close()
 const a = await launch({ base, shots: join(here, 'shots'), port: 9472 })
 await a.viewport(1280, 900)

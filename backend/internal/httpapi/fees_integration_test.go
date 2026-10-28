@@ -253,7 +253,25 @@ func TestPostgresFeeRoutesEnforceAccessAndMoneyRules(t *testing.T) {
 	if status := data(call("PUT", "/fees/online/settings", `{"simulation_enabled":true}`, admin, 200)); status["mode"] != "simulation" {
 		t.Fatalf("enable simulation %+v", status)
 	}
-	call("POST", "/fees/online/intents", `{"provider":"nagad","amount":50}`, studentAuth, 403)
+	// Students pay online for their own fees only: another student's ID is
+	// refused as not found, and a checkout belongs to whoever started it.
+	call("POST", "/fees/online/intents", fmt.Sprintf(`{"student_id":%q,"provider":"bkash","amount":300}`, other), studentAuth, 404)
+	studentBefore := data(call("GET", "/fees/me", "", studentAuth, 200))["totals"].(map[string]any)["balance"].(float64)
+	studentPaymentsBefore := data(call("GET", "/fees/payments?student_id="+student, "", accountant, 200))["total"].(float64)
+	ownIntent := data(call("POST", "/fees/online/intents", `{"provider":"nagad","amount":50}`, studentAuth, 201))
+	if ownIntent["student_id"] != student || !strings.HasPrefix(ownIntent["provider_ref"].(string), "SIMNG") {
+		t.Fatalf("student intent %+v", ownIntent)
+	}
+	call("POST", "/fees/online/intents/"+ownIntent["id"].(string)+"/confirm", `{"otp":"123456"}`, guardianAuth, 404)
+	ownResult := data(call("POST", "/fees/online/intents/"+ownIntent["id"].(string)+"/confirm", `{"otp":"123456"}`, studentAuth, 200))
+	if ownResult["simulated"] != true || ownResult["payment"] != nil {
+		t.Fatalf("student simulation result %+v", ownResult)
+	}
+	studentAfter := data(call("GET", "/fees/me", "", studentAuth, 200))["totals"].(map[string]any)["balance"].(float64)
+	studentPaymentsAfter := data(call("GET", "/fees/payments?student_id="+student, "", accountant, 200))["total"].(float64)
+	if studentAfter != studentBefore || studentPaymentsAfter != studentPaymentsBefore {
+		t.Fatalf("student simulation changed money: balance %v -> %v, payments %v -> %v", studentBefore, studentAfter, studentPaymentsBefore, studentPaymentsAfter)
+	}
 	call("POST", "/fees/online/intents", fmt.Sprintf(`{"student_id":%q,"provider":"bkash","amount":300}`, student), guardianAuth, 404)
 	before := data(call("GET", "/fees/children/"+other, "", guardianAuth, 200))["totals"].(map[string]any)["balance"].(float64)
 	paymentsBefore := data(call("GET", "/fees/payments?student_id="+other, "", accountant, 200))["total"].(float64)
@@ -262,7 +280,7 @@ func TestPostgresFeeRoutesEnforceAccessAndMoneyRules(t *testing.T) {
 	if !strings.HasPrefix(intent["provider_ref"].(string), "SIMBK") {
 		t.Fatalf("simulated reference %v", intent["provider_ref"])
 	}
-	call("POST", "/fees/online/intents/"+intentID+"/confirm", `{"otp":"123456"}`, studentAuth, 403)
+	call("POST", "/fees/online/intents/"+intentID+"/confirm", `{"otp":"123456"}`, studentAuth, 404)
 	if code := errorCode(call("POST", "/fees/online/intents/"+intentID+"/confirm", `{"otp":"111111"}`, guardianAuth, 422)); code != "payment_declined" {
 		t.Fatalf("declined code %s", code)
 	}
