@@ -10,6 +10,24 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Premium UI, Checkpoint 1 (2026-10-28)
+
+On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card merged). Frontend only: no backend, migration, authentication, payment, result or ID-card change. The approved prototype (`feature/ui-design-prototype`, `108df01`, mock data at `/design-preview`) is the visual reference and is not merged. The completion figures above do not change.
+
+**Implementation:**
+- **Design system** (`styles.css`, `components/dashboard/kit.tsx`): light and dark surface and ink tokens; one colour per module (routine, homework, diary, notices, events, exams, attendance, fees, people); `ds-*` classes that take a module or subject colour through `--s`, with fills darkened so white text stays readable; shared panels, metrics, stat tiles, role headers, quick actions, a progress ring, and the empty, loading and unavailable states.
+- **Theme:** a light/dark switch in the top bar, kept per browser; without a choice the school's dashboard theme applies.
+- **Navigation:** a mobile bottom bar (below 1024px) with four tabs (56px) and More, which opens the existing drawer. Tabs come only from the user's own navigation, so permissions and module switches apply. The sidebar, its collapsed setting and the breadcrumb are unchanged.
+- **Dashboards:** the administrator's school-pulse panel, a dashboard of its own for the head teacher, tinted headers for the teacher, student and guardian, and the accountant's till. Teachers, students and guardians get a swipeable strip of today's classes, marked Done, Now and Next. Every figure comes from the APIs the dashboards already used. The guardian's child selector and child links are kept.
+- **Strings:** 37 new keys in English and Bangla (`premiumUiTranslations.ts`).
+
+**Verification (2026-10-28):**
+- Type check and production build pass; the i18n check passes (2,715 keys in each language); the unit tests pass (11/11).
+- **Not run:** `e2e/suite.mjs` and `e2e/whitelabel.mjs`. Docker is not available on this machine, so there was no freshly seeded demo stack to run them against. The markup keeps what they check: the greeting text, sidebar labels, the "Active students" figure, the receipts table, the guardian's radio group, "Today's classes", named controls, and brand-ink links only on light surfaces.
+- No screenshots yet at 360, 390 and 430px or on tablet.
+
+**Next:** run the browser and white-label suites against a seeded stack, check the dashboards at 360/390/430px, tablet and desktop in both languages and themes, then Checkpoint 2 (routine, homework, diary and notice screens).
+
 ## Current Status — M15 Stage A: Enrolment History (2026-10-29)
 
 On `feature/m15-enrolment-promotion`, from `main` `9b68bf79`. Stage A of M15 (enrolment history foundation); stage B (promotion workflow and screens) is not started. M15 is outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [ENROLMENT_AND_PROMOTION.md](ENROLMENT_AND_PROMOTION.md).
