@@ -13,6 +13,9 @@ type GormRepository struct{ db *gorm.DB }
 
 func NewRepository(db *gorm.DB) *GormRepository { return &GormRepository{db: db} }
 func databaseError(err error) error {
+	if errors.Is(historyError(err), ErrHistory) {
+		return ErrHistory
+	}
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {
 		switch pg.Code {
@@ -175,6 +178,9 @@ func (r *GormRepository) SaveStudent(ctx context.Context, a Actor, id string, v 
 		if err := requireAdmin(tx, a, "students:manage"); err != nil {
 			return err
 		}
+		if err := setActor(tx, a); err != nil {
+			return err
+		}
 		var err error
 		id, err = saveStudentTx(tx, id, v)
 		if err != nil {
@@ -206,6 +212,9 @@ func (r *GormRepository) DeleteStudent(ctx context.Context, a Actor, id string) 
 func (r *GormRepository) ImportStudents(ctx context.Context, a Actor, rows []StudentInput) (int, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := requireAdmin(tx, a, "students:manage"); err != nil {
+			return err
+		}
+		if err := setActor(tx, a); err != nil {
 			return err
 		}
 		for _, row := range rows {

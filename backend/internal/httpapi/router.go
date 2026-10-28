@@ -376,6 +376,7 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	studentRoutes.PATCH("/:id", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.saveStudent)
 	studentRoutes.DELETE("/:id", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.deleteStudent)
 	studentRoutes.GET("/:id/card", RequirePermission(service, "auth:read_self"), peopleHandler.card)
+	studentRoutes.GET("/:id/enrolments", RequireAnyPermission(service, "students:history_read", "students:read_self", "guardians:read_children"), peopleHandler.enrolments)
 	studentRoutes.POST("/:id/card/reissue", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.reissueCard)
 	studentRoutes.GET("/:id/photo", RequirePermission(service, "auth:read_self"), peopleHandler.photo)
 	studentRoutes.PUT("/:id/photo", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.savePhoto)
