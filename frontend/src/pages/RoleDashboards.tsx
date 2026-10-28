@@ -145,7 +145,7 @@ function SystemPanel() {
         { label: t('m10Modules'), value: t('m10ModulesOn', { enabled: f.num(d.modules_enabled), total: f.num(d.modules_total) }) },
         { label: t('m10LastBackup'), value: d.last_backup ? new Intl.DateTimeFormat(i18n.language === 'bn' ? 'bn-BD' : 'en-GB', { dateStyle: 'medium', timeZone: DHAKA }).format(new Date(d.last_backup.started_at)) : <span className="text-amber-700">{t('m10Never')}</span> },
         { label: t('m10DeniedAttempts'), value: <span className={d.denied_last_day ? 'text-rose-700' : ''}>{f.num(d.denied_last_day)}</span> },
-      ].map(x => <div key={x.label} className="ds-sunken min-w-0 px-3 py-2.5"><dt className="truncate text-xs text-slate-500">{x.label}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{x.value}</dd></div>)}
+      ].map(x => <div key={x.label} className="ds-sunken min-w-0 px-3 py-2.5"><dt className="line-clamp-2 text-xs leading-tight text-slate-500">{x.label}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{x.value}</dd></div>)}
     </dl>}
   </Panel>
 }
@@ -199,10 +199,10 @@ function AdminPulse({ ctx, analytics, actions }: { ctx: Ctx; analytics: boolean;
       : q.isError ? <div className="mt-4"><Unavailable error={q.error} /></div>
       : <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 lg:grid-cols-5">{cells.map((c, i) => {
         const body = <>
-          <p className="ds-pulse-soft flex items-center gap-1.5 text-[11px] font-semibold"><Icon name={c.icon} className="h-3.5 w-3.5 shrink-0" style={{ color: c.color }} /><span className="truncate">{c.label}</span></p>
+          <p className="ds-pulse-soft flex items-start gap-1.5 text-[11px] font-semibold leading-tight"><Icon name={c.icon} className="mt-px h-3.5 w-3.5 shrink-0" style={{ color: c.color }} /><span className="line-clamp-2">{c.label}</span></p>
           <p className={`mt-1 truncate text-[22px] font-extrabold tabular-nums tracking-tight ${c.alert ? 'text-rose-300' : 'text-white'}`}>{c.value}</p>
           <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">{c.meter != null && <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, c.meter))}%`, background: c.color }} />}</div>
-          {c.foot && <p className="ds-pulse-soft mt-1.5 truncate text-[11px]">{c.foot}</p>}
+          {c.foot && <p className="ds-pulse-soft mt-1.5 line-clamp-2 text-[11px] leading-tight">{c.foot}</p>}
         </>
         return <li key={c.label} className={`min-w-0 ${i === 0 ? 'col-span-2 sm:col-span-1' : ''}`}>
           {c.to ? <Link to={c.to} className="ds-pulse-cell block h-full p-3 transition hover:bg-white/10">{body}</Link> : <div className="ds-pulse-cell h-full p-3">{body}</div>}
@@ -474,9 +474,9 @@ function Till({ ctx, analytics }: { ctx: Ctx; analytics: boolean }) {
           { label: t('m12Collected12m'), value: f.money(s.collected) },
           { label: t('m11Outstanding'), value: f.money(s.outstanding), hint: t('m11AsOfToday') },
           { label: t('m11Overdue'), value: f.money(s.overdue), hint: t('m11OverdueStudents', { n: f.num(s.overdue_students), count: s.overdue_students }), alert: s.overdue > 0 },
-        ].map(x => <div key={x.label} className="min-w-0"><dt className="truncate text-[11px] font-medium text-slate-600">{x.label}</dt>
+        ].map(x => <div key={x.label} className="min-w-0"><dt className="line-clamp-2 text-[11px] font-medium leading-tight text-slate-600">{x.label}</dt>
           <dd className={`truncate text-[15px] font-extrabold tabular-nums sm:text-lg ${x.alert ? 'text-rose-700' : 'text-slate-900'}`}>{x.value}</dd>
-          {x.hint && <dd className="truncate text-[11px] text-slate-500">{x.hint}</dd>}</div>)}
+          {x.hint && <dd className="line-clamp-2 text-[11px] leading-tight text-slate-500">{x.hint}</dd>}</div>)}
       </dl>
     </>}
   </section>
