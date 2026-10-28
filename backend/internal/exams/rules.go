@@ -38,8 +38,8 @@ func rulesFor(tx *gorm.DB, e Exam) (examRules, error) {
 			r.Combined[row.SubjectID] = row.CombinedKey
 		}
 	}
-	err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN students s ON s.id = c.student_id
- WHERE c.session_id = ? AND s.session_id = ? AND s.class_id = ?)`, e.SessionID, e.SessionID, e.ClassID).Row().Scan(&r.Choices)
+	err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN student_enrolments en ON en.student_id = c.student_id AND en.session_id = c.session_id
+ WHERE c.session_id = ? AND en.session_id = ? AND en.class_id = ?)`, e.SessionID, e.SessionID, e.ClassID).Row().Scan(&r.Choices)
 	return r, err
 }
 

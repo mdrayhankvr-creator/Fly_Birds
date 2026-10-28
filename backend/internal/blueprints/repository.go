@@ -761,11 +761,11 @@ func (r *Repository) Choices(ctx context.Context, sessionID, classID string) (Ch
  WHERE acs.class_id = ? AND acs.is_fourth_subject ORDER BY s.code`, classID).Scan(&v.Optional).Error; err != nil {
 		return v, err
 	}
-	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en AS name, st.admission_no, st.roll_no, sec.name AS section_name, ch.subject_id
-  FROM students st JOIN academic_sections sec ON sec.id = st.section_id
-  LEFT JOIN student_subject_choices ch ON ch.student_id = st.id AND ch.session_id = st.session_id
- WHERE st.session_id = ? AND st.class_id = ? AND st.status = 'active'
- ORDER BY sec.display_order, sec.name, st.roll_no NULLS LAST, st.admission_no`, sessionID, classID).Scan(&v.Students).Error; err != nil {
+	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en AS name, st.admission_no, r.roll_no, sec.name AS section_name, ch.subject_id
+  FROM student_rolls r JOIN students st ON st.id = r.student_id JOIN academic_sections sec ON sec.id = r.section_id
+  LEFT JOIN student_subject_choices ch ON ch.student_id = r.student_id AND ch.session_id = r.session_id
+ WHERE r.session_id = ? AND r.class_id = ?
+ ORDER BY sec.display_order, sec.name, r.roll_no NULLS LAST, st.admission_no`, sessionID, classID).Scan(&v.Students).Error; err != nil {
 		return v, err
 	}
 	for _, s := range v.Students {
@@ -789,7 +789,7 @@ func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID 
 		var changes []map[string]string // who moved from which subject to which, for the audit
 		for _, c := range choices {
 			var ok int64
-			if err := tx.Raw("SELECT count(*) FROM students WHERE id = ? AND session_id = ? AND class_id = ?", c.StudentID, sessionID, classID).Row().Scan(&ok); err != nil {
+			if err := tx.Raw("SELECT count(*) FROM student_enrolments WHERE student_id = ? AND session_id = ? AND class_id = ?", c.StudentID, sessionID, classID).Row().Scan(&ok); err != nil {
 				return err
 			}
 			if ok == 0 {

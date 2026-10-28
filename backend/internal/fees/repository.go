@@ -439,14 +439,14 @@ func (r *GormRepository) GenerateDues(ctx context.Context, actor string, in Gene
 			return ErrInvalid
 		}
 		row := tx.Raw(`WITH candidates AS (
-  SELECT s.id AS student_id, fs.id AS structure_id, fs.session_id, fs.class_id,
+  SELECT s.student_id, fs.id AS structure_id, fs.session_id, fs.class_id,
          CASE WHEN c.frequency='monthly' THEN ?::date END AS period,
          ?::date + (fs.due_day - 1) AS due_date, fs.amount,
          COALESCE(round(fs.amount * fc.percent / 100, 2), 0) AS discount_amount
   FROM fee_structures fs
   JOIN fee_categories c ON c.id=fs.category_id AND c.is_active
-  JOIN students s ON s.session_id=fs.session_id AND s.class_id=fs.class_id AND s.status='active'
-  LEFT JOIN fee_concessions fc ON fc.student_id=s.id AND fc.category_id=c.id
+  JOIN student_rolls s ON s.session_id=fs.session_id AND s.class_id=fs.class_id
+  LEFT JOIN fee_concessions fc ON fc.student_id=s.student_id AND fc.category_id=c.id
   WHERE fs.session_id=? AND fs.is_active AND (?='' OR fs.class_id::text=?) AND (c.frequency='monthly' OR ?)
 ), inserted AS (
   INSERT INTO student_fees(student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,created_by)

@@ -196,7 +196,7 @@ func (r *GormRepository) SaveSubject(ctx context.Context, actor, examID string, 
 			}
 			// Several fourth subjects are fine once students choose theirs (E5).
 			var choices bool
-			if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN students s ON s.id = c.student_id WHERE c.session_id = ? AND s.session_id = ? AND s.class_id = ?)", e.SessionID, e.SessionID, e.ClassID).Row().Scan(&choices); err != nil {
+			if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN student_enrolments en ON en.student_id = c.student_id AND en.session_id = c.session_id WHERE c.session_id = ? AND en.session_id = ? AND en.class_id = ?)", e.SessionID, e.SessionID, e.ClassID).Row().Scan(&choices); err != nil {
 				return err
 			}
 			if count > 0 && !choices {
@@ -260,11 +260,11 @@ func (r *GormRepository) Roster(ctx context.Context, examID, actor, scope string
 		}
 	}
 	rows := []MarkRow{}
-	q := r.db.WithContext(ctx).Table("students s").Joins("CROSS JOIN exam_subjects es").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Joins("LEFT JOIN exam_marks m ON m.student_id=s.id AND m.exam_subject_id=es.id").Where("s.session_id=? AND s.class_id=? AND s.section_id=? AND s.status='active' AND es.exam_id=? AND student_takes_subject(s.id, s.session_id, s.class_id, es.subject_id)", e.SessionID, e.ClassID, e.SectionID, e.ID)
+	q := r.db.WithContext(ctx).Table("students s").Joins("JOIN student_rolls r ON r.student_id=s.id AND r.session_id=? AND r.class_id=? AND r.section_id=?", e.SessionID, e.ClassID, e.SectionID).Joins("CROSS JOIN exam_subjects es").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Joins("LEFT JOIN exam_marks m ON m.student_id=s.id AND m.exam_subject_id=es.id").Where("es.exam_id=? AND student_takes_subject(s.id, r.session_id, r.class_id, es.subject_id)", e.ID)
 	if scope == "teacher" {
 		q = q.Where("EXISTS (SELECT 1 FROM employees emp JOIN teacher_assignments ta ON ta.employee_id=emp.id WHERE emp.user_id=? AND emp.is_active AND ta.session_id=? AND ta.class_id=? AND ta.subject_id=es.subject_id)", actor, e.SessionID, e.ClassID)
 	}
-	err = q.Select("es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed,coalesce(m.status,'') AS status,coalesce(m.status_reason,'') AS status_reason,coalesce(m.row_version,0) AS row_version").Order("s.roll_no NULLS LAST,s.admission_no,sub.code").Find(&rows).Error
+	err = q.Select("es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,r.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,m.marks,m.grade,m.grade_point,m.passed,coalesce(m.status,'') AS status,coalesce(m.status_reason,'') AS status_reason,coalesce(m.row_version,0) AS row_version").Order("r.roll_no NULLS LAST,s.admission_no,sub.code").Find(&rows).Error
 	return rows, err
 }
 func (r *GormRepository) SetState(ctx context.Context, actor, id, state string) (Exam, error) {
@@ -342,7 +342,7 @@ func (r *GormRepository) SetStateReason(ctx context.Context, actor, id, state, r
 				return ErrSheetsPending
 			}
 			var students int64
-			if err := tx.Table("students").Where("session_id=? AND class_id=? AND section_id=? AND status='active'", e.SessionID, e.ClassID, e.SectionID).Count(&students).Error; err != nil {
+			if err := tx.Table("student_rolls").Where("session_id=? AND class_id=? AND section_id=?", e.SessionID, e.ClassID, e.SectionID).Count(&students).Error; err != nil {
 				return err
 			}
 			if students == 0 {
@@ -407,7 +407,7 @@ func (r *GormRepository) Tabulation(ctx context.Context, id string) ([]Result, e
 		return nil, err
 	}
 	rows := []Result{}
-	err := r.db.WithContext(ctx).Table("exam_results er").Joins("JOIN students s ON s.id=er.student_id").Select("er.exam_id,er.student_id,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,s.roll_no,er.total_marks,er.full_marks,er.gpa,er.passed,er.class_position,er.section_position").Where("er.exam_id=?", id).Order("er.section_position,s.admission_no").Find(&rows).Error
+	err := r.db.WithContext(ctx).Table("exam_results er").Joins("JOIN students s ON s.id=er.student_id").Joins("JOIN student_enrolments en ON en.student_id=er.student_id AND en.session_id=er.session_id").Select("er.exam_id,er.student_id,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,en.roll_no,er.total_marks,er.full_marks,er.gpa,er.passed,er.class_position,er.section_position").Where("er.exam_id=?", id).Order("er.section_position,s.admission_no").Find(&rows).Error
 	return rows, err
 }
 func (r *GormRepository) scopeStudent(tx *gorm.DB, scope, actor, studentID string) (string, error) {

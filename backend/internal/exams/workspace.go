@@ -153,13 +153,14 @@ func (r *GormRepository) Workspace(ctx context.Context, examID, sheetID, actor, 
 	w.Exam = exam
 	w.Rows = []MarkRow{}
 	if err := tx.Table("students s").
+		Joins("JOIN student_rolls r ON r.student_id=s.id AND r.session_id=? AND r.class_id=? AND r.section_id=?", exam.SessionID, exam.ClassID, exam.SectionID).
 		Joins("JOIN exam_subjects es ON es.id=?", sheetID).
 		Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").
 		Joins("LEFT JOIN exam_marks m ON m.student_id=s.id AND m.exam_subject_id=es.id").
-		Where("s.session_id=? AND s.class_id=? AND s.section_id=? AND s.status='active' AND student_takes_subject(s.id, s.session_id, s.class_id, es.subject_id)", exam.SessionID, exam.ClassID, exam.SectionID).
-		Select(`es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,s.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,
+		Where("student_takes_subject(s.id, r.session_id, r.class_id, es.subject_id)").
+		Select(`es.id AS exam_subject_id,s.id AS student_id,s.name_en AS student_name,s.admission_no,r.roll_no,sub.name_en AS subject_name,sub.name_bn AS subject_name_bn,
  m.marks,m.grade,m.grade_point,m.passed,coalesce(m.status,'') AS status,coalesce(m.status_reason,'') AS status_reason,coalesce(m.row_version,0) AS row_version`).
-		Order("s.roll_no NULLS LAST,s.admission_no").Scan(&w.Rows).Error; err != nil {
+		Order("r.roll_no NULLS LAST,s.admission_no").Scan(&w.Rows).Error; err != nil {
 		return w, err
 	}
 	// Component sheets: the components and each row's component marks.

@@ -141,10 +141,10 @@ func (r *Repository) LoadTerm(tx *gorm.DB, termID, classID string) (TermData, er
 		ID, Name, NameBN, AdmissionNo, SectionID, SectionName string
 		RollNo                                                *int
 	}{}
-	if err := tx.Raw(`SELECT st.id, st.name_en AS name, coalesce(st.name_bn, '') AS name_bn, st.admission_no, st.roll_no, st.section_id, sec.name AS section_name
-  FROM students st JOIN academic_sections sec ON sec.id = st.section_id
- WHERE st.session_id = ? AND st.class_id = ? AND st.status = 'active'
- ORDER BY sec.display_order, sec.name, st.roll_no NULLS LAST, st.admission_no, st.id`, term.SessionID, classID).Scan(&students).Error; err != nil {
+	if err := tx.Raw(`SELECT st.id, st.name_en AS name, coalesce(st.name_bn, '') AS name_bn, st.admission_no, r.roll_no, r.section_id, sec.name AS section_name
+  FROM student_rolls r JOIN students st ON st.id = r.student_id JOIN academic_sections sec ON sec.id = r.section_id
+ WHERE r.session_id = ? AND r.class_id = ?
+ ORDER BY sec.display_order, sec.name, r.roll_no NULLS LAST, st.admission_no, st.id`, term.SessionID, classID).Scan(&students).Error; err != nil {
 		return p, err
 	}
 	marks, err := termMarks(tx, termID, classID)
@@ -153,8 +153,8 @@ func (r *Repository) LoadTerm(tx *gorm.DB, termID, classID string) (TermData, er
 	}
 	notTaken := map[string][]string{}
 	pairs := []struct{ StudentID, SubjectID string }{}
-	if err := tx.Raw(`SELECT st.id AS student_id, acs.subject_id FROM students st JOIN academic_class_subjects acs ON acs.class_id = st.class_id
- WHERE st.session_id = ? AND st.class_id = ? AND st.status = 'active' AND NOT student_takes_subject(st.id, st.session_id, st.class_id, acs.subject_id)
+	if err := tx.Raw(`SELECT r.student_id, acs.subject_id FROM student_rolls r JOIN academic_class_subjects acs ON acs.class_id = r.class_id
+ WHERE r.session_id = ? AND r.class_id = ? AND NOT student_takes_subject(r.student_id, r.session_id, r.class_id, acs.subject_id)
  ORDER BY acs.subject_id`, term.SessionID, classID).Scan(&pairs).Error; err != nil {
 		return p, err
 	}
@@ -181,9 +181,9 @@ func (r *Repository) LoadTerm(tx *gorm.DB, termID, classID string) (TermData, er
 		Missing                                                       int
 	}{}
 	if err := tx.Raw(`SELECT e.id AS exam_id, es.id AS sheet_id, sec.name AS section_name, e.assessment_key AS assessment, sub.name_en AS subject_name, es.sheet_status AS status,
-       (SELECT count(*) FROM students st WHERE st.session_id = e.session_id AND st.class_id = e.class_id AND st.section_id = e.section_id AND st.status = 'active'
-           AND student_takes_subject(st.id, st.session_id, st.class_id, es.subject_id)
-           AND NOT EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_subject_id = es.id AND m.student_id = st.id)) AS missing
+       (SELECT count(*) FROM student_rolls st WHERE st.session_id = e.session_id AND st.class_id = e.class_id AND st.section_id = e.section_id
+           AND student_takes_subject(st.student_id, st.session_id, st.class_id, es.subject_id)
+           AND NOT EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_subject_id = es.id AND m.student_id = st.student_id)) AS missing
   FROM exams e JOIN exam_subjects es ON es.exam_id = e.id JOIN academic_sections sec ON sec.id = e.section_id JOIN academic_subjects sub ON sub.id = es.subject_id
  WHERE e.term_id = ? AND e.class_id = ? ORDER BY sec.display_order, sec.name, e.assessment_key, sub.code`, termID, classID).Scan(&sheets).Error; err != nil {
 		return p, err
