@@ -129,14 +129,14 @@ function BottomNav({ groups, role, menuOpen, onMore }: { groups: NavGroup[]; rol
           <Link to={item.path} aria-current={active ? 'page' : undefined} style={tone(navModule(item.key))}
             className="ds-tab flex h-full flex-col items-center justify-center gap-1 pb-1.5 pt-2">
             <span className="ds-tab-pill grid h-8 w-14 max-w-full place-items-center rounded-full"><Icon name={item.icon} className="h-[22px] w-[22px]" /></span>
-            <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-none">{t(SHORT_LABEL[item.key] ?? item.label)}</span>
+            <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-snug">{t(SHORT_LABEL[item.key] ?? item.label)}</span>
           </Link>
         </li>
       })}
       {items.length > tabs.length && <li className="min-w-0 flex-1">
         <button type="button" onClick={onMore} aria-expanded={menuOpen} aria-haspopup="dialog" style={tone('admin')} className="ds-tab flex h-full w-full flex-col items-center justify-center gap-1 pb-1.5 pt-2">
           <span className="ds-tab-pill grid h-8 w-14 max-w-full place-items-center rounded-full"><Icon name="menu" className="h-[22px] w-[22px]" /></span>
-          <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-none">{t('p1More')}</span>
+          <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-snug">{t('p1More')}</span>
         </button>
       </li>}
     </ul>
@@ -170,7 +170,7 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
   }
   const brand = (compact: boolean) => <Link to="/dashboard" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
     <SchoolMark branding={branding} />
-    {!compact && <span className="min-w-0"><span className="line-clamp-2 block text-sm font-bold leading-snug text-slate-900">{schoolName}</span><span className="block text-xs text-slate-500">{t('m12Tagline')}</span></span>}
+    {!compact && <span className="min-w-0"><span className="line-clamp-2 block text-sm font-bold leading-snug text-slate-900">{schoolName}</span>{[...schoolName].length <= 28 && <span className="block text-xs text-slate-500">{t('m12Tagline')}</span>}</span>}
   </Link>
   return <div className="shell-root min-h-screen">
     <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow">{t('m12SkipToContent')}</a>
