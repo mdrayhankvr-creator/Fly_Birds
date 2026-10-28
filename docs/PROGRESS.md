@@ -24,7 +24,9 @@ On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card 
 **Verification (2026-10-28):**
 - Type check and production build pass; the i18n check passes (2,715 keys in each language); the unit tests pass (11/11).
 - **Not run:** `e2e/suite.mjs` and `e2e/whitelabel.mjs`. Docker is not available on this machine, so there was no freshly seeded demo stack to run them against. The markup keeps what they check: the greeting text, sidebar labels, the "Active students" figure, the receipts table, the guardian's radio group, "Today's classes", named controls, and brand-ink links only on light surfaces.
-- No screenshots yet at 360, 390 and 430px or on tablet.
+- **Visual check against mock data (isolated):** a throwaway mock API (fixture data, no database) behind a separate Vite dev server on 127.0.0.1 served all six dashboards at 360, 390, 430, 820 and 1440px, in English/light and Bangla/dark (60 runs), with spot checks in English/dark and Bangla/light. After the two fixes below: no page overflow, nothing past the viewport, no truncated figures, bottom bar below 1024px and sidebar above it, no JavaScript errors.
+  - Fixed: tile labels and hints that cut off figures on phones; long school names clipped in the sidebar header; Bangla vowel signs clipped in bottom-bar labels.
+  - The mock data checks layout only. It is not the seeded demo school, and the role permissions in it are approximations.
 
 **Next:** run the browser and white-label suites against a seeded stack, check the dashboards at 360/390/430px, tablet and desktop in both languages and themes, then Checkpoint 2 (routine, homework, diary and notice screens).
 
