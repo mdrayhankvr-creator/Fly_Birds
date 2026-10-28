@@ -9,7 +9,7 @@ import { Icon, type IconName } from '../icons'
 // the design tokens in styles.css, so every part follows the school's brand
 // and the light or dark theme.
 
-export type Module = 'home' | 'routine' | 'homework' | 'diary' | 'notices' | 'exams' | 'attendance' | 'fees' | 'people' | 'analytics' | 'admin'
+export type Module = 'home' | 'routine' | 'homework' | 'diary' | 'notices' | 'events' | 'alerts' | 'exams' | 'attendance' | 'fees' | 'people' | 'analytics' | 'admin'
 
 // tone passes a module (or any CSS colour) to the ds-* classes through --s.
 export function tone(color: Module | string): CSSProperties {
@@ -26,7 +26,7 @@ const NAV_MODULE: Record<string, Module> = {
   diary: 'diary', diary_me: 'diary', diary_admin: 'diary',
   student_attendance: 'attendance', teacher_attendance: 'attendance', attendance_me: 'attendance', attendance_self: 'attendance',
   fees: 'fees', fees_me: 'fees',
-  notices: 'notices', events: 'notices', notifications: 'notices', delivery: 'notices',
+  notices: 'notices', events: 'events', notifications: 'notices', delivery: 'notices',
 }
 export const navModule = (key: string): Module => NAV_MODULE[key] ?? 'admin'
 
@@ -73,4 +73,94 @@ export function Lines({ rows = 3 }: { rows?: number }) {
 
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">{children}</p>
+}
+
+// ---------- dashboard layout and headers ----------
+
+// DashLayout: header, quick actions, then a main column and a side column on
+// desktop; on tablets the side column becomes a two-up grid.
+export function DashLayout({ head, actions, main, side }: { head: ReactNode; actions?: ReactNode; main: ReactNode; side?: ReactNode }) {
+  return <div className="space-y-4 md:space-y-5">
+    {head}
+    {actions}
+    <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
+      <div className={`min-w-0 space-y-4 md:space-y-5 ${side ? 'lg:col-span-8' : 'lg:col-span-12'}`}>{main}</div>
+      {side && <div className="grid min-w-0 content-start items-start gap-4 md:grid-cols-2 md:gap-5 lg:col-span-4 lg:grid-cols-1">{side}</div>}
+    </div>
+  </div>
+}
+
+export type Stat = { label: string; value: ReactNode; hint?: ReactNode; icon: IconName; color?: Module | string; alert?: boolean; to?: string }
+
+export function StatTile({ stat }: { stat: Stat }) {
+  const body = <>
+    <p className="flex items-center gap-1.5"><Icon name={stat.icon} className={`h-4 w-4 shrink-0 ${stat.alert ? 'text-rose-700' : 'ds-ink'}`} />
+      <span className={`truncate text-lg font-extrabold tabular-nums tracking-tight sm:text-xl ${stat.alert ? 'text-rose-700' : 'text-slate-900'}`}>{stat.value}</span></p>
+    <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-tight text-slate-600">{stat.label}</p>
+    {stat.hint && <p className="mt-1 line-clamp-2 text-[11px] leading-tight text-slate-500">{stat.hint}</p>}
+  </>
+  const cls = 'ds-stat block min-w-0 px-3 py-2.5 sm:px-3.5'
+  return stat.to
+    ? <Link to={stat.to} className={`${cls} transition hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] motion-reduce:hover:translate-y-0`} style={tone(stat.color ?? 'home')}>{body}</Link>
+    : <div className={cls} style={tone(stat.color ?? 'home')}>{body}</div>
+}
+
+// RoleHead: a compact header tinted with the role's accent colour.
+export function RoleHead({ accent, eyebrow, title, sub, lead, top, stats, actions }: {
+  accent: string; eyebrow: ReactNode; title: ReactNode; sub?: ReactNode; lead?: ReactNode; top?: ReactNode; stats?: Stat[]; actions?: ReactNode
+}) {
+  return <section className="ds-role-head ds-rise p-4 sm:p-5" style={tone(accent)}>
+    {top}
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        {lead}
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-600">{eyebrow}</p>
+          <h1 className="mt-0.5 text-[22px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-[26px]">{title}</h1>
+          {sub && <p className="mt-0.5 text-sm leading-snug text-slate-600">{sub}</p>}
+        </div>
+      </div>
+      {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+    </div>
+    {stats && stats.length > 0 && <div className={`mt-4 grid grid-cols-2 gap-2 sm:gap-2.5 ${stats.length >= 4 ? 'lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
+      {stats.map(s => <StatTile key={s.label} stat={s} />)}
+    </div>}
+  </section>
+}
+
+export function Avatar({ name, className = 'h-11 w-11 text-sm' }: { name: string; className?: string }) {
+  const letters = name.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(part => [...part][0]).join('').toUpperCase()
+  return <span aria-hidden="true" className={`ds-fill grid shrink-0 place-items-center rounded-2xl font-bold ${className}`}>{letters}</span>
+}
+
+export type QuickAction = { key: string; to: string; icon: IconName; label: string; module: Module }
+const COLS = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-3 sm:grid-cols-5']
+
+// QuickActions: up to five tinted shortcuts. Callers pass only links the user may open.
+export function QuickActions({ items, label }: { items: QuickAction[]; label: string }) {
+  if (!items.length) return null
+  const list = items.slice(0, 5)
+  return <nav aria-label={label}>
+    <ul className={`grid gap-2 sm:gap-3 ${COLS[list.length - 1]}`}>
+      {list.map(it => <li key={it.key} className="min-w-0">
+        <Link to={it.to} style={tone(it.module)} className="ds-tint flex h-full min-h-[76px] min-w-0 flex-col items-center justify-center gap-1.5 px-1 py-2.5 text-center transition hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] motion-reduce:hover:translate-y-0 sm:flex-row sm:justify-start sm:gap-3 sm:px-3.5 sm:text-left">
+          <span className="ds-fill grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-10 sm:w-10"><Icon name={it.icon} className="h-[18px] w-[18px]" /></span>
+          <span className="line-clamp-2 text-[11.5px] font-bold leading-tight text-slate-900 sm:text-sm">{it.label}</span>
+        </Link>
+      </li>)}
+    </ul>
+  </nav>
+}
+
+// Ring shows a share from 0 to 100; the figure itself is printed in the middle.
+export function Ring({ value, size = 76, stroke = 8, color, children }: { value: number; size?: number; stroke?: number; color: string; children?: ReactNode }) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r
+  const v = Math.max(0, Math.min(100, value))
+  return <span className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ds-surface-2)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`} />
+    </svg>
+    <span className="absolute inset-0 grid place-items-center text-center">{children}</span>
+  </span>
 }

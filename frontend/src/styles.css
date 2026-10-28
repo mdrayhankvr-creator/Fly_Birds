@@ -77,6 +77,8 @@ body { background-color: var(--app-surface); color: #0f172a; }
   --mod-people: #2563eb;
   --mod-analytics: #7c3aed;
   --mod-admin: #475569;
+  --mod-events: #7c3aed;
+  --mod-alerts: #ea580c;
 }
 [data-theme="dark"] {
   --ds-surface: #172337;
