@@ -3,7 +3,8 @@ import { Link, NavLink, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { SchoolBranding } from '../api/client'
 import { Icon } from './icons'
-import { activeItem, type NavGroup } from './navigation'
+import { activeItem, type NavGroup, type NavItem } from './navigation'
+import { navModule, tone } from './dashboard/kit'
 import { NavGroupsContext } from './navContext'
 import { currentTheme, setThemePreference, type Theme } from './theme'
 
@@ -96,6 +97,52 @@ function SidebarNav({ groups, collapsed, onNavigate }: { groups: NavGroup[]; col
   </nav>
 }
 
+// Preferred bottom-bar tabs for each role. Only items already in the user's
+// navigation (their permissions and enabled modules) can appear; empty slots
+// are filled from the rest of the navigation in sidebar order.
+const BOTTOM_TABS: Record<string, string[]> = {
+  admin: ['dashboard', 'students', 'fees', 'notices'],
+  head_teacher: ['dashboard', 'student_attendance', 'routines', 'notices'],
+  teacher: ['dashboard', 'routine_me', 'diary', 'student_attendance'],
+  accountant: ['dashboard', 'fees', 'reports', 'notices'],
+  student: ['dashboard', 'routine_me', 'diary_me', 'results'],
+  guardian: ['dashboard', 'children', 'progress', 'notifications'],
+}
+const SHORT_LABEL: Record<string, string> = {
+  dashboard: 'p1Tab_home', students: 'p1Tab_students', fees: 'p1Tab_fees', fees_me: 'p1Tab_fees', notices: 'p1Tab_notices', student_attendance: 'p1Tab_attendance',
+  routines: 'p1Tab_routine', routine_me: 'p1Tab_routine', diary: 'p1Tab_diary', diary_me: 'p1Tab_diary', results: 'p1Tab_results', reports: 'p1Tab_reports',
+  children: 'p1Tab_children', progress: 'p1Tab_progress', notifications: 'p1Tab_alerts', analytics: 'p1Tab_analytics', exams_me: 'p1Tab_marks',
+}
+
+function BottomNav({ groups, role, menuOpen, onMore }: { groups: NavGroup[]; role: string; menuOpen: boolean; onMore: () => void }) {
+  const { t } = useTranslation()
+  const { pathname } = useLocation()
+  const items = groups.flatMap(g => g.items)
+  const preferred = (BOTTOM_TABS[role] ?? ['dashboard']).map(key => items.find(i => i.key === key)).filter((i): i is NavItem => !!i)
+  const tabs = [...preferred, ...items.filter(i => !preferred.includes(i))].slice(0, 4)
+  const current = activeItem(groups, pathname)
+  return <nav aria-label={t('p1BottomNav')} className="ds-bottom-nav lg:hidden print:hidden">
+    <ul className="flex items-stretch px-1">
+      {tabs.map(item => {
+        const active = current?.path === item.path
+        return <li key={item.path} className="min-w-0 flex-1">
+          <Link to={item.path} aria-current={active ? 'page' : undefined} style={tone(navModule(item.key))}
+            className="ds-tab flex h-full flex-col items-center justify-center gap-1 pb-1.5 pt-2">
+            <span className="ds-tab-pill grid h-8 w-14 max-w-full place-items-center rounded-full"><Icon name={item.icon} className="h-[22px] w-[22px]" /></span>
+            <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-none">{t(SHORT_LABEL[item.key] ?? item.label)}</span>
+          </Link>
+        </li>
+      })}
+      {items.length > tabs.length && <li className="min-w-0 flex-1">
+        <button type="button" onClick={onMore} aria-expanded={menuOpen} aria-haspopup="dialog" style={tone('admin')} className="ds-tab flex h-full w-full flex-col items-center justify-center gap-1 pb-1.5 pt-2">
+          <span className="ds-tab-pill grid h-8 w-14 max-w-full place-items-center rounded-full"><Icon name="menu" className="h-[22px] w-[22px]" /></span>
+          <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-none">{t('p1More')}</span>
+        </button>
+      </li>}
+    </ul>
+  </nav>
+}
+
 export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, children }: {
   branding: SchoolBranding | undefined; user: ShellUser; groups: NavGroup[]; onLanguage: (l: 'en' | 'bn') => void; onSignOut: () => void; bell?: ReactNode; children: ReactNode
 }) {
@@ -164,7 +211,8 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
           <UserMenu user={user} onSignOut={onSignOut} />
         </div>
       </header>
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 focus:outline-none sm:px-6 lg:px-8 lg:py-8"><NavGroupsContext.Provider value={groups}>{children}</NavGroupsContext.Provider></main>
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 focus:outline-none sm:px-6 lg:px-8 lg:py-8 print:pb-0"><NavGroupsContext.Provider value={groups}>{children}</NavGroupsContext.Provider></main>
     </div>
+    <BottomNav groups={groups} role={user.role} menuOpen={drawer} onMore={() => setDrawer(true)} />
   </div>
 }
