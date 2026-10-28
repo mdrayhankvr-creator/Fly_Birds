@@ -53,6 +53,110 @@ body { background-color: var(--app-surface); color: #0f172a; }
 .shell-lang-on { background-color: var(--brand-primary); color: var(--brand-on); }
 .login-panel { background: linear-gradient(155deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 62%, #0f172a)); color: var(--brand-on); }
 
+/* Design system (premium UI, checkpoint 1).
+   Surface and ink tokens follow the theme; module colours give each area of
+   the app one recognisable hue. A component takes its hue through --s, set
+   inline from a module or subject colour, so one set of classes serves all. */
+:root {
+  --ds-surface: #ffffff;
+  --ds-surface-2: #f3f5fb;
+  --ds-ink: #0f172a;
+  --ds-ink-2: #475569;
+  --ds-ink-3: #5a6a80;
+  --ds-line: #e2e8f0;
+  --ds-shadow: 0 1px 2px rgb(15 23 42 / .04), 0 8px 24px -12px rgb(15 23 42 / .14);
+  --ds-nav: rgb(255 255 255 / .94);
+  --mod-home: var(--brand-primary);
+  --mod-routine: #0284c7;
+  --mod-homework: #d97706;
+  --mod-diary: #0d9488;
+  --mod-notices: #e11d48;
+  --mod-exams: #9333ea;
+  --mod-attendance: #16a34a;
+  --mod-fees: #059669;
+  --mod-people: #2563eb;
+  --mod-analytics: #7c3aed;
+  --mod-admin: #475569;
+}
+[data-theme="dark"] {
+  --ds-surface: #172337;
+  --ds-surface-2: #111c2e;
+  --ds-ink: #f8fafc;
+  --ds-ink-2: #cbd5e1;
+  --ds-ink-3: #94a3b8;
+  --ds-line: #334155;
+  --ds-shadow: 0 1px 2px rgb(0 0 0 / .35), 0 12px 28px -18px rgb(0 0 0 / .7);
+  --ds-nav: rgb(17 28 46 / .95);
+}
+
+/* Hue helpers. Text colours mix the hue with the theme ink so they stay
+   readable on light and dark surfaces; fills are darkened so white text on
+   them reads at 4.5:1 or better even for amber. */
+.ds-ink { color: color-mix(in oklab, var(--s) 64%, var(--ds-ink)); }
+.ds-soft { background: color-mix(in oklab, var(--s) 13%, var(--ds-surface)); }
+.ds-softer { background: color-mix(in oklab, var(--s) 7%, var(--ds-surface)); }
+.ds-fill { background: linear-gradient(135deg, color-mix(in oklab, var(--s) 74%, #0b1020), color-mix(in oklab, var(--s) 58%, #0b1020)); color: #ffffff; }
+.ds-edge { box-shadow: inset 4px 0 0 var(--s); }
+.ds-tint {
+  background: color-mix(in oklab, var(--s) 7%, var(--ds-surface));
+  border: 1px solid color-mix(in oklab, var(--s) 22%, var(--ds-line));
+  border-radius: 1rem;
+}
+.ds-sunken { background: var(--ds-surface-2); border-radius: .875rem; }
+
+/* Role header: tinted with the role's accent so each dashboard opens differently. */
+.ds-role-head {
+  position: relative; overflow: hidden;
+  background: color-mix(in oklab, var(--s) 7%, var(--ds-surface));
+  border: 1px solid color-mix(in oklab, var(--s) 22%, var(--ds-line));
+  border-radius: 1.5rem; box-shadow: var(--ds-shadow);
+}
+.ds-role-head::before {
+  content: ""; position: absolute; right: -48px; top: -64px; width: 180px; height: 180px; border-radius: 50%;
+  border: 22px solid color-mix(in oklab, var(--s) 9%, transparent); pointer-events: none;
+}
+.ds-role-head > * { position: relative; }
+.ds-stat { background: var(--ds-surface); border: 1px solid color-mix(in oklab, var(--s) 20%, var(--ds-line)); border-radius: 1rem; }
+
+/* Administrator's school pulse: a deep panel in both themes, lit by the brand colour. */
+.ds-pulse {
+  position: relative; overflow: hidden; color: #eef1ff; border-radius: 1.5rem;
+  background: radial-gradient(26rem 14rem at 100% 0%, color-mix(in oklab, var(--brand-primary) 40%, transparent), transparent 70%), #121733;
+  box-shadow: var(--ds-shadow);
+}
+.ds-pulse-soft { color: #b4bbdc; }
+.ds-pulse-cell { background: rgb(255 255 255 / .06); border: 1px solid rgb(255 255 255 / .1); border-radius: 1rem; }
+.ds-pulse a:focus-visible, .ds-pulse button:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
+/* Accountant's till: a receipt-style dashed cut between today and the year. */
+.ds-ledger-cut { border-top: 2px dashed color-mix(in oklab, var(--s) 32%, var(--ds-line)); }
+
+/* Horizontal scroller with snap points, used by the class strip. */
+.ds-scroll-x { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.ds-scroll-x::-webkit-scrollbar { display: none; }
+.ds-snap { scroll-snap-type: x mandatory; scroll-padding-inline: 1rem; }
+.ds-snap > * { scroll-snap-align: start; }
+
+/* Mobile bottom navigation: each tab carries its module colour in --s. */
+.ds-bottom-nav {
+  position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 30;
+  background: var(--ds-nav); backdrop-filter: saturate(1.6) blur(16px);
+  border: 1px solid var(--ds-line); border-radius: 1.5rem; box-shadow: 0 18px 40px -20px rgb(15 23 42 / .5);
+}
+.ds-tab { color: var(--ds-ink-3); min-height: 56px; -webkit-tap-highlight-color: transparent; }
+.ds-tab .ds-tab-pill { transition: background-color .2s, color .2s; }
+.ds-tab[aria-current="page"] { color: color-mix(in oklab, var(--s) 64%, var(--ds-ink)); }
+.ds-tab[aria-current="page"] .ds-tab-pill { background: color-mix(in oklab, var(--s) 16%, var(--ds-surface)); }
+.ds-tab[aria-current="page"] .ds-tab-label { font-weight: 800; }
+.ds-tab:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: -2px; border-radius: 1rem; }
+
+@keyframes ds-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.ds-rise { animation: ds-rise .4s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes ds-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.ds-blink { animation: ds-blink 1.8s ease-in-out infinite; }
+.ds-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+:root:lang(bn) .ds-eyebrow { text-transform: none; letter-spacing: 0; font-size: 12px; }
+
 /* Tables inside cards: quiet headers and comfortable rows everywhere. */
 main table thead th { font-weight: 600; }
 main table tbody tr { transition: background-color 120ms; }

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, getDashboard, getHealth, getMyPermissions, getSchoolBranding, getSchoolModules, type SchoolBranding } from './api/client'
 import { useAuth } from './auth/AuthProvider'
 import { AppShell, LanguageSwitch, SchoolMark } from './components/AppShell'
+import { applyTheme } from './components/theme'
 import { buildNavigation } from './components/navigation'
 import { ConfirmHost } from './components/ConfirmDialog'
 import { Icon, type IconName } from './components/icons'
@@ -353,7 +354,7 @@ function applyBranding(branding: SchoolBranding | undefined) {
   root.style.setProperty('--brand-ink', ink)
   root.style.setProperty('--brand-on', onBrand)
   root.style.setProperty('--brand-secondary', validColor(branding?.secondary_color) || '#0F172A')
-  root.dataset.theme = branding?.dashboard_theme === 'dark' ? 'dark' : 'light'
+  applyTheme(branding?.dashboard_theme === 'dark' ? 'dark' : 'light')
 }
 
 export default function App() {

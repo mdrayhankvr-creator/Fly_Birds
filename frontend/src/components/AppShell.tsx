@@ -5,6 +5,7 @@ import type { SchoolBranding } from '../api/client'
 import { Icon } from './icons'
 import { activeItem, type NavGroup } from './navigation'
 import { NavGroupsContext } from './navContext'
+import { currentTheme, setThemePreference, type Theme } from './theme'
 
 type ShellUser = { email: string; role: string; display_name?: string }
 
@@ -25,6 +26,22 @@ export function LanguageSwitch({ onChange }: { onChange: (language: 'en' | 'bn')
     {(['en', 'bn'] as const).map(lang => <button key={lang} type="button" onClick={() => onChange(lang)} aria-pressed={i18n.language === lang}
       className={`rounded-md px-2.5 py-1.5 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${i18n.language === lang ? 'shell-lang-on' : 'text-slate-600 hover:text-slate-900'}`}>{lang === 'en' ? 'EN' : 'বাংলা'}</button>)}
   </div>
+}
+
+export function ThemeSwitch() {
+  const { t } = useTranslation()
+  const [theme, setTheme] = useState<Theme>(currentTheme)
+  // The school default can arrive after first render; follow it until the user chooses.
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(currentTheme()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+  const next: Theme = theme === 'dark' ? 'light' : 'dark'
+  return <button type="button" onClick={() => setThemePreference(next)} aria-label={t(next === 'dark' ? 'p1ThemeToDark' : 'p1ThemeToLight')} title={t(next === 'dark' ? 'p1ThemeToDark' : 'p1ThemeToLight')}
+    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
+    <Icon name={theme === 'dark' ? 'sun' : 'moon'} className="h-5 w-5" />
+  </button>
 }
 
 function UserMenu({ user, onSignOut }: { user: ShellUser; onSignOut: () => void }) {
@@ -142,6 +159,7 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">
           <span className="hidden sm:block"><LanguageSwitch onChange={onLanguage} /></span>
+          <ThemeSwitch />
           {bell}
           <UserMenu user={user} onSignOut={onSignOut} />
         </div>

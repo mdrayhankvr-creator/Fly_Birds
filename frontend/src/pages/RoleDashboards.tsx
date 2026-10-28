@@ -2,12 +2,13 @@ import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { ApiError, getClassRoutine, getMyPermissions, getOwnAssignments, type AuthUser, type ClassRoutineSlot, type SchoolBranding } from '../api/client'
+import { getClassRoutine, getMyPermissions, getOwnAssignments, type AuthUser, type ClassRoutineSlot, type SchoolBranding } from '../api/client'
 import { getAdminOverview } from '../api/admin'
 import { getAttendance, getChildren, getFees, getMySummary, getOverview, getRisks, type StudentSummary } from '../api/analytics'
 import { getDiaryFeed, getEvents, getNoticeFeed, type Notice, type SchoolEvent } from '../api/communication'
 import { getFeePayments } from '../api/fees'
 import { Icon, type IconName } from '../components/icons'
+import { Empty, Lines, Metric, Panel, Unavailable, ViewAll } from '../components/dashboard/kit'
 import { useNavGroups } from '../components/navContext'
 import { LineChart } from './analyticsCharts'
 import { useFmt } from './AnalyticsPages'
@@ -27,45 +28,6 @@ function dhakaNow() {
 }
 function shift(day: string, days: number) {
   const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10)
-}
-
-export function Panel({ title, icon, action, children, className = '' }: { title: string; icon?: IconName; action?: ReactNode; children: ReactNode; className?: string }) {
-  return <section className={`${ui.card} flex flex-col p-5 ${className}`} aria-label={title}>
-    <header className="mb-4 flex items-center justify-between gap-3">
-      <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-900">{icon && <Icon name={icon} className="h-[18px] w-[18px] text-slate-500" />}{title}</h2>{action}
-    </header>
-    <div className="min-w-0 flex-1">{children}</div>
-  </section>
-}
-
-function ViewAll({ to, label }: { to: string; label?: string }) {
-  const { t } = useTranslation()
-  return <Link to={to} className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[var(--brand-ink)] hover:underline">{label ?? t('m12ViewAll')}<Icon name="arrowRight" className="h-3.5 w-3.5" /></Link>
-}
-
-export function Metric({ label, value, hint, icon, to, tone }: { label: string; value: ReactNode; hint?: ReactNode; icon: IconName; to?: string; tone?: 'alert' | 'good' }) {
-  const body = <>
-    <div className="flex items-start justify-between gap-3"><p className="text-sm font-medium text-slate-600">{label}</p>
-      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone === 'alert' ? 'bg-rose-50 text-rose-700' : 'shell-mark'}`}><Icon name={icon} className="h-[18px] w-[18px]" /></span></div>
-    <p className={`mt-2 text-2xl font-bold tabular-nums tracking-tight ${tone === 'alert' ? 'text-rose-700' : 'text-slate-900'}`}>{value}</p>
-    {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
-  </>
-  return to ? <Link to={to} className={`${ui.card} block p-4 transition hover:-translate-y-px hover:shadow-md focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] motion-reduce:hover:translate-y-0`}>{body}</Link>
-    : <div className={`${ui.card} p-4`}>{body}</div>
-}
-
-function Unavailable({ error }: { error: unknown }) {
-  const { t } = useTranslation()
-  const text = error instanceof ApiError && error.code === 'module_disabled' ? t('m12ModuleOff') : error instanceof ApiError && error.status === 403 ? t('m12NoAccess') : t('m12LoadFailed')
-  return <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600"><Icon name="alert" className="h-4 w-4 shrink-0 text-slate-500" />{text}</p>
-}
-
-function Lines({ rows = 3 }: { rows?: number }) {
-  return <div className="space-y-2" aria-hidden="true">{Array.from({ length: rows }, (_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" />)}</div>
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">{children}</p>
 }
 
 function Greeting({ user, branding, role, children }: { user: AuthUser; branding?: SchoolBranding; role: string; children?: ReactNode }) {
