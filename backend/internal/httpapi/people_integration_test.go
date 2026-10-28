@@ -171,6 +171,40 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 	check("GET", "/guardians/me/children/"+studentID, "", guardianH, 200)
 	check("GET", "/students/"+studentID, "", guardianH, 200)
 	check("GET", "/students/"+studentID+"/card", "", guardianH, 200)
+
+	// M15: enrolment history follows the student's record scope; who made a
+	// change is shown to staff only. A section change is logged.
+	var sectionB string
+	if err := db.Raw("INSERT INTO academic_sections (session_id,class_id,name,code) VALUES (?,?,?,?) RETURNING id", sessionID, classID, "M3 B "+suffix, "B"+strings.ToUpper(suffix)).Scan(&sectionB).Error; err != nil {
+		t.Fatal(err)
+	}
+	moved := strings.Replace(updatedStudent, `"section_id":"`+sectionID+`"`, `"section_id":"`+sectionB+`"`, 1)
+	check("PATCH", "/students/"+studentID, moved, adminH, 200)
+	type historyBody struct {
+		Data []people.Enrolment `json:"data"`
+	}
+	history := func(h map[string]string) historyBody {
+		t.Helper()
+		var v historyBody
+		if err := json.Unmarshal(check("GET", "/students/"+studentID+"/enrolments", "", h, 200), &v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	staffView := history(headH)
+	if len(staffView.Data) != 1 || staffView.Data[0].State != "current" || staffView.Data[0].SectionID != sectionB || len(staffView.Data[0].Events) != 2 ||
+		staffView.Data[0].Events[1].Kind != "section_changed" || staffView.Data[0].Events[1].ActorName == nil {
+		t.Fatalf("staff history %+v", staffView)
+	}
+	for _, h := range []map[string]string{studentH, guardianH} {
+		if v := history(h); len(v.Data) != 1 || len(v.Data[0].Events) != 2 || v.Data[0].Events[1].ActorName != nil {
+			t.Fatalf("family history %+v", v)
+		}
+	}
+	check("GET", "/students/"+studentID+"/enrolments", "", otherStudentH, 404)
+	check("GET", "/students/"+studentID+"/enrolments", "", otherGuardianH, 404)
+	check("GET", "/students/not-a-uuid/enrolments", "", adminH, 400)
+	check("PATCH", "/students/"+studentID, updatedStudent, adminH, 200)
 	cardBody := check("GET", "/students/"+studentID+"/card", "", studentH, 200)
 	var cardResult struct {
 		Data struct {
