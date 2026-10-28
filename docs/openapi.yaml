@@ -945,10 +945,10 @@ paths:
       operationId: updateStudent
       tags: [students]
       summary: Update admission, profile, academic placement, status, or account link
-      description: Requires students:manage, administrator account, and students module.
+      description: 'Requires students:manage, administrator account, and students module. Placement changes are recorded in the enrolment history (M15). A section change keeps marks, results and attendance in the section where they were recorded. Moving to another session closes the old year (outcome "moved") when anything is recorded in it, or corrects it in place when nothing is. 409 enrolment_history: moving back into a session the student already has, or changing class while marks exist in the old class that year.'
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentInput' } } } }
-      responses: { '200': { description: Updated student, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Updated student, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Duplicate record or enrolment_history, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } } }
     delete:
       operationId: deleteStudent
       tags: [students]
@@ -966,6 +966,15 @@ paths:
       parameters: [{ name: origin, in: query, schema: { type: string } }]
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Student card data, content: { application/json: { schema: { $ref: '#/components/schemas/StudentCardResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/{id}/enrolments:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: getStudentEnrolments
+      tags: [students]
+      summary: Read a student's enrolment history, oldest year first
+      description: 'Requires students:history_read (administrator, head teacher), students:read_self for the linked student, or guardians:read_children for a linked guardian; same record scope as getStudent; students module required. Each year lists its session, class, section, roll, state (current or closed), outcome and the changes during it. Who made a change is shown to the administrator and head teacher only.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Enrolment history, content: { application/json: { schema: { $ref: '#/components/schemas/StudentEnrolmentsResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /students/{id}/card/reissue:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     post:
@@ -3379,6 +3388,39 @@ components:
             logo_url: { type: string }
     StudentResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Student' } } }
     StudentCardResponse: { type: object, required: [data], properties: { data: { allOf: [{ $ref: '#/components/schemas/StudentCardData' }, { type: object, properties: { school: { $ref: '#/components/schemas/CardSchool' }, settings: { $ref: '#/components/schemas/CardSettings' } } }] } } }
+    StudentEnrolmentEvent:
+      type: object
+      required: [kind, from_value, to_value, occurred_at]
+      properties:
+        kind: { type: string, enum: [enrolled, section_changed, class_changed, roll_changed, status_changed, session_corrected, closed] }
+        from_class_name: { type: string, nullable: true }
+        to_class_name: { type: string, nullable: true }
+        from_section_name: { type: string, nullable: true }
+        to_section_name: { type: string, nullable: true }
+        from_value: { type: string }
+        to_value: { type: string }
+        actor_name: { type: string, nullable: true, description: Administrator and head teacher only }
+        occurred_at: { type: string, format: date-time }
+    StudentEnrolment:
+      type: object
+      required: [id, session_id, session_name, class_id, class_name, section_id, section_name, state, student_status, source, events]
+      properties:
+        id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        session_name: { type: string }
+        class_id: { type: string, format: uuid }
+        class_name: { type: string }
+        section_id: { type: string, format: uuid }
+        section_name: { type: string }
+        roll_no: { type: integer, nullable: true }
+        state: { type: string, enum: [current, closed] }
+        student_status: { type: string, enum: [active, inactive, graduated, transferred] }
+        outcome: { type: string, nullable: true, enum: [promoted, repeated, graduated, withdrawn, transferred, moved, null] }
+        source: { type: string, enum: [admission, backfill, inferred, moved, promotion] }
+        started_on: { type: string, format: date, nullable: true }
+        ended_on: { type: string, format: date, nullable: true }
+        events: { type: array, items: { $ref: '#/components/schemas/StudentEnrolmentEvent' } }
+    StudentEnrolmentsResponse: { type: object, required: [data], properties: { data: { type: array, items: { $ref: '#/components/schemas/StudentEnrolment' } } } }
     StudentPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/Student' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
     GuardianInput:
       type: object
