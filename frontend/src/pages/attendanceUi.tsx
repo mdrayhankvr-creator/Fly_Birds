@@ -1,7 +1,10 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink } from 'react-router'
+import { NavLink, useLocation } from 'react-router'
 import { Icon, type IconName } from '../components/icons'
+import { navModule, tone, type Module } from '../components/modules'
+import { useNavGroups } from '../components/navContext'
+import { activeItem } from '../components/navigation'
 
 // Shared attendance styling. Brand colour comes from the school's white-label
 // theme via --brand-primary; status colours are fixed so they stay meaningful.
@@ -29,12 +32,27 @@ export const tones: Record<Tone, { solid: string; soft: string; dot: string; tex
   unmarked: { solid: 'bg-slate-600 text-white border-slate-600', soft: 'bg-slate-100 text-slate-700 ring-slate-500/20', dot: 'bg-slate-300', text: 'text-slate-600' },
 }
 
-export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) {
-  return <header className="flex flex-wrap items-end justify-between gap-4 print:hidden">
-    <div className="min-w-0">{eyebrow && <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--brand-ink)]">{eyebrow}</p>}
-      <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
-      {description && <p className="mt-1.5 max-w-2xl text-sm text-slate-600 sm:text-base">{description}</p>}</div>
-    {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+// PageHeader opens every module screen: a panel tinted with the module's
+// colour, its icon, the title and the page's main actions. The module and icon
+// come from the navigation entry for the current address unless given.
+export function PageHeader({ eyebrow, title, description, actions, icon, module, children }: { eyebrow?: string; title: ReactNode; description?: ReactNode; actions?: ReactNode; icon?: IconName; module?: Module; children?: ReactNode }) {
+  const groups = useNavGroups()
+  const { pathname } = useLocation()
+  const item = activeItem(groups, pathname)
+  const mod = module ?? (item ? navModule(item.key) : 'home')
+  return <header className="ds-page-head ds-rise p-4 sm:p-5 print:hidden" style={tone(mod)}>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+        <span aria-hidden="true" className="ds-fill grid h-11 w-11 shrink-0 place-items-center rounded-2xl sm:h-12 sm:w-12"><Icon name={icon ?? item?.icon ?? 'layers'} className="h-[22px] w-[22px]" /></span>
+        <div className="min-w-0">
+          {eyebrow && <p className="ds-eyebrow ds-ink">{eyebrow}</p>}
+          <h1 className="mt-0.5 break-words text-[22px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-[26px]">{title}</h1>
+          {description && <p className="mt-1 max-w-3xl text-sm leading-snug text-slate-600">{description}</p>}
+        </div>
+      </div>
+      {actions && <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">{actions}</div>}
+    </div>
+    {children && <div className="mt-4">{children}</div>}
   </header>
 }
 
@@ -84,7 +102,7 @@ export function SegmentedStatus<T extends string>({ name, value, options, onChan
 export function Tabs<T extends string>({ label, value, items, onChange }: { label: string; value: T; items: { value: T; label: string; badge?: ReactNode }[]; onChange: (value: T) => void }) {
   return <div role="tablist" aria-label={label} className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 print:hidden">
     {items.map(item => <button key={item.value} role="tab" type="button" aria-selected={value === item.value} onClick={() => onChange(item.value)}
-      className={`flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${value === item.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{item.label}{item.badge}</button>)}
+      className={`ds-tab-btn flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${value === item.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{item.label}{item.badge}</button>)}
   </div>
 }
 
@@ -92,7 +110,7 @@ export function Tabs<T extends string>({ label, value, items, onChange }: { labe
 // page is marked for assistive technology.
 export function LinkTabs({ label, items }: { label: string; items: { to: string; label: string }[] }) {
   return <nav aria-label={label} className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 print:hidden">
-    {items.map(item => <NavLink key={item.to} to={item.to} end className={({ isActive }) => `flex shrink-0 items-center rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${isActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{item.label}</NavLink>)}
+    {items.map(item => <NavLink key={item.to} to={item.to} end className={({ isActive }) => `ds-tab-btn flex min-h-10 shrink-0 items-center rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${isActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{item.label}</NavLink>)}
   </nav>
 }
 
@@ -102,8 +120,8 @@ export function Notice({ tone, children, action }: { tone: 'success' | 'error' |
 }
 
 export function EmptyState({ title, children, icon = 'search', action }: { title: string; children?: ReactNode; icon?: IconName; action?: ReactNode }) {
-  return <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-    <span aria-hidden="true" className="grid h-11 w-11 place-items-center rounded-xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200"><Icon name={icon} className="h-5 w-5" /></span>
+  return <div className="ds-empty flex flex-col items-center rounded-2xl border border-dashed px-6 py-10 text-center">
+    <span aria-hidden="true" className="ds-soft ds-ink grid h-12 w-12 place-items-center rounded-2xl"><Icon name={icon} className="h-6 w-6" /></span>
     <p className="mt-3 font-semibold text-slate-800">{title}</p>{children && <p className="mt-1 max-w-md text-sm leading-6 text-slate-600">{children}</p>}
     {action && <div className="mt-4">{action}</div>}
   </div>
@@ -111,10 +129,13 @@ export function EmptyState({ title, children, icon = 'search', action }: { title
 
 // SectionCard is the standard titled panel: heading, optional description
 // and actions on the right, then the body.
-export function SectionCard({ title, description, actions, children, id, className = '' }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string; className?: string }) {
+export function SectionCard({ title, description, actions, children, id, className = '', icon }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string; className?: string; icon?: IconName }) {
   return <section className={`${ui.card} p-4 sm:p-6 ${className}`} aria-labelledby={id}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0"><h2 id={id} className={ui.sectionTitle}>{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>}</div>
+      <div className="flex min-w-0 items-start gap-3">
+        {icon && <span aria-hidden="true" className="ds-soft ds-ink grid h-9 w-9 shrink-0 place-items-center rounded-xl"><Icon name={icon} className="h-[18px] w-[18px]" /></span>}
+        <div className="min-w-0"><h2 id={id} className={ui.sectionTitle}>{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>}</div>
+      </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
     <div className="mt-4">{children}</div>
@@ -126,7 +147,7 @@ export function InfoRow({ label, children }: { label: ReactNode; children: React
 }
 
 export function Skeleton({ rows = 5 }: { rows?: number }) {
-  return <div className="space-y-2" aria-hidden="true">{Array.from({ length: rows }, (_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />)}</div>
+  return <div className="space-y-2" aria-hidden="true">{Array.from({ length: rows }, (_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100 motion-reduce:animate-none" />)}</div>
 }
 
 export function Pager({ page, total, size, onPage, previous, next, label }: { page: number; total: number; size: number; onPage: (page: number) => void; previous: string; next: string; label: string }) {

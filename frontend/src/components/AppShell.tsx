@@ -6,6 +6,7 @@ import { Icon } from './icons'
 import { activeItem, type NavGroup, type NavItem } from './navigation'
 import { navModule, tone } from './dashboard/kit'
 import { NavGroupsContext } from './navContext'
+import { useCardTables } from './cardTables'
 import { currentTheme, setThemePreference, type Theme } from './theme'
 
 type ShellUser = { email: string; role: string; display_name?: string }
@@ -150,6 +151,8 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('flybirds.sidebar') === 'collapsed' } catch { return false } })
   const [drawer, setDrawer] = useState(false)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  useCardTables(mainRef)
   const schoolName = branding ? (i18n.language === 'bn' ? branding.name_bn : branding.name_en) : t('appName')
   const current = activeItem(groups, pathname)
   const currentGroup = current ? groups.find(g => g.items.includes(current)) : undefined
@@ -210,7 +213,7 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
           <UserMenu user={user} onSignOut={onSignOut} />
         </div>
       </header>
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 focus:outline-none sm:px-6 lg:px-8 lg:py-8 print:pb-0"><NavGroupsContext.Provider value={groups}>{children}</NavGroupsContext.Provider></main>
+      <main id="main" ref={mainRef} tabIndex={-1} style={tone(current ? navModule(current.key) : 'home')} className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 focus:outline-none sm:px-6 lg:px-8 lg:py-8 print:pb-0"><NavGroupsContext.Provider value={groups}>{children}</NavGroupsContext.Provider></main>
     </div>
     <BottomNav groups={groups} role={user.role} menuOpen={drawer} onMore={() => setDrawer(true)} />
   </div>
