@@ -8,7 +8,7 @@ import {
   downloadReport, getAttendance, getChildren, getExams, getFees, getMySummary, getOptions, getOverview, getReport, getReports, getRisks, getSessions,
   getStudentSummary, saveAlertSettings, type AlertSettings, type Filter, type Options, type ReportKey, type Risk, type StudentSummary,
 } from '../api/analytics'
-import { EmptyState, Notice, PageHeader, Pager, Skeleton, StatusBadge, Tabs, ui, type Tone } from './attendanceUi'
+import { CardTitle, EmptyState, Notice, PageHeader, Pager, Skeleton, StatusBadge, Tabs, ui, type Tone } from './attendanceUi'
 import { useApi, useLocal } from './commShared'
 import { BarList, ColumnChart, LineChart, Meter } from './analyticsCharts'
 
@@ -59,7 +59,7 @@ function Kpi({ label, value, hint, meter, tone }: { label: string; value: ReactN
 
 function Card({ title, children, actions, className = '' }: { title: string; children: ReactNode; actions?: ReactNode; className?: string }) {
   return <section className={`${ui.card} p-4 sm:p-5 ${className}`}>
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold text-slate-900">{title}</h2>{actions}</div>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><CardTitle icon="chart">{title}</CardTitle>{actions}</div>
     {children}
   </section>
 }
@@ -411,7 +411,7 @@ function SessionsTab() {
       <Card title={t('m11PassRateBySession')}><BarList title={t('m11PassRateBySession')} max={100} empty={t('m11NoData')} items={rows.map(r => ({ key: r.id, label: r.name, value: r.pass_rate, display: f.pct(r.pass_rate), hint: t('m11AvgGpa', { gpa: f.gpa(r.avg_gpa) }) }))} /></Card>
     </div>
     <Card title={t('m11SessionComparison')}>
-      <div className="overflow-x-auto"><table className="w-full min-w-[36rem] text-left text-sm">
+      <div className="overflow-x-auto"><table className="ds-cards w-full min-w-[36rem] text-left text-sm">
         <thead className="text-xs uppercase tracking-wide text-slate-500"><tr><th className="py-2 pr-3">{t('m11Session')}</th><th className="py-2 pr-3">{t('m11ActiveStudents')}</th><th className="py-2 pr-3">{t('m11AttendanceRate')}</th><th className="py-2 pr-3">{t('m11PassRate')}</th><th className="py-2 pr-3">{t('m11AverageGpa')}</th>{finance && <><th className="py-2 pr-3">{t('m11Billed')}</th><th className="py-2 pr-3">{t('m11CollectionRate')}</th></>}</tr></thead>
         <tbody className="divide-y divide-slate-100 tabular-nums">{rows.map(r => <tr key={r.id}><th scope="row" className="py-2 pr-3 font-semibold text-slate-900">{r.name}{r.is_active && <span className="ml-1 text-xs font-normal text-slate-500">· {t('m11Active')}</span>}</th>
           <td className="py-2 pr-3">{f.num(r.active_students)}</td><td className="py-2 pr-3">{f.pct(r.attendance_rate)}</td><td className="py-2 pr-3">{f.pct(r.pass_rate)}</td><td className="py-2 pr-3">{f.gpa(r.avg_gpa)}</td>
@@ -467,7 +467,7 @@ export function ReportsPage({ access }: { access: AnalyticsAccess }) {
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       {!modulesOn ? <Notice tone="info">{t('m11ModuleOff')}</Notice> : !active.session_id ? <EmptyState title={t('m11NoSession')} /> : report.isPending ? <Skeleton rows={6} /> : report.isError ? <Failure error={report.error} retry={() => void report.refetch()} /> :
         <section className={`${ui.card} p-4`}>
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-base font-semibold text-slate-900">{t(`m11Report_${key}`)}</h2>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><CardTitle icon="report">{t(`m11Report_${key}`)}</CardTitle>
             <p className="text-sm text-slate-600">{t('m11Rows', { n: report.data.total, count: report.data.total })}{report.data.filter.from && ` · ${report.data.filter.from} – ${report.data.filter.to}`}</p></div>
           {report.data.rows.length === 0 ? <EmptyState title={t('m11NoData')}>{t('m11NoReportRows')}</EmptyState> : <ReportTable columns={report.data.columns} rows={report.data.rows} />}
           <Pager page={page} total={report.data.total} size={report.data.page_size} onPage={setPage} previous={t('m11Previous')} next={t('m11Next')} label={t('m11Pages')} />
@@ -492,7 +492,7 @@ function ReportTable({ columns, rows }: { columns: string[]; rows: string[][] })
     if (numericColumns.has(column) && /^-?\d+(\.\d+)?$/.test(value)) return new Intl.NumberFormat(bn ? 'bn-BD' : 'en-GB', { maximumFractionDigits: 2 }).format(Number(value))
     return value
   }
-  return <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+  return <div className="overflow-x-auto"><table className="ds-cards w-full text-left text-sm">
     <thead className="text-xs uppercase tracking-wide text-slate-500"><tr>{show.map(({ c }) => <th key={c} scope="col" className={`whitespace-nowrap py-2 pr-3 ${numericColumns.has(c) ? 'text-right' : ''}`}>{t(`m11Col_${c}`)}</th>)}</tr></thead>
     <tbody className="divide-y divide-slate-100">{rows.map((row, r) => <tr key={r}>{show.map(({ c, i }) => <td key={c} className={`py-2 pr-3 ${numericColumns.has(c) ? 'text-right tabular-nums' : ''} ${c.startsWith('name') ? 'font-medium text-slate-900' : 'text-slate-700'}`}>{cell(c, row[i])}</td>)}</tr>)}</tbody>
   </table></div>
@@ -607,7 +607,7 @@ export function DashboardAnalytics({ navigation }: { navigation: string[] }) {
 function Widget({ title, to, children, loading, error }: { title: string; to: string; children?: ReactNode; loading: boolean; error: unknown }) {
   const { t } = useTranslation()
   return <section className={`${ui.card} p-5`} aria-label={title}>
-    <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold text-slate-900">{title}</h2><Link to={to} className={ui.ghost}>{t('m11Open')}</Link></div>
+    <div className="mb-3 flex items-center justify-between gap-2"><CardTitle icon="chart">{title}</CardTitle><Link to={to} className={ui.ghost}>{t('m11Open')}</Link></div>
     {loading ? <Skeleton rows={1} /> : error ? <Failure error={error} /> : children}
   </section>
 }

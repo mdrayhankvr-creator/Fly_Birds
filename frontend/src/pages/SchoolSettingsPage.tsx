@@ -7,7 +7,7 @@ import {
 } from '../api/client'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
-import { ui, PageHeader } from './attendanceUi'
+import { CardTitle, ui, PageHeader } from './attendanceUi'
 import { LandingPhotos } from './LandingPhotos'
 
 const colorPattern = /^#[0-9a-fA-F]{6}$/
@@ -129,7 +129,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
     {!loading && !loadError && draft && <>
       {!canEditSettings && <p className="rounded-lg border border-slate-200 p-3 text-sm text-slate-600">{t('settingsReadOnly')}</p>}
       <form onSubmit={submitSettings} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-        <h2 className={ui.sectionTitle}>{t('schoolProfile')}</h2>
+        <CardTitle icon="school">{t('schoolProfile')}</CardTitle>
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <FormField label={t('schoolNameEN')}><input className={inputClass} required maxLength={120} value={draft.name_en} disabled={!canEditSettings} onChange={(event) => setField('name_en', event.target.value)} /></FormField>
           <FormField label={t('schoolNameBN')}><input className={inputClass} required maxLength={120} value={draft.name_bn} disabled={!canEditSettings} onChange={(event) => setField('name_bn', event.target.value)} /></FormField>
@@ -157,14 +157,14 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
       </form>
       {canEditSettings && <LandingPhotos authorized={authorized} />}
       {canReadGrading && bands && <form onSubmit={submitGrading} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-        <h2 className={ui.sectionTitle}>{t('gradingScheme')}</h2>
-        <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[18rem] text-left text-sm"><thead><tr className="border-b border-slate-200"><th className="px-3 py-2.5">{t('grade')}</th><th className="px-3 py-2.5">{t('minMarks')}</th><th className="px-3 py-2.5">{t('maxMarks')}</th><th className="px-3 py-2.5">{t('gpa')}</th></tr></thead><tbody>{bands.map((band, index) => <tr key={index} className="border-b border-slate-100">
+        <CardTitle icon="grade">{t('gradingScheme')}</CardTitle>
+        <div className="mt-5 overflow-x-auto"><table className="ds-cards w-full min-w-[18rem] text-left text-sm"><thead><tr className="border-b border-slate-200"><th className="px-3 py-2.5">{t('grade')}</th><th className="px-3 py-2.5">{t('minMarks')}</th><th className="px-3 py-2.5">{t('maxMarks')}</th><th className="px-3 py-2.5">{t('gpa')}</th></tr></thead><tbody>{bands.map((band, index) => <tr key={index} className="border-b border-slate-100">
           {(['grade', 'min_marks', 'max_marks', 'gpa'] as const).map((field) => <td className="px-3 py-2.5" key={field}><input aria-label={`${t(field === 'min_marks' ? 'minMarks' : field === 'max_marks' ? 'maxMarks' : field)} ${band.grade}`} className={`${inputClass} min-w-0 px-2`} type={field === 'grade' ? 'text' : 'number'} min={field === 'gpa' ? 0 : field === 'grade' ? undefined : 0} max={field === 'gpa' ? 5 : field === 'grade' ? undefined : 100} step={field === 'gpa' ? '0.01' : '1'} required disabled={!canEditGrading} value={band[field]} onChange={(event) => setBands((current) => current?.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: field === 'grade' ? event.target.value : Number(event.target.value) } : row) ?? null)} /></td>)}
         </tr>)}</tbody></table></div>
         {canEditGrading && <div className="mt-5 flex flex-wrap gap-3"><button type="submit" disabled={saveGrading.isPending} className="brand-button rounded-lg px-5 py-2.5 font-semibold disabled:opacity-50">{saveGrading.isPending ? t('saving') : t('saveGrading')}</button><button type="button" onClick={resetDrafts} className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold">{t('discardChanges')}</button></div>}
       </form>}
       {canReadModules && modules.data && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-        <h2 className={ui.sectionTitle}>{t('schoolModules')}</h2><p className="mt-2 text-sm text-slate-600">{t('m10SettingsModulesMoved')}</p>
+        <CardTitle icon="layers">{t('schoolModules')}</CardTitle><p className="mt-2 text-sm text-slate-600">{t('m10SettingsModulesMoved')}</p>
         <ul className="mt-4 flex flex-wrap gap-2">{modules.data.items.map((module) => <li key={module.key} className={`rounded-full px-3 py-1 text-sm font-medium ${module.enabled ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{t(`m10Module_${module.key}`, { defaultValue: module.name })} · {module.enabled ? t('enabled') : t('disabled')}</li>)}</ul>
         <Link to="/admin/modules" className="brand-button mt-5 inline-block rounded-lg px-5 py-2.5 font-semibold">{t('m10OpenModules')}</Link>
       </section>}
