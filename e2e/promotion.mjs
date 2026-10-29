@@ -78,8 +78,12 @@ for (const [who, call] of [['teacher', teacher], ['accountant', accounts], ['stu
 check('the head teacher cannot prepare a batch', (await head('POST', '/promotions', createBody)).status === 403)
 
 // ---- 2. Progression and the batch ------------------------------------------------
+const unset = (await must(admin('GET', '/promotions/progression'), 'progression')).find(c => c.class_id === cls)
+check('the demo class starts with no progression, only a suggestion that is not saved', unset.setting === 'unset' && unset.next_class_id === null && unset.suggested_next_class_id !== null, `${unset.setting}, suggested ${unset.suggested_next_class_name}`)
+check('a batch for a class with no progression is refused', (await admin('POST', '/promotions', createBody)).code === 'progression_unset')
+check('a class cannot be both final and promoted', (await admin('PUT', `/promotions/progression/${cls}`, { next_class_id: next.id, final: true })).status === 400)
 const prog = await must(admin('PUT', `/promotions/progression/${cls}`, { next_class_id: next.id }), 'progression')
-check('the class now promotes into the new class', prog.find(c => c.class_id === cls)?.next_class_id === next.id)
+check('the class now promotes into the new class', prog.find(c => c.class_id === cls)?.setting === 'next' && prog.find(c => c.class_id === cls)?.next_class_id === next.id)
 let batch = await must(admin('POST', '/promotions', createBody), 'create')
 check('a batch lists every active student of the class', batch.items.length === classStudents.length, `${batch.items.length}`)
 const annual = batch.items.filter(i => i.annual_outcome !== null).length
