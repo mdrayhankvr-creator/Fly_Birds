@@ -78,6 +78,22 @@ paths:
         '401': { $ref: '#/components/responses/InvalidCredentials' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/demo-login:
+    get:
+      operationId: getDemoQuickLogin
+      summary: Report whether demo quick login is offered
+      description: Returns the demo roles only when the API runs with DEMO_QUICK_LOGIN=true and the request is addressed to localhost or a loopback address; otherwise 404, as if the route did not exist. Never returns passwords.
+      tags: [authentication]
+      security: []
+      responses: { '200': { description: Roles offered }, '404': { $ref: '#/components/responses/NotFound' } }
+    post:
+      operationId: demoQuickLogin
+      summary: Sign in as a seed-demo account without a password (local testing only)
+      description: 404 unless DEMO_QUICK_LOGIN=true. 403 local_only unless Host and Origin are localhost or loopback and Sec-Fetch-Site, when sent, is same-origin. 403 not_demo_account unless the role maps to an active account that seed-demo recorded in demo_records at the demo address. Each success is audit-logged as auth.demo_quick_login. Sets the same cookies as /auth/login.
+      tags: [authentication]
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [role], additionalProperties: false, properties: { role: { type: string, enum: [admin, head_teacher, teacher, accountant, student] } } } } } }
+      responses: { '200': { description: Signed in }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /auth/refresh:
     post:
       operationId: refreshSession

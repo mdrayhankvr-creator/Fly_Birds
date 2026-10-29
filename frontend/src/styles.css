@@ -299,3 +299,14 @@ main table tbody tr:hover { background-color: #f8fafc; }
   background: radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, var(--brand-primary) 70%, #0b1424) 0%, color-mix(in srgb, var(--brand-primary) 45%, #0b1424) 45%, #0b1424 100%);
 }
 [data-theme="dark"] .landing-card { box-shadow: 0 24px 60px -28px rgb(0 0 0 / 0.8); }
+/* Demo quick sign-in (local testing only): clearly set apart in both themes. */
+.demo-quick { border-color: #f59e0b; background-color: #fffbeb; }
+.demo-quick-title { color: #78350f; }
+.demo-quick-note { color: #92400e; }
+.demo-quick-button { border-color: #fcd34d; background-color: #ffffff; color: #1e293b; }
+.demo-quick-button:hover { background-color: #fef3c7; }
+[data-theme="dark"] .demo-quick { border-color: #b45309; background-color: rgb(120 53 15 / 0.22); }
+[data-theme="dark"] .demo-quick-title { color: #fcd34d; }
+[data-theme="dark"] .demo-quick-note { color: #fde68a; }
+[data-theme="dark"] .demo-quick-button { border-color: #92400e; background-color: #172337; color: #e2e8f0; }
+[data-theme="dark"] .demo-quick-button:hover { background-color: #1f2f47; }

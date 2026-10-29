@@ -160,6 +160,7 @@ The file contains:
 | `BACKUP_INTERVAL` | Automatic backup interval, for example `24h`; `0` for manual only. |
 | `PAYMENT_SIMULATION_ALLOWED` | `false` (the default, also when absent). `true` only for a disposable test installation: it lets an administrator switch on simulated online payment, which moves no money. See [OPERATIONS.md, online payment modes](OPERATIONS.md#online-payment-modes). |
 | `NOTIFY_INTERVAL` | Notification dispatch interval (SMS is a mock). |
+| `DEMO_QUICK_LOGIN` | Not a school setting: this Compose file never passes it to the API, so putting it in a school env file has no effect. It exists only for the owner's local testing of the demo school (see `e2e/README.md`). |
 | `RELEASE_TAG` | Tag recorded on the built images, for example `v1.0.0`. Keep the previous value for rollback. |
 
 You may edit the template-default values (backups, notifications, release

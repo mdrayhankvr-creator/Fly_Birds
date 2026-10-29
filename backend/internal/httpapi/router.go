@@ -131,6 +131,9 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	authRoutes.POST("/login", handler.login)
 	authRoutes.POST("/refresh", handler.refresh)
 	authRoutes.POST("/logout", handler.logout)
+	// Demo quick login: 404 unless DEMO_QUICK_LOGIN=true; localhost only.
+	authRoutes.GET("/demo-login", handler.demoLoginInfo)
+	authRoutes.POST("/demo-login", handler.demoLogin)
 	authRoutes.GET("/me", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), handler.me)
 	authRoutes.GET("/permissions", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("permissions"), handler.permissions)
 	authRoutes.POST("/password", RequireAuth(service), RequirePermission(service, "auth:password_change_self"), moduleGuard("authentication"), handler.changePassword)

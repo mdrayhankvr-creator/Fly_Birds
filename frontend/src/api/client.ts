@@ -50,6 +50,22 @@ export async function login(email: string, password: string): Promise<AuthSessio
   return body.data as AuthSession
 }
 
+// Demo quick login (DEMO_QUICK_LOGIN, localhost only). The server picks the
+// seed-demo account for the role; no password is involved.
+export type DemoRole = 'admin' | 'head_teacher' | 'teacher' | 'accountant' | 'student'
+export async function getDemoQuickLogin(signal?: AbortSignal): Promise<DemoRole[]> {
+  try {
+    const response = await authRequest('/auth/demo-login', { signal })
+    return ((await response.json()).data?.roles ?? []) as DemoRole[]
+  } catch {
+    return []
+  }
+}
+export async function demoLogin(role: DemoRole): Promise<AuthSession> {
+  const response = await authRequest('/auth/demo-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
+  return (await response.json()).data as AuthSession
+}
+
 let refreshInFlight: Promise<AuthSession> | null = null
 
 export function refreshSession(): Promise<AuthSession> {

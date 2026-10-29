@@ -15,6 +15,9 @@ export const landingTranslations = {
     p3PhotoTooSmall: 'This photo is too small. Use one at least 320 pixels wide.',
     p3PhotoFull: 'The page already shows 8 photos. Remove one to add another.',
     p3PhotoError: 'The photo could not be saved. Try a JPEG, PNG or WebP photo.',
+    p3QuickLogin: 'Demo quick sign-in',
+    p3QuickLoginNote: 'For testing on this computer only. It signs in to the demo accounts and is switched off for real schools.',
+    p3QuickLoginAs: 'Sign in as {{role}}', p3QuickLoginError: 'Quick sign-in failed. Check that the demo school has been seeded.',
   },
   bn: {
     p3Slides: 'বিদ্যালয়ের ছবি', p3Carousel: 'স্লাইডশো',
@@ -31,5 +34,8 @@ export const landingTranslations = {
     p3PhotoTooSmall: 'ছবিটি খুব ছোট। কমপক্ষে ৩২০ পিক্সেল চওড়া ছবি ব্যবহার করুন।',
     p3PhotoFull: 'পাতায় ইতিমধ্যে ৮টি ছবি আছে। আরেকটি যোগ করতে একটি সরান।',
     p3PhotoError: 'ছবিটি সংরক্ষণ করা যায়নি। JPEG, PNG বা WebP ছবি দিয়ে চেষ্টা করুন।',
+    p3QuickLogin: 'ডেমো দ্রুত সাইন-ইন',
+    p3QuickLoginNote: 'শুধু এই কম্পিউটারে পরীক্ষার জন্য। এটি ডেমো অ্যাকাউন্টে সাইন ইন করে; প্রকৃত বিদ্যালয়ে এটি বন্ধ থাকে।',
+    p3QuickLoginAs: '{{role}} হিসেবে সাইন ইন', p3QuickLoginError: 'দ্রুত সাইন-ইন হয়নি। ডেমো বিদ্যালয়ের তথ্য যোগ করা হয়েছে কি না দেখুন।',
   },
 }

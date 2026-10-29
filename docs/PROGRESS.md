@@ -52,6 +52,19 @@ On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card 
 - Settings: administrators add (up to 8), caption in English and Bangla, reorder and remove photos under School settings, and set the tagline in both languages. Browsers shrink photos to at most 1,600px wide as JPEG before upload; the server accepts JPEG or PNG up to 3 MiB and 320–2,400px, re-encodes to JPEG (dropping metadata), stores at most 1 MiB in the database like student photos, and audit-logs every change. Images are public and served with a content-hash version: `Cache-Control: public, max-age=31536000, immutable` and an ETag.
 - Migration `1751_school_landing.sql` (taglines, `school_slides`). The tagline fields are optional on `PUT /school/settings`, so older clients keep the saved text.
 
+**Demo quick sign-in for local testing (2026-10-29):** "Sign in as Administrator / Head teacher / Teacher / Accountant / Student" on the sign-in form, only when the API runs with `DEMO_QUICK_LOGIN=true` (default off; `compose.prod.yaml` never passes it and provisioning never sets it).
+- `GET/POST /auth/demo-login`: 404 while off. The server picks the account itself and signs in only an active account that seed-demo recorded in `demo_records` at the demo address with that role; anything else is 403 `not_demo_account`. No password is sent or returned.
+- Local only: the request's Host must be `localhost` or a loopback address, and for sign-in the Origin must be too, with `Sec-Fetch-Site` same-origin when sent (403 `local_only`). Browsers set these headers, so another website cannot use a visitor's browser to sign in; a non-browser client on a machine that can reach the API can forge them, so the real protection is that the setting is off. nginx rate-limits the route like sign-in.
+- Each quick sign-in is audit-logged as `auth.demo_quick_login` (role, host, origin) before the session is created.
+
+**Verification (2026-10-29):** migration renumbered 1701 → 1750 (1701–1749 belong to M15). `fbqa-cp1b` was torn down with its volumes and rebuilt fresh on 127.0.0.1:8092, seeded, with quick sign-in on through an override file outside the repository.
+- Go, on a fresh throwaway database: all 25 packages pass (169 tests, the opt-in `E3_PERF` test skipped), including the new slideshow and quick-sign-in tests.
+- `suite.mjs` 115/115 (landing, sign-in, quick-sign-in visibility, 375px phone, guardian bell); `whitelabel.mjs` 23/23; `payment-safety.mjs` off 13/13.
+- Slideshow in a browser: 13/13 (auto-advance, pause on focus and with the button, arrow keys, two photos loaded up front, reduced motion stops and makes changes instant). Admin upload of a 2400×1350 image stored at 1600×900. Images served through nginx with `public, max-age=31536000, immutable`.
+- Quick sign-in clicked for all five roles at localhost and once at 127.0.0.1; each opened that role's dashboard and left an audit entry. A request with another Host got 404.
+- Screenshots at 375 and 1440px, English and Bangla, light and dark, with synthetic test photos and with none: no sideways scrolling, no unnamed controls.
+- Found and fixed while checking: the settings page showed a stale photo list for up to a minute after an upload (the public list is cacheable; settings now fetch it fresh); slide controls fell below the first screen on desktop when the form was tall (moved under the school name); the active dot and quick-sign-in box were hard to see in dark mode.
+
 **Next:** run the browser and white-label suites against a seeded stack, check the dashboards at 360/390/430px, tablet and desktop in both languages and themes, then Checkpoint 2 (routine, homework, diary and notice screens).
 
 ## Current Status — M15 Stage A: Enrolment History (2026-10-29)

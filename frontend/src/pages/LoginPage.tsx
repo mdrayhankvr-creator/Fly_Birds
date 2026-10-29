@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
-import { ApiError } from '../api/client'
+import { ApiError, getDemoQuickLogin, type DemoRole } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { ui } from './attendanceUi'
 
@@ -14,6 +15,34 @@ function useAfterSignIn() {
     const destination = typeof requested === 'string' && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/dashboard'
     navigate(destination, { replace: true })
   }
+}
+
+// Shown only when the server has DEMO_QUICK_LOGIN on and this page is on
+// localhost; the server checks both again on every sign-in.
+function DemoQuickLogin({ disabled }: { disabled: boolean }) {
+  const { t } = useTranslation()
+  const { signInAsDemo } = useAuth()
+  const done = useAfterSignIn()
+  const roles = useQuery({ queryKey: ['auth', 'demo-login'], queryFn: ({ signal }) => getDemoQuickLogin(signal), staleTime: Infinity, retry: false })
+  const [pending, setPending] = useState<DemoRole | ''>('')
+  const [error, setError] = useState('')
+  if (!roles.data?.length) return null
+  async function go(role: DemoRole) {
+    setPending(role); setError('')
+    try { await signInAsDemo(role); done() }
+    catch { setError(t('p3QuickLoginError')) }
+    finally { setPending('') }
+  }
+  return <section aria-labelledby="demo-quick-login" className="demo-quick mt-6 rounded-xl border border-dashed p-4">
+    <h3 id="demo-quick-login" className="demo-quick-title text-sm font-semibold">{t('p3QuickLogin')}</h3>
+    <p className="demo-quick-note mt-1 text-xs leading-5">{t('p3QuickLoginNote')}</p>
+    {error && <p role="alert" className="mt-2 text-xs font-semibold text-rose-700">{error}</p>}
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      {roles.data.map(role => <button key={role} type="button" disabled={disabled || !!pending} onClick={() => void go(role)}
+        className="demo-quick-button min-h-11 rounded-lg border px-3 py-2 text-left text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] disabled:opacity-60">
+        {pending === role ? t('signingIn') : t('p3QuickLoginAs', { role: t(`role_${role}`) })}</button>)}
+    </div>
+  </section>
 }
 
 // The sign-in form, shown on the school's landing page.
@@ -69,5 +98,6 @@ export function SignInForm() {
       </button>
       <p className="mt-5 text-xs leading-5 text-slate-500">{t('m12LoginHelp')}</p>
     </form>
+    <DemoQuickLogin disabled={pending} />
   </div>
 }
