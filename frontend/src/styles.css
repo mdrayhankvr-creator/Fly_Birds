@@ -209,6 +209,12 @@ body { background-color: var(--app-surface); color: #0f172a; }
   table.ds-cards > tbody > tr > [data-actions]::before { display: none; }
 }
 
+/* File pickers: one quiet button style everywhere. */
+main input[type="file"]::file-selector-button {
+  margin-right: .75rem; padding: .375rem .75rem; border: 0; border-radius: .5rem; cursor: pointer;
+  background: color-mix(in oklab, var(--s, var(--brand-primary)) 12%, var(--ds-surface)); color: var(--ds-ink); font-weight: 600; font-size: .875rem;
+}
+
 /* Tables inside cards: quiet headers and comfortable rows everywhere. */
 main table thead th { font-weight: 600; }
 main table tbody tr { transition: background-color 120ms; }

@@ -165,7 +165,7 @@ function PeopleGate({ kind, permissions, role, enabled, loading, error }: { kind
   if (!enabled) return <StateScreen kind="disabled" message={t('peopleModuleDisabled')} />
   if (kind === 'students' && canStudents) return <StudentsPage canManage={canManageStudents} />
   if ((kind === 'cards' || kind === 'card') && canManageStudents) return <IdCardPrintPage mode={kind === 'card' ? 'single' : 'bulk'} />
-  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} />
+  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} canReadHistory={!!permissions?.includes('students:history_read')} />
   if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
   return <StateScreen kind="denied" message={t('permissionDenied')} />
 }

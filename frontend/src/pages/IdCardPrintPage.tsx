@@ -67,7 +67,7 @@ export function IdCardPrintPage({ mode }: { mode: 'single' | 'bulk' }) {
     <PageHeader eyebrow={t('studentsHeading')} title={t(mode === 'single' ? 'idCardPrintOne' : 'idCardPrintBulk')} description={t('idCardPrintIntro')}
       actions={<Link to={mode === 'single' && id ? `/admin/students/${id}` : '/admin/students'} className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t(mode === 'single' ? 'profileHeading' : 'studentsHeading')}</Link>} />
     {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
-    <SectionCard title={t('idCardPrintOptions')} id="card-options">
+    <SectionCard title={t('idCardPrintOptions')} id="card-options" icon="print">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {mode === 'bulk' && <>
           <label className={ui.label}>{t('sessionLabel')}<select className={ui.field} value={sessionId} onChange={e => { setSessionId(e.target.value); setSectionId('') }}><option value="">{t('selectOption')}</option>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
@@ -93,7 +93,7 @@ export function IdCardPrintPage({ mode }: { mode: 'single' | 'bulk' }) {
       <p className="mt-3 text-sm text-slate-600">{t(layout === 'cr80' ? 'idCardDuplexCr80' : 'idCardDuplexA4')}</p>
     </SectionCard>
 
-    <SectionCard title={t('idCardPreview')} id="card-preview">
+    <SectionCard title={t('idCardPreview')} id="card-preview" icon="eye">
       {mode === 'bulk' && !sectionId ? <EmptyState icon="users" title={t('idCardChooseSection')} />
         : deck.isPending ? <Skeleton rows={4} />
         : deck.isError ? <Notice tone="error">{deck.error instanceof ApiError && deck.error.status === 403 ? t('permissionDenied') : t('peopleLoadError')}</Notice>
@@ -220,7 +220,7 @@ function CardSettingsPanel({ authorized, onSaved }: { authorized: Authorized; on
   const text = useMemo(() => [['signatory_title_en', 80], ['signatory_title_bn', 160]] as const, [])
   if (settings.isPending) return <SectionCard title={t('idCardSettings')}><Skeleton rows={3} /></SectionCard>
   if (settings.isError) return <SectionCard title={t('idCardSettings')}><StateScreen kind="error" message={t('peopleLoadError')} /></SectionCard>
-  return <SectionCard title={t('idCardSettings')} description={t('idCardSettingsHelp')} id="card-settings">
+  return <SectionCard title={t('idCardSettings')} description={t('idCardSettingsHelp')} id="card-settings" icon="settings">
     {message && <div className="mb-4"><Notice tone={message.tone}>{message.text}</Notice></div>}
     <form className="grid gap-4 sm:grid-cols-2" onSubmit={save}>
       <label className={ui.label}>{t('idCardValidUntilSetting')}<input type="date" className={ui.field} value={form.valid_until} onChange={e => set('valid_until')(e.target.value)} /><span className="mt-1 block text-xs font-normal normal-case text-slate-500">{t('idCardValidUntilHelp')}</span></label>
