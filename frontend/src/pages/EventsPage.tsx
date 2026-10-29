@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { deleteEvent, getEvents, saveEvent, setEventStatus, type EventInput, type EventKind, type SchoolEvent } from '../api/communication'
-import { CardTitle, EmptyState, Notice as Banner, PageHeader, Skeleton, Tabs, ui } from './attendanceUi'
+import { CalendarRows, CardTitle, EmptyState, Notice as Banner, PageHeader, Skeleton, Tabs, ui } from './attendanceUi'
 import { Field, RolePicker, TargetPicker, todayDhaka, useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
 
 const kinds: EventKind[] = ['holiday', 'exam', 'meeting', 'event', 'other']
@@ -109,9 +109,9 @@ export function EventsPage({ canManage }: { canManage: boolean }) {
       <div className="mt-3 flex flex-wrap gap-3 text-xs">{kinds.map(k => <span key={k} className={`rounded-full border px-2 py-0.5 ${kindTone[k]}`}>{t(`m9Kind_${k}`)}</span>)}</div>
       {events.isPending ? <div className="mt-4"><Skeleton rows={4} /></div> : events.isError ? <div className="mt-4"><Banner tone="error">{t('m9ErrGeneric')}</Banner></div> : view === 'calendar' ?
         <div className="mt-4 grid grid-cols-7 gap-1" role="grid" aria-label={t('m9CalendarView')}>
-          {weekdays.map(d => <div key={d} role="columnheader" className="pb-1 text-center text-xs font-semibold text-slate-500">{d}</div>)}
-          {Array.from({ length: range.offset }, (_, i) => <div key={`b${i}`} aria-hidden="true" />)}
-          {Array.from({ length: range.days }, (_, i) => {
+          <CalendarRows header={weekdays.map(d => <div key={d} role="columnheader" className="pb-1 text-center text-xs font-semibold text-slate-500">{d}</div>)} cells={[
+          ...Array.from({ length: range.offset }, (_, i) => <div key={`b${i}`} role="gridcell" aria-hidden="true" />),
+          ...Array.from({ length: range.days }, (_, i) => {
             const day = `${month}-${String(i + 1).padStart(2, '0')}`
             const list = onDay(day)
             return <div key={day} role="gridcell" aria-label={`${fmt.date(day)}: ${list.length ? list.map(e => local(e.title_en, e.title_bn)).join(', ') : t('m9NoEventsDay')}`}
@@ -121,7 +121,7 @@ export function EventsPage({ canManage }: { canManage: boolean }) {
               <ul className="mt-0.5 space-y-0.5">{list.slice(0, 3).map(e => <li key={e.id}><button type="button" disabled={!canManage} onClick={ev => { ev.stopPropagation(); open(e) }} className={`block w-full truncate rounded border px-1 text-left text-[0.65rem] font-semibold sm:text-xs ${chip(e)}`}>{local(e.title_en, e.title_bn)}</button></li>)}
                 {list.length > 3 && <li className="text-[0.65rem] text-slate-500">+{list.length - 3}</li>}</ul>
             </div>
-          })}
+          })]} />
         </div> : (events.data.length === 0 ? <div className="mt-4"><EmptyState title={t('m9NoEvents')} /></div> :
           <ul className="mt-4 divide-y divide-slate-100">{events.data.map(e => <li key={e.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${chip(e)}`}>{t(`m9Kind_${e.kind}`)}</span>{e.status !== 'published' && <span className="text-xs font-bold uppercase text-slate-500">{t(`m9Status_${e.status}`)}</span>}</div>

@@ -5,7 +5,7 @@ import { useParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError, getAttendanceSessions, getAttendanceSections, getStudentAttendanceRoster, getStudentAttendanceMonthly, getOwnStudentAttendanceReport, getGuardianStudentAttendanceReport, saveStudentAttendanceRoster, scanStudentAttendance, getAbsenceEvents, type StudentAttendanceRosterItem, type StudentAttendanceRecord } from '../api/client'
 import { Icon } from '../components/icons'
-import { Avatar, CardTitle, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, Tabs, tones, ui, type SegmentOption } from './attendanceUi'
+import { Avatar, CalendarRows, CardTitle, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, Tabs, tones, ui, type SegmentOption } from './attendanceUi'
 
 const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 type Status = StudentAttendanceRecord['status']
@@ -418,14 +418,14 @@ export function StudentAttendanceReportPage({ guardian }: { guardian: boolean })
       <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="calendar-heading">
         <CardTitle id="calendar-heading" icon="calendar">{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthIndex - 1, 1)))}</CardTitle>
         <div className="mx-auto mt-4 grid max-w-[30rem] grid-cols-7 gap-1.5 text-center" role="grid" aria-label={t('attnCalendar')}>
-          {weekdays.map(day => <div key={day} role="columnheader" className="pb-1 text-xs font-semibold text-slate-500">{day}</div>)}
-          {Array.from({ length: offset }, (_, i) => <div key={`blank-${i}`} aria-hidden="true" />)}
-          {Array.from({ length: days }, (_, i) => {
+          <CalendarRows header={weekdays.map(day => <div key={day} role="columnheader" className="pb-1 text-xs font-semibold text-slate-500">{day}</div>)} cells={[
+          ...Array.from({ length: offset }, (_, i) => <div key={`blank-${i}`} role="gridcell" aria-hidden="true" />),
+          ...Array.from({ length: days }, (_, i) => {
             const record = byDay.get(i + 1)
             const label = `${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthIndex - 1, i + 1)))}: ${record ? statusText(record.status) : t('attnNoRecord')}`
             return <div key={i} role="gridcell" aria-label={label} title={record?.note || label} className={`flex aspect-square flex-col items-center justify-center rounded-xl text-sm font-semibold ${record ? tones[record.status].solid : 'bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200/70'}`}>
               <span>{new Intl.NumberFormat(locale).format(i + 1)}</span>{record && <span className="text-[0.6rem] font-semibold">{t(`attnShort${record.status[0].toUpperCase()}${record.status.slice(1)}`)}</span>}</div>
-          })}
+          })]} />
         </div>
         <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-600">{(['present', 'absent', 'late'] as const).map(s => <span key={s} className="flex items-center gap-1.5"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded ${tones[s].dot}`} />{statusText(s)}</span>)}</div>
       </section>

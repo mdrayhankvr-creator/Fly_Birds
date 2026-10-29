@@ -150,6 +150,18 @@ export function CardTitle({ id, icon, children, className = '' }: { id?: string;
   </h2>
 }
 
+// CalendarRows groups a month grid's weekday headings and day cells into
+// rows of seven, as role="grid" requires. The rows use display: contents, so
+// the parent's seven-column CSS grid lays the cells out unchanged.
+export function CalendarRows({ header, cells }: { header: ReactNode[]; cells: ReactNode[] }) {
+  const weeks: ReactNode[][] = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  return <>
+    <div role="row" className="contents">{header}</div>
+    {weeks.map((week, i) => <div key={i} role="row" className="contents">{week}</div>)}
+  </>
+}
+
 export function InfoRow({ label, children }: { label: ReactNode; children: ReactNode }) {
   return <div className="grid gap-0.5 py-2.5 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] sm:gap-4"><dt className="text-sm text-slate-500">{label}</dt><dd className="min-w-0 break-words text-sm font-medium text-slate-900">{children}</dd></div>
 }
