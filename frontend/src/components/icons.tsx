@@ -45,6 +45,8 @@ const paths = {
   send: 'm4 12 16-8-6 16-2.5-6.5L4 12Zm7.5 1.5L20 4',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6v-9Z',
   info: 'M12 11v5m0-8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+  sun: 'M12 3v2m0 14v2M5.64 5.64 7.05 7.05m9.9 9.9 1.41 1.41M3 12h2m14 0h2M5.64 18.36l1.41-1.41m9.9-9.9 1.41-1.41M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
+  moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
 } as const
 
 export type IconName = keyof typeof paths

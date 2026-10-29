@@ -36,8 +36,18 @@ try {
   await b.go('/')
   await b.evaluate(`localStorage.clear()`)
   await b.go('/')
-  check('landing renders school identity and sign in', await b.waitFor(`document.body.innerText.includes('Green Valley Demo School') && [...document.querySelectorAll('a')].some(a => a.getAttribute('href') === '/login')`))
+  check('landing renders school identity and the sign-in form', await b.waitFor(`document.querySelector('main h1')?.innerText.includes('Green Valley Demo School') && !!document.querySelector('main #login-email') && !!document.querySelector('main #login-password')`))
   check('landing shows no invented figures', !/৳|\d+\.\d%/.test(await b.text()))
+  check('landing shows the school identity once (not again in the header)', await b.evaluate(`!document.querySelector('header').innerText.includes('Green Valley') && !document.querySelector('header img')`))
+  check('no Sign in link in the header on the sign-in page', await b.evaluate(`!document.querySelector('header a[href="/login"]')`))
+  check('landing has no vendor marketing or role grid', !/Run your whole school|For schools across Bangladesh|Built for every role|Everything a school day needs|Powered by/i.test(await b.text()))
+  const quickOn = await b.evaluate(`fetch('/api/auth/demo-login').then(r => r.status === 200)`)
+  check('demo quick sign-in shown only when the server offers it', await b.waitFor(`${quickOn} === !!document.querySelector('#demo-quick-login')`), `server ${quickOn ? 'on' : 'off'}`)
+  check('landing a11y basics', (await a11y()).length === 0, (await a11y()).slice(0, 3).join(' | '))
+  await b.viewport(375, 812, true); await b.go('/')
+  await b.waitFor(`!!document.querySelector('main #login-email')`)
+  check('landing fits a 375px phone without sideways scrolling', !(await b.overflow()))
+  await b.viewport(1366, 900)
   await b.go('/login')
   await b.waitFor(`document.querySelector('#login-password')`)
   await b.evaluate(`document.querySelector('button[aria-controls="login-password"]').click()`)
@@ -53,11 +63,12 @@ try {
 
   // ---------- role dashboards and navigation ----------
   const roles = {
-    admin: { must: ['Students', 'Control center', 'Fees and accounts', 'Analytics'], mustNot: [], denied: [] },
-    head: { must: ['Analytics', 'Students', 'Teacher attendance'], mustNot: ['Fees and accounts', 'Users', 'Control center', 'Backups'], denied: ['/accounts/fees', '/admin/users', '/admin/control'] },
+    admin: { must: ['Students', 'Control center', 'Fees and accounts', 'Analytics'], mustNot: ['Guardians'], denied: [] },
+    head: { must: ['Analytics', 'Students', 'Teacher attendance'], mustNot: ['Guardians', 'Fees and accounts', 'Users', 'Control center', 'Backups'], denied: ['/accounts/fees', '/admin/users', '/admin/control'] },
     teacher: { must: ['Student attendance', 'Class diary', 'Marks entry', 'Class analytics'], mustNot: ['Students', 'Fees and accounts', 'Users', 'Analytics', 'Control center'], denied: ['/admin/users', '/accounts/fees', '/analytics', '/admin/students'] },
     student: { must: ['My results', 'My fees', 'Class routine', 'My progress'], mustNot: ['Students', 'Student attendance', 'Reports', 'Fees and accounts'], denied: ['/admin/students', '/accounts/fees', '/admin/attendance/students', '/reports'] },
-    guardian: { must: ['My children', "Children's progress"], mustNot: ['Students', 'Reports', 'Fees and accounts', 'Notices and'], denied: ['/admin/students', '/accounts/fees', '/student/progress'] },
+    // Families use the student's account: a legacy guardian login only gets a notice.
+    guardian: { must: ['Dashboard'], mustNot: ['My children', "Children's progress", 'Students', 'Reports', 'Fees and accounts', 'Notices and'], denied: ['/admin/students', '/accounts/fees', '/student/progress'] },
     accounts: { must: ['Fees and accounts', 'Analytics', 'Reports'], mustNot: ['Students', 'Student attendance', 'Users', 'Class diary'], denied: ['/admin/students', '/admin/attendance/students', '/admin/users'] },
   }
   for (const [who, spec] of Object.entries(roles)) {
@@ -96,13 +107,25 @@ try {
       check('student: 30-day attendance matches API', (await b.text()).includes(pct), pct)
       check('student: today\'s classes or holiday shown', /Today's classes/.test(await b.text()))
     }
+    if (who === 'admin') {
+      await b.go('/admin/guardians')
+      check('admin: old guardians page leads to the student list', await b.waitFor(`location.pathname === '/admin/students'`))
+      const first = (await b.api('/students?page_size=1')).body.data.items[0]
+      await b.go(`/admin/students/${first.id}`)
+      check('admin: student profile manages guardians', await b.waitFor(`[...(document.querySelector('#student-guardians')?.closest('section')?.querySelectorAll('button') ?? [])].some(x => x.innerText.includes('Add new guardian')) && [...(document.querySelector('#student-guardians')?.closest('section')?.querySelectorAll('button') ?? [])].some(x => x.innerText.trim() === 'Edit')`))
+    }
+    if (who === 'student') {
+      await b.go('/student/me')
+      check('student: own profile lists guardians with phone', await b.waitFor(`!!document.querySelector('#student-guardians')?.closest('section')?.querySelector('li a[href^="tel:"]')`))
+      check('student: guardians are read-only for the student', await b.evaluate(`!!document.querySelector('#student-guardians')?.closest('section') && !document.querySelector('#student-guardians')?.closest('section').querySelector('button')`))
+    }
     if (who === 'guardian') {
       await b.go('/dashboard'); await waitDash()
-      check('guardian: selector lists both linked children', await b.evaluate(`document.querySelectorAll('main [role=radiogroup] [role=radio]').length`) === 2)
-      const second = await b.evaluate(`document.querySelectorAll('main [role=radiogroup] [role=radio]')[1].innerText.split('\\n')[0]`)
-      await b.evaluate(`document.querySelectorAll('main [role=radiogroup] [role=radio]')[1].click()`)
-      check('guardian: switching child updates the selection', await b.waitFor(`document.querySelectorAll('main [role=radiogroup] [role=radio]')[1].getAttribute('aria-checked') === 'true'`), second)
-      check('guardian: child links point at the chosen child', await b.evaluate(`[...document.querySelectorAll('main a')].some(a => /\\/guardian\\/children\\/[0-9a-f-]+\\/results/.test(a.getAttribute('href')))`))
+      check('guardian: told to use the student account', /student account/.test(await b.text()))
+      check('guardian: no separate guardian dashboard', await b.evaluate(`!document.querySelector('main [role=radiogroup]') && ![...document.querySelectorAll('main a')].some(a => (a.getAttribute('href') || '').startsWith('/guardian/'))`))
+      check('guardian: no notification bell', await b.evaluate(`!document.querySelector('header a[href="/notifications"]')`))
+      await b.go('/guardian/children')
+      check('guardian: old guardian pages lead home', await b.waitFor(`location.pathname.startsWith('/dashboard')`))
     }
   }
 

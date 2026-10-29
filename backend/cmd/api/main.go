@@ -89,6 +89,10 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
+		if cfg.DemoQuickLogin {
+			authService.EnableDemoQuickLogin(true)
+			logger.Warn("DEMO_QUICK_LOGIN is on: one-click sign-in for seed-demo accounts from localhost; never use this for a real school")
+		}
 		authorization = rbac.NewService(rbac.NewRepository(db))
 		schoolService = school.NewService(school.NewRepository(db))
 		userService = users.NewService(users.NewRepository(db))

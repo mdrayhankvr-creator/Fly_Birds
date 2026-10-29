@@ -120,7 +120,30 @@ func ValidateSettings(input SettingsInput) (SettingsInput, error) {
 	if !schemeKey.MatchString(input.GradingSchemeID) {
 		return SettingsInput{}, ErrInvalid
 	}
+	for _, tagline := range []*string{input.TaglineEN, input.TaglineBN} {
+		if tagline == nil {
+			continue
+		}
+		*tagline = strings.TrimSpace(*tagline)
+		if !validLine(*tagline, 160) {
+			return SettingsInput{}, ErrInvalid
+		}
+	}
 	return input, nil
+}
+
+// validLine accepts one line of text up to max characters, with no control
+// characters.
+func validLine(value string, max int) bool {
+	if utf8.RuneCountInString(value) > max || !utf8.ValidString(value) {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
 }
 
 func ValidateBands(input []GradeBand) ([]GradeBand, error) {

@@ -50,6 +50,22 @@ export async function login(email: string, password: string): Promise<AuthSessio
   return body.data as AuthSession
 }
 
+// Demo quick login (DEMO_QUICK_LOGIN, localhost only). The server picks the
+// seed-demo account for the role; no password is involved.
+export type DemoRole = 'admin' | 'head_teacher' | 'teacher' | 'accountant' | 'student'
+export async function getDemoQuickLogin(signal?: AbortSignal): Promise<DemoRole[]> {
+  try {
+    const response = await authRequest('/auth/demo-login', { signal })
+    return ((await response.json()).data?.roles ?? []) as DemoRole[]
+  } catch {
+    return []
+  }
+}
+export async function demoLogin(role: DemoRole): Promise<AuthSession> {
+  const response = await authRequest('/auth/demo-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
+  return (await response.json()).data as AuthSession
+}
+
 let refreshInFlight: Promise<AuthSession> | null = null
 
 export function refreshSession(): Promise<AuthSession> {
@@ -108,6 +124,7 @@ export const putRolePermissions = (token: string, role: string, ids: string[]) =
 export type SchoolBranding = {
   name_en: string; name_bn: string; logo_url: string; preferred_language: 'en' | 'bn'
   primary_color: string; secondary_color: string; dashboard_theme: 'light' | 'dark'
+  tagline_en?: string; tagline_bn?: string
 }
 export type SchoolSettings = SchoolBranding & {
   address: string; phone: string; email: string; grading_scheme_id: string; updated_at: string
@@ -124,6 +141,23 @@ export const getSchoolSettings = (token: string) => bearerRequest<SchoolSettings
 export const putSchoolSettings = (token: string, data: SchoolSettingsInput) => bearerRequest<SchoolSettings>('/school/settings', token, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
 })
+// Landing-page slideshow. Lists and images are public; changes need an administrator.
+export type SchoolSlide = { id: string; position: number; width: number; height: number; version: string; caption_en: string; caption_bn: string }
+export const slideImageUrl = (slide: SchoolSlide) => `${apiBaseUrl}/school/slides/${encodeURIComponent(slide.id)}/image?v=${slide.version}`
+// The list may be cached for a minute; the settings page asks for it fresh.
+export async function getSchoolSlides(signal?: AbortSignal, fresh = false): Promise<SchoolSlide[]> {
+  const response = await fetch(`${apiBaseUrl}/school/slides`, { signal, credentials: 'same-origin', cache: fresh ? 'no-store' : 'default' })
+  if (!response.ok) throw new ApiError(response.status, 'request_failed')
+  return ((await response.json()).data ?? []) as SchoolSlide[]
+}
+export const addSchoolSlide = (token: string, image: Blob) => bearerRequest<SchoolSlide>('/school/slides', token, { method: 'POST', headers: { 'Content-Type': image.type }, body: image })
+export const updateSchoolSlide = (token: string, id: string, caption_en: string, caption_bn: string) => bearerRequest<SchoolSlide>(`/school/slides/${encodeURIComponent(id)}`, token, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ caption_en, caption_bn }),
+})
+export const reorderSchoolSlides = (token: string, ids: string[]) => bearerRequest<SchoolSlide[]>('/school/slides/order', token, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }),
+})
+export const deleteSchoolSlide = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/school/slides/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
 export const getSchoolGrading = (token: string) => bearerRequest<GradeBand[]>('/school/grading', token)
 export const putSchoolGrading = (token: string, bands: GradeBand[]) => bearerRequest<GradeBand[]>('/school/grading', token, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bands }),
@@ -189,7 +223,7 @@ export type Student = { id: string; admission_no: string; name_en: string; name_
 export type StudentInput = Omit<Student, 'id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails> & Partial<StudentProfileDetails>
 export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
 export type GuardianInput = Omit<Guardian, 'id'>
-export type StudentGuardian = { student_id: string; guardian_id: string; guardian_name: string; relationship: string; is_primary: boolean }
+export type StudentGuardian = { student_id: string; guardian_id: string; guardian_name: string; guardian_name_bn?: string; phone?: string; relationship: string; is_primary: boolean }
 export type CardSchool = { name_en: string; name_bn: string; logo_url: string; address: string; phone: string; email: string; primary_color: string; secondary_color: string }
 export type CardSettingsInput = { valid_until: string; signatory_title_en: string; signatory_title_bn: string; emergency_phone: string; usage_note_en: string; usage_note_bn: string; return_note_en: string; return_note_bn: string; show_qr: boolean }
 export type CardSettings = CardSettingsInput & { has_signature: boolean }
@@ -230,6 +264,7 @@ export const getGuardian = (token: string, id: string) => bearerRequest<Guardian
 export const getMyGuardian = (token: string) => bearerRequest<Guardian>('/guardians/me', token)
 export const saveGuardian = (token: string, input: GuardianInput, id?: string) => bearerRequest<Guardian>(id ? `/guardians/${encodeURIComponent(id)}` : '/guardians', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 export const deleteGuardian = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/guardians/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
+export const getMyStudentGuardians = (token: string) => bearerRequest<StudentGuardian[]>('/students/me/guardians', token)
 export const getStudentGuardians = (token: string, id: string) => bearerRequest<StudentGuardian[]>(`/students/${encodeURIComponent(id)}/guardians`, token)
 export const linkStudentGuardian = (token: string, id: string, guardian_id: string, relationship: string, is_primary: boolean) => bearerRequest<StudentGuardian>(`/students/${encodeURIComponent(id)}/guardians`, token, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guardian_id, relationship, is_primary }) })
 export const unlinkStudentGuardian = (token: string, id: string, guardianId: string) => bearerRequest<{ deleted: boolean }>(`/students/${encodeURIComponent(id)}/guardians/${encodeURIComponent(guardianId)}`, token, { method: 'DELETE' })

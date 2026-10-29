@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, getGuardians, getMyStudent, getStudent, getStudentCard, getStudentGuardians, getStudentPhoto, linkStudentGuardian, saveStudentPhoto, unlinkStudentGuardian, type Student } from '../api/client'
+import { ApiError, deleteGuardian, getGuardian, getGuardians, getMyStudent, getMyStudentGuardians, getStudent, getStudentCard, getStudentGuardians, getStudentPhoto, linkStudentGuardian, saveGuardian, saveStudentPhoto, unlinkStudentGuardian, type GuardianInput, type Student, type StudentGuardian } from '../api/client'
+import { confirmAction } from '../components/ConfirmDialog'
 import { usePeopleApi } from './peopleShared'
 import { CardBack, CardFront, type CardLanguage } from '../components/IdCard'
 import { Icon } from '../components/icons'
@@ -14,6 +15,11 @@ function formatDate(value: string, lang: string) {
   const [y, m, d] = value.split('-').map(Number)
   return new Intl.DateTimeFormat(lang === 'bn' ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, d)))
 }
+
+// Guardian editor on the profile: closed, adding a new guardian, linking one
+// already on record, or editing a linked guardian's details.
+type Editor = { kind: 'closed' } | { kind: 'new' } | { kind: 'existing' } | { kind: 'edit'; guardianId: string; loaded: boolean }
+const blankGuardian: GuardianInput = { name_en: '', name_bn: '', phone: '', email: '', address: '', user_id: '' }
 
 // A label/value row that shows a quiet placeholder for details not yet recorded.
 function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
@@ -37,6 +43,8 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
   const [guardianSearch, setGuardianSearch] = useState('')
   const [relationship, setRelationship] = useState('')
   const [primary, setPrimary] = useState(false)
+  const [editor, setEditor] = useState<Editor>({ kind: 'closed' })
+  const [form, setForm] = useState<GuardianInput>(blankGuardian)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -45,7 +53,9 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
   const studentID = student.data?.id
   const card = useQuery({ queryKey: ['people', 'card', studentID], queryFn: () => authorized(token => getStudentCard(token, studentID!)), enabled: !!studentID, retry: false })
   const photo = useQuery({ queryKey: ['people', 'photo', studentID], queryFn: () => authorized(token => getStudentPhoto(token, studentID!)), enabled: !!studentID && !!student.data?.has_photo, retry: false })
-  const guardianLinks = useQuery({ queryKey: ['people', 'links', studentID], queryFn: () => authorized(token => getStudentGuardians(token, studentID!)), enabled: !!studentID && canReadGuardians, retry: false })
+  // A student (the family's account) reads its own guardians through the self
+  // route, which takes no ID; staff read any student's links.
+  const guardianLinks = useQuery({ queryKey: ['people', 'links', studentID], queryFn: () => authorized(token => mode === 'self' ? getMyStudentGuardians(token) : getStudentGuardians(token, studentID!)), enabled: !!studentID && (canReadGuardians || mode === 'self'), retry: false })
   const guardians = useQuery({ queryKey: ['people', 'guardian-options', guardianSearch], queryFn: () => authorized(token => getGuardians(token, new URLSearchParams({ search: guardianSearch, page_size: '100' }))), enabled: canManageLinks, retry: false })
   useEffect(() => { if (!photo.data) { setPhotoUrl(''); return }; const url = URL.createObjectURL(photo.data); setPhotoUrl(url); return () => URL.revokeObjectURL(url) }, [photo.data])
   async function upload(event: FormEvent<HTMLFormElement>) {
@@ -53,14 +63,45 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
     try { if (photoFile.size > 2097152) throw new Error('too large'); await authorized(token => saveStudentPhoto(token, studentID, photoFile)); await cache.invalidateQueries({ queryKey: ['people', 'photo', studentID] }); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }); setMessage(t('peopleSaved')); setPhotoFile(null) }
     catch { setError(t('peopleSaveError')) } finally { setBusy(false) }
   }
-  async function link(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!studentID) return; setBusy(true); setError(''); setMessage('')
-    try { await authorized(token => linkStudentGuardian(token, studentID, guardianID, relationship, primary)); await cache.invalidateQueries({ queryKey: ['people', 'links', studentID] }); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }); setGuardianID(''); setRelationship(''); setPrimary(false); setMessage(t('peopleSaved')) }
-    catch (cause) { setError(cause instanceof ApiError && cause.status === 409 ? t('peopleDuplicate') : t('peopleSaveError')) } finally { setBusy(false) }
+  function openEditor(next: Editor) {
+    setEditor(next); setForm(blankGuardian); setGuardianID(''); setRelationship(''); setPrimary(false); setError(''); setMessage('')
   }
-  async function unlink(guardianId: string) {
-    if (!studentID) return; setBusy(true); setError(''); setMessage('')
-    try { await authorized(token => unlinkStudentGuardian(token, studentID, guardianId)); await cache.invalidateQueries({ queryKey: ['people', 'links', studentID] }); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }); setMessage(t('peopleSaved')) }
+  // Editing loads the full guardian record so the login link (user_id), which
+  // this page does not show, is sent back unchanged.
+  async function startEdit(item: StudentGuardian) {
+    openEditor({ kind: 'edit', guardianId: item.guardian_id, loaded: false })
+    setRelationship(item.relationship); setPrimary(item.is_primary)
+    try {
+      const g = await authorized(token => getGuardian(token, item.guardian_id))
+      setForm({ name_en: g.name_en, name_bn: g.name_bn, phone: g.phone, email: g.email, address: g.address, user_id: g.user_id ?? '' })
+      setEditor({ kind: 'edit', guardianId: item.guardian_id, loaded: true })
+    } catch { setEditor({ kind: 'closed' }); setError(t('peopleLoadError')) }
+  }
+  async function refreshLinks() {
+    await cache.invalidateQueries({ queryKey: ['people', 'links', studentID] }); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }); await cache.invalidateQueries({ queryKey: ['people', 'guardian-options'] })
+  }
+  async function saveEditor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!studentID || editor.kind === 'closed') return; setBusy(true); setError(''); setMessage('')
+    let created = ''
+    try {
+      let target = guardianID
+      if (editor.kind === 'new' || editor.kind === 'edit') {
+        try { target = (await authorized(token => saveGuardian(token, form, editor.kind === 'edit' ? editor.guardianId : undefined))).id }
+        catch (cause) { setError(cause instanceof ApiError && cause.status === 409 ? t('peopleDuplicate') : t('peopleSaveError')); return }
+        if (editor.kind === 'new') created = target
+      }
+      await authorized(token => linkStudentGuardian(token, studentID, target, relationship, primary))
+      await refreshLinks(); setEditor({ kind: 'closed' }); setMessage(t('peopleSaved'))
+    } catch (cause) {
+      // A new guardian that could not be linked would otherwise be left behind unattached.
+      if (created) await authorized(token => deleteGuardian(token, created)).catch(() => undefined)
+      setError(cause instanceof ApiError && cause.status === 409 ? t('p1GuardianPrimaryTaken') : t('peopleSaveError'))
+    } finally { setBusy(false) }
+  }
+  async function unlink(guardianId: string, guardianName: string) {
+    if (!studentID || !(await confirmAction(t('p1GuardianUnlinkConfirm', { name: guardianName }), { tone: 'danger', confirmLabel: t('unlinkGuardian') }))) return
+    setBusy(true); setError(''); setMessage('')
+    try { await authorized(token => unlinkStudentGuardian(token, studentID, guardianId)); await refreshLinks(); if (editor.kind === 'edit' && editor.guardianId === guardianId) setEditor({ kind: 'closed' }); setMessage(t('peopleSaved')) }
     catch { setError(t('peopleSaveError')) } finally { setBusy(false) }
   }
   if (student.isPending) return <StateScreen kind="loading" message={t('academicLoading')} />
@@ -152,18 +193,40 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         </div>}
     </SectionCard>
 
-    {canReadGuardians && <SectionCard title={t('guardiansForStudent')} description={t('linkHelp')} id="student-guardians">
+    {(canReadGuardians || mode === 'self') && <SectionCard title={t('guardiansForStudent')} description={t(mode === 'self' ? 'p1GuardiansOwnHelp' : 'linkHelp')} id="student-guardians">
       {guardianLinks.isPending ? <Skeleton rows={2} /> : guardianLinks.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> : guardianLinks.data.length === 0 ? <EmptyState icon="users" title={t('noGuardians')} /> :
-        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">{guardianLinks.data.map(item => <li key={item.guardian_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-3"><Avatar name={item.guardian_name} /><div className="min-w-0"><p className="font-semibold text-slate-900">{item.guardian_name}</p><p className="text-sm text-slate-600">{item.relationship}</p></div>
-            {item.is_primary && <StatusBadge tone="present">{t('primaryGuardian')}</StatusBadge>}</div>
-          {canManageLinks && <button type="button" disabled={busy} className={ui.danger} onClick={() => void unlink(item.guardian_id)}>{t('unlinkGuardian')}</button>}</li>)}</ul>}
-      {canManageLinks && <form className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2" onSubmit={e => void link(e)}>
-        <label className={ui.label}>{t('search')}<input className={ui.field} placeholder={t('search')} value={guardianSearch} onChange={e => setGuardianSearch(e.target.value)} /></label>
-        <label className={ui.label}>{t('chooseGuardian')}<select required className={ui.field} value={guardianID} onChange={e => setGuardianID(e.target.value)}><option value="">{t('chooseGuardian')}</option>{guardians.data?.items.map(g => <option key={g.id} value={g.id}>{g.name_en} · {g.phone}</option>)}</select></label>
-        <label className={ui.label}>{t('relationshipLabel')}<input required maxLength={60} className={ui.field} value={relationship} onChange={e => setRelationship(e.target.value)} /></label>
-        <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={primary} onChange={e => setPrimary(e.target.checked)} />{t('primaryGuardian')}</label>
-        <div className="sm:col-span-2"><button disabled={busy} className={ui.primary}>{t('linkGuardian')}</button></div></form>}
+        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">{guardianLinks.data.map(item => {
+          const guardianName = pick(item.guardian_name, item.guardian_name_bn ?? '')
+          return <li key={item.guardian_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-3"><Avatar name={guardianName} /><div className="min-w-0"><p className="font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{guardianName}</p>
+              <p className="text-sm text-slate-600">{item.relationship}{item.phone && <> · <a className="text-[var(--brand-ink)] underline-offset-2 hover:underline" href={`tel:${item.phone.replace(/[^+0-9]/g, '')}`}>{item.phone}</a></>}</p></div>
+              {item.is_primary && <StatusBadge tone="present">{t('primaryGuardian')}</StatusBadge>}</div>
+            {canManageLinks && <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={busy} className={ui.secondary} aria-label={`${t('p1GuardianEdit')} · ${guardianName}`} onClick={() => void startEdit(item)}>{t('p1GuardianEdit')}</button>
+              <button type="button" disabled={busy} className={ui.danger} aria-label={`${t('unlinkGuardian')} · ${guardianName}`} onClick={() => void unlink(item.guardian_id, guardianName)}>{t('unlinkGuardian')}</button></div>}</li>
+        })}</ul>}
+      {canManageLinks && <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        {editor.kind === 'closed' ? <div className="flex flex-wrap gap-2">
+          <button type="button" className={ui.primary} onClick={() => openEditor({ kind: 'new' })}><Icon name="user" className="h-4 w-4" />{t('p1GuardianAddNew')}</button>
+          <button type="button" className={ui.secondary} onClick={() => openEditor({ kind: 'existing' })}>{t('p1GuardianLinkExisting')}</button></div>
+        : <form className="grid gap-3 sm:grid-cols-2" onSubmit={e => void saveEditor(e)} aria-labelledby="guardian-editor-title">
+          <h3 id="guardian-editor-title" className="text-base font-semibold text-slate-900 sm:col-span-2">{t(editor.kind === 'new' ? 'p1GuardianAddNew' : editor.kind === 'edit' ? 'editGuardian' : 'p1GuardianLinkExisting')}</h3>
+          {editor.kind === 'existing' ? <>
+            <label className={ui.label}>{t('search')}<input className={ui.field} placeholder={t('search')} value={guardianSearch} onChange={e => setGuardianSearch(e.target.value)} /></label>
+            <label className={ui.label}>{t('chooseGuardian')}<select required className={ui.field} value={guardianID} onChange={e => setGuardianID(e.target.value)}><option value="">{t('chooseGuardian')}</option>{guardians.data?.items.map(g => <option key={g.id} value={g.id}>{g.name_en} · {g.phone}</option>)}</select></label>
+          </> : <>
+            <label className={ui.label}>{t('guardianNameEN')}<input required maxLength={160} className={ui.field} value={form.name_en} onChange={e => setForm({ ...form, name_en: e.target.value })} /></label>
+            <label className={ui.label}>{t('guardianNameBN')}<input maxLength={160} className={ui.field} value={form.name_bn} onChange={e => setForm({ ...form, name_bn: e.target.value })} /></label>
+            <label className={ui.label}>{t('phoneLabel')}<input type="tel" maxLength={32} className={ui.field} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
+            <label className={ui.label}>{t('email')}<input type="email" maxLength={254} className={ui.field} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+            <label className={`${ui.label} sm:col-span-2`}>{t('addressLabel')}<textarea maxLength={500} className={ui.field} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></label>
+          </>}
+          <label className={ui.label}>{t('relationshipLabel')}<input required maxLength={60} className={ui.field} value={relationship} onChange={e => setRelationship(e.target.value)} /></label>
+          <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={primary} onChange={e => setPrimary(e.target.checked)} />{t('primaryGuardian')}</label>
+          <div className="flex flex-wrap gap-2 sm:col-span-2"><button disabled={busy || (editor.kind === 'edit' && !editor.loaded)} className={ui.primary}>{t(editor.kind === 'existing' ? 'linkGuardian' : 'saveChanges')}</button>
+            <button type="button" disabled={busy} className={ui.secondary} onClick={() => setEditor({ kind: 'closed' })}>{t('cancel')}</button></div>
+        </form>}
+      </div>}
     </SectionCard>}
   </div>
 }

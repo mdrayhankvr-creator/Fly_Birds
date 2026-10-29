@@ -3,8 +3,10 @@ import { Link, NavLink, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { SchoolBranding } from '../api/client'
 import { Icon } from './icons'
-import { activeItem, type NavGroup } from './navigation'
+import { activeItem, type NavGroup, type NavItem } from './navigation'
+import { navModule, tone } from './dashboard/kit'
 import { NavGroupsContext } from './navContext'
+import { currentTheme, setThemePreference, type Theme } from './theme'
 
 type ShellUser = { email: string; role: string; display_name?: string }
 
@@ -25,6 +27,22 @@ export function LanguageSwitch({ onChange }: { onChange: (language: 'en' | 'bn')
     {(['en', 'bn'] as const).map(lang => <button key={lang} type="button" onClick={() => onChange(lang)} aria-pressed={i18n.language === lang}
       className={`rounded-md px-2.5 py-1.5 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${i18n.language === lang ? 'shell-lang-on' : 'text-slate-600 hover:text-slate-900'}`}>{lang === 'en' ? 'EN' : 'বাংলা'}</button>)}
   </div>
+}
+
+export function ThemeSwitch() {
+  const { t } = useTranslation()
+  const [theme, setTheme] = useState<Theme>(currentTheme)
+  // The school default can arrive after first render; follow it until the user chooses.
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(currentTheme()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+  const next: Theme = theme === 'dark' ? 'light' : 'dark'
+  return <button type="button" onClick={() => setThemePreference(next)} aria-label={t(next === 'dark' ? 'p1ThemeToDark' : 'p1ThemeToLight')} title={t(next === 'dark' ? 'p1ThemeToDark' : 'p1ThemeToLight')}
+    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
+    <Icon name={theme === 'dark' ? 'sun' : 'moon'} className="h-5 w-5" />
+  </button>
 }
 
 function UserMenu({ user, onSignOut }: { user: ShellUser; onSignOut: () => void }) {
@@ -79,6 +97,51 @@ function SidebarNav({ groups, collapsed, onNavigate }: { groups: NavGroup[]; col
   </nav>
 }
 
+// Preferred bottom-bar tabs for each role. Only items already in the user's
+// navigation (their permissions and enabled modules) can appear; empty slots
+// are filled from the rest of the navigation in sidebar order.
+const BOTTOM_TABS: Record<string, string[]> = {
+  admin: ['dashboard', 'students', 'fees', 'notices'],
+  head_teacher: ['dashboard', 'student_attendance', 'routines', 'notices'],
+  teacher: ['dashboard', 'routine_me', 'diary', 'student_attendance'],
+  accountant: ['dashboard', 'fees', 'reports', 'notices'],
+  student: ['dashboard', 'routine_me', 'diary_me', 'results'],
+}
+const SHORT_LABEL: Record<string, string> = {
+  dashboard: 'p1Tab_home', students: 'p1Tab_students', fees: 'p1Tab_fees', fees_me: 'p1Tab_fees', notices: 'p1Tab_notices', student_attendance: 'p1Tab_attendance',
+  routines: 'p1Tab_routine', routine_me: 'p1Tab_routine', diary: 'p1Tab_diary', diary_me: 'p1Tab_diary', results: 'p1Tab_results', reports: 'p1Tab_reports',
+  children: 'p1Tab_children', progress: 'p1Tab_progress', notifications: 'p1Tab_alerts', analytics: 'p1Tab_analytics', exams_me: 'p1Tab_marks',
+}
+
+function BottomNav({ groups, role, menuOpen, onMore }: { groups: NavGroup[]; role: string; menuOpen: boolean; onMore: () => void }) {
+  const { t } = useTranslation()
+  const { pathname } = useLocation()
+  const items = groups.flatMap(g => g.items)
+  const preferred = (BOTTOM_TABS[role] ?? ['dashboard']).map(key => items.find(i => i.key === key)).filter((i): i is NavItem => !!i)
+  const tabs = [...preferred, ...items.filter(i => !preferred.includes(i))].slice(0, 4)
+  const current = activeItem(groups, pathname)
+  return <nav aria-label={t('p1BottomNav')} className="ds-bottom-nav lg:hidden print:hidden">
+    <ul className="flex items-stretch px-1">
+      {tabs.map(item => {
+        const active = current?.path === item.path
+        return <li key={item.path} className="min-w-0 flex-1">
+          <Link to={item.path} aria-current={active ? 'page' : undefined} style={tone(navModule(item.key))}
+            className="ds-tab flex h-full flex-col items-center justify-center gap-1 pb-1.5 pt-2">
+            <span className="ds-tab-pill grid h-8 w-14 max-w-full place-items-center rounded-full"><Icon name={item.icon} className="h-[22px] w-[22px]" /></span>
+            <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-snug">{t(SHORT_LABEL[item.key] ?? item.label)}</span>
+          </Link>
+        </li>
+      })}
+      {items.length > tabs.length && <li className="min-w-0 flex-1">
+        <button type="button" onClick={onMore} aria-expanded={menuOpen} aria-haspopup="dialog" style={tone('admin')} className="ds-tab flex h-full w-full flex-col items-center justify-center gap-1 pb-1.5 pt-2">
+          <span className="ds-tab-pill grid h-8 w-14 max-w-full place-items-center rounded-full"><Icon name="menu" className="h-[22px] w-[22px]" /></span>
+          <span className="ds-tab-label max-w-full truncate px-0.5 text-[11.5px] font-semibold leading-snug">{t('p1More')}</span>
+        </button>
+      </li>}
+    </ul>
+  </nav>
+}
+
 export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, children }: {
   branding: SchoolBranding | undefined; user: ShellUser; groups: NavGroup[]; onLanguage: (l: 'en' | 'bn') => void; onSignOut: () => void; bell?: ReactNode; children: ReactNode
 }) {
@@ -106,7 +169,7 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
   }
   const brand = (compact: boolean) => <Link to="/dashboard" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
     <SchoolMark branding={branding} />
-    {!compact && <span className="min-w-0"><span className="line-clamp-2 block text-sm font-bold leading-snug text-slate-900">{schoolName}</span><span className="block text-xs text-slate-500">{t('m12Tagline')}</span></span>}
+    {!compact && <span className="min-w-0"><span className="line-clamp-2 block text-sm font-bold leading-snug text-slate-900">{schoolName}</span>{[...schoolName].length <= 28 && <span className="block text-xs text-slate-500">{t('m12Tagline')}</span>}</span>}
   </Link>
   return <div className="shell-root min-h-screen">
     <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow">{t('m12SkipToContent')}</a>
@@ -142,11 +205,13 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">
           <span className="hidden sm:block"><LanguageSwitch onChange={onLanguage} /></span>
+          <ThemeSwitch />
           {bell}
           <UserMenu user={user} onSignOut={onSignOut} />
         </div>
       </header>
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 focus:outline-none sm:px-6 lg:px-8 lg:py-8"><NavGroupsContext.Provider value={groups}>{children}</NavGroupsContext.Provider></main>
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 focus:outline-none sm:px-6 lg:px-8 lg:py-8 print:pb-0"><NavGroupsContext.Provider value={groups}>{children}</NavGroupsContext.Provider></main>
     </div>
+    <BottomNav groups={groups} role={user.role} menuOpen={drawer} onMore={() => setDrawer(true)} />
   </div>
 }

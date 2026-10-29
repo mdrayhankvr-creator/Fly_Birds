@@ -109,6 +109,10 @@ type Relationship struct {
 	Relationship string `json:"relationship"`
 	IsPrimary    bool   `json:"is_primary"`
 	GuardianName string `json:"guardian_name"`
+	// GuardianNameBN and Phone let the student profile show each guardian
+	// without a second request.
+	GuardianNameBN string `json:"guardian_name_bn"`
+	Phone          string `json:"phone"`
 }
 type LinkInput struct {
 	GuardianID   string `json:"guardian_id"`
@@ -314,6 +318,17 @@ func (s *Service) ListRelationships(ctx context.Context, id string) ([]Relations
 		return nil, ErrInvalid
 	}
 	return s.repo.ListRelationships(ctx, id)
+}
+
+// OwnGuardians lists the guardians linked to the signed-in student's own
+// record. It never takes a student ID, so a student cannot read another
+// student's guardians.
+func (s *Service) OwnGuardians(ctx context.Context, a Actor) ([]Relationship, error) {
+	own, err := s.repo.OwnStudent(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ListRelationships(ctx, own.ID)
 }
 func (s *Service) Link(ctx context.Context, a Actor, id string, v LinkInput) (Relationship, error) {
 	v.Relationship = strings.TrimSpace(v.Relationship)

@@ -28,6 +28,10 @@ type Config struct {
 	// bKash/Nagad payments (PAYMENT_SIMULATION_ALLOWED). Only for disposable
 	// test installations; off by default.
 	PaymentSimulationAllowed bool
+	// DemoQuickLogin shows one-click sign-in for the seed-demo accounts
+	// (DEMO_QUICK_LOGIN). Only for the owner's local testing; off by default
+	// and never set by the production Compose file or school provisioning.
+	DemoQuickLogin bool
 }
 
 func Load() (Config, error) {
@@ -99,6 +103,14 @@ func Load() (Config, error) {
 		}
 		simulation = parsed
 	}
+	demoQuickLogin := false
+	if raw := os.Getenv("DEMO_QUICK_LOGIN"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("DEMO_QUICK_LOGIN must be true or false")
+		}
+		demoQuickLogin = parsed
+	}
 	return Config{
 		Port:             port,
 		DatabaseURL:      databaseURL,
@@ -112,5 +124,6 @@ func Load() (Config, error) {
 		BackupInterval:   backupInterval,
 
 		PaymentSimulationAllowed: simulation,
+		DemoQuickLogin:           demoQuickLogin,
 	}, nil
 }

@@ -41,8 +41,8 @@ check('the guardian has two children with separate fee accounts', children.lengt
 
 // The demo seed leaves both children fully paid; give each one an unpaid
 // month of its own tuition so there is something to (not) pay.
-async function ensureDue(id) {
-  if ((await balanceOf(id)) > 0) return
+async function ensureDue(id, balance = () => balanceOf(id)) {
+  if ((await balance()) > 0) return
   const structure = (await accountant('GET', `/fees/dues?student_id=${id}&page=1&page_size=1`)).data.items[0].structure_id
   for (let month = 11; month < 40; month++) {
     const period = `${2026 + Math.floor((month - 1) / 12)}-${String((month - 1) % 12 + 1).padStart(2, '0')}`
@@ -54,15 +54,26 @@ async function ensureDue(id) {
 }
 await ensureDue(childA.id); await ensureDue(childB.id)
 
-// Students never hold online payment.
-const studentIntent = await student('POST', '/fees/online/intents', { provider: 'bkash', amount: 10 })
-check('a student cannot start an online payment (403)', studentIntent.status === 403, `HTTP ${studentIntent.status} ${studentIntent.code ?? ''}`)
+// Families use the student's account: a student pays online only for their
+// own fees, and only while simulation is on.
+const me = (await student('GET', '/students/me')).data
+const ownBalance = async () => cents((await student('GET', '/fees/me')).data.totals.balance)
+await ensureDue(me.id, ownBalance)
+const otherChild = children.find(c => c.id !== me.id) ?? childB
+const foreignIntent = async () => {
+  const res = await student('POST', '/fees/online/intents', { student_id: otherChild.id, provider: 'bkash', amount: 10 })
+  // With payments off any refusal will do; with simulation on it must be "not found".
+  check("a student cannot start a payment for another student's fees", mode === 'off' ? [403, 404].includes(res.status) : res.status === 404, `HTTP ${res.status} ${res.code ?? ''}`)
+}
 
 if (mode === 'off') {
   const status = await guardian('GET', '/fees/online/status')
   check('online payment is off', status.data?.mode === 'off', JSON.stringify(status.data))
   const intent = await guardian('POST', '/fees/online/intents', { student_id: childA.id, provider: 'bkash', amount: 100 })
   check('a guardian is refused online payment (online_payments_disabled)', intent.status === 403 && intent.code === 'online_payments_disabled', `HTTP ${intent.status} ${intent.code}`)
+  await foreignIntent()
+  const own = await student('POST', '/fees/online/intents', { provider: 'bkash', amount: 10 })
+  check('a student is refused online payment (online_payments_disabled)', own.status === 403 && own.code === 'online_payments_disabled', `HTTP ${own.status} ${own.code}`)
   const forged = await guardian('POST', `/fees/online/intents/${randomUUID()}/confirm`, { otp: '123456' })
   check('a forged confirmation is refused', forged.status === 403, `HTTP ${forged.status} ${forged.code}`)
   const enable = await admin('PUT', '/fees/online/settings', { simulation_enabled: true })
@@ -89,6 +100,14 @@ if (mode === 'off') {
   check('simulation records no payment or receipt', (await paymentCount(childA.id)) === paymentsA, `${paymentsA} payments before and after`)
   const collectedAfter = await collections()
   check('simulation adds nothing to the collection report', cents(collectedAfter.total) === cents(collectedBefore.total) && collectedAfter.count === collectedBefore.count, `${collectedBefore.total} → ${collectedAfter.total}`)
+  await foreignIntent()
+  const ownBefore = await ownBalance(), ownPayments = await paymentCount(me.id)
+  const own = await student('POST', '/fees/online/intents', { provider: 'nagad', amount: 10 })
+  check('a student starts a simulated checkout for their own fees', own.status === 201 && own.data.student_id === me.id && /^SIMNG/.test(own.data.provider_ref), `HTTP ${own.status} ${own.data?.provider_ref}`)
+  const ownStranger = await guardian('POST', `/fees/online/intents/${own.data.id}/confirm`, { otp: '123456' })
+  check("another user cannot confirm the student's checkout", [403, 404].includes(ownStranger.status), `HTTP ${ownStranger.status}`)
+  const ownDone = await student('POST', `/fees/online/intents/${own.data.id}/confirm`, { otp: '123456' })
+  check("the student's simulation moves no money and records nothing", ownDone.status === 200 && ownDone.data.simulated === true && !ownDone.data.payment && (await ownBalance()) === ownBefore && (await paymentCount(me.id)) === ownPayments, `HTTP ${ownDone.status}`)
   const pending = await guardian('POST', '/fees/online/intents', { student_id: childB.id, provider: 'bkash', amount: 50 })
   const off = await admin('PUT', '/fees/online/settings', { simulation_enabled: false })
   const late = await guardian('POST', `/fees/online/intents/${pending.data.id}/confirm`, { otp: '123456' })
@@ -110,15 +129,15 @@ const register = (await accountant('GET', '/fees/payments?page=1&page_size=100')
 const realSum = register.filter(p => !p.simulated && p.paid_on >= collectedAfter.from && p.paid_on <= collectedAfter.to).reduce((n, p) => n + cents(p.amount), 0)
 check('the collection report equals the sum of real payments in the period', realSum === cents(collectedAfter.total), `${realSum / 100} = ${collectedAfter.total}`)
 
-// Browser: the guardian page offers online payment only in simulation, labelled.
+// Browser: the student's fees page offers online payment only in simulation, labelled.
 const b = await launch({ base, shots: join(here, 'shots'), port: 9470 })
 await b.viewport(390, 844, true)
-await b.login('demo.guardian@demo.flybirds.test', password)
-await b.go(`/guardian/children/${childA.id}/fees`); await sleep(1200)
+await b.login('demo.student@demo.flybirds.test', password)
+await b.go('/student/fees'); await sleep(1200)
 const page = await b.evaluate(`document.querySelector('main').innerText`)
-if (mode === 'off') check('the guardian fees page shows no online payment', !/Test online payment|Pay with bKash/i.test(page), 'no pay section')
-else check('the guardian fees page labels online payment SIMULATED — NO MONEY TRANSFERRED', page.includes('SIMULATED — NO MONEY TRANSFERRED'), 'label present')
-await b.shot(`payment-safety-guardian-${mode}`)
+if (mode === 'off') check('the student fees page shows no online payment', !/Test online payment|Pay with bKash/i.test(page), 'no pay section')
+else check('the student fees page labels online payment SIMULATED — NO MONEY TRANSFERRED', page.includes('SIMULATED — NO MONEY TRANSFERRED'), 'label present')
+await b.shot(`payment-safety-student-${mode}`)
 b.close()
 
 if (mode === 'simulation') await admin('PUT', '/fees/online/settings', { simulation_enabled: false })

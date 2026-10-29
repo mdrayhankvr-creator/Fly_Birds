@@ -342,7 +342,7 @@ func (r *GormRepository) ListRelationships(ctx context.Context, id string) ([]Re
 		return nil, ErrNotFound
 	}
 	items := []Relationship{}
-	err := r.db.WithContext(ctx).Table("student_guardians AS sg").Joins("JOIN guardians AS g ON g.id=sg.guardian_id").Select("sg.student_id,sg.guardian_id,sg.relationship,sg.is_primary,g.name_en AS guardian_name").Where("sg.student_id=?", id).Order("sg.is_primary DESC,g.name_en ASC").Scan(&items).Error
+	err := r.db.WithContext(ctx).Table("student_guardians AS sg").Joins("JOIN guardians AS g ON g.id=sg.guardian_id").Select("sg.student_id,sg.guardian_id,sg.relationship,sg.is_primary,g.name_en AS guardian_name,g.name_bn AS guardian_name_bn,g.phone").Where("sg.student_id=?", id).Order("sg.is_primary DESC,g.name_en ASC").Scan(&items).Error
 	return items, err
 }
 func (r *GormRepository) Link(ctx context.Context, a Actor, id string, v LinkInput) (Relationship, error) {

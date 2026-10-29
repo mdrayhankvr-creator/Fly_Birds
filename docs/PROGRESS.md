@@ -10,6 +10,63 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Premium UI, Checkpoint 1 (2026-10-28)
+
+On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card merged). Frontend only, apart from the guardian correction below (one read-only route) and migration 1750 (students pay online for their own fees): no authentication, result or ID-card change. The approved prototype (`feature/ui-design-prototype`, `108df01`, mock data at `/design-preview`) is the visual reference and is not merged. The completion figures above do not change.
+
+**Implementation:**
+- **Design system** (`styles.css`, `components/dashboard/kit.tsx`): light and dark surface and ink tokens; one colour per module (routine, homework, diary, notices, events, exams, attendance, fees, people); `ds-*` classes that take a module or subject colour through `--s`, with fills darkened so white text stays readable; shared panels, metrics, stat tiles, role headers, quick actions, a progress ring, and the empty, loading and unavailable states.
+- **Theme:** a light/dark switch in the top bar, kept per browser; without a choice the school's dashboard theme applies.
+- **Navigation:** a mobile bottom bar (below 1024px) with four tabs (56px) and More, which opens the existing drawer. Tabs come only from the user's own navigation, so permissions and module switches apply. The sidebar, its collapsed setting and the breadcrumb are unchanged.
+- **Dashboards:** the administrator's school-pulse panel, a dashboard of its own for the head teacher, tinted headers for the teacher, student and guardian, and the accountant's till. Teachers, students and guardians get a swipeable strip of today's classes, marked Done, Now and Next. Every figure comes from the APIs the dashboards already used. The guardian's child selector and child links are kept.
+- **Strings:** 37 new keys in English and Bangla (`premiumUiTranslations.ts`).
+
+**Verification (2026-10-28):**
+- Type check and production build pass; the i18n check passes (2,715 keys in each language); the unit tests pass (11/11).
+- **Not run:** `e2e/suite.mjs` and `e2e/whitelabel.mjs`. Docker is not available on this machine, so there was no freshly seeded demo stack to run them against. The markup keeps what they check: the greeting text, sidebar labels, the "Active students" figure, the receipts table, the guardian's radio group, "Today's classes", named controls, and brand-ink links only on light surfaces.
+- **Visual check against mock data (isolated):** a throwaway mock API (fixture data, no database) behind a separate Vite dev server on 127.0.0.1 served all six dashboards at 360, 390, 430, 820 and 1440px, in English/light and Bangla/dark (60 runs), with spot checks in English/dark and Bangla/light. After the two fixes below: no page overflow, nothing past the viewport, no truncated figures, bottom bar below 1024px and sidebar above it, no JavaScript errors.
+  - Fixed: tile labels and hints that cut off figures on phones; long school names clipped in the sidebar header; Bangla vowel signs clipped in bottom-bar labels.
+  - The mock data checks layout only. It is not the seeded demo school, and the role permissions in it are approximations.
+
+**Guardian facilities moved into the student account (2026-10-29, product correction):**
+- Families use the student's account; there is no separate guardian dashboard or guardian menu. A guardian login that still exists sees only a notice on its home page asking them to sign in with the child's student account; old `/guardian/...` links lead there, and `/admin/guardians` leads to the student list. New accounts cannot be given the guardian role (it stays in the Users filter so existing guardian logins can be found).
+- Student profile: a student sees all their guardians (relationship, phone, primary), read-only. Administrators add a new guardian, edit a guardian's details, link one already on record, set the primary guardian and remove a link, all on the student's profile; head teachers see the list read-only. `GuardiansPage` and `GuardianChildrenPage` are removed.
+- Backend: one read-only route, `GET /students/me/guardians` (`students:read_self`). It takes no student ID, so it only ever returns the caller's own guardians. Relationship rows also carry the guardian's Bangla name and phone. Guardian tables, links, `guardians:*` permissions and every guardian endpoint are unchanged; no migration.
+
+**Online payment moves to the student account (2026-10-29):**
+- Migration `1750_student_online_payment.sql` (numbered 1750 because 1701–1749 belong to M15; this branch's later migrations use 1750 and up) grants the student role `fees:pay_online` again (1401 is untouched). The server resolves the student from the signed-in account and refuses any other student ID (404); a checkout can only be confirmed by whoever started it. Every 1401 safeguard still applies: online payment works only while the deployment allows simulation and an administrator has switched it on, and a simulated checkout records no payment and moves no money.
+- The student's fees page already shows the labelled simulation section when the account holds the permission; the fee-settings wording now says "students and families" instead of "guardians".
+
+**Verification on a disposable stack (2026-10-29):** project `fbqa-cp1b` on 127.0.0.1:8092, its own volumes; started from `cebb9cc` (before payment safety), seeded, then upgraded in place to this branch and seeded again. Go tests ran against a separate throwaway PostgreSQL container, removed afterwards.
+- Go: every package passes on a fresh database (167 top-level tests; the opt-in `E3_PERF` test skipped), including the guardian privacy checks and a student who cannot pay another student's fee. A rerun on the reused database failed `TestPostgresCheckpointFourLifecycle` (last-admin check) because the first run left extra admins; on a fresh database it passes.
+- `payment-upgrade.mjs`: before 2/2 on `cebb9cc`; after 22/23. The failure was the test picking the student's payment that the run had just voided; fixed to pick the student's other legacy payment. The after phase cannot be repeated on the same school, so the corrected check was not rerun; the screenshot shows the review panel listing the remaining legacy receipts and "does not allow simulation".
+- `suite.mjs`: 107/110 on the first run; the three failures were selectors in the new checks (the section `id` is on its heading; the guardian home is `/dashboard/guardian`). After fixing them, those checks passed 4/4 in a targeted run; the whole suite was not rerun because today's attendance register is no longer empty.
+- `whitelabel.mjs` 23/23. `payment-safety.mjs`: off 13/13 (twice); simulation 23/23 after moving the "another student's fees" check to after simulation is switched on (the first run, 22/23, checked it while still off). The simulation run finished its checks but did not exit (the known Windows browser-pipe hang) and was stopped.
+- Type check, build, i18n (2,724 keys each) and unit tests (11/11) pass.
+
+**Old guardian accounts (2026-10-29):** the notification bell and its count are hidden for the guardian role, which no longer has a notifications page.
+
+**School landing page (2026-10-29):** the public page is the school's own portal, not vendor marketing. The hero, feature list, role grid, "powered by" line and login bullet points are gone (their strings removed in both languages).
+- First screen: a full-width slideshow of the school's photos under a soft overlay, with the logo, name (and the other-language name) and an optional tagline, and the sign-in form on the page. `/` and `/login` both show it. On phones the photos become a shorter banner with the form below. With no photos the page uses the school colours and logo. Language and light/dark switches stay in the header.
+- Slideshow: 7-second crossfade; pauses on hover, keyboard focus or the pause button; arrow keys and one dot per photo; no auto-advance and an instant change with reduced motion. Only the first two photos load up front; each later one loads just before it is shown.
+- Settings: administrators add (up to 8), caption in English and Bangla, reorder and remove photos under School settings, and set the tagline in both languages. Browsers shrink photos to at most 1,600px wide as JPEG before upload; the server accepts JPEG or PNG up to 3 MiB and 320–2,400px, re-encodes to JPEG (dropping metadata), stores at most 1 MiB in the database like student photos, and audit-logs every change. Images are public and served with a content-hash version: `Cache-Control: public, max-age=31536000, immutable` and an ETag.
+- Migration `1751_school_landing.sql` (taglines, `school_slides`). The tagline fields are optional on `PUT /school/settings`, so older clients keep the saved text.
+
+**Demo quick sign-in for local testing (2026-10-29):** "Sign in as Administrator / Head teacher / Teacher / Accountant / Student" on the sign-in form, only when the API runs with `DEMO_QUICK_LOGIN=true` (default off; `compose.prod.yaml` never passes it and provisioning never sets it).
+- `GET/POST /auth/demo-login`: 404 while off. The server picks the account itself and signs in only an active account that seed-demo recorded in `demo_records` at the demo address with that role; anything else is 403 `not_demo_account`. No password is sent or returned.
+- Local only: the request's Host must be `localhost` or a loopback address, and for sign-in the Origin must be too, with `Sec-Fetch-Site` same-origin when sent (403 `local_only`). Browsers set these headers, so another website cannot use a visitor's browser to sign in; a non-browser client on a machine that can reach the API can forge them, so the real protection is that the setting is off. nginx rate-limits the route like sign-in.
+- Each quick sign-in is audit-logged as `auth.demo_quick_login` (role, host, origin) before the session is created.
+
+**Verification (2026-10-29):** migration renumbered 1701 → 1750 (1701–1749 belong to M15). `fbqa-cp1b` was torn down with its volumes and rebuilt fresh on 127.0.0.1:8092, seeded, with quick sign-in on through an override file outside the repository.
+- Go, on a fresh throwaway database: all 25 packages pass (169 tests, the opt-in `E3_PERF` test skipped), including the new slideshow and quick-sign-in tests.
+- `suite.mjs` 115/115 (landing, sign-in, quick-sign-in visibility, 375px phone, guardian bell); `whitelabel.mjs` 23/23; `payment-safety.mjs` off 13/13.
+- Slideshow in a browser: 13/13 (auto-advance, pause on focus and with the button, arrow keys, two photos loaded up front, reduced motion stops and makes changes instant). Admin upload of a 2400×1350 image stored at 1600×900. Images served through nginx with `public, max-age=31536000, immutable`.
+- Quick sign-in clicked for all five roles at localhost and once at 127.0.0.1; each opened that role's dashboard and left an audit entry. A request with another Host got 404.
+- Screenshots at 375 and 1440px, English and Bangla, light and dark, with synthetic test photos and with none: no sideways scrolling, no unnamed controls.
+- Found and fixed while checking: the settings page showed a stale photo list for up to a minute after an upload (the public list is cacheable; settings now fetch it fresh); slide controls fell below the first screen on desktop when the form was tall (moved under the school name); the active dot and quick-sign-in box were hard to see in dark mode.
+
+**Next:** run the browser and white-label suites against a seeded stack, check the dashboards at 360/390/430px, tablet and desktop in both languages and themes, then Checkpoint 2 (routine, homework, diary and notice screens).
+
 ## Current Status — M15 Stage A: Enrolment History (2026-10-29)
 
 On `feature/m15-enrolment-promotion`, from `main` `9b68bf79`. Stage A of M15 (enrolment history foundation); stage B (promotion workflow and screens) is not started. M15 is outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [ENROLMENT_AND_PROMOTION.md](ENROLMENT_AND_PROMOTION.md).

@@ -43,6 +43,8 @@ func schoolError(c *gin.Context, err error) {
 		failure(c, 403, "forbidden", "permission denied")
 	case errors.Is(err, school.ErrCoreModule):
 		failure(c, 409, "core_module", "core module cannot be disabled")
+	case errors.Is(err, school.ErrSlideLimit):
+		failure(c, 409, "slide_limit", "the slideshow already has the maximum number of photos")
 	case errors.Is(err, school.ErrModuleDisabled):
 		failure(c, 403, "module_disabled", "module is disabled")
 	default:

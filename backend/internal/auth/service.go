@@ -23,6 +23,8 @@ type Service struct {
 	tokens    *TokenManager
 	dummyHash string
 	now       func() time.Time
+	// demoQuickLogin is set only from DEMO_QUICK_LOGIN (see demo.go).
+	demoQuickLogin bool
 }
 
 func NewService(repo Repository, signingKey []byte) (*Service, error) {

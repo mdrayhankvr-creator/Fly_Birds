@@ -78,6 +78,22 @@ paths:
         '401': { $ref: '#/components/responses/InvalidCredentials' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/demo-login:
+    get:
+      operationId: getDemoQuickLogin
+      summary: Report whether demo quick login is offered
+      description: Returns the demo roles only when the API runs with DEMO_QUICK_LOGIN=true and the request is addressed to localhost or a loopback address; otherwise 404, as if the route did not exist. Never returns passwords.
+      tags: [authentication]
+      security: []
+      responses: { '200': { description: Roles offered }, '404': { $ref: '#/components/responses/NotFound' } }
+    post:
+      operationId: demoQuickLogin
+      summary: Sign in as a seed-demo account without a password (local testing only)
+      description: 404 unless DEMO_QUICK_LOGIN=true. 403 local_only unless Host and Origin are localhost or loopback and Sec-Fetch-Site, when sent, is same-origin. 403 not_demo_account unless the role maps to an active account that seed-demo recorded in demo_records at the demo address. Each success is audit-logged as auth.demo_quick_login. Sets the same cookies as /auth/login.
+      tags: [authentication]
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [role], additionalProperties: false, properties: { role: { type: string, enum: [admin, head_teacher, teacher, accountant, student] } } } } } }
+      responses: { '200': { description: Signed in }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /auth/refresh:
     post:
       operationId: refreshSession
@@ -253,6 +269,55 @@ paths:
       responses:
         '200': { description: Public branding, content: { application/json: { schema: { $ref: '#/components/schemas/BrandingResponse' } } } }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /school/slides:
+    get:
+      operationId: listPublicSchoolSlides
+      summary: List the landing-page slideshow photos
+      description: Public by design. Returns order, size, version and captions only; fetch each image from /school/slides/{id}/image?v={version}. Cached for 60 seconds.
+      tags: [school]
+      security: []
+      responses:
+        '200': { description: Slides in display order }
+    post:
+      operationId: addSchoolSlide
+      summary: Upload a slideshow photo
+      description: Requires school_settings:update and administrator. Body is a JPEG or PNG (Content-Type image/jpeg or image/png) of at most 3 MiB, 320 to 2400 pixels wide. The server re-encodes it as JPEG, dropping metadata. At most eight photos (409 slide_limit).
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '201': { description: Slide added }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Slideshow full }, '413': { description: Too large }, '415': { description: Not JPEG or PNG }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/slides/order:
+    put:
+      operationId: reorderSchoolSlides
+      summary: Set the slideshow order
+      description: Requires school_settings:update and administrator. Body {"ids":[...]} lists every slide ID once.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Slides in the new order }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/slides/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      operationId: updateSchoolSlideCaption
+      summary: Set a slideshow photo's English and Bangla captions
+      description: Requires school_settings:update and administrator. Captions are one line of at most 140 characters each.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Slide }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteSchoolSlide
+      summary: Remove a slideshow photo
+      description: Requires school_settings:update and administrator. The remaining photos keep their order.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Deleted }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/slides/{id}/image:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: v, in: query, required: false, schema: { type: string } }]
+    get:
+      operationId: getSchoolSlideImage
+      summary: Read one slideshow photo (JPEG)
+      description: Public by design. With ?v= equal to the slide's version the response is cacheable for a year (immutable); otherwise for five minutes. Supports If-None-Match.
+      tags: [school]
+      security: []
+      responses: { '200': { description: JPEG image }, '304': { description: Not modified }, '404': { $ref: '#/components/responses/NotFound' } }
   /public/id-cards/{token}:
     parameters: [{ name: token, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{22}$' } }]
     get:
@@ -932,6 +997,14 @@ paths:
       description: Requires students:read_self and the students module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/me/guardians:
+    get:
+      operationId: listOwnStudentGuardians
+      tags: [guardians]
+      summary: Read the guardians linked to the signed-in student's own profile
+      description: Requires students:read_self and the students module. Takes no student ID, so it only ever returns the caller's own guardians (name, Bangla name, relationship, primary flag and phone).
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Relationships }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /students/{id}:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:
@@ -2242,8 +2315,8 @@ paths:
   /fees/online/intents:
     post:
       operationId: startSimulatedMobilePayment
-      summary: Start a simulated bKash or Nagad checkout for a linked child's dues
-      description: Requires fees:pay_online (guardians by default; students no longer hold it) and simulation mode, otherwise 403 online_payments_disabled. Simulated references start with SIM and are never provider transaction IDs. The session expires after 15 minutes.
+      summary: Start a simulated bKash or Nagad checkout for the student's own dues or a linked child's dues
+      description: Requires fees:pay_online (students, for their own fees only, and guardians, for linked children) and simulation mode, otherwise 403 online_payments_disabled. Simulated references start with SIM and are never provider transaction IDs. The session expires after 15 minutes.
       tags: [fees]
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeIntentInput' } } } }
@@ -3657,6 +3730,8 @@ components:
         primary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
         secondary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
         dashboard_theme: { type: string, enum: [light, dark] }
+        tagline_en: { type: string, maxLength: 160, description: Short line under the school name on the landing page; optional on input }
+        tagline_bn: { type: string, maxLength: 160 }
     BrandingResponse:
       type: object
       required: [data]
