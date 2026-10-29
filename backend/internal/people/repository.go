@@ -13,8 +13,8 @@ type GormRepository struct{ db *gorm.DB }
 
 func NewRepository(db *gorm.DB) *GormRepository { return &GormRepository{db: db} }
 func databaseError(err error) error {
-	if errors.Is(historyError(err), ErrHistory) {
-		return ErrHistory
+	if mapped := historyError(err); errors.Is(mapped, ErrHistory) || errors.Is(mapped, ErrUsePromotion) {
+		return mapped
 	}
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) {
