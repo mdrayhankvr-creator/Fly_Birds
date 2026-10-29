@@ -33,6 +33,8 @@ func promotionError(c *gin.Context, err error) {
 		failure(c, 404, "not_found", "record not found")
 	case errors.Is(err, promotion.ErrForbidden):
 		failure(c, 403, "forbidden", "permission denied")
+	case errors.Is(err, promotion.ErrProgressionUnset):
+		failure(c, 409, "progression_unset", "set the class's next class or mark it as the final class before promoting it")
 	case errors.Is(err, promotion.ErrOpenBatch):
 		failure(c, 409, "batch_open", "this class already has an open promotion batch for that session")
 	case errors.Is(err, promotion.ErrState):

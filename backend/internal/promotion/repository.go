@@ -38,7 +38,7 @@ func lock(tx *gorm.DB) error {
 const utc = `'YYYY-MM-DD"T"HH24:MI:SS"Z"'`
 
 const batchSelect = `SELECT b.id, b.from_session_id, fs.name AS from_session_name, b.to_session_id, ts.name AS to_session_name,
-       b.class_id, c.name AS class_name, c.next_class_id, nc.name AS next_class_name, b.status, b.roll_policy, b.approved_sha256,
+       b.class_id, c.name AS class_name, c.next_class_id, nc.name AS next_class_name, c.is_final AS class_is_final, b.status, b.roll_policy, b.approved_sha256,
        coalesce(nullif(au.display_name, ''), au.email) AS approved_by, to_char(b.approved_at AT TIME ZONE 'UTC', ` + utc + `) AS approved_at,
        coalesce(nullif(pu.display_name, ''), pu.email) AS applied_by, to_char(b.applied_at AT TIME ZONE 'UTC', ` + utc + `) AS applied_at,
        coalesce(nullif(ru.display_name, ''), ru.email) AS reverted_by, to_char(b.reverted_at AT TIME ZONE 'UTC', ` + utc + `) AS reverted_at,
@@ -132,8 +132,9 @@ func inputsHash(b Batch) (string, error) {
 		Format                 int
 		Batch, From, To, Class string
 		Next                   *string
+		Final                  bool
 		Lines                  []line
-	}{1, b.ID, b.FromSessionID, b.ToSessionID, b.ClassID, b.NextClassID, lines})
+	}{1, b.ID, b.FromSessionID, b.ToSessionID, b.ClassID, b.NextClassID, b.ClassIsFinal, lines})
 	if err != nil {
 		return "", err
 	}
@@ -146,6 +147,9 @@ func inputsHash(b Batch) (string, error) {
 func issues(tx *gorm.DB, b *Batch) error {
 	block := func(code, student, detail string) { b.Blockers = append(b.Blockers, Issue{code, student, detail}) }
 	warn := func(code, student, detail string) { b.Warnings = append(b.Warnings, Issue{code, student, detail}) }
+	if b.NextClassID == nil && !b.ClassIsFinal {
+		block("progression_unset", "", "set the class's next class or mark it final")
+	}
 
 	// Students whose year changed since the batch was made, students who
 	// joined the class since, and annual results corrected since.
@@ -238,15 +242,6 @@ func issues(tx *gorm.DB, b *Batch) error {
 		}
 	}
 
-	if b.NextClassID == nil {
-		var higher bool
-		if err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM academic_classes h JOIN academic_classes c ON c.id = ? WHERE h.is_active AND h.id <> c.id AND h.display_order > c.display_order)`, b.ClassID).Row().Scan(&higher); err != nil {
-			return err
-		}
-		if higher {
-			warn("top_class", "", "the class has no next class, so its students graduate; a later class exists")
-		}
-	}
 	var concessions int
 	if err := tx.Raw(`SELECT count(*) FROM fee_concessions fc JOIN promotion_items i ON i.student_id = fc.student_id AND i.batch_id = ? WHERE fc.session_id = ?`, b.ID, b.FromSessionID).Row().Scan(&concessions); err != nil {
 		return err
@@ -278,15 +273,15 @@ func annualResults(tx *gorm.DB, sessionID, classID string) (map[string]annualRow
 }
 
 // recommend applies the approved rules: passed → promote (graduate from
-// the top class); failed → repeat; withheld or no published annual result
-// → blocked until someone decides with a reason.
-func recommend(top bool, a *annualRow) string {
+// the final class); failed → repeat; withheld or no published annual
+// result → blocked until someone decides with a reason.
+func recommend(final bool, a *annualRow) string {
 	switch {
 	case a == nil || a.Outcome == "withheld":
 		return Blocked
 	case a.Outcome == "failed":
 		return Repeat
-	case top:
+	case final:
 		return Graduate
 	}
 	return Promote
@@ -295,11 +290,12 @@ func recommend(top bool, a *annualRow) string {
 type batchRow struct {
 	ID, FromSessionID, ToSessionID, ClassID, Status, RollPolicy string
 	NextClassID                                                 *string
+	IsFinal                                                     bool
 }
 
 func lockBatch(tx *gorm.DB, id string) (batchRow, error) {
 	var b batchRow
-	res := tx.Raw(`SELECT b.id, b.from_session_id, b.to_session_id, b.class_id, b.status, b.roll_policy, c.next_class_id
+	res := tx.Raw(`SELECT b.id, b.from_session_id, b.to_session_id, b.class_id, b.status, b.roll_policy, c.next_class_id, c.is_final
   FROM promotion_batches b JOIN academic_classes c ON c.id = b.class_id WHERE b.id = ? FOR UPDATE OF b`, id).Scan(&b)
 	if res.Error != nil {
 		return b, res.Error
@@ -342,7 +338,6 @@ func syncItems(tx *gorm.DB, b batchRow) error {
 	for i, e := range existing {
 		old[e.StudentID] = i
 	}
-	top := b.NextClassID == nil
 	for _, st := range students {
 		var a *annualRow
 		var versionID, outcome *string
@@ -350,7 +345,7 @@ func syncItems(tx *gorm.DB, b batchRow) error {
 		if v, ok := annual[st.StudentID]; ok {
 			a, versionID, outcome, position = &v, &v.ID, &v.Outcome, v.ClassPosition
 		}
-		rec := recommend(top, a)
+		rec := recommend(b.IsFinal, a)
 		var decision *string
 		if rec != Blocked {
 			decision = &rec
@@ -488,6 +483,9 @@ func (r *Repository) Create(ctx context.Context, a Actor, in CreateInput) (Batch
 		if err != nil {
 			return err
 		}
+		if b.NextClassID == nil && !b.IsFinal {
+			return ErrProgressionUnset
+		}
 		if err := syncItems(tx, b); err != nil {
 			return err
 		}
@@ -593,7 +591,12 @@ func (r *Repository) Arrange(ctx context.Context, a Actor, id, policy string) (B
 }
 
 func (r *Repository) Refresh(ctx context.Context, a Actor, id string) (Batch, error) {
-	return r.edit(ctx, a, id, "promotion.batch_refreshed", nil, func(tx *gorm.DB, b *batchRow) error { return syncItems(tx, *b) })
+	return r.edit(ctx, a, id, "promotion.batch_refreshed", nil, func(tx *gorm.DB, b *batchRow) error {
+		if b.NextClassID == nil && !b.IsFinal {
+			return ErrProgressionUnset
+		}
+		return syncItems(tx, *b)
+	})
 }
 
 func (r *Repository) edit(ctx context.Context, a Actor, id, action string, meta map[string]any, fn func(*gorm.DB, *batchRow) error) (Batch, error) {
@@ -670,9 +673,11 @@ func (r *Repository) Approve(ctx context.Context, a Actor, id, hash string) (Bat
 }
 
 // settings for the enrolment triggers, for the rest of the transaction.
-func settings(tx *gorm.DB, actor, outcome, source, revert string) error {
+// completed marks a withdrawal or transfer as leaving after the year.
+func settings(tx *gorm.DB, actor, outcome, source, revert, completed string) error {
 	return tx.Exec(`SELECT set_config('flybirds.actor_id', ?, true), set_config('flybirds.enrolment_outcome', ?, true),
-       set_config('flybirds.enrolment_source', ?, true), set_config('flybirds.enrolment_revert', ?, true)`, actor, outcome, source, revert).Error
+       set_config('flybirds.enrolment_source', ?, true), set_config('flybirds.enrolment_revert', ?, true),
+       set_config('flybirds.enrolment_completed', ?, true)`, actor, outcome, source, revert, completed).Error
 }
 
 var leaveStatus = map[string]string{Graduate: "graduated", Withdraw: "inactive", Transfer: "transferred"}
@@ -716,14 +721,16 @@ func (r *Repository) Apply(ctx context.Context, a Actor, id string) (Batch, erro
 			switch d {
 			case Promote, Repeat:
 				outcome := map[string]string{Promote: "promoted", Repeat: "repeated"}[d]
-				if err := settings(tx, a.ID, outcome, "promotion", ""); err != nil {
+				if err := settings(tx, a.ID, outcome, "promotion", "", ""); err != nil {
 					return err
 				}
 				res = tx.Exec(`UPDATE students SET session_id = ?, class_id = ?, section_id = ?, roll_no = ?, updated_at = now()
  WHERE id = ? AND session_id = ? AND class_id = ? AND status = 'active'`,
 					b.ToSessionID, *it.TargetClassID, *it.TargetSectionID, it.TargetRollNo, it.StudentID, b.FromSessionID, b.ClassID)
 			default:
-				if err := settings(tx, a.ID, "", "", ""); err != nil {
+				// Leaving through the batch is leaving after the year: the
+				// student stays on that year's roll.
+				if err := settings(tx, a.ID, "", "", "", "on"); err != nil {
 					return err
 				}
 				res = tx.Exec(`UPDATE students SET status = ?, updated_at = now() WHERE id = ? AND session_id = ? AND class_id = ? AND status = 'active'`,
@@ -742,7 +749,7 @@ func (r *Repository) Apply(ctx context.Context, a Actor, id string) (Batch, erro
 				}
 			}
 		}
-		if err := settings(tx, a.ID, "", "", ""); err != nil {
+		if err := settings(tx, a.ID, "", "", "", ""); err != nil {
 			return err
 		}
 		if err := tx.Exec("UPDATE promotion_batches SET status = 'applied', applied_by = ?, applied_at = now(), updated_at = now() WHERE id = ?", a.ID, id).Error; err != nil {
@@ -800,13 +807,13 @@ func (r *Repository) Revert(ctx context.Context, a Actor, id, reason string) (Ba
 			var res *gorm.DB
 			switch *it.Decision {
 			case Promote, Repeat:
-				if err := settings(tx, a.ID, "", "", "on"); err != nil {
+				if err := settings(tx, a.ID, "", "", "on", ""); err != nil {
 					return err
 				}
 				res = tx.Exec("UPDATE students SET session_id = ?, class_id = ?, section_id = ?, roll_no = ?, updated_at = now() WHERE id = ?",
 					b.FromSessionID, b.ClassID, it.SourceSectionID, it.SourceRollNo, it.StudentID)
 			default:
-				if err := settings(tx, a.ID, "", "", ""); err != nil {
+				if err := settings(tx, a.ID, "", "", "", ""); err != nil {
 					return err
 				}
 				res = tx.Exec("UPDATE students SET status = 'active', updated_at = now() WHERE id = ?", it.StudentID)
@@ -815,7 +822,7 @@ func (r *Repository) Revert(ctx context.Context, a Actor, id, reason string) (Ba
 				return dbErr(res.Error)
 			}
 		}
-		if err := settings(tx, a.ID, "", "", ""); err != nil {
+		if err := settings(tx, a.ID, "", "", "", ""); err != nil {
 			return err
 		}
 		if err := tx.Exec("UPDATE promotion_batches SET status = 'reverted', reverted_by = ?, reverted_at = now(), revert_reason = ?, updated_at = now() WHERE id = ?",
@@ -832,18 +839,25 @@ func (r *Repository) Revert(ctx context.Context, a Actor, id, reason string) (Ba
 
 func (r *Repository) Progression(ctx context.Context) ([]ClassProgression, error) {
 	out := []ClassProgression{}
-	err := r.db.WithContext(ctx).Raw(`SELECT c.id AS class_id, c.name AS class_name, c.display_order, c.is_active, c.next_class_id, n.name AS next_class_name
-  FROM academic_classes c LEFT JOIN academic_classes n ON n.id = c.next_class_id ORDER BY c.display_order, c.name, c.id`).Scan(&out).Error
+	err := r.db.WithContext(ctx).Raw(`SELECT c.id AS class_id, c.name AS class_name, c.display_order, c.is_active,
+       CASE WHEN c.next_class_id IS NOT NULL THEN 'next' WHEN c.is_final THEN 'final' ELSE 'unset' END AS setting,
+       c.next_class_id, n.name AS next_class_name, c.is_final, sg.id AS suggested_class_id, sg.name AS suggested_class_name
+  FROM academic_classes c LEFT JOIN academic_classes n ON n.id = c.next_class_id
+  LEFT JOIN LATERAL (SELECT h.id, h.name FROM academic_classes h
+                      WHERE c.next_class_id IS NULL AND NOT c.is_final AND h.is_active AND h.id <> c.id AND h.display_order > c.display_order
+                      ORDER BY h.display_order, h.name, h.id LIMIT 1) sg ON true
+ ORDER BY c.display_order, c.name, c.id`).Scan(&out).Error
 	return out, err
 }
 
-func (r *Repository) SetProgression(ctx context.Context, a Actor, classID string, next *string) ([]ClassProgression, error) {
+func (r *Repository) SetProgression(ctx context.Context, a Actor, classID string, next *string, final bool) ([]ClassProgression, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lock(tx); err != nil {
 			return err
 		}
 		var before *string
-		if err := tx.Raw("SELECT next_class_id FROM academic_classes WHERE id = ? FOR UPDATE", classID).Row().Scan(&before); err != nil {
+		var wasFinal bool
+		if err := tx.Raw("SELECT next_class_id, is_final FROM academic_classes WHERE id = ? FOR UPDATE", classID).Row().Scan(&before, &wasFinal); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrNotFound
 			}
@@ -865,10 +879,11 @@ SELECT bool_or(id = ?) FROM chain`, *next, classID).Row().Scan(&cycle); err != n
 				return ErrInvalid
 			}
 		}
-		if err := tx.Exec("UPDATE academic_classes SET next_class_id = ?, updated_at = now() WHERE id = ?", next, classID).Error; err != nil {
+		if err := tx.Exec("UPDATE academic_classes SET next_class_id = ?, is_final = ?, updated_at = now() WHERE id = ?", next, final, classID).Error; err != nil {
 			return dbErr(err)
 		}
-		return audit.Record(tx, &a.ID, "academic.class_progression_saved", "academic_class", classID, map[string]any{"before": before, "next_class_id": next})
+		return audit.Record(tx, &a.ID, "academic.class_progression_saved", "academic_class", classID, map[string]any{
+			"before_next_class_id": before, "before_final": wasFinal, "next_class_id": next, "final": final})
 	})
 	if err != nil {
 		return nil, dbErr(err)

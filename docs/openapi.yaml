@@ -967,8 +967,8 @@ paths:
     get:
       operationId: listClassProgression
       tags: [promotions]
-      summary: List each class with the class its students are promoted to
-      description: 'Requires promotions:read (administrator, head teacher) and the students module. An empty next class means the top class: its students graduate.'
+      summary: List each class with its progression setting
+      description: 'Requires promotions:read (administrator, head teacher) and the students module. setting is next (students are promoted to next_class_id), final (students graduate) or unset (the class cannot be promoted). An unset class carries a suggested next class by display order; nothing is saved until an administrator saves it.'
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Classes with their next class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassProgressionResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/progression/{classId}:
@@ -976,10 +976,10 @@ paths:
     put:
       operationId: setClassProgression
       tags: [promotions]
-      summary: Set or clear the class a class is promoted to
-      description: Requires promotions:manage, the administrator role and the students module. Refused if it would make a cycle. Audited. Open batches of the class follow the change (an approval becomes stale).
+      summary: Set a class's progression (next class or final), or clear it
+      description: 'Requires promotions:manage, the administrator role and the students module. Send next_class_id, or final: true (not both); neither clears the setting (unset). Refused if it would make a cycle. Audited. Open batches of the class follow the change (an approval becomes stale; unset blocks them).'
       security: [{ bearerAuth: [] }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { next_class_id: { type: string, format: uuid, nullable: true } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { next_class_id: { type: string, format: uuid, nullable: true }, final: { type: boolean } } } } } }
       responses: { '200': { description: Classes with their next class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassProgressionResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions:
     get:
@@ -994,10 +994,10 @@ paths:
       operationId: createPromotionBatch
       tags: [promotions]
       summary: Prepare a promotion batch for one class of one session
-      description: 'Requires promotions:manage, the administrator role and the students module. One open batch per class and session. Each active student of the class gets a recommendation from their published annual result: passed → promote (graduate from the top class), failed → repeat, withheld or missing → blocked until decided with a reason. Target sections default to the same section code in the new session; rolls are kept. Audited.'
+      description: 'Requires promotions:manage, the administrator role and the students module. Refused with 409 progression_unset while the class has neither a next class nor the final setting. One open batch per class and session. Each active student of the class gets a recommendation from their published annual result: passed → promote (graduate from the top class), failed → repeat, withheld or missing → blocked until decided with a reason. Target sections default to the same section code in the new session; rolls are kept. Audited.'
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionCreateInput' } } } }
-      responses: { '201': { description: Draft batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '201': { description: Draft batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/{id}:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     get:
@@ -1016,7 +1016,7 @@ paths:
       description: Requires promotions:manage, the administrator role and the students module. A decision that differs from the recommendation, or replaces a blocked one, needs a reason. Setting a roll makes the batch's rolls manual. An edit after approval returns the batch to draft. Audited.
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionItemInput' } } } }
-      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { description: invalid_request or reason_required, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { description: invalid_request or reason_required, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/{id}/arrange:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     post:
@@ -1026,7 +1026,7 @@ paths:
       description: 'Requires promotions:manage, the administrator role and the students module. keep: the old roll; merit: by annual class position; name: alphabetical; manual: leave as set. Numbering skips rolls already taken in the target section.'
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [roll_policy], properties: { roll_policy: { type: string, enum: [keep, merit, name, manual] } } } } } }
-      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/{id}/refresh:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     post:
@@ -1035,7 +1035,7 @@ paths:
       summary: Bring a batch up to date with the class and its annual results
       description: Requires promotions:manage, the administrator role and the students module. Adds students who joined, removes students who left and re-reads annual results; decisions made with a reason are kept.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/{id}/discard:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     post:
@@ -1044,7 +1044,7 @@ paths:
       summary: Discard a draft or approved batch
       description: Requires promotions:manage, the administrator role and the students module.
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/{id}/approve:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     post:
@@ -1054,16 +1054,16 @@ paths:
       description: Requires promotions:approve and the head-teacher role, and the students module. Refused while blockers remain or when inputs_sha256 is not the batch's current hash.
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [inputs_sha256], properties: { inputs_sha256: { type: string, pattern: '^[0-9a-f]{64}$' } } } } } }
-      responses: { '200': { description: Approved batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Approved batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/{id}/apply:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     post:
       operationId: applyPromotionBatch
       tags: [promotions]
       summary: Apply an approved batch in one transaction
-      description: 'Requires promotions:apply, the administrator role and the students module. Refused if anything changed since approval. Promoted and repeating students get a new enrolment in the next session; graduates and leavers get none; withdrawal and transfer suspend the student''s login. Nothing recorded for the old year changes; optional-subject choices and fee concessions are not copied. Applying again changes nothing. Audited.'
+      description: 'Requires promotions:apply, the administrator role and the students module. Refused if anything changed since approval. Promoted and repeating students get a new enrolment in the next session; graduates and leavers get none; withdrawal and transfer suspend the student''s login and count as completing the year (the student stays in its republished term and annual results). Nothing recorded for the old year changes; optional-subject choices and fee concessions are not copied. Applying again changes nothing. Audited.'
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Applied batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Applied batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /promotions/{id}/revert:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     post:
@@ -1073,7 +1073,7 @@ paths:
       description: Requires promotions:apply, the administrator role and the students module, and a reason. Refused once any of the batch's students has attendance, marks, dues or other records in the new session, or has moved since. Students return to their old year; a login suspended by the batch returns. Audited.
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 3, maxLength: 500 } } } } } }
-      responses: { '200': { description: Reverted batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { description: invalid_request or reason_required, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '200': { description: Reverted batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { description: invalid_request or reason_required, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /students:
     get:
       operationId: listStudents
@@ -3601,7 +3601,7 @@ components:
       type: object
       required: [code]
       properties:
-        code: { type: string, description: 'Blockers: student_changed, student_missing, annual_changed, decision_required, no_next_class, section_required, roll_duplicate, roll_taken. Warnings: override, roll_missing, top_class, concessions_to_review.' }
+        code: { type: string, description: 'Blockers: progression_unset, student_changed, student_missing, annual_changed, decision_required, no_next_class, section_required, roll_duplicate, roll_taken. Warnings: override, roll_missing, concessions_to_review.' }
         student_id: { type: string, format: uuid }
         detail: { type: string }
     PromotionItem:
@@ -3639,6 +3639,7 @@ components:
         class_name: { type: string }
         next_class_id: { type: string, format: uuid, nullable: true }
         next_class_name: { type: string, nullable: true }
+        class_is_final: { type: boolean, description: The class is the final class; passed students graduate }
         status: { type: string, enum: [draft, approved, applied, reverted, discarded] }
         roll_policy: { type: string, enum: [keep, merit, name, manual] }
         approved_sha256: { type: string, nullable: true }
@@ -3670,8 +3671,12 @@ components:
               class_name: { type: string }
               display_order: { type: integer }
               is_active: { type: boolean }
+              setting: { type: string, enum: [next, final, unset] }
               next_class_id: { type: string, format: uuid, nullable: true }
               next_class_name: { type: string, nullable: true }
+              is_final: { type: boolean }
+              suggested_next_class_id: { type: string, format: uuid, nullable: true, description: Only for an unset class; not saved }
+              suggested_next_class_name: { type: string, nullable: true }
     StudentEnrolmentEvent:
       type: object
       required: [kind, from_value, to_value, occurred_at]

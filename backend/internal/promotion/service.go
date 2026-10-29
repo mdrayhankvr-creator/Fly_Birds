@@ -19,6 +19,9 @@ var (
 	ErrNotFound = errors.New("promotion record not found")
 	// ErrForbidden: approving needs the head teacher.
 	ErrForbidden = errors.New("promotion action not allowed for this role")
+	// ErrProgressionUnset: the class has neither a next class nor the final
+	// class setting, so its students cannot be promoted.
+	ErrProgressionUnset = errors.New("the class's progression is not set")
 	// ErrOpenBatch: the class already has an open batch for that year.
 	ErrOpenBatch = errors.New("an open promotion batch exists for this class and session")
 	// ErrState: the batch's status does not allow the action.
@@ -83,8 +86,11 @@ type ArrangeInput struct {
 	RollPolicy string `json:"roll_policy"`
 }
 
+// ProgressionInput sets a class's progression: a next class, or final
+// (its students graduate). Neither clears the setting (unset).
 type ProgressionInput struct {
 	NextClassID *string `json:"next_class_id"`
+	Final       bool    `json:"final"`
 }
 
 type Query struct {
@@ -101,6 +107,7 @@ type Batch struct {
 	ClassName       string  `json:"class_name"`
 	NextClassID     *string `json:"next_class_id"`
 	NextClassName   *string `json:"next_class_name"`
+	ClassIsFinal    bool    `json:"class_is_final"`
 	Status          string  `json:"status"`
 	RollPolicy      string  `json:"roll_policy"`
 	ApprovedSHA256  *string `json:"approved_sha256"`
@@ -152,13 +159,20 @@ type Issue struct {
 	Detail    string `json:"detail,omitempty"`
 }
 
+// ClassProgression: setting is "next", "final" or "unset". The suggestion
+// (the next active class by display order) is only a hint for an unset
+// class; nothing is saved until the administrator saves it.
 type ClassProgression struct {
-	ClassID       string  `json:"class_id"`
-	ClassName     string  `json:"class_name"`
-	DisplayOrder  int     `json:"display_order"`
-	IsActive      bool    `json:"is_active"`
-	NextClassID   *string `json:"next_class_id"`
-	NextClassName *string `json:"next_class_name"`
+	ClassID            string  `json:"class_id"`
+	ClassName          string  `json:"class_name"`
+	DisplayOrder       int     `json:"display_order"`
+	IsActive           bool    `json:"is_active"`
+	Setting            string  `json:"setting"`
+	NextClassID        *string `json:"next_class_id"`
+	NextClassName      *string `json:"next_class_name"`
+	IsFinal            bool    `json:"is_final"`
+	SuggestedClassID   *string `json:"suggested_next_class_id"`
+	SuggestedClassName *string `json:"suggested_next_class_name"`
 }
 
 type Service struct{ repo *Repository }
@@ -281,8 +295,8 @@ func (s *Service) Progression(ctx context.Context) ([]ClassProgression, error) {
 }
 
 func (s *Service) SetProgression(ctx context.Context, a Actor, classID string, in ProgressionInput) ([]ClassProgression, error) {
-	if !validID(a.ID) || !validID(classID) || (in.NextClassID != nil && (!validID(*in.NextClassID) || *in.NextClassID == classID)) {
+	if !validID(a.ID) || !validID(classID) || (in.NextClassID != nil && (!validID(*in.NextClassID) || *in.NextClassID == classID || in.Final)) {
 		return nil, ErrInvalid
 	}
-	return s.repo.SetProgression(ctx, a, classID, in.NextClassID)
+	return s.repo.SetProgression(ctx, a, classID, in.NextClassID, in.Final)
 }
