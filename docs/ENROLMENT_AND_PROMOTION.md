@@ -49,7 +49,8 @@ Rows can never be updated.
 
 **`student_rolls`** (view): the students on a session's roll — current
 enrolments of active students and closed years the student completed
-(`promoted`, `repeated`, `graduated`, `moved`). Withdrawn and transferred
+(`promoted`, `repeated`, `graduated`, `moved`, or withdrawn/transferred
+after completing the year, stage B1). Withdrawn and transferred
 years and inferred years are history only. Before any promotion this is
 exactly "students placed here today who are active", so existing behaviour
 is unchanged.
@@ -76,7 +77,11 @@ enrolment in step, so every writer (admission, CSV import, the demo seed,
   refused (409 `enrolment_history`).
 - **Leaving (stage B1):** setting the status to `inactive` (withdrawn),
   `transferred` or `graduated` closes the year with that outcome; the
-  student then has no current enrolment. Setting it back to `active` in the
+  student then has no current enrolment. A withdrawal or transfer through a
+  promotion batch, or after the class's annual result for that year is
+  published, counts as **completed, then left** (`completed`): the year stays
+  on the roll, so republished term and annual results keep the student. A
+  mid-year withdrawal or transfer is not completed. Setting it back to `active` in the
   same session reopens the year; a student who left can be readmitted as
   `active` into another session, which opens a new year (source
   `readmission`).
@@ -178,16 +183,19 @@ attendance:
 4. Fee concessions do not carry into a new session; they are reviewed for
    it.
 
-The top class has no next class. Its students who passed are recommended
-to **graduate**; those who failed, to repeat. (Graduating also needs a
-passed annual result or a manual decision.)
+In the final class, students who passed are recommended to **graduate**;
+those who failed, to repeat (an override needs a reason).
 
-### Class progression
+### Class progression (decided 2026-10-29)
 
-`academic_classes.next_class_id`: the class a class is promoted to; empty
-means the top class. A batch warns (`top_class`) when a class without a
-next class has a later class, since a missing setting would graduate the
-class. Cycles are refused.
+Each class needs an explicit setting: **next class = X**
+(`academic_classes.next_class_id`) or **final class** (`is_final`), never
+both. A class with neither is **unset**: creating or refreshing a batch for
+it is refused (409 `progression_unset`), and an open batch shows the
+`progression_unset` blocker. `GET /promotions/progression` suggests a next
+class for an unset class (the next active class by display order); nothing
+is saved until the administrator saves it. Cycles are refused. Every
+existing class starts unset after the upgrade.
 
 ### Batches
 
@@ -206,17 +214,18 @@ class and session) with one item per active student (`promotion_items`).
 
 Any edit after approval returns the batch to draft.
 
-**Blockers:** `decision_required`, `section_required`, `no_next_class`,
-`roll_duplicate`, `roll_taken`, `student_changed`, `student_missing`,
-`annual_changed`. **Warnings:** `override`, `roll_missing`, `top_class`,
-`concessions_to_review`.
+**Blockers:** `progression_unset`, `decision_required`, `section_required`,
+`no_next_class` (promote in the final class), `roll_duplicate`, `roll_taken`,
+`student_changed`, `student_missing`, `annual_changed`. **Warnings:**
+`override`, `roll_missing`, `concessions_to_review`.
 
 **Apply**, per student:
 
 - promote / repeat: a new enrolment in the next session (next class, or
   the same class), the old year closed as `promoted` / `repeated`;
 - graduate: the year closed as `graduated`, no new enrolment, login kept;
-- withdraw / transfer: the year closed as `withdrawn` / `transferred`, the
+- withdraw / transfer: the year closed as `withdrawn` / `transferred` and
+  completed (the student stays in that year's republished results), the
   login suspended and its sessions revoked (audited
   `student.login_suspended`).
 
@@ -233,8 +242,11 @@ restored.
 A trigger follows the status: `inactive` or `transferred` suspends an
 active login and records `students.login_suspended_at`; returning to
 `active` (or `graduated`) restores only a login suspended that way. A login
-an administrator disabled stays disabled. Existing withdrawn students'
-logins are not changed by the upgrade.
+an administrator disabled stays disabled. The upgrade changes no login;
+students who left before it are found and, on request, closed by the
+operator command `suspend-leaver-logins` (OPERATIONS.md §8.6): it only
+lists without `-confirm`, and with it disables the logins and revokes their
+sessions in one transaction, one audit event per student.
 
 ### Fee concessions
 
@@ -257,7 +269,7 @@ recorded can still be corrected.
 | Method | Path | Permission |
 |---|---|---|
 | GET | `/promotions/progression` | `promotions:read` (admin, head teacher) |
-| PUT | `/promotions/progression/{classId}` | `promotions:manage` + administrator |
+| PUT | `/promotions/progression/{classId}` (`next_class_id` or `final`) | `promotions:manage` + administrator |
 | GET | `/promotions` | `promotions:read` |
 | POST | `/promotions` | `promotions:manage` + administrator |
 | GET | `/promotions/{id}` | `promotions:read` |
@@ -278,16 +290,17 @@ students and guardians have none of these permissions.
 
 Additive, plus three data steps on rows M15 owns or that change meaning
 only: students who had already left (backfilled as current in 1701) get
-their year closed with the matching outcome; each fee concession gets the
+their year closed with the matching outcome (completed if the class's
+annual result for that year was published); each fee concession gets the
 student's current session; one `student.promotion_migrated` audit event.
+Every class starts with its progression unset.
 No mark, result, attendance, due or payment changes.
 
 Verified on a disposable demo school built with `main` `5681ce44` (1701),
 plus one concession and one withdrawn student with a login: 72 of 77 tables
 identical row for row; `academic_classes`, `students` and `fee_concessions`
-differ only by their new empty or backfilled column (no class got a next
-class, no login was suspended, the concession is in the student's current
-session); the withdrawn student's year is closed as `withdrawn`; 35 of 35
+differ only by their new empty or backfilled columns (every class unset, no
+login was suspended, the concession is in the student's current session); the withdrawn student's year is closed as `withdrawn`; 35 of 35
 active students match their current enrolment; `users` unchanged; audit
 `{"closed_for_leavers": 1, "concessions": 1}`; about 0.2 s.
 

@@ -26,7 +26,19 @@ On `feature/m15-stage-b-promotion`, from `main` `5681ce44` (stage A merged, PR #
 - **API e2e:** `e2e/promotion.mjs` on a disposable stack (`m15b1`, demo seed) built from this branch: 31 of 31 checks, twice in a row.
 - **Upgrade of a demo school built with `main` `5681ce44`:** see the M15 document §7; no mark, result, attendance, due, payment or user row changed.
 
-**Not covered:** screens (B2); browser tests; the stack ran 1702 before its final audit-count change.
+**Decisions applied (2026-10-29, second review):**
+- **Explicit class progression:** next class or final class; an unset class is refused (409 `progression_unset`) and blocks open batches; the API suggests a next class by display order without saving it; every existing class starts unset.
+- **Final class:** passed → graduate, failed → repeat.
+- **Completed, then left:** a withdrawal or transfer through a batch, or after the class's annual result is published, keeps the student in that year's republished term and annual results; mid-year leavers do not.
+- **`suspend-leaver-logins`:** an operator command that lists (read-only) withdrawn or transferred students with active logins and, with `-confirm`, disables them and revokes their sessions in one transaction, one audit event each; never automatic. In the backend image.
+
+**Verification after these decisions (disposable resources only):**
+- **Go:** fresh database, `go test ./... -p 1 -count=1`: 27 of 27 packages with tests, 178 top-level tests and 24 subtests passed, none failed; one skipped (opt-in E3 performance). `go vet` and gofmt clean. New: `TestPostgresLeavingMidYearOrAfterTheAnnualResult`, `TestPostgresSuspendLeaverLogins`, `TestRecommend`; the year-end test now keeps the year-end leaver in the republished annual result (4 of 4); the graduates test is refused while progression is unset and checks the suggestion; the role test checks `progression_unset`.
+- **API e2e** on `m15b1` rebuilt with fresh volumes: `e2e/promotion.mjs` 34 of 34.
+- **Operator command in the image** (`m15b1`): a withdrawn demo student with an active login is listed; listing changed no user row and wrote no audit event; `-confirm` disabled the login with one audit event; a second listing is empty; readmission restored the login.
+- **Upgrade of a demo school built with `main` `5681ce44`:** as before (72 of 77 tables identical); all 3 classes unset; no login suspended; the existing leaver not completed (no published annual result).
+
+**Not covered:** screens (B2); browser tests.
 
 ## Current Status — Premium UI, Checkpoint 1 (2026-10-28)
 
