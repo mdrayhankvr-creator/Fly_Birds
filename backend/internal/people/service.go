@@ -138,6 +138,7 @@ type Repository interface {
 	DeleteStudent(context.Context, Actor, string) error
 	ImportStudents(context.Context, Actor, []StudentInput) (int, error)
 	SavePhoto(context.Context, Actor, string, Photo) error
+	Enrolments(context.Context, Actor, string) ([]Enrolment, error)
 	GetPhoto(context.Context, Actor, string) (Photo, error)
 	ListGuardians(context.Context, Query) (Page[Guardian], error)
 	GetGuardian(context.Context, string) (Guardian, error)
@@ -248,6 +249,14 @@ func (s *Service) GetStudent(ctx context.Context, a Actor, id string) (Student, 
 		return Student{}, ErrInvalid
 	}
 	return s.repo.GetStudent(ctx, a, id)
+}
+
+// Enrolments returns a student's year-by-year history.
+func (s *Service) Enrolments(ctx context.Context, a Actor, id string) ([]Enrolment, error) {
+	if !validID(id) {
+		return nil, ErrInvalid
+	}
+	return s.repo.Enrolments(ctx, a, id)
 }
 func (s *Service) OwnStudent(ctx context.Context, a Actor) (Student, error) {
 	return s.repo.OwnStudent(ctx, a)

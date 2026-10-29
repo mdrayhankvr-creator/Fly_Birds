@@ -329,10 +329,10 @@ func annualBatch(tx *gorm.DB, sessionID, classID string, stored *AnnualRulesSnap
 		ID, Name, NameBN, AdmissionNo, SectionID, SectionName string
 		RollNo                                                *int
 	}{}
-	if err := tx.Raw(`SELECT st.id, st.name_en AS name, coalesce(st.name_bn, '') AS name_bn, st.admission_no, st.roll_no, st.section_id, sec.name AS section_name
-  FROM students st JOIN academic_sections sec ON sec.id = st.section_id
- WHERE st.session_id = ? AND st.class_id = ? AND st.status = 'active'
- ORDER BY sec.display_order, sec.name, st.roll_no NULLS LAST, st.admission_no, st.id`, sessionID, classID).Scan(&students).Error; err != nil {
+	if err := tx.Raw(`SELECT st.id, st.name_en AS name, coalesce(st.name_bn, '') AS name_bn, st.admission_no, r.roll_no, r.section_id, sec.name AS section_name
+  FROM student_rolls r JOIN students st ON st.id = r.student_id JOIN academic_sections sec ON sec.id = r.section_id
+ WHERE r.session_id = ? AND r.class_id = ?
+ ORDER BY sec.display_order, sec.name, r.roll_no NULLS LAST, st.admission_no, st.id`, sessionID, classID).Scan(&students).Error; err != nil {
 		return b, err
 	}
 	sessionName, className, err := sessionClassNames(tx, sessionID, classID)

@@ -537,8 +537,11 @@ func (r *GormRepository) Submissions(ctx context.Context, v Viewer, diaryID stri
 		return nil, ErrNotFound
 	}
 	out := []Submission{}
+	// The section's roll that year (enrolments), so students promoted since
+	// stay on an old diary, plus anyone who submitted.
 	err := db.Table("students s").Joins("LEFT JOIN homework_submissions hs ON hs.student_id = s.id AND hs.diary_id = ?", diaryID).
-		Where("s.section_id = ? AND s.session_id = ? AND (s.status = 'active' OR hs.id IS NOT NULL)", d.SectionID, d.SessionID).
+		Joins("LEFT JOIN student_enrolments en ON en.student_id = s.id AND en.session_id = ?", d.SessionID).
+		Where("hs.id IS NOT NULL OR (en.section_id = ? AND EXISTS (SELECT 1 FROM student_rolls r WHERE r.enrolment_id = en.id))", d.SectionID).
 		Select("COALESCE(hs.id::text,'') AS id,'" + diaryID + "' AS diary_id," + strings.SplitN(submissionSelect, ",", 3)[2]).Order("s.roll_no NULLS LAST, s.name_en").Find(&out).Error
 	if err != nil {
 		return nil, err

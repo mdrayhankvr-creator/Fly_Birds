@@ -59,7 +59,8 @@ type CellComponent struct {
 func corrections(tx *gorm.DB, examID string, openOnly bool) ([]Correction, error) {
 	out := []Correction{}
 	q := tx.Table("result_corrections c").Joins("JOIN students st ON st.id = c.student_id").
-		Select(`c.id, c.exam_id, c.student_id, st.name_en AS student_name, st.admission_no, st.roll_no, c.reason, c.status,
+		Joins("JOIN exams ex ON ex.id = c.exam_id").Joins("LEFT JOIN student_enrolments en ON en.student_id = c.student_id AND en.session_id = ex.session_id").
+		Select(`c.id, c.exam_id, c.student_id, st.name_en AS student_name, st.admission_no, coalesce(en.roll_no, st.roll_no) AS roll_no, c.reason, c.status,
  (SELECT coalesce(NULLIF(u.display_name, ''), u.email) FROM users u WHERE u.id = c.opened_by) AS opened_by,
  to_char(c.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS opened_at, to_char(c.closed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS closed_at, c.publication_id`).
 		Where("c.exam_id = ?", examID)

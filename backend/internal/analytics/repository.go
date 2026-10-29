@@ -93,6 +93,12 @@ func bucket(group, col string) string {
 	return "to_char(" + col + ", 'YYYY-MM-DD')"
 }
 
+// enrolledStudents is each student once per enrolment, placed where they
+// were that session (class, section, roll and status), so a session's
+// reports keep students who have since been promoted or moved.
+const enrolledStudents = `(SELECT st.id, st.admission_no, st.name_en, st.name_bn, en.student_status AS status,
+ en.session_id, en.class_id, en.section_id, en.roll_no FROM students st JOIN student_enrolments en ON en.student_id = st.id)`
+
 const countCols = `count(*) AS marked, count(*) FILTER (WHERE a.status = 'present') AS present,
 count(*) FILTER (WHERE a.status = 'late') AS late, count(*) FILTER (WHERE a.status = 'absent') AS absent`
 
@@ -500,7 +506,7 @@ GROUP BY b.bucket, b.ord ORDER BY b.ord`, args).Scan(&aging).Error; err != nil {
 	out.Aging = aging
 	if err := raw(db, `SELECT s.id AS student_id, s.name_en, s.name_bn, s.admission_no, c.name AS class_name, COALESCE(sec.name, '') AS section_name,
 sum(f.balance)::float8 AS overdue, to_char(min(f.due_date), 'YYYY-MM-DD') AS oldest_due
-FROM student_fees f JOIN students s ON s.id = f.student_id JOIN academic_classes c ON c.id = f.class_id LEFT JOIN academic_sections sec ON sec.id = s.section_id
+FROM student_fees f JOIN students s ON s.id = f.student_id JOIN academic_classes c ON c.id = f.class_id LEFT JOIN student_enrolments en ON en.student_id = s.id AND en.session_id = f.session_id LEFT JOIN academic_sections sec ON sec.id = COALESCE(en.section_id, s.section_id)
 WHERE `+dues.sql()+` AND f.balance > 0 AND f.due_date < @today::date
 GROUP BY s.id, c.name, sec.name ORDER BY overdue DESC, oldest_due, s.admission_no LIMIT 10`, args).Scan(&out.TopOverdue).Error; err != nil {
 		return out, err
@@ -520,7 +526,7 @@ func (r *Repository) SessionComparison(ctx context.Context, finance bool) ([]Ses
 		NetBilled, Paid                                          float64
 	}
 	err := r.db.WithContext(ctx).Raw(`SELECT s.id, s.name, to_char(s.start_date, 'YYYY-MM-DD') AS start_date, to_char(s.end_date, 'YYYY-MM-DD') AS end_date, s.is_active,
-(SELECT count(*) FROM students st WHERE st.session_id = s.id AND st.status = 'active') AS active_students,
+(SELECT count(*) FROM student_rolls st WHERE st.session_id = s.id) AS active_students,
 a.marked, a.attended, x.exams, x.results, x.passed, x.avg_gpa, f.net_billed, f.paid
 FROM (SELECT * FROM academic_sessions ORDER BY start_date DESC, name LIMIT 8) s
 CROSS JOIN LATERAL (SELECT count(*) AS marked, count(*) FILTER (WHERE status IN ('present', 'late')) AS attended FROM student_attendance WHERE session_id = s.id) a
@@ -556,7 +562,7 @@ func (r *Repository) Population(ctx context.Context, session string) (Overview, 
 		out.StudentsByState[s.Status] = s.Count
 	}
 	out.ActiveStudents = out.StudentsByState["active"]
-	if err := db.Raw(`SELECT c.id, c.name, count(s.id) AS students FROM academic_classes c JOIN students s ON s.class_id = c.id AND s.session_id = ? AND s.status = 'active'
+	if err := db.Raw(`SELECT c.id, c.name, count(s.student_id) AS students FROM academic_classes c JOIN student_rolls s ON s.class_id = c.id AND s.session_id = ?
 GROUP BY c.id, c.name, c.display_order ORDER BY c.display_order, c.name`, session).Scan(&out.ByClass).Error; err != nil {
 		return out, err
 	}

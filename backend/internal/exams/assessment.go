@@ -150,7 +150,7 @@ func assessmentBatch(tx *gorm.DB, e Exam, rules AssessmentRules) (batch, error) 
 		BlueprintVersionID: e.BlueprintVersionID, Rules: rules, Candidates: []candidate{}, Blockers: []ReviewBlocker{}}
 	bands, policy, _ := rules.engine()
 	students := []string{}
-	if err := tx.Raw(`SELECT id FROM students WHERE session_id = ? AND class_id = ? AND section_id = ? AND status = 'active'
+	if err := tx.Raw(`SELECT student_id FROM student_rolls WHERE session_id = ? AND class_id = ? AND section_id = ?
  UNION SELECT student_id FROM result_versions WHERE scope = 'assessment' AND scope_id = ? AND status = 'published' ORDER BY 1`,
 		e.SessionID, e.ClassID, e.SectionID, e.ID).Scan(&students).Error; err != nil {
 		return b, err
@@ -169,17 +169,18 @@ func assessmentBatch(tx *gorm.DB, e Exam, rules AssessmentRules) (batch, error) 
 		RowVersion                                     int
 		Takes                                          bool
 	}{}
-	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en, coalesce(st.name_bn, '') AS name_bn, st.admission_no, st.roll_no,
+	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en, coalesce(st.name_bn, '') AS name_bn, st.admission_no, en.roll_no,
        es.id AS sheet_id, es.subject_id, sub.code, sub.name_en AS subject_en, sub.name_bn AS subject_bn,
        es.full_marks::text AS full, es.pass_marks::text AS pass, acs.is_fourth_subject AS fourth,
        m.id::text AS mark_id, m.status, m.marks::text AS marks, coalesce(m.status_reason, '') AS reason, coalesce(m.row_version, 0) AS row_version,
        student_takes_subject(st.id, ?, ?, es.subject_id) AS takes
-  FROM students st CROSS JOIN exam_subjects es
+  FROM students st JOIN student_enrolments en ON en.student_id = st.id AND en.session_id = ?
+  CROSS JOIN exam_subjects es
   JOIN academic_subjects sub ON sub.id = es.subject_id
   JOIN academic_class_subjects acs ON acs.class_id = es.class_id AND acs.subject_id = es.subject_id
   LEFT JOIN exam_marks m ON m.exam_subject_id = es.id AND m.student_id = st.id
  WHERE es.exam_id = ? AND st.id IN ?
- ORDER BY st.id, es.subject_id`, e.SessionID, e.ClassID, e.ID, students).Scan(&rows).Error; err != nil {
+ ORDER BY st.id, es.subject_id`, e.SessionID, e.ClassID, e.SessionID, e.ID, students).Scan(&rows).Error; err != nil {
 		return b, err
 	}
 	comps := []struct {

@@ -110,7 +110,13 @@ func (r *StudentGormRepository) StudentRoster(ctx context.Context, actor string,
 	if err = authorizeClass(db, actor, q.SessionID, contextRow.ClassID); err != nil {
 		return Page[StudentRosterItem]{}, err
 	}
-	base := db.Table("students AS s").Joins("LEFT JOIN student_attendance AS a ON a.student_id=s.id AND a.session_id=? AND a.attendance_date=?", q.SessionID, q.Date).Where("s.session_id=? AND s.section_id=? AND (s.status='active' OR a.id IS NOT NULL)", q.SessionID, q.SectionID)
+	// The section's roll that year (from enrolments, so promoted students
+	// stay on their old section's past days), plus anyone with a record in
+	// this section that day (students moved to another section since).
+	base := db.Table("students AS s").
+		Joins("LEFT JOIN student_enrolments AS en ON en.student_id=s.id AND en.session_id=?", q.SessionID).
+		Joins("LEFT JOIN student_attendance AS a ON a.student_id=s.id AND a.session_id=? AND a.attendance_date=?", q.SessionID, q.Date).
+		Where("(en.section_id=? AND (a.id IS NOT NULL OR EXISTS (SELECT 1 FROM student_rolls r WHERE r.enrolment_id=en.id))) OR a.section_id=?", q.SectionID, q.SectionID)
 	if q.Search != "" {
 		term := "%" + q.Search + "%"
 		base = base.Where("s.admission_no ILIKE ? OR s.name_en ILIKE ? OR s.name_bn ILIKE ?", term, term, term)
@@ -119,7 +125,7 @@ func (r *StudentGormRepository) StudentRoster(ctx context.Context, actor string,
 	if err = base.Count(&p.Total).Error; err != nil {
 		return p, err
 	}
-	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,s.roll_no,a.id AS record_id,a.status,a.source,a.note," + versionExpr + " AS version").Order("s.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
+	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,en.roll_no,a.id AS record_id,a.status,a.source,a.note," + versionExpr + " AS version").Order("en.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
 	return p, err
 }
 func (r *StudentGormRepository) RecordStudent(ctx context.Context, actor string, in StudentInput, source string) (StudentRecord, error) {
@@ -224,7 +230,13 @@ func (r *StudentGormRepository) StudentMonthly(ctx context.Context, actor string
 	if next <= sessionStart || start > sessionEnd {
 		return Page[StudentSummary]{}, ErrConflict
 	}
-	base := db.Table("students AS s").Joins("LEFT JOIN student_attendance AS a ON a.student_id=s.id AND a.section_id=? AND a.attendance_date>=? AND a.attendance_date<?", q.SectionID, start, next).Where("s.session_id=? AND s.section_id=?", q.SessionID, q.SectionID)
+	// Everyone enrolled in the section that year, and everyone with records
+	// in it that month: a student moved to another section keeps their
+	// earlier days in this section's report (QA-06).
+	base := db.Table("students AS s").
+		Joins("LEFT JOIN student_enrolments AS en ON en.student_id=s.id AND en.session_id=?", q.SessionID).
+		Joins("LEFT JOIN student_attendance AS a ON a.student_id=s.id AND a.section_id=? AND a.attendance_date>=? AND a.attendance_date<?", q.SectionID, start, next).
+		Where("en.section_id=? OR EXISTS (SELECT 1 FROM student_attendance x WHERE x.student_id=s.id AND x.session_id=? AND x.section_id=? AND x.attendance_date>=? AND x.attendance_date<?)", q.SectionID, q.SessionID, q.SectionID, start, next)
 	if q.Search != "" {
 		term := "%" + q.Search + "%"
 		base = base.Where("s.admission_no ILIKE ? OR s.name_en ILIKE ? OR s.name_bn ILIKE ?", term, term, term)

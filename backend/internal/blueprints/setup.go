@@ -173,7 +173,7 @@ func (r *Repository) plan(tx *gorm.DB, termID string) (SetupPlan, []plannedExam,
 	if err := tx.Raw(`SELECT c.id AS class_id, c.name AS class_name, b.id AS blueprint_id, v.id AS version_id, v.version,
        (SELECT count(*) FROM blueprint_versions d WHERE d.blueprint_id = b.id AND d.status = 'draft') AS drafts,
        (SELECT count(*) FROM academic_sections s WHERE s.session_id = ? AND s.class_id = c.id AND s.is_active) AS sections,
-       (SELECT count(*) FROM students st WHERE st.session_id = ? AND st.class_id = c.id AND st.status = 'active') AS students
+       (SELECT count(*) FROM student_rolls st WHERE st.session_id = ? AND st.class_id = c.id) AS students
   FROM academic_classes c
   LEFT JOIN assessment_blueprints b ON b.class_id = c.id AND b.session_id = ?
   LEFT JOIN blueprint_versions v ON v.blueprint_id = b.id AND v.status = 'active'

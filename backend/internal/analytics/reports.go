@@ -178,7 +178,7 @@ func (r *Repository) count(ctx context.Context, sql string, args map[string]any)
 
 func (r *Repository) studentAttendanceReport(ctx context.Context, scope Scope, f Filter, limit, offset int) (int64, [][]string, error) {
 	q := contextConds(newQuery(map[string]any{"from": f.From, "to": f.To, "limit": limit, "offset": offset}), "s", scope, f)
-	total, err := r.count(ctx, "SELECT count(*) FROM students s WHERE "+q.sql(), q.args)
+	total, err := r.count(ctx, "SELECT count(*) FROM "+enrolledStudents+" s WHERE "+q.sql(), q.args)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -188,9 +188,9 @@ func (r *Repository) studentAttendanceReport(ctx context.Context, scope Scope, f
 		C                                                           countRow `gorm:"embedded"`
 	}
 	err = raw(r.db.WithContext(ctx), `SELECT s.admission_no, s.name_en, s.name_bn, c.name AS class_name, sec.name AS section_name, s.roll_no, s.status, `+countCols+`
-FROM students s JOIN academic_classes c ON c.id = s.class_id JOIN academic_sections sec ON sec.id = s.section_id
+FROM `+enrolledStudents+` s JOIN academic_classes c ON c.id = s.class_id JOIN academic_sections sec ON sec.id = s.section_id
 LEFT JOIN student_attendance a ON a.student_id = s.id AND a.session_id = s.session_id AND a.attendance_date BETWEEN @from::date AND @to::date
-WHERE `+q.sql()+` GROUP BY s.id, c.name, c.display_order, sec.name, sec.display_order
+WHERE `+q.sql()+` GROUP BY s.id, s.admission_no, s.name_en, s.name_bn, s.roll_no, s.status, c.name, c.display_order, sec.name, sec.display_order
 ORDER BY c.display_order, c.name, sec.display_order, sec.name, s.roll_no NULLS LAST, s.admission_no LIMIT @limit OFFSET @offset`, q.args).Scan(&rows).Error
 	out := [][]string{}
 	for _, x := range rows {
@@ -277,7 +277,7 @@ func (r *Repository) feeReport(ctx context.Context, f Filter, today string, limi
 sum(f.amount - f.discount_amount)::float8 AS net_billed, sum(f.paid_amount)::float8 AS paid, sum(f.balance)::float8 AS balance,
 COALESCE(sum(f.balance) FILTER (WHERE f.due_date < @today::date), 0)::float8 AS overdue,
 to_char(min(f.due_date) FILTER (WHERE f.balance > 0 AND f.due_date < @today::date), 'YYYY-MM-DD') AS oldest_overdue
-FROM student_fees f JOIN students s ON s.id = f.student_id JOIN academic_classes c ON c.id = f.class_id LEFT JOIN academic_sections sec ON sec.id = s.section_id
+FROM student_fees f JOIN students s ON s.id = f.student_id JOIN academic_classes c ON c.id = f.class_id LEFT JOIN student_enrolments en ON en.student_id = s.id AND en.session_id = f.session_id LEFT JOIN academic_sections sec ON sec.id = COALESCE(en.section_id, s.section_id)
 WHERE `+cond+` GROUP BY s.id, sec.name ORDER BY overdue DESC, balance DESC, s.admission_no LIMIT @limit OFFSET @offset`, args).Scan(&rows).Error
 	out := [][]string{}
 	for _, x := range rows {

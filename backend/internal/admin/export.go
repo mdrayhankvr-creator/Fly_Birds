@@ -44,6 +44,10 @@ var datasets = []Dataset{
 	{Key: "students", query: `SELECT s.admission_no, s.name_en, s.name_bn, s.date_of_birth, s.status, se.name AS session, c.name AS class, sec.name AS section, s.roll_no, s.user_id IS NOT NULL AS has_account
 FROM students s JOIN academic_sessions se ON se.id = s.session_id JOIN academic_classes c ON c.id = s.class_id JOIN academic_sections sec ON sec.id = s.section_id
 ORDER BY se.start_date DESC, c.display_order, sec.name, s.roll_no NULLS LAST, s.admission_no`, count: `SELECT count(*) FROM students`},
+	{Key: "student_enrolments", query: `SELECT s.admission_no, s.name_en, se.name AS session, c.name AS class, sec.name AS section, e.roll_no, e.state, e.student_status AS status,
+COALESCE(e.outcome, '') AS outcome, e.source, e.started_on, e.ended_on
+FROM student_enrolments e JOIN students s ON s.id = e.student_id JOIN academic_sessions se ON se.id = e.session_id JOIN academic_classes c ON c.id = e.class_id JOIN academic_sections sec ON sec.id = e.section_id
+ORDER BY s.admission_no, se.start_date, e.id`, count: `SELECT count(*) FROM student_enrolments`},
 	{Key: "guardians", query: `SELECT g.name_en, g.name_bn, g.phone, g.email, g.address, string_agg(s.admission_no || ' (' || sg.relationship || ')', '; ' ORDER BY s.admission_no) AS children
 FROM guardians g LEFT JOIN student_guardians sg ON sg.guardian_id = g.id LEFT JOIN students s ON s.id = sg.student_id
 GROUP BY g.id ORDER BY g.name_en`, count: `SELECT count(*) FROM guardians`},

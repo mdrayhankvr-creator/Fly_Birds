@@ -10,6 +10,24 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — M15 Stage A: Enrolment History (2026-10-29)
+
+On `feature/m15-enrolment-promotion`, from `main` `9b68bf79`. Stage A of M15 (enrolment history foundation); stage B (promotion workflow and screens) is not started. M15 is outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [ENROLMENT_AND_PROMOTION.md](ENROLMENT_AND_PROMOTION.md).
+
+**Problem (reproduced):** `exam_marks` and `exam_results` referenced the student's current session, class and section, so a student with any mark could not change section, class or session (23503). `TestPostgresSectionTransferKeepsMarks` failed on the unchanged `main` schema with `exam_marks_student_fk` and passes with 1701.
+
+**Implementation:**
+- **Migration 1701 (additive):** `student_enrolments` (one per student per session), append-only `student_enrolment_events`, the `student_rolls` view; marks, results and attendance reference the enrolment of their session; triggers keep the current enrolment in step with `students` and refuse rewriting a year that has records; a commit-time consistency check; `student_takes_subject()` reads enrolments; backfill of current placements and of earlier years proven by attendance.
+- **History-safe reads:** exam rosters, sheets, readiness, result batches and roll numbers; attendance daily roster and monthly report (QA-06); fee dues generation and fee report sections; analytics attendance report and session counts; a teacher's old homework roster.
+- **API:** `GET /students/{id}/enrolments` (staff, the student, linked guardians; actor shown to staff only); `409 enrolment_history` on refused moves; `student_enrolments` export dataset.
+
+**Verification (disposable resources only):**
+- **Go:** on a freshly created disposable PostgreSQL 17 database, `go test ./... -p 1 -count=1` passed 26 of 26 packages with tests (9 have none): 171 top-level tests and 24 subtests passed, none failed; one skipped (the opt-in E3 performance test). `go vet` clean; gofmt clean on the changed files. New: `TestPostgresSectionTransferKeepsMarks`, `TestPostgresHistoryStaysAfterMovingSession`, `TestPostgresSectionTransferKeepsAttendanceReport`, `TestPostgresEnrolmentTriggers`, and history-endpoint checks in `TestPostgresStudentsGuardiansLifecycle`. govulncheck was not available on this machine; no Go dependency changed.
+- **Upgrade of a demo school built with `main` `9b68bf7`** (plus a student moved from 2025 by editing and a 2026 section transfer, both with attendance): 72 of 75 tables identical row for row, the other three gained only the expected rows (`audit_events` +1, `permissions` +1, `role_permissions` +2); 38/38 current enrolments match their students; one inferred 2025 year; 2026 roll = 38 active students as before; `exam-verify` clean (6 exams, 36 results, 108 marks); migration about 1 s.
+- Frontend: type check, i18n check (2,678 keys in each language) and production build.
+
+**Not covered in stage A:** promotion batches, graduation, withdrawal/transfer login handling (QA-03), per-session concessions, any screen for the history (it needs `StudentProfilePage.tsx`, coordinated with Joy first), and browser tests.
+
 ## Current Status — Student Profile and Double-Sided ID Card (2026-10-23)
 
 On `feature/student-profile-duplex-id-card`, from `main` `7b3723f`, with `main` `4b1807d` (E6, PR #32) merged in. This extends M3; the completion figures above do not change. Details: [STUDENT_PROFILE_ID_CARD.md](STUDENT_PROFILE_ID_CARD.md).

@@ -498,7 +498,7 @@ func (r *GormRepository) SaveMarkEntries(ctx context.Context, actor, role, examI
 		}
 		active := map[string]bool{}
 		ids := []struct{ ID string }{}
-		if err := tx.Raw("SELECT id FROM students WHERE id IN ? AND session_id=? AND class_id=? AND section_id=? AND status='active'", studentIDs, exam.SessionID, exam.ClassID, exam.SectionID).Scan(&ids).Error; err != nil {
+		if err := tx.Raw("SELECT student_id AS id FROM student_rolls WHERE student_id IN ? AND session_id=? AND class_id=? AND section_id=?", studentIDs, exam.SessionID, exam.ClassID, exam.SectionID).Scan(&ids).Error; err != nil {
 			return err
 		}
 		for _, s := range ids {
@@ -901,7 +901,7 @@ func sheetsIn(tx *gorm.DB, examID, actor, scope string) (SheetsView, error) {
 	}
 	view := SheetsView{ExamID: e.ID, ExamStatus: e.Status, Sheets: []Sheet{}, Readiness: Readiness{Blockers: []Blocker{}}}
 	var students int64
-	if err := tx.Table("students").Where("session_id=? AND class_id=? AND section_id=? AND status='active'", e.SessionID, e.ClassID, e.SectionID).Count(&students).Error; err != nil {
+	if err := tx.Table("student_rolls").Where("session_id=? AND class_id=? AND section_id=?", e.SessionID, e.ClassID, e.SectionID).Count(&students).Error; err != nil {
 		return view, err
 	}
 	q := tx.Table("exam_subjects es").
@@ -910,11 +910,12 @@ func sheetsIn(tx *gorm.DB, examID, actor, scope string) (SheetsView, error) {
 		Joins("LEFT JOIN users su ON su.id=es.submitted_by").Joins("LEFT JOIN users ru ON ru.id=es.reviewed_by").
 		Joins(`LEFT JOIN LATERAL (SELECT count(*) AS entered, count(*) FILTER (WHERE m.status='absent') AS absent, count(*) FILTER (WHERE m.status='exempt') AS exempt,
  count(*) FILTER (WHERE m.status='incomplete') AS incomplete, count(*) FILTER (WHERE m.status='withheld') AS withheld
- FROM exam_marks m JOIN students st ON st.id=m.student_id AND st.status='active' AND student_takes_subject(st.id, st.session_id, st.class_id, es.subject_id)
+ FROM exam_marks m JOIN student_rolls st ON st.student_id=m.student_id AND st.session_id=m.session_id AND st.class_id=m.class_id AND st.section_id=m.section_id
+ AND student_takes_subject(m.student_id, m.session_id, m.class_id, es.subject_id)
  WHERE m.exam_subject_id=es.id) c ON true`).
 		// Students who take the subject: optional subjects count only those who chose them (E5).
-		Joins(`LEFT JOIN LATERAL (SELECT count(*) AS students FROM students st WHERE st.session_id=? AND st.class_id=? AND st.section_id=? AND st.status='active'
- AND student_takes_subject(st.id, st.session_id, st.class_id, es.subject_id)) n ON true`, e.SessionID, e.ClassID, e.SectionID).
+		Joins(`LEFT JOIN LATERAL (SELECT count(*) AS students FROM student_rolls st WHERE st.session_id=? AND st.class_id=? AND st.section_id=?
+ AND student_takes_subject(st.student_id, st.session_id, st.class_id, es.subject_id)) n ON true`, e.SessionID, e.ClassID, e.SectionID).
 		Where("es.exam_id=?", e.ID)
 	if scope == "teacher" {
 		q = q.Where("EXISTS (SELECT 1 FROM employees emp JOIN teacher_assignments ta ON ta.employee_id=emp.id WHERE emp.user_id=? AND emp.is_active AND ta.session_id=? AND ta.class_id=? AND ta.subject_id=es.subject_id)", actor, e.SessionID, e.ClassID)
@@ -993,7 +994,7 @@ func (r *GormRepository) SheetAction(ctx context.Context, actor, role, examID, s
 		}
 		missing := func() (int64, error) {
 			var n int64
-			err := tx.Raw("SELECT count(*) FROM students st WHERE st.session_id=? AND st.class_id=? AND st.section_id=? AND st.status='active' AND student_takes_subject(st.id, st.session_id, st.class_id, ?) AND NOT EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_subject_id=? AND m.student_id=st.id)", exam.SessionID, exam.ClassID, exam.SectionID, sheet.SubjectID, sheetID).Scan(&n).Error
+			err := tx.Raw("SELECT count(*) FROM student_rolls st WHERE st.session_id=? AND st.class_id=? AND st.section_id=? AND student_takes_subject(st.student_id, st.session_id, st.class_id, ?) AND NOT EXISTS (SELECT 1 FROM exam_marks m WHERE m.exam_subject_id=? AND m.student_id=st.student_id)", exam.SessionID, exam.ClassID, exam.SectionID, sheet.SubjectID, sheetID).Scan(&n).Error
 			return n, err
 		}
 		switch action {
