@@ -190,7 +190,7 @@ body { background-color: var(--app-surface); color: #0f172a; }
   main table.ds-cards > tbody > tr:hover { background: var(--ds-surface); }
   table.ds-cards > tbody > tr > *, table.ds-cards > tfoot > tr > * {
     display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; width: 100%;
-    padding: .4rem 0 !important; border: 0 !important; text-align: right; white-space: normal; min-width: 0;
+    padding: .4rem 0 !important; border: 0 !important; text-align: right; white-space: normal; min-width: 0; overflow-wrap: anywhere;
   }
   table.ds-cards > tbody > tr > * + * { border-top: 1px dashed var(--ds-line) !important; }
   table.ds-cards > tbody > tr > *::before, table.ds-cards > tfoot > tr > *::before {
@@ -198,7 +198,7 @@ body { background-color: var(--app-surface); color: #0f172a; }
   }
   table.ds-cards > tbody > tr > [data-label=""]::before, table.ds-cards > tfoot > tr > [data-label=""]::before { display: none; }
   /* The first cell is the card's title. */
-  table.ds-cards > tbody > tr > :first-child { justify-content: flex-start; text-align: left; font-weight: 600; font-size: 15px; }
+  table.ds-cards > tbody > tr > :first-child { display: block; text-align: left; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
   table.ds-cards > tbody > tr > :first-child::before { display: none; }
   table.ds-cards > tbody > tr > [colspan] { justify-content: center; text-align: center; }
   table.ds-cards > tbody > tr > [colspan]::before { display: none; }
