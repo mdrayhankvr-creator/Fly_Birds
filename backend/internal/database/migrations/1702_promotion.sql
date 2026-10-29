@@ -3,11 +3,18 @@
 -- * A student who leaves (withdrawn, transferred, graduated) has no current
 --   enrolment: their last year is closed with that outcome. Readmission
 --   reopens the year (same session) or opens a new one (another session).
+-- * Leaving through a promotion batch, or after the class's annual result
+--   for that year is published, counts as "completed, then left": the year
+--   stays on the roll, so republished term and annual results keep the
+--   student. A mid-year withdrawal or transfer does not.
 -- * Moving a student with records to another session needs a promotion
 --   (or readmission); a generic edit gets 409 "use promotion".
 -- * Withdrawal or transfer suspends the student's login; readmission
 --   restores a login suspended that way. Graduates keep their login.
--- * Class progression, promotion batches and their items.
+-- * Class progression is explicit: "next class = X" or "final class"; a
+--   class with neither is unset and cannot be promoted. Every existing
+--   class starts unset.
+-- * Promotion batches and their items.
 -- * Fee concessions belong to a session; existing ones move to each
 --   student's current session.
 -- No mark, result, attendance, fee due or payment changes.
@@ -18,6 +25,16 @@ ALTER TABLE student_enrolments DROP CONSTRAINT student_enrolments_source_check,
 ALTER TABLE student_enrolment_events DROP CONSTRAINT student_enrolment_events_kind_check,
     ADD CONSTRAINT student_enrolment_events_kind_check CHECK (kind IN ('enrolled', 'section_changed', 'class_changed', 'roll_changed',
         'status_changed', 'session_corrected', 'closed', 'reopened', 'reverted'));
+
+-- A closed year the student completed before leaving (see above).
+ALTER TABLE student_enrolments ADD COLUMN completed boolean NOT NULL DEFAULT false,
+    ADD CONSTRAINT student_enrolments_completed_ck CHECK (NOT completed OR state = 'closed');
+
+-- Whether a class's annual result for a session has been published.
+CREATE FUNCTION student_year_published(p_session uuid, p_class uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+    SELECT EXISTS (SELECT 1 FROM result_publications
+                    WHERE scope = 'annual' AND scope_id = p_session AND class_id = p_class AND status = 'published')
+$$;
 
 -- The outcome a status closes a year with.
 CREATE FUNCTION student_enrolment_outcome_for(p_status text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
@@ -65,6 +82,7 @@ CREATE TEMP TABLE m1702_closed ON COMMIT DROP AS
 WITH closed AS (
     UPDATE student_enrolments
        SET state = 'closed', outcome = student_enrolment_outcome_for(student_status),
+           completed = student_status IN ('inactive', 'transferred') AND student_year_published(session_id, class_id),
            ended_on = student_enrolment_end_date(session_id, started_on), updated_at = now()
      WHERE state = 'current' AND student_status <> 'active'
     RETURNING id)
@@ -76,7 +94,9 @@ SELECT count(*) AS n FROM closed;
 --   flybirds.enrolment_outcome  outcome when a year with records closes by
 --                               moving session (promoted, repeated);
 --   flybirds.enrolment_source   source of the year that opens;
---   flybirds.enrolment_revert   'on' while reverting a promotion.
+--   flybirds.enrolment_revert   'on' while reverting a promotion;
+--   flybirds.enrolment_completed 'on' when a withdrawal or transfer comes
+--                               from a promotion batch (year completed).
 CREATE OR REPLACE FUNCTION students_enrolment_sync() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
     cur student_enrolments%ROWTYPE;
@@ -85,6 +105,7 @@ DECLARE
     outcome_set text := nullif(current_setting('flybirds.enrolment_outcome', true), '');
     source_set text := nullif(current_setting('flybirds.enrolment_source', true), '');
     reverting boolean := coalesce(current_setting('flybirds.enrolment_revert', true), '') = 'on';
+    batch_leaver boolean := coalesce(current_setting('flybirds.enrolment_completed', true), '') = 'on';
     starts date;
     new_id uuid;
 BEGIN
@@ -117,6 +138,9 @@ BEGIN
            SET class_id = NEW.class_id, section_id = NEW.section_id, roll_no = NEW.roll_no, student_status = NEW.status,
                state = CASE WHEN NEW.status = 'active' THEN 'current' ELSE 'closed' END,
                outcome = CASE WHEN NEW.status = 'active' THEN NULL ELSE student_enrolment_outcome_for(NEW.status) END,
+               completed = NEW.status IN ('inactive', 'transferred')
+                           AND (batch_leaver OR student_year_published(cur.session_id, NEW.class_id)
+                                OR (cur.state = 'closed' AND cur.completed)),
                ended_on = CASE WHEN NEW.status = 'active' THEN NULL
                                WHEN cur.state = 'closed' THEN cur.ended_on
                                ELSE student_enrolment_end_date(cur.session_id, cur.started_on) END,
@@ -151,7 +175,7 @@ BEGIN
         IF reverting AND cur.state = 'current' AND prev.state = 'closed' AND prev.outcome IN ('promoted', 'repeated')
            AND NEW.status = 'active' AND NOT student_has_session_records(NEW.id, cur.session_id) THEN
             DELETE FROM student_enrolments WHERE id = cur.id;
-            UPDATE student_enrolments SET state = 'current', outcome = NULL, ended_on = NULL, class_id = NEW.class_id, section_id = NEW.section_id,
+            UPDATE student_enrolments SET state = 'current', outcome = NULL, completed = false, ended_on = NULL, class_id = NEW.class_id, section_id = NEW.section_id,
                    roll_no = NEW.roll_no, student_status = NEW.status, updated_at = now()
              WHERE id = prev.id;
             INSERT INTO student_enrolment_events (enrolment_id, student_id, kind, from_value, to_value, actor_id)
@@ -167,7 +191,7 @@ BEGIN
             UPDATE student_enrolments SET session_id = NEW.session_id, class_id = NEW.class_id, section_id = NEW.section_id,
                    roll_no = NEW.roll_no, student_status = NEW.status,
                    state = CASE WHEN NEW.status = 'active' THEN 'current' ELSE 'closed' END,
-                   outcome = student_enrolment_outcome_for(NEW.status), started_on = starts,
+                   outcome = student_enrolment_outcome_for(NEW.status), completed = false, started_on = starts,
                    ended_on = CASE WHEN NEW.status = 'active' THEN NULL ELSE student_enrolment_end_date(NEW.session_id, starts) END,
                    updated_at = now()
              WHERE id = cur.id;
@@ -234,10 +258,13 @@ $$;
 CREATE TRIGGER students_login_status_trigger AFTER UPDATE OF status ON students
 FOR EACH ROW WHEN (OLD.status IS DISTINCT FROM NEW.status) EXECUTE FUNCTION students_login_follow_status();
 
--- 4. Class progression: the class students of a class are promoted to.
--- Empty means the top class: its students graduate.
+-- 4. Class progression, set explicitly per class: next_class_id (students
+-- are promoted to it) or is_final (students graduate). A class with neither
+-- is unset and cannot be promoted; every existing class starts unset.
 ALTER TABLE academic_classes ADD COLUMN next_class_id uuid REFERENCES academic_classes(id) ON DELETE RESTRICT,
-    ADD CONSTRAINT academic_classes_next_ck CHECK (next_class_id IS DISTINCT FROM id);
+    ADD COLUMN is_final boolean NOT NULL DEFAULT false,
+    ADD CONSTRAINT academic_classes_next_ck CHECK (next_class_id IS DISTINCT FROM id),
+    ADD CONSTRAINT academic_classes_progression_ck CHECK (NOT (is_final AND next_class_id IS NOT NULL));
 
 -- 5. Promotion batches: one class of one session moved to the next session.
 -- draft → approved (head teacher, bound to approved_sha256) → applied
@@ -308,7 +335,15 @@ ALTER TABLE fee_concessions ALTER COLUMN session_id SET NOT NULL,
     ADD CONSTRAINT fee_concessions_key UNIQUE (student_id, session_id, category_id);
 CREATE INDEX fee_concessions_session_idx ON fee_concessions (session_id, student_id);
 
--- 7. Permissions: the administrator prepares and applies; the head teacher
+-- 7. The roll of a year also counts years the student completed before
+-- leaving.
+CREATE OR REPLACE VIEW student_rolls AS
+SELECT e.id AS enrolment_id, e.student_id, e.session_id, e.class_id, e.section_id, e.roll_no, e.state
+  FROM student_enrolments e
+ WHERE (e.state = 'current' AND e.student_status = 'active')
+    OR (e.state = 'closed' AND (e.outcome IN ('promoted', 'repeated', 'graduated', 'moved') OR e.completed));
+
+-- 8. Permissions: the administrator prepares and applies; the head teacher
 -- approves; both read.
 INSERT INTO permissions (id, description) VALUES
     ('promotions:read', 'Read promotion batches and class progression'),
