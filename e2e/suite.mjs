@@ -38,6 +38,8 @@ try {
   await b.go('/')
   check('landing renders school identity and the sign-in form', await b.waitFor(`document.querySelector('main h1')?.innerText.includes('Green Valley Demo School') && !!document.querySelector('main #login-email') && !!document.querySelector('main #login-password')`))
   check('landing shows no invented figures', !/৳|\d+\.\d%/.test(await b.text()))
+  check('landing shows the school identity once (not again in the header)', await b.evaluate(`!document.querySelector('header').innerText.includes('Green Valley') && !document.querySelector('header img')`))
+  check('no Sign in link in the header on the sign-in page', await b.evaluate(`!document.querySelector('header a[href="/login"]')`))
   check('landing has no vendor marketing or role grid', !/Run your whole school|For schools across Bangladesh|Built for every role|Everything a school day needs|Powered by/i.test(await b.text()))
   const quickOn = await b.evaluate(`fetch('/api/auth/demo-login').then(r => r.status === 200)`)
   check('demo quick sign-in shown only when the server offers it', await b.waitFor(`${quickOn} === !!document.querySelector('#demo-quick-login')`), `server ${quickOn ? 'on' : 'off'}`)

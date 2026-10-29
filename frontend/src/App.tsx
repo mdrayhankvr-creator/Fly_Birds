@@ -304,6 +304,8 @@ export default function App() {
   const [logoutError, setLogoutError] = useState(false)
   const { pathname } = useLocation()
   const landing = pathname === '/' || pathname === '/login'
+  // These pages show the school's logo and name themselves; the header does not repeat them.
+  const pageShowsSchool = landing || pathname.startsWith('/verify/')
   const branding = useQuery({ queryKey: ['school', 'branding'], queryFn: ({ signal }) => getSchoolBranding(signal), retry: false, staleTime: 60_000 })
   const myPermissions = useQuery({
     queryKey: ['my-permissions', user?.id],
@@ -485,11 +487,11 @@ export default function App() {
   return (
     <div className="shell-root min-h-screen">
       <header className="shell-topbar border-b border-slate-200">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link to="/" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
+        <div className={`mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6 ${pageShowsSchool ? 'justify-end' : 'justify-between'}`}>
+          {!pageShowsSchool && <Link to="/" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
             <SchoolMark branding={branding.data} />
             <span className="truncate text-base font-bold text-slate-900">{branding.data ? (i18n.language === 'bn' ? branding.data.name_bn : branding.data.name_en) : branding.isPending ? t('loadingBranding') : t('appName')}</span>
-          </Link>
+          </Link>}
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <LanguageSwitch onChange={language => void setLanguage(language)} />
             <ThemeSwitch />
