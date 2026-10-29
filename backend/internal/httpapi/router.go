@@ -329,12 +329,19 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	registerCommunication(management, service, comm, moduleGuard)
 	schoolHandler := &schoolHandler{service: schoolService}
 	router.GET("/school/branding", schoolHandler.branding)
+	// Public landing-page slideshow: photos the administrator chose to show.
+	router.GET("/school/slides", schoolHandler.slides)
+	router.GET("/school/slides/:id/image", schoolHandler.slideImage)
 	// Public card check: unauthenticated by design and reveals no personal data.
 	router.GET("/public/id-cards/:token", verifyCard(&peopleHandler{service: peopleService}, schoolService))
 	schoolRoutes := router.Group("/school")
 	schoolRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), AuditDenied(auditService))
 	schoolRoutes.GET("/settings", RequirePermission(service, "school_settings:read"), RequireModule(schoolService, "school_settings"), schoolHandler.settings)
 	schoolRoutes.PUT("/settings", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveSettings)
+	schoolRoutes.POST("/slides", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.addSlide)
+	schoolRoutes.PUT("/slides/order", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.reorderSlides)
+	schoolRoutes.PATCH("/slides/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.updateSlide)
+	schoolRoutes.DELETE("/slides/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.deleteSlide)
 	schoolRoutes.GET("/grading", RequirePermission(service, "grading:read"), RequireModule(schoolService, "school_settings"), schoolHandler.grading)
 	schoolRoutes.PUT("/grading", RequirePermission(service, "grading:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveGrading)
 	schoolRoutes.GET("/modules", RequirePermission(service, "modules:read"), RequireModule(schoolService, "school_settings"), schoolHandler.modules)

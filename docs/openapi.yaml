@@ -253,6 +253,55 @@ paths:
       responses:
         '200': { description: Public branding, content: { application/json: { schema: { $ref: '#/components/schemas/BrandingResponse' } } } }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /school/slides:
+    get:
+      operationId: listPublicSchoolSlides
+      summary: List the landing-page slideshow photos
+      description: Public by design. Returns order, size, version and captions only; fetch each image from /school/slides/{id}/image?v={version}. Cached for 60 seconds.
+      tags: [school]
+      security: []
+      responses:
+        '200': { description: Slides in display order }
+    post:
+      operationId: addSchoolSlide
+      summary: Upload a slideshow photo
+      description: Requires school_settings:update and administrator. Body is a JPEG or PNG (Content-Type image/jpeg or image/png) of at most 3 MiB, 320 to 2400 pixels wide. The server re-encodes it as JPEG, dropping metadata. At most eight photos (409 slide_limit).
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '201': { description: Slide added }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Slideshow full }, '413': { description: Too large }, '415': { description: Not JPEG or PNG }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/slides/order:
+    put:
+      operationId: reorderSchoolSlides
+      summary: Set the slideshow order
+      description: Requires school_settings:update and administrator. Body {"ids":[...]} lists every slide ID once.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Slides in the new order }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/slides/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      operationId: updateSchoolSlideCaption
+      summary: Set a slideshow photo's English and Bangla captions
+      description: Requires school_settings:update and administrator. Captions are one line of at most 140 characters each.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Slide }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteSchoolSlide
+      summary: Remove a slideshow photo
+      description: Requires school_settings:update and administrator. The remaining photos keep their order.
+      tags: [school]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Deleted }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/slides/{id}/image:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: v, in: query, required: false, schema: { type: string } }]
+    get:
+      operationId: getSchoolSlideImage
+      summary: Read one slideshow photo (JPEG)
+      description: Public by design. With ?v= equal to the slide's version the response is cacheable for a year (immutable); otherwise for five minutes. Supports If-None-Match.
+      tags: [school]
+      security: []
+      responses: { '200': { description: JPEG image }, '304': { description: Not modified }, '404': { $ref: '#/components/responses/NotFound' } }
   /public/id-cards/{token}:
     parameters: [{ name: token, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{22}$' } }]
     get:
@@ -3665,6 +3714,8 @@ components:
         primary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
         secondary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
         dashboard_theme: { type: string, enum: [light, dark] }
+        tagline_en: { type: string, maxLength: 160, description: Short line under the school name on the landing page; optional on input }
+        tagline_bn: { type: string, maxLength: 160 }
     BrandingResponse:
       type: object
       required: [data]

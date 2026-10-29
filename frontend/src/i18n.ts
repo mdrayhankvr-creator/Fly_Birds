@@ -21,6 +21,7 @@ import { analyticsTranslations } from './analyticsTranslations'
 import { shellTranslations } from './shellTranslations'
 import { uxTranslations } from './uxTranslations'
 import { premiumUiTranslations } from './premiumUiTranslations'
+import { landingTranslations } from './landingTranslations'
 import { idCardTranslations } from './idCardTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
@@ -32,10 +33,8 @@ void i18n.use(initReactI18next).init({
     en: {
       translation: {
         appName: 'Fly_Birds',
-        foundation: 'School management foundation',
         home: 'Home',
         language: 'Language',
-        welcome: 'A better start for every school',
         description: 'The M0 foundation is ready for school configuration and role-based features in later milestones.',
         apiStatus: 'API status',
         checking: 'Checking…',
@@ -57,7 +56,6 @@ void i18n.use(initReactI18next).init({
         email: 'Email address',
         password: 'Password',
         welcomeBack: 'Welcome back',
-        loginHeading: 'Sign in to your school workspace',
         loginDescription: 'Use the account issued by your school administrator.',
         invalidLoginForm: 'Enter a valid email and password of at most 72 bytes.',
         invalidCredentials: 'Invalid email or password.',
@@ -86,10 +84,8 @@ void i18n.use(initReactI18next).init({
     bn: {
       translation: {
         appName: 'ফ্লাই বার্ডস',
-        foundation: 'স্কুল ব্যবস্থাপনার ভিত্তি',
         home: 'হোম',
         language: 'ভাষা',
-        welcome: 'প্রতিটি স্কুলের জন্য সুন্দর শুরু',
         description: 'পরবর্তী ধাপে স্কুলের সেটিংস ও ভূমিকা অনুযায়ী সুবিধা যোগ করার জন্য M0 ভিত্তি প্রস্তুত।',
         apiStatus: 'এপিআই অবস্থা',
         checking: 'যাচাই করা হচ্ছে…',
@@ -111,7 +107,6 @@ void i18n.use(initReactI18next).init({
         email: 'ইমেইল ঠিকানা',
         password: 'পাসওয়ার্ড',
         welcomeBack: 'আবার স্বাগতম',
-        loginHeading: 'আপনার স্কুলের কর্মক্ষেত্রে সাইন ইন করুন',
         loginDescription: 'স্কুল প্রশাসকের দেওয়া অ্যাকাউন্ট ব্যবহার করুন।',
         invalidLoginForm: 'সঠিক ইমেইল এবং সর্বোচ্চ ৭২ বাইটের পাসওয়ার্ড লিখুন।',
         invalidCredentials: 'ইমেইল বা পাসওয়ার্ড সঠিক নয়।',
@@ -185,6 +180,8 @@ i18n.addResourceBundle('en', 'translation', uxTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', uxTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', premiumUiTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', premiumUiTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', landingTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', landingTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', idCardTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', idCardTranslations.bn, true, true)
 

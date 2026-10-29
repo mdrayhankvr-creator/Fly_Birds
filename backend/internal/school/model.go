@@ -19,6 +19,8 @@ type SchoolSettings struct {
 	SecondaryColor    string    `json:"secondary_color"`
 	DashboardTheme    string    `json:"dashboard_theme"`
 	GradingSchemeID   string    `json:"grading_scheme_id"`
+	TaglineEN         string    `json:"tagline_en"`
+	TaglineBN         string    `json:"tagline_bn"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
@@ -36,6 +38,9 @@ type SettingsInput struct {
 	SecondaryColor    string `json:"secondary_color"`
 	DashboardTheme    string `json:"dashboard_theme"`
 	GradingSchemeID   string `json:"grading_scheme_id"`
+	// Taglines are optional so clients that predate them keep the saved text.
+	TaglineEN *string `json:"tagline_en,omitempty"`
+	TaglineBN *string `json:"tagline_bn,omitempty"`
 }
 
 type Branding struct {
@@ -46,10 +51,12 @@ type Branding struct {
 	PrimaryColor      string `json:"primary_color"`
 	SecondaryColor    string `json:"secondary_color"`
 	DashboardTheme    string `json:"dashboard_theme"`
+	TaglineEN         string `json:"tagline_en"`
+	TaglineBN         string `json:"tagline_bn"`
 }
 
 func (s SchoolSettings) Branding() Branding {
-	return Branding{s.NameEN, s.NameBN, s.LogoURL, s.PreferredLanguage, s.PrimaryColor, s.SecondaryColor, s.DashboardTheme}
+	return Branding{s.NameEN, s.NameBN, s.LogoURL, s.PreferredLanguage, s.PrimaryColor, s.SecondaryColor, s.DashboardTheme, s.TaglineEN, s.TaglineBN}
 }
 
 type GradeBand struct {

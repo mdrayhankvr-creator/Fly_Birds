@@ -8,6 +8,7 @@ import {
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { ui, PageHeader } from './attendanceUi'
+import { LandingPhotos } from './LandingPhotos'
 
 const colorPattern = /^#[0-9a-fA-F]{6}$/
 function readableOnWhite(value: string): boolean {
@@ -132,6 +133,8 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <FormField label={t('schoolNameEN')}><input className={inputClass} required maxLength={120} value={draft.name_en} disabled={!canEditSettings} onChange={(event) => setField('name_en', event.target.value)} /></FormField>
           <FormField label={t('schoolNameBN')}><input className={inputClass} required maxLength={120} value={draft.name_bn} disabled={!canEditSettings} onChange={(event) => setField('name_bn', event.target.value)} /></FormField>
+          <FormField label={t('p3TaglineEN')}><input className={inputClass} maxLength={160} value={draft.tagline_en ?? ''} disabled={!canEditSettings} onChange={(event) => setField('tagline_en', event.target.value)} /></FormField>
+          <FormField label={t('p3TaglineBN')}><input className={inputClass} maxLength={160} lang="bn" value={draft.tagline_bn ?? ''} disabled={!canEditSettings} onChange={(event) => setField('tagline_bn', event.target.value)} /></FormField>
           <FormField label={t('schoolLogo')}><input className={inputClass} type="url" maxLength={500} value={draft.logo_url} disabled={!canEditSettings} onChange={(event) => setField('logo_url', event.target.value)} /></FormField>
           <FormField label={t('schoolAddress')}><input className={inputClass} maxLength={500} value={draft.address} disabled={!canEditSettings} onChange={(event) => setField('address', event.target.value)} /></FormField>
           <FormField label={t('schoolPhone')}><input className={inputClass} type="tel" maxLength={32} value={draft.phone} disabled={!canEditSettings} onChange={(event) => setField('phone', event.target.value)} /></FormField>
@@ -152,6 +155,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
         </div>
         {canEditSettings && <div className="mt-6 flex flex-wrap gap-3"><button className="brand-button rounded-lg px-5 py-2.5 font-semibold disabled:opacity-50" type="submit" disabled={saveSettings.isPending}>{saveSettings.isPending ? t('saving') : t('saveProfile')}</button><button type="button" className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold" onClick={resetDrafts}>{t('discardChanges')}</button></div>}
       </form>
+      {canEditSettings && <LandingPhotos authorized={authorized} />}
       {canReadGrading && bands && <form onSubmit={submitGrading} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         <h2 className={ui.sectionTitle}>{t('gradingScheme')}</h2>
         <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[18rem] text-left text-sm"><thead><tr className="border-b border-slate-200"><th className="px-3 py-2.5">{t('grade')}</th><th className="px-3 py-2.5">{t('minMarks')}</th><th className="px-3 py-2.5">{t('maxMarks')}</th><th className="px-3 py-2.5">{t('gpa')}</th></tr></thead><tbody>{bands.map((band, index) => <tr key={index} className="border-b border-slate-100">

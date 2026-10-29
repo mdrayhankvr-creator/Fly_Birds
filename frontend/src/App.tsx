@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, Navigate, Route, Routes } from 'react-router'
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, getDashboard, getHealth, getMyPermissions, getSchoolBranding, getSchoolModules, type SchoolBranding } from './api/client'
+import { ApiError, getDashboard, getMyPermissions, getSchoolBranding, getSchoolModules, type SchoolBranding } from './api/client'
 import { useAuth } from './auth/AuthProvider'
-import { AppShell, LanguageSwitch, SchoolMark } from './components/AppShell'
+import { AppShell, LanguageSwitch, SchoolMark, ThemeSwitch } from './components/AppShell'
 import { applyTheme } from './components/theme'
 import { buildNavigation } from './components/navigation'
 import { ConfirmHost } from './components/ConfirmDialog'
-import { Icon, type IconName } from './components/icons'
-import { ui } from './pages/attendanceUi'
 import { ProtectedRoute } from './auth/ProtectedRoute'
-import { LoginPage } from './pages/LoginPage'
+import { LandingPage } from './pages/LandingPage'
 import { AccountPage } from './pages/AccountPage'
 import { PermissionPage } from './pages/PermissionPage'
 import { SchoolSettingsPage } from './pages/SchoolSettingsPage'
@@ -46,58 +44,6 @@ import { AdminDiaryPage, DiaryFeedPage, TeacherDiaryPage } from './pages/DiaryPa
 import { AdminOverviewPage, AuditLogPage, BackupsPage, DataExportPage, ModulesPage } from './pages/AdminPages'
 import { AnalyticsPage, ChildrenProgressPage, MyProgressPage, ReportsPage, StaffStudentPage } from './pages/AnalyticsPages'
 import { StateScreen } from './components/StateScreen'
-
-function ServiceStatus() {
-  const { t } = useTranslation()
-  const health = useQuery({ queryKey: ['health'], queryFn: ({ signal }) => getHealth(signal), refetchInterval: 30_000, retry: 1 })
-  const label = health.isPending ? t('checking') : health.isError ? t('offline') : t('online')
-  const color = health.isPending ? 'bg-amber-400' : health.isError ? 'bg-rose-500' : 'bg-emerald-500'
-  return <p className="inline-flex items-center gap-2 text-sm text-slate-600" aria-live="polite">
-    <span className={`h-2 w-2 rounded-full ${color}`} aria-hidden="true" />{t('m12ServiceStatus')}: {label}
-    {health.isError && <button type="button" onClick={() => void health.refetch()} className="font-semibold text-[var(--brand-ink)] hover:underline">{t('reload')}</button>}
-  </p>
-}
-
-function Home() {
-  const { t } = useTranslation()
-  const features: { icon: IconName; title: string; body: string }[] = [
-    { icon: 'check', title: 'm12FeatureAttendance', body: 'm12FeatureAttendanceBody' }, { icon: 'grade', title: 'm12FeatureResults', body: 'm12FeatureResultsBody' },
-    { icon: 'money', title: 'm12FeatureFees', body: 'm12FeatureFeesBody' }, { icon: 'megaphone', title: 'm12FeatureNotices', body: 'm12FeatureNoticesBody' },
-    { icon: 'chart', title: 'm12FeatureAnalytics', body: 'm12FeatureAnalyticsBody' }, { icon: 'shield', title: 'm12FeatureSecure', body: 'm12FeatureSecureBody' },
-  ]
-  return (
-    <div className="space-y-14">
-      <section className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-center">
-        <div>
-          <p className="text-sm font-semibold text-[var(--brand-ink)]">{t('m12HeroEyebrow')}</p>
-          <h1 className="mt-3 max-w-2xl text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl">{t('m12HeroTitle')}</h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">{t('m12HeroBody')}</p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link to="/login" className={`${ui.primary} px-6 py-3 text-[15px]`}>{t('signIn')}<Icon name="arrowRight" className="h-4 w-4" /></Link>
-            <ServiceStatus />
-          </div>
-        </div>
-        <div className={`${ui.card} p-6`}>
-          <h2 className="text-sm font-semibold text-slate-900">{t('m12RolesTitle')}</h2>
-          <ul className="mt-4 grid grid-cols-2 gap-3">
-            {(['admin', 'head_teacher', 'teacher', 'student', 'accountant'] as const).map((role, i) => <li key={role} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
-              <span className="shell-mark flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"><Icon name={(['shield', 'school', 'teacher', 'user', 'money'] as const)[i]} className="h-[18px] w-[18px]" /></span>
-              <span className="text-sm font-medium text-slate-800">{t(`role_${role}`)}</span></li>)}
-          </ul>
-          <p className="mt-4 text-xs leading-5 text-slate-500">{t('m12RolesNote')}</p>
-        </div>
-      </section>
-      <section aria-labelledby="features-title">
-        <h2 id="features-title" className="text-xl font-bold text-slate-900">{t('m12FeaturesTitle')}</h2>
-        <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map(f => <li key={f.title} className={`${ui.card} p-5`}>
-            <span className="shell-mark flex h-10 w-10 items-center justify-center rounded-xl"><Icon name={f.icon} /></span>
-            <h3 className="mt-4 font-semibold text-slate-900">{t(f.title)}</h3><p className="mt-1.5 text-sm leading-6 text-slate-600">{t(f.body)}</p></li>)}
-        </ul>
-      </section>
-    </div>
-  )
-}
 
 function NotFound() {
   return <StateScreen kind="notFound" />
@@ -356,6 +302,8 @@ export default function App() {
   const { t, i18n } = useTranslation()
   const { user, accessToken, ready, signOut, renew, expire } = useAuth()
   const [logoutError, setLogoutError] = useState(false)
+  const { pathname } = useLocation()
+  const landing = pathname === '/' || pathname === '/login'
   const branding = useQuery({ queryKey: ['school', 'branding'], queryFn: ({ signal }) => getSchoolBranding(signal), retry: false, staleTime: 60_000 })
   const myPermissions = useQuery({
     queryKey: ['my-permissions', user?.id],
@@ -462,8 +410,8 @@ export default function App() {
   }) : []
   const routes = (
       <Routes>
-        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Home />} />
-        <Route path="/login" element={<LoginPage branding={branding.data} />} />
+        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage branding={branding.data} />} />
+        <Route path="/login" element={<LandingPage branding={branding.data} />} />
         <Route path="/verify/:token" element={<VerifyCardPage />} />
         <Route path="/account" element={<ProtectedRoute><AccountPage permissions={myPermissions.data} /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
@@ -542,13 +490,15 @@ export default function App() {
             <SchoolMark branding={branding.data} />
             <span className="truncate text-base font-bold text-slate-900">{branding.data ? (i18n.language === 'bn' ? branding.data.name_bn : branding.data.name_en) : branding.isPending ? t('loadingBranding') : t('appName')}</span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <LanguageSwitch onChange={language => void setLanguage(language)} />
-            {ready && <Link to="/login" className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 sm:inline-block">{t('signIn')}</Link>}
+            <ThemeSwitch />
+            {ready && !landing && <Link to="/login" className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 sm:inline-block">{t('signIn')}</Link>}
           </div>
         </div>
       </header>
-      <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">{routes}</main>
+      {/* The landing page runs edge to edge; other public pages keep the reading width. */}
+      <main id="main" className={landing ? '' : 'mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14'}>{routes}</main>
       <ConfirmHost />
     </div>
   )

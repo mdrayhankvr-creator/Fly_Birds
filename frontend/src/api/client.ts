@@ -108,6 +108,7 @@ export const putRolePermissions = (token: string, role: string, ids: string[]) =
 export type SchoolBranding = {
   name_en: string; name_bn: string; logo_url: string; preferred_language: 'en' | 'bn'
   primary_color: string; secondary_color: string; dashboard_theme: 'light' | 'dark'
+  tagline_en?: string; tagline_bn?: string
 }
 export type SchoolSettings = SchoolBranding & {
   address: string; phone: string; email: string; grading_scheme_id: string; updated_at: string
@@ -124,6 +125,23 @@ export const getSchoolSettings = (token: string) => bearerRequest<SchoolSettings
 export const putSchoolSettings = (token: string, data: SchoolSettingsInput) => bearerRequest<SchoolSettings>('/school/settings', token, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
 })
+// Landing-page slideshow. Lists and images are public; changes need an administrator.
+export type SchoolSlide = { id: string; position: number; width: number; height: number; version: string; caption_en: string; caption_bn: string }
+export const slideImageUrl = (slide: SchoolSlide) => `${apiBaseUrl}/school/slides/${encodeURIComponent(slide.id)}/image?v=${slide.version}`
+// The list may be cached for a minute; the settings page asks for it fresh.
+export async function getSchoolSlides(signal?: AbortSignal, fresh = false): Promise<SchoolSlide[]> {
+  const response = await fetch(`${apiBaseUrl}/school/slides`, { signal, credentials: 'same-origin', cache: fresh ? 'no-store' : 'default' })
+  if (!response.ok) throw new ApiError(response.status, 'request_failed')
+  return ((await response.json()).data ?? []) as SchoolSlide[]
+}
+export const addSchoolSlide = (token: string, image: Blob) => bearerRequest<SchoolSlide>('/school/slides', token, { method: 'POST', headers: { 'Content-Type': image.type }, body: image })
+export const updateSchoolSlide = (token: string, id: string, caption_en: string, caption_bn: string) => bearerRequest<SchoolSlide>(`/school/slides/${encodeURIComponent(id)}`, token, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ caption_en, caption_bn }),
+})
+export const reorderSchoolSlides = (token: string, ids: string[]) => bearerRequest<SchoolSlide[]>('/school/slides/order', token, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }),
+})
+export const deleteSchoolSlide = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/school/slides/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
 export const getSchoolGrading = (token: string) => bearerRequest<GradeBand[]>('/school/grading', token)
 export const putSchoolGrading = (token: string, bands: GradeBand[]) => bearerRequest<GradeBand[]>('/school/grading', token, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bands }),

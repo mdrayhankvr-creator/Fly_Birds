@@ -44,6 +44,14 @@ On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card 
 - `whitelabel.mjs` 23/23. `payment-safety.mjs`: off 13/13 (twice); simulation 23/23 after moving the "another student's fees" check to after simulation is switched on (the first run, 22/23, checked it while still off). The simulation run finished its checks but did not exit (the known Windows browser-pipe hang) and was stopped.
 - Type check, build, i18n (2,724 keys each) and unit tests (11/11) pass.
 
+**Old guardian accounts (2026-10-29):** the notification bell and its count are hidden for the guardian role, which no longer has a notifications page.
+
+**School landing page (2026-10-29):** the public page is the school's own portal, not vendor marketing. The hero, feature list, role grid, "powered by" line and login bullet points are gone (their strings removed in both languages).
+- First screen: a full-width slideshow of the school's photos under a soft overlay, with the logo, name (and the other-language name) and an optional tagline, and the sign-in form on the page. `/` and `/login` both show it. On phones the photos become a shorter banner with the form below. With no photos the page uses the school colours and logo. Language and light/dark switches stay in the header.
+- Slideshow: 7-second crossfade; pauses on hover, keyboard focus or the pause button; arrow keys and one dot per photo; no auto-advance and an instant change with reduced motion. Only the first two photos load up front; each later one loads just before it is shown.
+- Settings: administrators add (up to 8), caption in English and Bangla, reorder and remove photos under School settings, and set the tagline in both languages. Browsers shrink photos to at most 1,600px wide as JPEG before upload; the server accepts JPEG or PNG up to 3 MiB and 320–2,400px, re-encodes to JPEG (dropping metadata), stores at most 1 MiB in the database like student photos, and audit-logs every change. Images are public and served with a content-hash version: `Cache-Control: public, max-age=31536000, immutable` and an ETag.
+- Migration `1751_school_landing.sql` (taglines, `school_slides`). The tagline fields are optional on `PUT /school/settings`, so older clients keep the saved text.
+
 **Next:** run the browser and white-label suites against a seeded stack, check the dashboards at 360/390/430px, tablet and desktop in both languages and themes, then Checkpoint 2 (routine, homework, diary and notice screens).
 
 ## Current Status — M15 Stage A: Enrolment History (2026-10-29)
