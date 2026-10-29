@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { deleteEvent, getEvents, saveEvent, setEventStatus, type EventInput, type EventKind, type SchoolEvent } from '../api/communication'
-import { EmptyState, Notice as Banner, PageHeader, Skeleton, Tabs, ui } from './attendanceUi'
+import { CardTitle, EmptyState, Notice as Banner, PageHeader, Skeleton, Tabs, ui } from './attendanceUi'
 import { Field, RolePicker, TargetPicker, todayDhaka, useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
 
 const kinds: EventKind[] = ['holiday', 'exam', 'meeting', 'event', 'other']
@@ -71,7 +71,7 @@ export function EventsPage({ canManage }: { canManage: boolean }) {
     <PageHeader eyebrow={t('m9EventsEyebrow')} title={t('m9Events')} description={t('m9EventsIntro')} actions={canManage ? <button type="button" className={ui.primary} onClick={() => open('new')}>{t('m9NewEvent')}</button> : undefined} />
     {message && <Banner tone={message.tone}>{message.text}</Banner>}
     {editing && <form onSubmit={submit} className={`${ui.card} space-y-4 p-4 sm:p-6`} aria-labelledby="event-editor">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h2 id="event-editor" className="text-lg font-bold">{current ? t('m9EditEvent') : t('m9NewEvent')}</h2>{current && <span className="text-sm text-slate-500">{t(`m9Status_${current.status}`)}</span>}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><CardTitle id="event-editor" icon="calendar">{current ? t('m9EditEvent') : t('m9NewEvent')}</CardTitle>{current && <span className="text-sm text-slate-500">{t(`m9Status_${current.status}`)}</span>}</div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Field label={t('m9TitleEn')} className="lg:col-span-2"><input required maxLength={200} className={ui.field} value={form.title_en} onChange={e => setForm({ ...form, title_en: e.target.value })} /></Field>
         <Field label={t('m9TitleBn')} className="lg:col-span-2"><input lang="bn" className={ui.field} value={form.title_bn} onChange={e => setForm({ ...form, title_bn: e.target.value })} /></Field>

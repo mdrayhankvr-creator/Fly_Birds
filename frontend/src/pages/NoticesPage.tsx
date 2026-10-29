@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { archiveNotice, deleteNotice, getManagedNotices, getNoticeFeed, publishNotice, saveNotice, type Notice, type NoticeInput, type Priority } from '../api/communication'
-import { EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, Tabs, ui } from './attendanceUi'
+import { CardTitle, EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, Tabs, ui } from './attendanceUi'
 import { AttachmentList, Field, FileUploader, PriorityBadge, RolePicker, TargetPicker, isoToLocal, localToIso, useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
 
 const blank: NoticeInput = { title_en: '', title_bn: '', body_en: '', body_bn: '', priority: 'normal', audience_roles: ['student', 'guardian', 'teacher'], targets: [], expires_at: null, file_ids: [] }
@@ -104,7 +104,7 @@ function NoticeManager() {
   return <div className="space-y-4">
     {message && <Banner tone={message.tone}>{message.text}</Banner>}
     {editing ? <form onSubmit={save} className={`${ui.card} space-y-4 p-4 sm:p-6`} aria-labelledby="notice-editor">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h2 id="notice-editor" className="text-lg font-bold">{current ? t('m9EditNotice') : t('m9NewNotice')}</h2>{current && <span className="text-sm text-slate-500">{t(`m9Status_${current.status}`)}</span>}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><CardTitle id="notice-editor" icon="megaphone">{current ? t('m9EditNotice') : t('m9NewNotice')}</CardTitle>{current && <span className="text-sm text-slate-500">{t(`m9Status_${current.status}`)}</span>}</div>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label={t('m9TitleEn')}><input required maxLength={200} className={ui.field} value={form.title_en} onChange={e => setForm({ ...form, title_en: e.target.value })} /></Field>
         <Field label={t('m9TitleBn')}><input lang="bn" className={ui.field} value={form.title_bn} onChange={e => setForm({ ...form, title_bn: e.target.value })} /></Field>

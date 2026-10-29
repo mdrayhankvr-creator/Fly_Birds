@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 import { deleteDiary, getAllDiaries, getDiary, getDiaryAssignments, getDiaryCompliance, getDiaryFeed, getDiarySettings, getMySubmission, getSubmissions, publishDiary, reviewSubmission, saveDiary, saveDiarySettings, submitHomework, type Attachment, type Diary, type DiaryAssignment, type DiaryInput, type Submission } from '../api/communication'
 import { ApiError } from '../api/client'
-import { EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, StatusBadge, ui } from './attendanceUi'
+import { CardTitle, EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, StatusBadge, ui } from './attendanceUi'
 import { AttachmentList, Field, FileUploader, isoToLocal, localToIso, shiftDay, todayDhaka, useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
 import { Icon, type IconName } from '../components/icons'
 import type { Tone } from './attendanceUi'
@@ -59,7 +59,7 @@ export function TeacherDiaryPage() {
     <PageHeader eyebrow={t('m9DiaryEyebrow')} title={t('m9TeacherDiary')} description={t('m9TeacherDiaryIntro')} />
     <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="diary-day">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 id="diary-day" className="text-lg font-bold">{fmt.date(date)}</h2>{assignments.data && <p className="text-sm text-slate-600">{t('m9DiaryProgress', { published: fmt.number(published), total: fmt.number(assignments.data.length) })}</p>}</div>
+        <div><CardTitle id="diary-day" icon="notebook">{fmt.date(date)}</CardTitle>{assignments.data && <p className="text-sm text-slate-600">{t('m9DiaryProgress', { published: fmt.number(published), total: fmt.number(assignments.data.length) })}</p>}</div>
         <div className="flex gap-2">
           <button type="button" className={ui.secondary} aria-label={t('m9PreviousDay')} onClick={() => { setDate(shiftDay(date, -1)); setSelected(null) }}>‹</button>
           <label><span className="sr-only">{t('m9Date')}</span><input type="date" className={`${ui.field} mt-0`} max={shiftDay(todayDhaka(), 7)} value={date} onChange={e => { if (e.target.value) { setDate(e.target.value); setSelected(null) } }} /></label>
@@ -117,7 +117,7 @@ function DiaryEditor({ assignment, date, onSaved }: { assignment: DiaryAssignmen
   if (diaryId && existing.isPending) return <Skeleton rows={4} />
   return <>
     <form onSubmit={save} className={`${ui.card} space-y-4 p-4 sm:p-6`} aria-labelledby="diary-editor">
-      <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 id="diary-editor" className="text-lg font-bold">{local(assignment.subject_name_en, assignment.subject_name_bn)} · {assignment.class_name} {assignment.section_name}</h2><p className="text-sm text-slate-600">{assignment.session_name}</p></div><DiaryStatus status={diary?.status ?? null} /></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><div><CardTitle id="diary-editor" icon="notebook">{local(assignment.subject_name_en, assignment.subject_name_bn)} · {assignment.class_name} {assignment.section_name}</CardTitle><p className="text-sm text-slate-600">{assignment.session_name}</p></div><DiaryStatus status={diary?.status ?? null} /></div>
       {message && <Banner tone={message.tone}>{message.text}</Banner>}
       <div className="grid gap-4 md:grid-cols-2">
         {sections.map(s => <Field key={s.key} label={t(s.label)}><textarea rows={s.key === 'class_notes' ? 5 : 3} className={ui.field} value={form[s.key]} placeholder={t(`${s.label}Hint`)} onChange={e => setForm({ ...form, [s.key]: e.target.value })} /></Field>)}
@@ -154,7 +154,7 @@ function SubmissionsPanel({ diaryId }: { diaryId: string }) {
     try { await authorized(token => reviewSubmission(token, s.id, notes[s.id] ?? s.review_note)); await list.refetch() } catch (cause) { setError(errorText(cause)) }
   }
   return <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="subs-title">
-    <h2 id="subs-title" className="text-lg font-bold">{t('m9Submissions')}</h2>
+    <CardTitle id="subs-title" icon="clipboard">{t('m9Submissions')}</CardTitle>
     {list.data && <p className="text-sm text-slate-600">{t('m9SubmittedCount', { submitted: fmt.number(submitted), total: fmt.number(list.data.length) })}</p>}
     {error && <div className="mt-2"><Banner tone="error">{error}</Banner></div>}
     {list.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : list.isError ? <Banner tone="error">{t('m9ErrGeneric')}</Banner> :
@@ -343,7 +343,7 @@ export function AdminDiaryPage({ canManage }: { canManage: boolean }) {
   return <div className="space-y-5">
     <PageHeader eyebrow={t('m9DiaryEyebrow')} title={t('m9DiaryOversight')} description={t('m9DiaryOversightIntro')} actions={<label className={ui.label}>{t('m9Date')}<input type="date" className={ui.field} value={date} onChange={e => { if (e.target.value) { setDate(e.target.value); setPage(1) } }} /></label>} />
     {canManage && current && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="diary-settings">
-      <h2 id="diary-settings" className="text-lg font-bold">{t('m9DiarySettings')}</h2>
+      <CardTitle id="diary-settings" icon="settings">{t('m9DiarySettings')}</CardTitle>
       {message && <div className="mt-2"><Banner tone={message.tone}>{message.text}</Banner></div>}
       <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end">
         <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1" checked={current.daily_required} onChange={e => setDraft({ ...current, daily_required: e.target.checked })} /><span><span className="font-medium">{t('m9DailyRequired')}</span><span className="block text-xs text-slate-500">{t('m9DailyRequiredHint')}</span></span></label>
@@ -351,14 +351,14 @@ export function AdminDiaryPage({ canManage }: { canManage: boolean }) {
         <button type="button" className={ui.primary} disabled={!draft} onClick={() => void saveSettings()}>{t('m9Save')}</button>
       </div></section>}
     <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="compliance-title">
-      <h2 id="compliance-title" className="text-lg font-bold">{t('m9Compliance')}</h2>
+      <CardTitle id="compliance-title" icon="check">{t('m9Compliance')}</CardTitle>
       {compliance.data && <p className="text-sm text-slate-600">{t('m9DiaryProgress', { published: fmt.number(done), total: fmt.number(compliance.data.length) })}</p>}
       {compliance.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : compliance.isError ? <Banner tone="error">{t('m9ErrGeneric')}</Banner> : compliance.data.length === 0 ? <div className="mt-3"><EmptyState title={t('m9NoAssignments')} /></div> :
-        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[32rem] text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wide text-slate-500"><th className="py-2">{t('m9ClassSection')}</th><th>{t('m9Subject')}</th><th>{t('m9Teachers')}</th><th>{t('m9Status')}</th></tr></thead>
+        <div className="mt-3 overflow-x-auto"><table className="ds-cards w-full min-w-[32rem] text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wide text-slate-500"><th className="py-2">{t('m9ClassSection')}</th><th>{t('m9Subject')}</th><th>{t('m9Teachers')}</th><th>{t('m9Status')}</th></tr></thead>
           <tbody>{compliance.data.map((r, i) => <tr key={i} className="border-b border-slate-100"><td className="py-2.5">{r.class_name} · {r.section_name}</td><td>{local(r.subject_name_en, r.subject_name_bn)}</td><td className="text-slate-600">{r.teachers}</td><td><DiaryStatus status={r.diary_status} /></td></tr>)}</tbody></table></div>}
     </section>
     <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="all-title">
-      <h2 id="all-title" className="text-lg font-bold">{t('m9DiariesForDay')}</h2>
+      <CardTitle id="all-title" icon="notebook">{t('m9DiariesForDay')}</CardTitle>
       {all.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : all.isError ? <Banner tone="error">{t('m9ErrGeneric')}</Banner> : all.data.items.length === 0 ? <div className="mt-3"><EmptyState title={t('m9NoDiaries')} /></div> : <>
         <ul className="mt-3 divide-y divide-slate-100">{all.data.items.map(d => <li key={d.id} className="py-3">
           <button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-left" aria-expanded={openId === d.id} onClick={() => setOpenId(openId === d.id ? '' : d.id)}>

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { getInbox, getPreferences, getSMSLog, markAllNotificationsRead, markNotificationRead, runDispatch, savePreferences, type AppNotification, type DispatchResult, type Preference } from '../api/communication'
-import { EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, Tabs, ui } from './attendanceUi'
+import { CardTitle, EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, Tabs, ui } from './attendanceUi'
 import { useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
 
 const categoryIcon: Record<AppNotification['category'], string> = { notice: '📢', absence: '🕒', result: '🎓', fee: '৳', diary: '📘' }
@@ -80,7 +80,7 @@ function PreferencesPanel() {
     try { setDraft(await authorized(token => savePreferences(token, items))); setMessage({ tone: 'success', text: t('m9Saved') }) } catch (cause) { setMessage({ tone: 'error', text: errorText(cause) }) }
   }
   return <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="prefs-title">
-    <h2 id="prefs-title" className="text-lg font-bold">{t('m9Preferences')}</h2><p className="text-sm text-slate-600">{t('m9PreferencesHint')}</p>
+    <CardTitle id="prefs-title" icon="settings">{t('m9Preferences')}</CardTitle><p className="text-sm text-slate-600">{t('m9PreferencesHint')}</p>
     {message && <div className="mt-3"><Banner tone={message.tone}>{message.text}</Banner></div>}
     {prefs.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[22rem] text-left text-sm">
       <thead><tr className="border-b text-xs uppercase tracking-wide text-slate-500"><th className="py-2">{t('m9Category')}</th><th className="py-2 text-center">{t('m9InApp')}</th><th className="py-2 text-center">{t('m9SMS')}</th></tr></thead>
@@ -117,11 +117,11 @@ export function AdminNotificationsPage() {
     {error && <Banner tone="error">{error}</Banner>}
     {result && <Banner tone="success">{result.disabled ? t('m9DispatchDisabled') : result.skipped ? t('m9DispatchSkipped') : t('m9DispatchResult', { created: Object.values(result.created).reduce((a, b) => a + b, 0), withdrawn: result.withdrawn, sent: result.sms_sent_mock, failed: result.sms_failed })}</Banner>}
     <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="sms-title">
-      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 id="sms-title" className="text-lg font-bold">{t('m9SmsLog')}</h2>
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><CardTitle id="sms-title" icon="send">{t('m9SmsLog')}</CardTitle>
         {log.data && <p className="mt-1 flex flex-wrap gap-2 text-xs">{Object.entries(log.data.counts).map(([k, v]) => <span key={k} className={`rounded-full px-2 py-0.5 font-semibold ${smsTone[k]}`}>{t(`m9Sms_${k}`)}: {fmt.number(v)}</span>)}</p>}</div>
         <label><span className="sr-only">{t('m9Status')}</span><select className={`${ui.field} mt-0`} value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}><option value="">{t('m9AllStatuses')}</option>{['queued', 'sent_mock', 'failed', 'cancelled'].map(s => <option key={s} value={s}>{t(`m9Sms_${s}`)}</option>)}</select></label></div>
       {log.isPending ? <div className="mt-3"><Skeleton /></div> : log.isError ? <Banner tone="error">{t('m9ErrGeneric')}</Banner> : log.data.items.length === 0 ? <div className="mt-3"><EmptyState title={t('m9NoSms')} /></div> : <>
-        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[44rem] text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wide text-slate-500"><th className="py-2 pr-2">{t('m9Recipient')}</th><th className="px-2">{t('m9Message')}</th><th className="px-2">{t('m9Status')}</th><th className="px-2">{t('m9Reference')}</th><th className="pl-2">{t('m9When')}</th></tr></thead>
+        <div className="mt-3 overflow-x-auto"><table className="ds-cards w-full min-w-[44rem] text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wide text-slate-500"><th className="py-2 pr-2">{t('m9Recipient')}</th><th className="px-2">{t('m9Message')}</th><th className="px-2">{t('m9Status')}</th><th className="px-2">{t('m9Reference')}</th><th className="pl-2">{t('m9When')}</th></tr></thead>
           <tbody>{log.data.items.map(m => <tr key={m.id} className="border-b border-slate-100 align-top"><td className="py-2.5 pr-2"><p className="font-medium">{m.recipient_name}</p><p className="font-mono text-xs text-slate-500">{m.phone}</p></td>
             <td className="max-w-xs px-2 py-2.5"><p className="text-xs text-slate-500">{t(`m9Category_${m.category}`)}</p><p className="break-words">{m.body}</p>{m.error && <p className="text-xs text-rose-700">{m.error}</p>}</td>
             <td className="px-2 py-2.5"><span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${smsTone[m.status]}`}>{t(`m9Sms_${m.status}`)}</span></td>
