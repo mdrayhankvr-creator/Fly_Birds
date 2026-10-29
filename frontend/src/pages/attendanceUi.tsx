@@ -142,6 +142,14 @@ export function SectionCard({ title, description, actions, children, id, classNa
   </section>
 }
 
+// CardTitle is the heading of a module card: the module-tinted icon and title.
+export function CardTitle({ id, icon, children, className = '' }: { id?: string; icon: IconName; children: ReactNode; className?: string }) {
+  return <h2 id={id} className={`flex min-w-0 items-center gap-2.5 text-lg font-bold tracking-tight text-slate-900 ${className}`}>
+    <span aria-hidden="true" className="ds-soft ds-ink grid h-9 w-9 shrink-0 place-items-center rounded-xl"><Icon name={icon} className="h-[18px] w-[18px]" /></span>
+    <span className="min-w-0">{children}</span>
+  </h2>
+}
+
 export function InfoRow({ label, children }: { label: ReactNode; children: ReactNode }) {
   return <div className="grid gap-0.5 py-2.5 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] sm:gap-4"><dt className="text-sm text-slate-500">{label}</dt><dd className="min-w-0 break-words text-sm font-medium text-slate-900">{children}</dd></div>
 }

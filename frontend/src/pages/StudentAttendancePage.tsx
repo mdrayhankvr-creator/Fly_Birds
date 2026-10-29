@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError, getAttendanceSessions, getAttendanceSections, getStudentAttendanceRoster, getStudentAttendanceMonthly, getOwnStudentAttendanceReport, getGuardianStudentAttendanceReport, saveStudentAttendanceRoster, scanStudentAttendance, getAbsenceEvents, type StudentAttendanceRosterItem, type StudentAttendanceRecord } from '../api/client'
-import { Avatar, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, Tabs, tones, ui, type SegmentOption } from './attendanceUi'
+import { Icon } from '../components/icons'
+import { Avatar, CardTitle, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, Tabs, tones, ui, type SegmentOption } from './attendanceUi'
 
 const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 type Status = StudentAttendanceRecord['status']
@@ -218,7 +219,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
       <section className={`${ui.card} overflow-hidden`} aria-labelledby="roster-heading">
         <div className="border-b border-slate-100 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><h2 id="roster-heading" className="text-lg font-bold text-slate-900">{section ? `${section.class_name} · ${section.name}` : t('attendanceDaily')}</h2>
+            <div><CardTitle id="roster-heading" icon="check">{section ? `${section.class_name} · ${section.name}` : t('attendanceDaily')}</CardTitle>
               <p className="text-sm text-slate-600">{new Intl.DateTimeFormat(i18n.language === 'bn' ? 'bn-BD' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`))}</p></div>
             {canManage && items.length > 0 && <div className="flex flex-wrap gap-2">
               <button type="button" className={ui.secondary} disabled={counts.unmarked === 0} onClick={markAllPresent}><span aria-hidden="true" className={`h-2 w-2 rounded-full ${tones.present.dot}`} />{t('attnMarkAllPresent')}</button>
@@ -324,7 +325,7 @@ function QrPanel({ open, onToggle, date, disabled, onScanned, authorized }: { op
   }, [cameraOn, date])
   return <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="qr-heading">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3"><span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white"><svg viewBox="0 0 20 20" className="h-5 w-5 fill-current"><path d="M3 3h6v6H3zm2 2v2h2V5zm6-2h6v6h-6zm2 2v2h2V5zM3 11h6v6H3zm2 2v2h2v-2zm6-2h2v2h-2zm4 0h2v4h-2zm-4 4h4v2h-4z" /></svg></span>
+      <div className="flex items-center gap-3"><span aria-hidden="true" className="ds-fill grid h-10 w-10 shrink-0 place-items-center rounded-xl"><Icon name="qr" className="h-5 w-5" /></span>
         <div><h2 id="qr-heading" className="font-bold text-slate-900">{t('studentAttendanceQR')}</h2><p className="text-sm text-slate-600">{t('attnQrShort')}</p></div></div>
       <button type="button" className={ui.secondary} aria-expanded={open} aria-controls="qr-body" onClick={onToggle}>{open ? t('attnHideScanner') : t('attnShowScanner')}</button>
     </div>
@@ -349,13 +350,13 @@ function MonthlyPanel({ sessionId, sectionId, authorized }: { sessionId: string;
   const params = new URLSearchParams({ session_id: sessionId, section_id: sectionId, month, search, page: String(page), page_size: '20' })
   const monthly = useQuery({ queryKey: ['attendance', 'student-monthly', params.toString()], queryFn: () => authorized(token => getStudentAttendanceMonthly(token, params)), enabled: !!sectionId, retry: false })
   return <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="monthly-heading">
-    <div className="flex flex-wrap items-end justify-between gap-3"><h2 id="monthly-heading" className="text-lg font-bold">{t('attendanceMonthly')}</h2>
+    <div className="flex flex-wrap items-end justify-between gap-3"><CardTitle id="monthly-heading" icon="chart">{t('attendanceMonthly')}</CardTitle>
       <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
         <label className={ui.label}>{t('attendanceMonth')}<input className={ui.field} type="month" value={month} onChange={event => { setMonth(event.target.value); setPage(1) }} /></label>
         <label className={ui.label}>{t('studentAttendanceSearch')}<input className={ui.field} type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
       </div></div>
     {!sectionId ? <div className="mt-4"><EmptyState title={t('attnChooseSection')} /></div> : monthly.isPending ? <div className="mt-4"><Skeleton /></div> : monthly.isError ? <p role="alert" className="mt-4 text-rose-700">{t('attendanceLoadError')}</p> : !monthly.data.items.length ? <div className="mt-4"><EmptyState title={t('attendanceNoReport')} /></div> : <>
-      <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[34rem] text-left text-sm">
+      <div className="mt-4 overflow-x-auto"><table className="ds-cards w-full min-w-[34rem] text-left text-sm">
         <thead><tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500"><th className="py-2 pr-3 font-semibold">{t('attnStudent')}</th><th className="px-2 py-2 text-right font-semibold">{t('studentAttendancePresent')}</th><th className="px-2 py-2 text-right font-semibold">{t('studentAttendanceAbsent')}</th><th className="px-2 py-2 text-right font-semibold">{t('studentAttendanceLate')}</th><th className="py-2 pl-3 font-semibold">{t('attnRate')}</th></tr></thead>
         <tbody>{monthly.data.items.map(item => {
           const rate = item.total ? Math.round(((item.present + item.late) / item.total) * 100) : null
@@ -376,7 +377,7 @@ function AlertsPanel({ authorized }: { authorized: Authorized }) {
   const [page, setPage] = useState(1)
   const alerts = useQuery({ queryKey: ['attendance', 'alerts', page], queryFn: () => authorized(token => getAbsenceEvents(token, new URLSearchParams({ page: String(page), page_size: '20' }))), retry: false })
   return <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="alerts-heading">
-    <h2 id="alerts-heading" className="text-lg font-bold">{t('studentAttendanceAlerts')}</h2><p className="text-sm text-slate-600">{t('attnAlertsHint')}</p>
+    <CardTitle id="alerts-heading" icon="alert">{t('studentAttendanceAlerts')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('attnAlertsHint')}</p>
     {alerts.isPending ? <div className="mt-4"><Skeleton rows={3} /></div> : alerts.isError ? <p role="alert" className="mt-4 text-rose-700">{t('attendanceLoadError')}</p> : !alerts.data.items.length ? <div className="mt-4"><EmptyState title={t('attnNoAlerts')} /></div> : <>
       <ul className="mt-4 divide-y divide-slate-100">{alerts.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
         <div className="flex items-center gap-3"><Avatar name={item.name_en} /><div><p className="font-semibold text-slate-900">{item.name_en}</p><p className="text-xs text-slate-500">{item.attendance_date}</p></div></div>
@@ -413,22 +414,24 @@ export function StudentAttendanceReportPage({ guardian }: { guardian: boolean })
         <StatTile tone="late" label={t('studentAttendanceLate')} value={num(summary!.late)} />
         <StatTile tone="unmarked" label={t('attnRate')} value={rate === null ? '—' : `${num(rate)}%`} hint={t('attnRecordedDays', { count: summary!.total })} />
       </dl>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
       <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="calendar-heading">
-        <h2 id="calendar-heading" className="text-lg font-bold">{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthIndex - 1, 1)))}</h2>
-        <div className="mt-4 grid grid-cols-7 gap-1.5 text-center" role="grid" aria-label={t('attnCalendar')}>
+        <CardTitle id="calendar-heading" icon="calendar">{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthIndex - 1, 1)))}</CardTitle>
+        <div className="mx-auto mt-4 grid max-w-[30rem] grid-cols-7 gap-1.5 text-center" role="grid" aria-label={t('attnCalendar')}>
           {weekdays.map(day => <div key={day} role="columnheader" className="pb-1 text-xs font-semibold text-slate-500">{day}</div>)}
           {Array.from({ length: offset }, (_, i) => <div key={`blank-${i}`} aria-hidden="true" />)}
           {Array.from({ length: days }, (_, i) => {
             const record = byDay.get(i + 1)
             const label = `${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthIndex - 1, i + 1)))}: ${record ? statusText(record.status) : t('attnNoRecord')}`
-            return <div key={i} role="gridcell" aria-label={label} title={record?.note || label} className={`flex aspect-square flex-col items-center justify-center rounded-lg text-sm font-semibold ${record ? tones[record.status].solid : 'bg-slate-50 text-slate-500'}`}>
+            return <div key={i} role="gridcell" aria-label={label} title={record?.note || label} className={`flex aspect-square flex-col items-center justify-center rounded-xl text-sm font-semibold ${record ? tones[record.status].solid : 'bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200/70'}`}>
               <span>{new Intl.NumberFormat(locale).format(i + 1)}</span>{record && <span className="text-[0.6rem] font-semibold">{t(`attnShort${record.status[0].toUpperCase()}${record.status.slice(1)}`)}</span>}</div>
           })}
         </div>
         <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-600">{(['present', 'absent', 'late'] as const).map(s => <span key={s} className="flex items-center gap-1.5"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded ${tones[s].dot}`} />{statusText(s)}</span>)}</div>
       </section>
-      {report.data.items.length > 0 && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="records-heading"><h2 id="records-heading" className="text-lg font-bold">{t('attnRecords')}</h2>
-        <ul className="mt-3 divide-y divide-slate-100">{report.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><span className="text-sm text-slate-700">{new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${item.attendance_date}T00:00:00Z`))}{item.note && <span className="block text-xs text-slate-500">{item.note}</span>}</span><StatusBadge tone={item.status}>{statusText(item.status)}</StatusBadge></li>)}</ul></section>}
+      {report.data.items.length > 0 ? <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="records-heading"><CardTitle id="records-heading" icon="clipboard">{t('attnRecords')}</CardTitle>
+        <ul className="mt-3 divide-y divide-slate-100">{report.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><span className="text-sm text-slate-700">{new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${item.attendance_date}T00:00:00Z`))}{item.note && <span className="block text-xs text-slate-500">{item.note}</span>}</span><StatusBadge tone={item.status}>{statusText(item.status)}</StatusBadge></li>)}</ul></section> : <EmptyState icon="calendar" title={t('attnNoRecord')} />}
+      </div>
     </>}
   </div>
 }
