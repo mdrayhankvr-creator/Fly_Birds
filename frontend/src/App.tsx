@@ -528,7 +528,7 @@ export default function App() {
 
   if (ready && user) {
     return <AppShell branding={branding.data} user={user} groups={navigation} onLanguage={language => void setLanguage(language)} onSignOut={() => void handleLogout()}
-      bell={myPermissions.data?.includes('notifications:read_self') && noticesEnabled ? <NotificationBell /> : undefined}>
+      bell={myPermissions.data?.includes('notifications:read_self') && noticesEnabled && user?.role !== 'guardian' ? <NotificationBell /> : undefined}>
       {logoutError && <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{t('logoutError')}</p>}
       {routes}
       <ConfirmHost />

@@ -113,6 +113,7 @@ try {
       await b.go('/dashboard'); await waitDash()
       check('guardian: told to use the student account', /student account/.test(await b.text()))
       check('guardian: no separate guardian dashboard', await b.evaluate(`!document.querySelector('main [role=radiogroup]') && ![...document.querySelectorAll('main a')].some(a => (a.getAttribute('href') || '').startsWith('/guardian/'))`))
+      check('guardian: no notification bell', await b.evaluate(`!document.querySelector('header a[href="/notifications"]')`))
       await b.go('/guardian/children')
       check('guardian: old guardian pages lead home', await b.waitFor(`location.pathname.startsWith('/dashboard')`))
     }
