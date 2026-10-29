@@ -119,8 +119,12 @@ func TestPostgresPromotionRoutesEnforceRoles(t *testing.T) {
 	call("GET", "/promotions", "", "head_teacher", 200)
 	call("GET", "/promotions/progression", "", "head_teacher", 200)
 	call("POST", "/promotions", create, "head_teacher", 403)
-	call("PUT", "/promotions/progression/"+class, `{"next_class_id":null}`, "head_teacher", 403)
-	call("PUT", "/promotions/progression/"+class, `{"next_class_id":null}`, "admin", 200)
+	call("PUT", "/promotions/progression/"+class, `{"final":true}`, "head_teacher", 403)
+	if v := call("POST", "/promotions", create, "admin", 409); v["error"].(map[string]any)["code"] != "progression_unset" {
+		t.Fatalf("a class with no progression: %v", v)
+	}
+	call("PUT", "/promotions/progression/"+class, `{"next_class_id":"`+class+`"}`, "admin", 400)
+	call("PUT", "/promotions/progression/"+class, `{"final":true}`, "admin", 200)
 	call("POST", "/promotions", `{"from_session_id":"x"}`, "admin", 400)
 	batch := call("POST", "/promotions", create, "admin", 201)["data"].(map[string]any)
 	id, hash := batch["id"].(string), batch["inputs_sha256"].(string)

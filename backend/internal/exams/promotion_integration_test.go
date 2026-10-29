@@ -304,8 +304,8 @@ func TestPostgresPromotionKeepsTheOldYear(t *testing.T) {
 	}
 	var onRoll int64
 	scan(&onRoll, "SELECT count(*) FROM student_rolls WHERE session_id = ? AND class_id = ?", f.session, f.classID)
-	if onRoll != 3 {
-		t.Fatalf("the old year's roll: %d (promoted and repeating stay on it, the withdrawn student does not)", onRoll)
+	if onRoll != 4 {
+		t.Fatalf("the old year's roll: %d (promoted, repeating and the year-end leaver stay on it)", onRoll)
 	}
 	// Concessions do not carry over; the review lists the old one.
 	review, err := feeRepo.ReviewConcessions(ctx, f.session, next)
@@ -343,8 +343,16 @@ func TestPostgresPromotionKeepsTheOldYear(t *testing.T) {
 	}
 	publishScope(t, c, ScopeRef{Scope: ScopeTerm, ScopeID: c.term, ClassID: f.classID})
 	annual := publishScope(t, c, ScopeRef{Scope: ScopeAnnual, ScopeID: f.session, ClassID: f.classID})
-	if annual.Published == nil || *annual.Published.Revision != 2 || len(annual.Students) != 3 {
+	if annual.Published == nil || *annual.Published.Revision != 2 || len(annual.Students) != 4 {
 		t.Fatalf("annual republished after promotion: %+v, %d students", annual.Published, len(annual.Students))
+	}
+	// The student who left at year-end completed the year: still in it.
+	kept := false
+	for _, st := range annual.Students {
+		kept = kept || st.StudentID == f.students[2]
+	}
+	if !kept {
+		t.Fatal("the year-end leaver dropped out of the republished annual result")
 	}
 	var roll1 *int
 	scan(&roll1, "SELECT (snapshot->'student'->>'roll_no')::int FROM result_versions WHERE scope = 'annual' AND scope_id = ? AND student_id = ? AND status = 'published'", f.session, failed)

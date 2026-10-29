@@ -97,8 +97,10 @@ func (s *school) login(user string) (active bool, liveSessions int64) {
 	return active, liveSessions
 }
 
-// The top class: with no published annual result every student is
-// blocked until someone decides with a reason. Graduates keep their login
+// The final class: progression must be set explicitly first (an unset
+// class is refused, with a suggestion that is not saved). With no published
+// annual result every student is blocked until someone decides with a
+// reason. Graduates keep their login
 // and read their history; withdrawal and transfer suspend the login and keep
 // the history; readmission restores a login suspended that way, but not one
 // an administrator disabled.
@@ -114,16 +116,45 @@ func TestPostgresPromotionGraduatesAndLeavers(t *testing.T) {
 	ps := NewService(tx)
 	admin, head := Actor{s.admin, "admin"}, Actor{s.head, "head_teacher"}
 
+	if _, err := ps.Create(ctx, admin, CreateInput{FromSessionID: s.from, ToSessionID: s.to, ClassID: s.ten}); !errors.Is(err, ErrProgressionUnset) {
+		t.Fatalf("a batch for a class with no progression: %v", err)
+	}
+	prog, err := ps.Progression(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range prog {
+		if c.ClassID == s.ten && (c.Setting != "unset" || c.SuggestedClassID == nil || *c.SuggestedClassID != s.eleven || c.NextClassID != nil) {
+			t.Fatalf("an unset class with a suggestion only: %+v", c)
+		}
+	}
+	if _, err := ps.SetProgression(ctx, admin, s.ten, ProgressionInput{NextClassID: &s.eleven, Final: true}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("next class and final together: %v", err)
+	}
+	if prog, err = ps.SetProgression(ctx, admin, s.ten, ProgressionInput{Final: true}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range prog {
+		if c.ClassID == s.ten && (c.Setting != "final" || !c.IsFinal || c.SuggestedClassID != nil) {
+			t.Fatalf("final class: %+v", c)
+		}
+	}
 	b, err := ps.Create(ctx, admin, CreateInput{FromSessionID: s.from, ToSessionID: s.to, ClassID: s.ten})
 	if err != nil {
 		t.Fatal(err)
 	}
-	topWarning := false
-	for _, w := range b.Warnings {
-		topWarning = topWarning || w.Code == "top_class"
+	if len(b.Items) != 4 || b.Counts["undecided"] != 4 || !b.ClassIsFinal {
+		t.Fatalf("batch: %d items %+v final %v", len(b.Items), b.Counts, b.ClassIsFinal)
 	}
-	if len(b.Items) != 4 || b.Counts["undecided"] != 4 || !topWarning {
-		t.Fatalf("batch: %d items %+v warnings %+v", len(b.Items), b.Counts, b.Warnings)
+	// Clearing the setting blocks the open batch until it is set again.
+	if _, err := ps.SetProgression(ctx, admin, s.ten, ProgressionInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := ps.Get(ctx, b.ID); err != nil || len(v.Blockers) == 0 || v.Blockers[0].Code != "progression_unset" {
+		t.Fatalf("unset progression on an open batch: %+v %v", v.Blockers, err)
+	}
+	if _, err := ps.SetProgression(ctx, admin, s.ten, ProgressionInput{Final: true}); err != nil {
+		t.Fatal(err)
 	}
 	for _, it := range b.Items {
 		if it.Recommendation != Blocked || it.Decision != nil || it.AnnualOutcome != nil {
@@ -161,7 +192,7 @@ func TestPostgresPromotionGraduatesAndLeavers(t *testing.T) {
 	}
 	years := func(st string) []year {
 		var out []year
-		if err := tx.Raw("SELECT state, coalesce(outcome, '') AS outcome, student_status AS status FROM student_enrolments WHERE student_id = ? ORDER BY started_on", st).Scan(&out).Error; err != nil {
+		if err := tx.Raw("SELECT state, coalesce(outcome, '') AS outcome, student_status AS status FROM student_enrolments WHERE student_id = ? ORDER BY started_on, created_at", st).Scan(&out).Error; err != nil {
 			t.Fatal(err)
 		}
 		return out
@@ -170,6 +201,12 @@ func TestPostgresPromotionGraduatesAndLeavers(t *testing.T) {
 		if got := years(st); len(got) != 1 || got[0] != want {
 			t.Fatalf("%s: %+v, want one %+v", st, got, want)
 		}
+	}
+	// Leaving through the batch is leaving after the year: those years stay
+	// on the roll (republished results keep them).
+	var onRoll int64
+	if err := tx.Raw("SELECT count(*) FROM student_rolls WHERE session_id = ? AND student_id IN (?, ?, ?, ?)", s.from, grad, left, moved, disabled).Row().Scan(&onRoll); err != nil || onRoll != 4 {
+		t.Fatalf("year-end leavers on the roll: %d %v", onRoll, err)
 	}
 	if active, live := s.login(gradUser); !active || live != 1 {
 		t.Fatalf("graduate's login active=%v sessions=%d", active, live)
@@ -292,5 +329,126 @@ func TestPostgresPromotionConcurrentApply(t *testing.T) {
 	}
 	if err := db.Raw("SELECT count(*) FROM student_enrolments WHERE student_id IN ?", ids).Row().Scan(&n); err != nil || n != 6 {
 		t.Fatalf("enrolments: %d %v (two years each)", n, err)
+	}
+}
+
+// A mid-year withdrawal or transfer leaves the year not completed (off the
+// roll); one after the class's annual result is published counts as
+// completed, then left. Readmission clears it.
+func TestPostgresLeavingMidYearOrAfterTheAnnualResult(t *testing.T) {
+	_, db := openDB(t)
+	tx := db.Begin()
+	defer tx.Rollback()
+	s := newSchool(t, tx, 2431)
+	early, _ := s.student(1)
+	late, _ := s.student(2)
+	gone, _ := s.student(3)
+	onRoll := func(st string) bool {
+		var n int64
+		if err := tx.Raw("SELECT count(*) FROM student_rolls WHERE student_id = ? AND session_id = ?", st, s.from).Row().Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}
+	s.exec("UPDATE students SET status = 'inactive' WHERE id = ?", early)
+	if onRoll(early) {
+		t.Fatal("a mid-year withdrawal stayed on the year's roll")
+	}
+	// The class's annual result is published.
+	s.exec(`INSERT INTO result_publications (scope, scope_id, session_id, class_id, revision, kind, status, rules, rules_sha256, inputs_sha256, published_at)
+VALUES ('annual', ?, ?, ?, 1, 'publication', 'published', '{}', '', ?, now())`, s.from, s.from, s.ten, fmt.Sprintf("%064d", 0))
+	s.exec("UPDATE students SET status = 'transferred' WHERE id = ?", late)
+	if !onRoll(late) || onRoll(early) {
+		t.Fatalf("after the annual result: late %v early %v", onRoll(late), onRoll(early))
+	}
+	s.exec("UPDATE students SET status = 'inactive' WHERE id = ?", gone)
+	s.exec("UPDATE students SET status = 'active' WHERE id = ?", gone)
+	var completed bool
+	if err := tx.Raw("SELECT completed FROM student_enrolments WHERE student_id = ?", gone).Row().Scan(&completed); err != nil || completed {
+		t.Fatalf("readmission kept completed=%v: %v", completed, err)
+	}
+	s.exec("SET CONSTRAINTS ALL IMMEDIATE")
+}
+
+// Students who left before logins followed withdrawal: listing changes
+// nothing; suspending disables each login and its sessions in one
+// transaction with one audit event each; readmission then restores it.
+func TestPostgresSuspendLeaverLogins(t *testing.T) {
+	ctx, db := openDB(t)
+	tx := db.Begin()
+	defer tx.Rollback()
+	s := newSchool(t, tx, 2441)
+	old, oldUser := s.student(1)
+	tr, trUser := s.student(2)
+	stay, stayUser := s.student(3)
+	for st, status := range map[string]string{old: "inactive", tr: "transferred"} {
+		s.exec("UPDATE students SET status = ? WHERE id = ?", status, st)
+	}
+	// As before 1702: their logins still work.
+	s.exec("UPDATE users SET is_active = true WHERE id IN (?, ?)", oldUser, trUser)
+	s.exec("UPDATE auth_sessions SET revoked_at = NULL WHERE user_id IN (?, ?)", oldUser, trUser)
+	s.exec("UPDATE students SET login_suspended_at = NULL WHERE id IN (?, ?)", old, tr)
+	snapshot := func() string {
+		var v string
+		if err := tx.Raw(`SELECT (SELECT md5(string_agg(u::text, ',' ORDER BY u.id)) FROM users u) || (SELECT md5(string_agg(a::text, ',' ORDER BY a.id)) FROM auth_sessions a)
+ || (SELECT md5(string_agg(x::text, ',' ORDER BY x.id)) FROM students x) || (SELECT count(*)::text FROM audit_events)`).Row().Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	before := snapshot()
+	list, err := ListLeaverLogins(ctx, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine := map[string]bool{}
+	for _, l := range list {
+		mine[l.StudentID] = true
+	}
+	if !mine[old] || !mine[tr] || mine[stay] || snapshot() != before {
+		t.Fatalf("listing: %+v (changed: %v)", list, snapshot() != before)
+	}
+	changed, err := SuspendLeaverLogins(ctx, tx, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changed) != len(list) {
+		t.Fatalf("suspended %d of %d", len(changed), len(list))
+	}
+	for _, u := range []string{oldUser, trUser} {
+		if active, live := s.login(u); active || live != 0 {
+			t.Fatalf("after suspending: active=%v sessions=%d", active, live)
+		}
+	}
+	if active, live := s.login(stayUser); !active || live != 1 {
+		t.Fatalf("an active student's login changed: active=%v sessions=%d", active, live)
+	}
+	var audits int64
+	if err := tx.Raw("SELECT count(*) FROM audit_events WHERE action = 'student.login_suspended' AND target_id IN (?, ?) AND metadata->>'source' = 'test'", old, tr).Row().Scan(&audits); err != nil || audits != 2 {
+		t.Fatalf("audited %d: %v", audits, err)
+	}
+	if again, err := ListLeaverLogins(ctx, tx); err != nil || len(again) != len(list)-2 {
+		t.Fatalf("after suspending, still listed: %d %v", len(again), err)
+	}
+	s.exec("UPDATE students SET status = 'active' WHERE id = ?", old)
+	if active, _ := s.login(oldUser); !active {
+		t.Fatal("readmission did not restore a login the command suspended")
+	}
+}
+
+// The recommendation rules (decided 2026-10-29).
+func TestRecommend(t *testing.T) {
+	row := func(outcome string) *annualRow { return &annualRow{Outcome: outcome} }
+	for _, c := range []struct {
+		final bool
+		a     *annualRow
+		want  string
+	}{
+		{false, row("passed"), Promote}, {false, row("failed"), Repeat}, {false, row("withheld"), Blocked}, {false, nil, Blocked},
+		{true, row("passed"), Graduate}, {true, row("failed"), Repeat}, {true, row("withheld"), Blocked}, {true, nil, Blocked},
+	} {
+		if got := recommend(c.final, c.a); got != c.want {
+			t.Errorf("final=%v %+v: %s, want %s", c.final, c.a, got, c.want)
+		}
 	}
 }
