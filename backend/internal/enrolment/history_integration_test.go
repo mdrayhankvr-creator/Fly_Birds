@@ -195,7 +195,12 @@ func TestPostgresHistoryStaysAfterMovingSession(t *testing.T) {
 
 	next := s.newSession(1999)
 	nextSection := s.section(next, s.nextClass, "A")
+	// A generic edit may not move a student whose year has records (M15
+	// stage B); promotion does, by naming the outcome for the trigger.
+	s.refused("FB002", "UPDATE students SET session_id=?, class_id=?, section_id=?, roll_no=7 WHERE id=?", next, s.nextClass, nextSection, s.student)
+	s.exec("SELECT set_config('flybirds.enrolment_outcome', 'promoted', true)")
 	s.exec("UPDATE students SET session_id=?, class_id=?, section_id=?, roll_no=7 WHERE id=?", next, s.nextClass, nextSection, s.student)
+	s.exec("SELECT set_config('flybirds.enrolment_outcome', '', true)")
 	s.exec("SET CONSTRAINTS ALL IMMEDIATE")
 	if after := s.fingerprint(); after != before {
 		t.Fatal("marks, results or attendance changed when the student moved session")
@@ -205,9 +210,9 @@ func TestPostgresHistoryStaysAfterMovingSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hist) != 2 || hist[0].SessionID != s.session || hist[0].State != "closed" || hist[0].Outcome == nil || *hist[0].Outcome != "moved" ||
+	if len(hist) != 2 || hist[0].SessionID != s.session || hist[0].State != "closed" || hist[0].Outcome == nil || *hist[0].Outcome != "promoted" ||
 		hist[0].SectionID != s.sectionA || hist[0].RollNo == nil || *hist[0].RollNo != 1 || hist[0].EndedOn == nil ||
-		hist[1].SessionID != next || hist[1].State != "current" || hist[1].Source != "moved" || hist[1].RollNo == nil || *hist[1].RollNo != 7 {
+		hist[1].SessionID != next || hist[1].State != "current" || hist[1].Source != "promotion" || hist[1].RollNo == nil || *hist[1].RollNo != 7 {
 		t.Fatalf("history: %+v", hist)
 	}
 
