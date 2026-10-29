@@ -18,6 +18,7 @@ tags:
   - { name: staff, description: 'Employees, assignments, leave and salary' }
   - { name: attendance, description: Teacher and student attendance }
   - { name: students, description: 'Students, photos, ID cards and imports' }
+  - { name: promotions, description: 'Year-end promotion: class progression, promotion batches, approval, apply and revert (M15)' }
   - { name: guardians, description: Guardians and student links }
   - { name: routine, description: Class and exam routines }
   - { name: exams, description: 'Examinations, marks and results' }
@@ -962,6 +963,117 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SectionInput' } } } }
       responses: { '200': { description: Updated section, content: { application/json: { schema: { $ref: '#/components/schemas/SectionResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/progression:
+    get:
+      operationId: listClassProgression
+      tags: [promotions]
+      summary: List each class with the class its students are promoted to
+      description: 'Requires promotions:read (administrator, head teacher) and the students module. An empty next class means the top class: its students graduate.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Classes with their next class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassProgressionResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/progression/{classId}:
+    parameters: [{ name: classId, in: path, required: true, schema: { type: string, format: uuid } }]
+    put:
+      operationId: setClassProgression
+      tags: [promotions]
+      summary: Set or clear the class a class is promoted to
+      description: Requires promotions:manage, the administrator role and the students module. Refused if it would make a cycle. Audited. Open batches of the class follow the change (an approval becomes stale).
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { next_class_id: { type: string, format: uuid, nullable: true } } } } } }
+      responses: { '200': { description: Classes with their next class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassProgressionResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions:
+    get:
+      operationId: listPromotionBatches
+      tags: [promotions]
+      summary: List promotion batches
+      description: Requires promotions:read and the students module. Filters by a session (either side) and a class; newest first; without items.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Batches, content: { application/json: { schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/PromotionBatch' } } } } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createPromotionBatch
+      tags: [promotions]
+      summary: Prepare a promotion batch for one class of one session
+      description: 'Requires promotions:manage, the administrator role and the students module. One open batch per class and session. Each active student of the class gets a recommendation from their published annual result: passed → promote (graduate from the top class), failed → repeat, withheld or missing → blocked until decided with a reason. Target sections default to the same section code in the new session; rolls are kept. Audited.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionCreateInput' } } } }
+      responses: { '201': { description: Draft batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      operationId: getPromotionBatch
+      tags: [promotions]
+      summary: Read a promotion batch with its students, blockers, warnings and input hash
+      description: Requires promotions:read and the students module. inputs_sha256 is what an approval must name.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}/items/{studentId}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      operationId: updatePromotionItem
+      tags: [promotions]
+      summary: Decide one student or change their target section or roll
+      description: Requires promotions:manage, the administrator role and the students module. A decision that differs from the recommendation, or replaces a blocked one, needs a reason. Setting a roll makes the batch's rolls manual. An edit after approval returns the batch to draft. Audited.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionItemInput' } } } }
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { description: invalid_request or reason_required, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}/arrange:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: arrangePromotionRolls
+      tags: [promotions]
+      summary: Number target rolls by a policy
+      description: 'Requires promotions:manage, the administrator role and the students module. keep: the old roll; merit: by annual class position; name: alphabetical; manual: leave as set. Numbering skips rolls already taken in the target section.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [roll_policy], properties: { roll_policy: { type: string, enum: [keep, merit, name, manual] } } } } } }
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}/refresh:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: refreshPromotionBatch
+      tags: [promotions]
+      summary: Bring a batch up to date with the class and its annual results
+      description: Requires promotions:manage, the administrator role and the students module. Adds students who joined, removes students who left and re-reads annual results; decisions made with a reason are kept.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}/discard:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: discardPromotionBatch
+      tags: [promotions]
+      summary: Discard a draft or approved batch
+      description: Requires promotions:manage, the administrator role and the students module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}/approve:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: approvePromotionBatch
+      tags: [promotions]
+      summary: Approve a batch exactly as reviewed
+      description: Requires promotions:approve and the head-teacher role, and the students module. Refused while blockers remain or when inputs_sha256 is not the batch's current hash.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [inputs_sha256], properties: { inputs_sha256: { type: string, pattern: '^[0-9a-f]{64}$' } } } } } }
+      responses: { '200': { description: Approved batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}/apply:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: applyPromotionBatch
+      tags: [promotions]
+      summary: Apply an approved batch in one transaction
+      description: 'Requires promotions:apply, the administrator role and the students module. Refused if anything changed since approval. Promoted and repeating students get a new enrolment in the next session; graduates and leavers get none; withdrawal and transfer suspend the student''s login. Nothing recorded for the old year changes; optional-subject choices and fee concessions are not copied. Applying again changes nothing. Audited.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Applied batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /promotions/{id}/revert:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: revertPromotionBatch
+      tags: [promotions]
+      summary: Revert an applied batch while the new year has nothing recorded
+      description: Requires promotions:apply, the administrator role and the students module, and a reason. Refused once any of the batch's students has attendance, marks, dues or other records in the new session, or has moved since. Students return to their old year; a login suspended by the batch returns. Audited.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 3, maxLength: 500 } } } } } }
+      responses: { '200': { description: Reverted batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { description: invalid_request or reason_required, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /students:
     get:
       operationId: listStudents
@@ -1018,10 +1130,10 @@ paths:
       operationId: updateStudent
       tags: [students]
       summary: Update admission, profile, academic placement, status, or account link
-      description: 'Requires students:manage, administrator account, and students module. Placement changes are recorded in the enrolment history (M15). A section change keeps marks, results and attendance in the section where they were recorded. Moving to another session closes the old year (outcome "moved") when anything is recorded in it, or corrects it in place when nothing is. 409 enrolment_history: moving back into a session the student already has, or changing class while marks exist in the old class that year.'
+      description: 'Requires students:manage, administrator account, and students module. Placement changes are recorded in the enrolment history (M15). A section change keeps marks, results and attendance in the section where they were recorded. Moving to another session is a correction in place when nothing is recorded in the current year; otherwise it is refused with 409 use_promotion (use year-end promotion). Setting the status to inactive or transferred closes the year and suspends the student''s login; setting it back to active reopens the year and restores a login suspended that way; a student who left may be readmitted into another session as active. 409 enrolment_history: moving back into a session the student already has, or changing class while marks exist in the old class that year.'
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StudentInput' } } } }
-      responses: { '200': { description: Updated student, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Duplicate record or enrolment_history, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } } }
+      responses: { '200': { description: Updated student, content: { application/json: { schema: { $ref: '#/components/schemas/StudentResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: 'Duplicate record, enrolment_history or use_promotion', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } } }
     delete:
       operationId: deleteStudent
       tags: [students]
@@ -2144,16 +2256,25 @@ paths:
       description: Requires fees:read and the fees module.
       tags: [fees]
       security: [{ bearerAuth: [] }]
-      parameters: [{ name: student_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      parameters: [{ name: student_id, in: query, schema: { type: string, format: uuid } }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
       responses: { '200': { description: Paginated concessions }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
     post:
       operationId: saveFeeConcession
       summary: Create or replace a student's percentage concession for one category
-      description: Requires fees:manage and admin or accountant role. Applies to dues created afterwards and is recorded as a discount adjustment.
+      description: Requires fees:manage and admin or accountant role. A concession belongs to one session (session_id, default the student's current one, in which the student must be enrolled) and applies only to that session's dues created afterwards, recorded as a discount adjustment.
       tags: [fees]
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeeConcessionInput' } } } }
       responses: { '200': { description: Concession saved }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /fees/concessions/review:
+    get:
+      operationId: reviewFeeConcessions
+      summary: List last session's concessions of students enrolled in the new session
+      description: Requires fees:read and the fees module. Concessions belong to one session and never carry over; this lists each one of from_session_id held by a student enrolled in to_session_id, with to_percent if one is already set there, so the office can decide again.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: from_session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: to_session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Concessions to review }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /fees/concessions/{id}:
     delete:
       operationId: deleteFeeConcession
@@ -3156,6 +3277,7 @@ components:
       required: [student_id, category_id, percent, reason]
       properties:
         student_id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid, description: Defaults to the student's current session }
         category_id: { type: string, format: uuid }
         percent: { type: number, minimum: 0.01, maximum: 100 }
         reason: { type: string, maxLength: 240 }
@@ -3461,11 +3583,100 @@ components:
             logo_url: { type: string }
     StudentResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Student' } } }
     StudentCardResponse: { type: object, required: [data], properties: { data: { allOf: [{ $ref: '#/components/schemas/StudentCardData' }, { type: object, properties: { school: { $ref: '#/components/schemas/CardSchool' }, settings: { $ref: '#/components/schemas/CardSettings' } } }] } } }
+    PromotionCreateInput:
+      type: object
+      required: [from_session_id, to_session_id, class_id]
+      properties:
+        from_session_id: { type: string, format: uuid }
+        to_session_id: { type: string, format: uuid, description: Must start after the source session }
+        class_id: { type: string, format: uuid }
+    PromotionItemInput:
+      type: object
+      properties:
+        decision: { type: string, enum: [promote, repeat, graduate, withdraw, transfer] }
+        reason: { type: string, maxLength: 500 }
+        target_section_id: { type: string, format: uuid }
+        target_roll_no: { type: integer, minimum: 1, maximum: 999999 }
+    PromotionIssue:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, description: 'Blockers: student_changed, student_missing, annual_changed, decision_required, no_next_class, section_required, roll_duplicate, roll_taken. Warnings: override, roll_missing, top_class, concessions_to_review.' }
+        student_id: { type: string, format: uuid }
+        detail: { type: string }
+    PromotionItem:
+      type: object
+      properties:
+        student_id: { type: string, format: uuid }
+        student_name: { type: string }
+        admission_no: { type: string }
+        enrolment_id: { type: string, format: uuid }
+        source_section_id: { type: string, format: uuid }
+        source_section_name: { type: string }
+        source_roll_no: { type: integer, nullable: true }
+        annual_version_id: { type: string, format: uuid, nullable: true }
+        annual_outcome: { type: string, nullable: true, enum: [passed, failed, withheld, null] }
+        annual_class_position: { type: integer, nullable: true }
+        recommendation: { type: string, enum: [promote, repeat, graduate, blocked] }
+        decision: { type: string, nullable: true, enum: [promote, repeat, graduate, withdraw, transfer, null] }
+        reason: { type: string }
+        decided_by: { type: string, nullable: true }
+        target_class_id: { type: string, format: uuid, nullable: true }
+        target_class_name: { type: string, nullable: true }
+        target_section_id: { type: string, format: uuid, nullable: true }
+        target_section_name: { type: string, nullable: true }
+        target_roll_no: { type: integer, nullable: true }
+        applied_enrolment_id: { type: string, format: uuid, nullable: true }
+    PromotionBatch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        from_session_id: { type: string, format: uuid }
+        from_session_name: { type: string }
+        to_session_id: { type: string, format: uuid }
+        to_session_name: { type: string }
+        class_id: { type: string, format: uuid }
+        class_name: { type: string }
+        next_class_id: { type: string, format: uuid, nullable: true }
+        next_class_name: { type: string, nullable: true }
+        status: { type: string, enum: [draft, approved, applied, reverted, discarded] }
+        roll_policy: { type: string, enum: [keep, merit, name, manual] }
+        approved_sha256: { type: string, nullable: true }
+        approved_by: { type: string, nullable: true }
+        approved_at: { type: string, format: date-time, nullable: true }
+        applied_by: { type: string, nullable: true }
+        applied_at: { type: string, format: date-time, nullable: true }
+        reverted_by: { type: string, nullable: true }
+        reverted_at: { type: string, format: date-time, nullable: true }
+        revert_reason: { type: string }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        inputs_sha256: { type: string, description: The hash an approval must name }
+        counts: { type: object, additionalProperties: { type: integer } }
+        blockers: { type: array, items: { $ref: '#/components/schemas/PromotionIssue' } }
+        warnings: { type: array, items: { $ref: '#/components/schemas/PromotionIssue' } }
+        items: { type: array, items: { $ref: '#/components/schemas/PromotionItem' } }
+    PromotionBatchResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PromotionBatch' } } }
+    ClassProgressionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              class_id: { type: string, format: uuid }
+              class_name: { type: string }
+              display_order: { type: integer }
+              is_active: { type: boolean }
+              next_class_id: { type: string, format: uuid, nullable: true }
+              next_class_name: { type: string, nullable: true }
     StudentEnrolmentEvent:
       type: object
       required: [kind, from_value, to_value, occurred_at]
       properties:
-        kind: { type: string, enum: [enrolled, section_changed, class_changed, roll_changed, status_changed, session_corrected, closed] }
+        kind: { type: string, enum: [enrolled, section_changed, class_changed, roll_changed, status_changed, session_corrected, closed, reopened, reverted] }
         from_class_name: { type: string, nullable: true }
         to_class_name: { type: string, nullable: true }
         from_section_name: { type: string, nullable: true }
@@ -3489,7 +3700,7 @@ components:
         state: { type: string, enum: [current, closed] }
         student_status: { type: string, enum: [active, inactive, graduated, transferred] }
         outcome: { type: string, nullable: true, enum: [promoted, repeated, graduated, withdrawn, transferred, moved, null] }
-        source: { type: string, enum: [admission, backfill, inferred, moved, promotion] }
+        source: { type: string, enum: [admission, backfill, inferred, moved, promotion, readmission] }
         started_on: { type: string, format: date, nullable: true }
         ended_on: { type: string, format: date, nullable: true }
         events: { type: array, items: { $ref: '#/components/schemas/StudentEnrolmentEvent' } }

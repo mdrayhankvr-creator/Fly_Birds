@@ -29,6 +29,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/notices"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/notify"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/promotion"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/routine"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
@@ -69,6 +70,7 @@ func run(logger *slog.Logger) error {
 	var comm *httpapi.Communication
 	var adminServices *httpapi.AdminServices
 	var analyticsService *analytics.Service
+	var promotionService *promotion.Service
 	if cfg.DatabaseURL != "" {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -130,6 +132,7 @@ func run(logger *slog.Logger) error {
 		}
 		adminServices = &httpapi.AdminServices{Exporter: admin.NewExporter(db), Backups: backups, Overview: admin.NewOverviewReader(db, backups)}
 		analyticsService = analytics.NewService(analytics.NewRepository(db))
+		promotionService = promotion.NewService(db)
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -137,7 +140,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithAnalytics(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService),
+		Handler:           httpapi.NewRouterWithPromotion(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService, promotionService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
