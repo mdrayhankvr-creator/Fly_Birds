@@ -304,6 +304,11 @@ login was suspended, the concession is in the student's current session); the wi
 active students match their current enrolment; `users` unchanged; audit
 `{"closed_for_leavers": 1, "concessions": 1}`; about 0.2 s.
 
+Rechecked after rebasing onto `main` `54f6629c` (migrations 1750 and 1751
+already applied, so 1702 runs after them): 71 of 78 tables identical, the
+same expected differences, the same audit event; the upgraded schema is
+identical to a fresh install's.
+
 Shared frontend files (`App.tsx`, `StudentProfilePage.tsx`,
 `StudentsPage.tsx`, `i18n.ts`, `styles.css`) are coordinated with Joy
 before stage B2 touches them.

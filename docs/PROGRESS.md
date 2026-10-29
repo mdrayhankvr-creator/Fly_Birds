@@ -38,6 +38,12 @@ On `feature/m15-stage-b-promotion`, from `main` `5681ce44` (stage A merged, PR #
 - **Operator command in the image** (`m15b1`): a withdrawn demo student with an active login is listed; listing changed no user row and wrote no audit event; `-confirm` disabled the login with one audit event; a second listing is empty; readmission restored the login.
 - **Upgrade of a demo school built with `main` `5681ce44`:** as before (72 of 77 tables identical); all 3 classes unset; no login suspended; the existing leaver not completed (no published annual result).
 
+**Rebased onto `main` `54f6629c` (2026-10-30, premium UI checkpoint 1 merged, PR #35):** one conflict, this file (both status sections kept). Migrations are 1701, 1702, 1750, 1751, no duplicates.
+- **Fresh install:** versions 1601, 1701, 1702, 1750, 1751 recorded once each; the schema is identical to the upgraded school's (`pg_dump -s`).
+- **Upgrade of a demo school built with the new `main` (1750 and 1751 applied):** 1702 applied after them; 71 of 78 tables identical row for row, two new (promotion tables); the other seven differ only as expected (new columns, permissions, the leaver's year closed, one audit event); 3 of 3 classes unset; no login suspended; the existing leaver not completed; the student keeps `fees:pay_online`.
+- **Go:** fresh database: 27 of 27 packages, 180 top-level tests and 24 subtests passed, none failed; one skipped (opt-in E3 performance). `go vet` and gofmt clean.
+- **API e2e** on `m15b1` rebuilt with fresh volumes from the rebased branch: `e2e/promotion.mjs` 34 of 34.
+
 **Not covered:** screens (B2); browser tests.
 
 ## Current Status — Premium UI, Checkpoint 1 (2026-10-28)
