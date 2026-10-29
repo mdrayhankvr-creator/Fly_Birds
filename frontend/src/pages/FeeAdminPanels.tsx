@@ -6,7 +6,7 @@ import { OnlinePaymentsPanel } from './OnlinePaymentsPanel'
 import { deleteFeeConcession, deleteLedgerEntry, getAccountingSummary, getFeeCategories, getFeeCollections, getFeeConcessions, getFeeDueReport, getFeePayments, getFeeReceipt, getFeeStructures, getLedgerEntries, ledgerCategories, saveFeeCategory, saveFeeConcession, saveFeeStructure, saveLedgerEntry, type FeeBucket, type FeeCategoryInput, type FeeOptions, type FeeReceipt, type FeeStructureInput, type FeeStudent, type LedgerEntryInput } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
 import { Notice, Pager, ReceiptView, SimulatedLabel, StudentPicker, TableWrap, VoidLabel, feeButton, feeCard, feeField, feeSecondary, monthStart, todayInDhaka, useFeeAction, useLocalName, useMoney, type FeeAccess } from './feeShared'
-import { ui } from './attendanceUi'
+import { CardTitle, ui } from './attendanceUi'
 
 const blankCategory: FeeCategoryInput = { code: '', name_en: '', name_bn: '', frequency: 'monthly', is_active: true }
 
@@ -52,7 +52,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
   return <div className="space-y-5">
     <Notice error={action.error} message={action.message} />
     {access.role === 'admin' && <OnlinePaymentsPanel />}
-    <section className={feeCard}><h2 className={ui.sectionTitle}>{t('feeCategories')}</h2>
+    <section className={feeCard}><CardTitle icon="layers">{t('feeCategories')}</CardTitle>
       {access.canManage && <form onSubmit={submitCategory} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <label className={ui.label}>{t('feeCode')}<input required pattern="[A-Za-z0-9_\-]{2,20}" maxLength={20} className={`${feeField} uppercase`} value={category.code} onChange={e => setCategory({ ...category, code: e.target.value.toUpperCase() })} /></label>
         <label className={ui.label}>{t('feeNameEn')}<input required maxLength={120} className={feeField} value={category.name_en} onChange={e => setCategory({ ...category, name_en: e.target.value })} /></label>
@@ -67,7 +67,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
             {access.canManage && <td className="px-3 py-2.5"><button type="button" className={ui.link} onClick={() => { setCategoryId(c.id); setCategory({ code: c.code, name_en: c.name_en, name_bn: c.name_bn, frequency: c.frequency, is_active: c.is_active }) }}>{t('feeEdit')}</button></td>}</tr>)}</tbody></TableWrap>}
     </section>
 
-    <section className={feeCard}><h2 className={ui.sectionTitle}>{t('feeStructures')}</h2><p className="mt-1 text-sm text-slate-600">{t('feeStructuresHint')}</p>
+    <section className={feeCard}><CardTitle icon="book">{t('feeStructures')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeStructuresHint')}</p>
       {access.canManage && <form onSubmit={submitStructure} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
         <label className={ui.label}>{t('feeSession')}<select required disabled={!!structureId} className={feeField} value={structure.session_id} onChange={e => setStructure({ ...structure, session_id: e.target.value })}><option value="">{t('feeChoose')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select required disabled={!!structureId} className={feeField} value={structure.class_id} onChange={e => setStructure({ ...structure, class_id: e.target.value })}><option value="">{t('feeChoose')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
@@ -84,7 +84,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
             {access.canManage && <td className="px-3 py-2.5"><button type="button" className={ui.link} onClick={() => { setStructureId(s.id); setStructure({ session_id: s.session_id, class_id: s.class_id, category_id: s.category_id, amount: s.amount, due_day: s.due_day, is_active: s.is_active }) }}>{t('feeEdit')}</button></td>}</tr>)}</tbody></TableWrap>}
     </section>
 
-    <section className={feeCard}><h2 className={ui.sectionTitle}>{t('feeConcessions')}</h2><p className="mt-1 text-sm text-slate-600">{t('feeConcessionsHint')}</p>
+    <section className={feeCard}><CardTitle icon="check">{t('feeConcessions')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeConcessionsHint')}</p>
       {access.canManage && <div className="mt-3 space-y-3">
         {concessionStudent ? <p className="text-sm">{t('feeSelectedStudent')}: <strong>{name(concessionStudent.name_en, concessionStudent.name_bn)}</strong> · {concessionStudent.admission_no} <button type="button" className="ml-2 underline" onClick={() => setConcessionStudent(null)}>{t('feeChange')}</button></p> : <StudentPicker onPick={setConcessionStudent} />}
         {concessionStudent && <form onSubmit={submitConcession} className="grid gap-3 sm:grid-cols-4">
@@ -138,7 +138,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
   return <div className="space-y-5">
     <Notice error={action.error} message="" />
     {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
-    <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeCollectionReport')}</h2>
+    <section className={`${feeCard} print:hidden`}><CardTitle icon="chart">{t('feeCollectionReport')}</CardTitle>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className={ui.label}>{t('feeFrom')}<input type="date" className={feeField} value={range.from} onChange={e => { setRange({ ...range, from: e.target.value }); setPaymentPage(1) }} /></label>
         <label className={ui.label}>{t('feeTo')}<input type="date" className={feeField} value={range.to} onChange={e => { setRange({ ...range, to: e.target.value }); setPaymentPage(1) }} /></label>
@@ -157,7 +157,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
       </>}
     </section>
 
-    <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeArrearsReport')}</h2>
+    <section className={`${feeCard} print:hidden`}><CardTitle icon="alert">{t('feeArrearsReport')}</CardTitle>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className={ui.label}>{t('feeSession')}<select className={feeField} value={dueFilters.session_id} onChange={e => { setDueFilters({ ...dueFilters, session_id: e.target.value }); setDuePage(1) }}><option value="">{t('feeAll')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={dueFilters.class_id} onChange={e => { setDueFilters({ ...dueFilters, class_id: e.target.value }); setDuePage(1) }}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
@@ -172,7 +172,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
       </>}
     </section>
 
-    <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeReceiptRegister')}</h2>
+    <section className={`${feeCard} print:hidden`}><CardTitle icon="receipt">{t('feeReceiptRegister')}</CardTitle>
       <label className="mt-3 block max-w-sm text-sm font-semibold">{t('feeSearchReceipts')}<input className={feeField} value={paymentSearch} onChange={e => { setPaymentSearch(e.target.value); setPaymentPage(1) }} /></label>
       {payments.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : payments.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : payments.data.items.length === 0 ? <p className="mt-3 text-slate-600">{t('feeNoPayments')}</p> : <>
         <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeReceiptNo')}</th><th className="px-3 py-2.5">{t('feePaidOn')}</th><th className="px-3 py-2.5">{t('feeStudent')}</th><th className="px-3 py-2.5">{t('feeMethod')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
@@ -206,7 +206,7 @@ export function LedgerPanel({ canManage }: { canManage: boolean }) {
 
   return <div className="space-y-5">
     <Notice error={action.error} message={action.message} />
-    <section className={feeCard}><h2 className={ui.sectionTitle}>{t('ledgerSummary')}</h2>
+    <section className={feeCard}><CardTitle icon="chart">{t('ledgerSummary')}</CardTitle>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className={ui.label}>{t('feeFrom')}<input type="date" className={feeField} value={range.from} onChange={e => { setRange({ ...range, from: e.target.value }); setPage(1) }} /></label>
         <label className={ui.label}>{t('feeTo')}<input type="date" className={feeField} value={range.to} onChange={e => { setRange({ ...range, to: e.target.value }); setPage(1) }} /></label>
@@ -221,7 +221,7 @@ export function LedgerPanel({ canManage }: { canManage: boolean }) {
         </div>
       </>}
     </section>
-    {canManage && <section className={feeCard}><h2 className={ui.sectionTitle}>{t('ledgerAdd')}</h2><p className="mt-1 text-sm text-slate-600">{t('ledgerAddHint')}</p>
+    {canManage && <section className={feeCard}><CardTitle icon="plus">{t('ledgerAdd')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('ledgerAddHint')}</p>
       <form onSubmit={submit} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <label className={ui.label}>{t('ledgerType')}<select className={feeField} value={entry.entry_type} onChange={e => { const kind = e.target.value as LedgerEntryInput['entry_type']; setEntry({ ...entry, entry_type: kind, category: ledgerCategories[kind][0] }) }}><option value="expense">{t('ledgerExpense')}</option><option value="income">{t('ledgerIncome')}</option></select></label>
         <label className={ui.label}>{t('feeCategory')}<select className={feeField} value={entry.category} onChange={e => setEntry({ ...entry, category: e.target.value })}>{ledgerCategories[entry.entry_type].map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></label>
@@ -232,7 +232,7 @@ export function LedgerPanel({ canManage }: { canManage: boolean }) {
         <div className="sm:col-span-2 lg:col-span-6"><button disabled={action.busy} className={feeButton}>{t('feeAdd')}</button></div>
       </form>
     </section>}
-    <section className={feeCard}><h2 className={ui.sectionTitle}>{t('ledgerEntries')}</h2>
+    <section className={feeCard}><CardTitle icon="report">{t('ledgerEntries')}</CardTitle>
       <label className="mt-3 block max-w-xs text-sm font-semibold">{t('ledgerType')}<select className={feeField} value={type} onChange={e => { setType(e.target.value); setPage(1) }}><option value="">{t('feeAll')}</option><option value="income">{t('ledgerIncome')}</option><option value="expense">{t('ledgerExpense')}</option></select></label>
       {entries.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : entries.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrRange')}</p> : entries.data.items.length === 0 ? <p className="mt-3 text-slate-600">{t('ledgerNoEntries')}</p> : <>
         <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('ledgerDate')}</th><th className="px-3 py-2.5">{t('ledgerType')}</th><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('ledgerDescription')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5">{t('ledgerBy')}</th>{canManage && <th className="px-3 py-2.5"><span className="sr-only">{t('feeActions')}</span></th>}</tr></thead>

@@ -6,7 +6,7 @@ import { adjustFeeDue, assignFeeDue, deleteFeeDue, generateFeeDues, getFeeAdjust
 import { usePeopleApi } from './peopleShared'
 import { SimulatedLabel, DuesTable, Notice, useFeeAction, type FeeAccess, Pager, PaymentsList, ReceiptView, StudentPicker, Totals, feeButton, feeCard, feeField, feeSecondary, newKey, todayInDhaka, useLocalName, useMoney } from './feeShared'
 import { FeeReportsPanel, FeeSetupPanel, LedgerPanel } from './FeeAdminPanels'
-import { ui, PageHeader, Tabs } from './attendanceUi'
+import { CardTitle, ui, PageHeader, Tabs } from './attendanceUi'
 
 type Tab = 'collect' | 'dues' | 'setup' | 'reports' | 'ledger'
 
@@ -80,10 +80,10 @@ function CollectPanel({ access, options }: { access: FeeAccess; options: FeeOpti
     {statement.data && statement.data.totals.simulated_unreviewed > 0 && <p role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-rose-700 bg-rose-50 px-4 py-3 text-sm text-rose-900 print:hidden"><SimulatedLabel />{t('feeSimulatedUnreviewedStaff', { amount: money(statement.data.totals.simulated_unreviewed) })}</p>}
     {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
     {student && (statement.isPending ? <p role="status">{t('feeLoading')}</p> : statement.isError ? <p role="alert" className="text-rose-700">{t('feeErrGeneric')}</p> : <>
-      <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeStatement')}</h2><div className="mt-3"><Totals totals={statement.data.totals} /></div>
+      <section className={`${feeCard} print:hidden`}><CardTitle icon="money">{t('feeStatement')}</CardTitle><div className="mt-3"><Totals totals={statement.data.totals} /></div>
         <DuesTable dues={statement.data.dues} selectable={access.canCollect} selected={selected} onToggle={toggle} />
       </section>
-      {access.canCollect && <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeRecordPayment')}</h2>
+      {access.canCollect && <section className={`${feeCard} print:hidden`}><CardTitle icon="money">{t('feeRecordPayment')}</CardTitle>
         {outstanding.length === 0 ? <p className="mt-2 text-slate-600">{t('feeNothingOutstanding')}</p> :
           <form onSubmit={pay} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <p className="text-sm text-slate-600 sm:col-span-2 lg:col-span-3">{selected.length ? t('feePayingSelected', { count: selected.length, amount: money(selectedBalance) }) : t('feePayingOldest')}</p>
@@ -95,14 +95,14 @@ function CollectPanel({ access, options }: { access: FeeAccess; options: FeeOpti
             <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{action.busy ? t('feeSaving') : t('feeCollect')}</button></div>
           </form>}
       </section>}
-      {access.canManage && <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeAssignTitle')}</h2><p className="mt-1 text-sm text-slate-600">{t('feeAssignHint')}</p>
+      {access.canManage && <section className={`${feeCard} print:hidden`}><CardTitle icon="layers">{t('feeAssignTitle')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeAssignHint')}</p>
         <form onSubmit={assignDue} className="mt-3 grid gap-3 sm:grid-cols-3">
           <label className={ui.label}>{t('feeStructure')}<select required className={feeField} value={assign.structure_id} onChange={e => setAssign({ ...assign, structure_id: e.target.value })}><option value="">{t('feeChoose')}</option>{structures.data?.items.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{name(s.category_name_en, s.category_name_bn)} · {money(s.amount)}</option>)}</select></label>
           <label className={ui.label}>{t('feeMonth')}<input type="month" required={selectedStructure?.frequency !== 'one_time'} className={feeField} value={assign.period} onChange={e => setAssign({ ...assign, period: e.target.value })} /></label>
           <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{t('feeAssign')}</button></div>
         </form>
       </section>}
-      <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeReceipts')}</h2><PaymentsList payments={statement.data.payments} onOpen={id => void openReceipt(id)} /></section>
+      <section className={`${feeCard} print:hidden`}><CardTitle icon="receipt">{t('feeReceipts')}</CardTitle><PaymentsList payments={statement.data.payments} onOpen={id => void openReceipt(id)} /></section>
     </>)}
     {!student && options.categories.length === 0 && <p className={`${feeCard} text-slate-600`}>{t('feeSetupFirst')}</p>}
   </div>
@@ -140,7 +140,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
 
   return <div className="space-y-5">
     <Notice error={action.error} message={action.message} />
-    {access.canManage && <section className={feeCard}><h2 className={ui.sectionTitle}>{t('feeGenerateTitle')}</h2><p className="mt-1 text-sm text-slate-600">{t('feeGenerateHint')}</p>
+    {access.canManage && <section className={feeCard}><CardTitle icon="layers">{t('feeGenerateTitle')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeGenerateHint')}</p>
       <form onSubmit={runGenerate} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className={ui.label}>{t('feeSession')}<select required className={feeField} value={generate.session_id} onChange={e => setGenerate({ ...generate, session_id: e.target.value })}><option value="">{t('feeChoose')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={generate.class_id} onChange={e => setGenerate({ ...generate, class_id: e.target.value })}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
@@ -149,7 +149,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
         <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{t('feeGenerate')}</button></div>
       </form>
     </section>}
-    <section className={feeCard}><h2 className={ui.sectionTitle}>{t('feeDuesTitle')}</h2>
+    <section className={feeCard}><CardTitle icon="clipboard">{t('feeDuesTitle')}</CardTitle>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className={ui.label}>{t('feeSession')}<select className={feeField} value={filters.session_id} onChange={e => setFilter('session_id', e.target.value)}><option value="">{t('feeAll')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={filters.class_id} onChange={e => setFilter('class_id', e.target.value)}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
@@ -158,7 +158,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
         <label className={ui.label}>{t('feeSearch')}<input className={feeField} value={filters.search} onChange={e => setFilter('search', e.target.value)} /></label>
       </div>
       {dues.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : dues.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : dues.data.items.length === 0 ? <p className="mt-3 text-slate-600">{t('feeNoDues')}</p> : <>
-        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[48rem] border-collapse text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeStudent')}</th><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeDiscount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feePaid')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeBalance')}</th><th className="px-3 py-2.5">{t('feeStatus')}</th>{access.canManage && <th className="px-3 py-2.5">{t('feeActions')}</th>}</tr></thead>
+        <div className="mt-3 overflow-x-auto"><table className="ds-cards w-full min-w-[48rem] border-collapse text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeStudent')}</th><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeDiscount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feePaid')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeBalance')}</th><th className="px-3 py-2.5">{t('feeStatus')}</th>{access.canManage && <th className="px-3 py-2.5">{t('feeActions')}</th>}</tr></thead>
           <tbody>{dues.data.items.map(d => <tr key={d.id} className="border-b align-top"><td className="px-3 py-2.5"><strong>{name(d.student_name, d.student_name_bn)}</strong><span className="block text-xs text-slate-600">{d.admission_no} · {d.class_name}</span></td>
             <td className="px-3 py-2.5">{name(d.category_name_en, d.category_name_bn)}{d.period && <span className="block text-xs text-slate-600">{d.period}</span>}</td><td className="whitespace-nowrap p-2">{d.due_date}</td>
             <td className="px-3 py-2.5 text-right tabular-nums">{money(d.amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.discount_amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}</td>

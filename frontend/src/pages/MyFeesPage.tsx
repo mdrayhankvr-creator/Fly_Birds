@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { confirmFeeIntent, getChildFeeStatement, getFeeReceipt, getOnlinePaymentStatus, getOwnFeeStatement, startFeeIntent, type FeeIntent, type FeeReceipt, type FeeSimulation } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
 import { DuesTable, Notice, PaymentsList, ReceiptView, SimulatedLabel, Totals, feeButton, feeCard, feeField, feeSecondary, useFeeAction, useLocalName, useMoney } from './feeShared'
-import { ui, PageHeader, EmptyState, Notice as Banner } from './attendanceUi'
+import { CardTitle, ui, PageHeader, EmptyState, Notice as Banner } from './attendanceUi'
 import { StateScreen } from '../components/StateScreen'
 
 // MyFeesPage shows a student's own fees or a guardian's linked child's fees.
@@ -76,7 +76,7 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
         <div className="flex flex-wrap gap-2"><button disabled={action.busy} className={feeButton}>{t('feeConfirmPayment')}</button><button type="button" className={feeSecondary} onClick={() => { setIntent(null); action.clear() }}>{t('feeCancel')}</button></div>
       </form>}
     </section>}
-    <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeDuesTitle')}</h2><DuesTable dues={s.dues} /></section>
-    <section className={`${feeCard} print:hidden`}><h2 className={ui.sectionTitle}>{t('feeReceipts')}</h2><PaymentsList payments={s.payments} onOpen={id => void open(id)} /></section>
+    <section className={`${feeCard} print:hidden`}><CardTitle icon="clipboard">{t('feeDuesTitle')}</CardTitle><DuesTable dues={s.dues} /></section>
+    <section className={`${feeCard} print:hidden`}><CardTitle icon="receipt">{t('feeReceipts')}</CardTitle><PaymentsList payments={s.payments} onOpen={id => void open(id)} /></section>
   </div>
 }
