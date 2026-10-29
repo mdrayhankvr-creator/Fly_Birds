@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { getResultOverview, type ResultOverviewCell } from '../../api/client'
-import { EmptyState, Notice, PageHeader, Skeleton, ui } from '../attendanceUi'
+import { CardTitle, EmptyState, Notice, PageHeader, Skeleton, ui } from '../attendanceUi'
 import { Progress } from '../marks/examUi'
 import { usePeopleApi } from '../peopleShared'
 import { SessionPicker, useSessionChoice } from './setupShared'
@@ -30,7 +30,7 @@ export function ResultsCentre() {
             <Cells cells={term.classes} link={c => `/admin/exams/results/review?scope=term&scope_id=${term.id}&class_id=${c.class_id}&session=${chosen}`} />}
         </section>)}
         <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="rv-annual-title">
-          <h2 id="rv-annual-title" className={ui.sectionTitle}>{t('rvAnnualSection')}</h2>
+          <CardTitle id="rv-annual-title" icon="calendar">{t('rvAnnualSection')}</CardTitle>
           <p className="mt-1 text-sm text-slate-600">{t('rvAnnualIntro')}</p>
           {overview.data.annual.length === 0 ? <p className="mt-2 text-sm text-slate-600">{t('rvNoAnnual')}</p> :
             <Cells cells={overview.data.annual} link={c => `/admin/exams/results/review?scope=annual&scope_id=${chosen}&class_id=${c.class_id}&session=${chosen}`} annual />}

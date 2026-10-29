@@ -8,7 +8,7 @@ import {
   type BlueprintTermRule, type BlueprintVersion, type CombineMethod, type SampleMark, type StudentVisibility, type SubjectRole, type TermSubjectResult,
 } from '../../api/client'
 import { confirmAction } from '../../components/ConfirmDialog'
-import { Notice, PageHeader, Skeleton, Tabs, ui } from '../attendanceUi'
+import { CardTitle, Notice, PageHeader, Skeleton, Tabs, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 import {
   addAssessment, applyToAll, componentPresets, defaultPresetOptions, issueSubject, presetOf, presetRule, removeAssessment, setTermRule, sheetFull, sumMarks, twoDecimals,
@@ -175,7 +175,7 @@ function Structure({ v, def, editable, change, onVisibility, canChangeVisibility
   const rename = (key: string, name: string) => change({ ...def, assessments: def.assessments.map(a => (a.key === key ? { ...a, name } : a)) })
   const setKind = (key: string, kind: AssessmentKind) => change({ ...def, assessments: def.assessments.map(a => (a.key === key ? { ...a, kind } : a)) })
   return <section className={`${ui.card} p-4`} aria-labelledby="bp-structure">
-    <h2 id="bp-structure" className={ui.sectionTitle}>{t('bpAssessments')}</h2>
+    <CardTitle id="bp-structure" icon="layers">{t('bpAssessments')}</CardTitle>
     {v.terms.length === 0 && <p className="mt-2 text-sm text-slate-600">{t('bpNoTermsForBlueprint')}</p>}
     <ol className="mt-3 space-y-4">
       {/* Terms the upgrade made belong to the legacy blueprint: shown only when used. */}
@@ -222,7 +222,7 @@ function SubjectList({ v, def, issues, selected, onSelect, editable, change }: {
   // Class subjects the design does not cover yet (e.g. added after it was made).
   const missing = v.subjects.filter(s => !def.subjects.some(x => x.subject_id === s.id))
   return <section className={`${ui.card} p-4`} aria-labelledby="bp-subjects">
-    <h2 id="bp-subjects" className={ui.sectionTitle}>{t('bpSubjects')}</h2>
+    <CardTitle id="bp-subjects" icon="book">{t('bpSubjects')}</CardTitle>
     <ul className="mt-3 space-y-1">
       {def.subjects.map((s, i) => {
         const ref = v.subjects.find(x => x.id === s.subject_id)
@@ -408,7 +408,7 @@ function Check({ v, def, issues, onPick }: { v: BlueprintVersion; def: Blueprint
   const { t } = useTranslation()
   const graded = def.subjects.filter(s => s.role !== 'non_graded').length
   return <section className={`${ui.card} p-4`} aria-labelledby="bp-check">
-    <h2 id="bp-check" className={ui.sectionTitle}>{t('bpCheck')}</h2>
+    <CardTitle id="bp-check" icon="check">{t('bpCheck')}</CardTitle>
     <p className="mt-1 text-sm text-slate-600">{t('bpCheckSummary', { assessments: def.assessments.length, subjects: graded })}</p>
     {v.status !== 'draft' ? <p className="mt-3 text-sm font-semibold text-emerald-800">{t('bpFrozen')}</p>
       : issues.length === 0 ? <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800" role="status">{t('bpReady')}</p>
@@ -446,7 +446,7 @@ function Sample({ versionId, def, subject, termId, draft }: { versionId: string;
   }
   if (!rule || sheets.length === 0) return null
   return <section className={`${ui.card} p-4`} aria-labelledby="bp-sample">
-    <h2 id="bp-sample" className={ui.sectionTitle}>{t('bpSample')}</h2>
+    <CardTitle id="bp-sample" icon="eye">{t('bpSample')}</CardTitle>
     <p className="mt-1 text-sm text-slate-600">{t('bpSampleIntro')}</p>
     <div className="mt-3 space-y-2">{sheets.map(s => <fieldset key={s.assessment} className="rounded-lg border border-slate-200 p-2">
       <legend className="px-1 text-xs font-semibold text-slate-600">{name(s.assessment)} · {twoDecimals(sheetFull(s))}</legend>
@@ -479,7 +479,7 @@ function Policies({ def, terms, editable, change }: { def: BlueprintDefinition; 
     </select>
   </label>
   return <section className={`${ui.card} p-4`} aria-labelledby="bp-policies">
-    <h2 id="bp-policies" className={ui.sectionTitle}>{t('bpPolicies')}</h2>
+    <CardTitle id="bp-policies" icon="shield">{t('bpPolicies')}</CardTitle>
     <p className="mt-1 text-sm text-slate-600">{t('bpPoliciesIntro')}</p>
     <div className="mt-3 space-y-3">
       {select(t('bpPaperRule'), def.paper_rule, ['combined', 'each_paper'], v => change({ ...def, paper_rule: v as BlueprintDefinition['paper_rule'] }), 'bpPaper_')}
@@ -504,7 +504,7 @@ function Bands({ v }: { v: BlueprintVersion }) {
   const { t } = useTranslation()
   const sorted = useMemo(() => [...v.bands].sort((a, b) => b.min - a.min), [v.bands])
   return <section className={`${ui.card} p-4`} aria-labelledby="bp-bands">
-    <h2 id="bp-bands" className={ui.sectionTitle}>{t('bpBands')}</h2>
+    <CardTitle id="bp-bands" icon="grade">{t('bpBands')}</CardTitle>
     <p className="mt-1 text-xs text-slate-600">{t('bpBandsNote')}</p>
     <table className="mt-2 w-full text-sm"><thead><tr className="text-left text-xs uppercase tracking-wide text-slate-500"><th scope="col" className="py-1 font-semibold">{t('bpGrade')}</th><th scope="col" className="py-1 text-right font-semibold">%</th><th scope="col" className="py-1 text-right font-semibold">{t('bpPoint')}</th></tr></thead>
       <tbody>{sorted.map(b => <tr key={b.grade} className="border-t border-slate-100"><th scope="row" className="py-1 text-left font-semibold">{b.grade}</th><td className="py-1 text-right tabular-nums">{b.min}–{b.max}</td><td className="py-1 text-right tabular-nums">{b.gpa.toFixed(2)}</td></tr>)}</tbody>

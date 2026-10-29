@@ -94,7 +94,7 @@ function CorrectionEditor({ exam, c, canManage, busy, onSaved, onCancel }: { exa
       <div><p className="font-semibold text-slate-900">{c.student_name} <span className="text-xs font-normal text-slate-500">{c.admission_no}</span></p><p className="text-sm text-slate-700">{c.reason}</p><p className="text-xs text-slate-500">{t('rvOpenedBy', { name: c.opened_by, when: when(c.opened_at) })}</p></div>
       {canManage && <button type="button" disabled={busy || saving} className={ui.ghost} onClick={onCancel}>{t('rvCancelCorrection')}</button>}
     </div>
-    <div className="mt-2 overflow-x-auto"><table className="w-full min-w-[34rem] text-left text-sm">
+    <div className="mt-2 overflow-x-auto"><table className="ds-cards w-full min-w-[34rem] text-left text-sm">
       <thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th scope="col" className="px-2 py-2">{t('rvSubject')}</th><th scope="col" className="px-2 py-2">{t('rvPublishedValue')}</th><th scope="col" className="px-2 py-2">{t('rvStatus')}</th><th scope="col" className="px-2 py-2">{t('rvMarks')}</th></tr></thead>
       <tbody>{c.cells.map(cell => {
         const v = value(cell); const err = errors[cell.exam_subject_id]

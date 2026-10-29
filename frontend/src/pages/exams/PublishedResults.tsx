@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { getPublishedResults, type PublishedResult } from '../../api/client'
-import { Notice, Skeleton, ui } from '../attendanceUi'
+import { CardTitle, Notice, Skeleton } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 import { OutcomeChip, RevisedChip, useLineName, useWhen } from './resultUi'
 
@@ -20,7 +20,7 @@ export function PublishedResults({ childId }: { childId?: string }) {
   if (results.data.length === 0) return null
   const chosen = results.data.find(r => r.id === open)
   return <section aria-labelledby="rv-published-title" className="space-y-3 print:hidden">
-    <h2 id="rv-published-title" className={ui.sectionTitle}>{t('rvTermResultsTitle')}</h2>
+    <CardTitle id="rv-published-title" icon="grade">{t('rvTermResultsTitle')}</CardTitle>
     <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{results.data.map(r => <li key={r.id}><ResultCardButton r={r} selected={open === r.id} onOpen={() => setOpen(open === r.id ? '' : r.id)} /></li>)}</ul>
     {chosen && <ResultDetail r={chosen} />}
   </section>
@@ -68,7 +68,7 @@ function ResultDetail({ r }: { r: PublishedResult }) {
         <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('rvTotal')}</dt><dd className="tabular-nums text-slate-900">{r.total} / {r.full}</dd></div>
         <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('rvPositions')}</dt><dd className="tabular-nums text-slate-900">{r.class_position ?? '—'} · {r.section_position ?? '—'}</dd></div>
       </dl>
-      <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[26rem] border-collapse text-left text-sm">
+      <div className="mt-5 overflow-x-auto"><table className="ds-cards w-full min-w-[26rem] border-collapse text-left text-sm">
         <caption className="sr-only">{t('rvSubjectsOf', { name: heading(t, r) })}</caption>
         <thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th scope="col" className="px-3 py-2.5">{t('rvSubject')}</th><th scope="col" className="px-3 py-2.5 text-right">{t('rvMarks')}</th><th scope="col" className="px-3 py-2.5">{t('rvGrade')}</th><th scope="col" className="px-3 py-2.5 text-right">{t('rvPoint')}</th></tr></thead>
         <tbody>{r.subjects.map(l => <tr key={l.key} className="border-b border-slate-100 align-top">

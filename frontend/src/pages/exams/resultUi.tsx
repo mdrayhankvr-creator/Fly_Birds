@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, getResultHistory, getResultVersion, type ResultLine, type ResultOutputs, type ResultReview, type ResultScope, type ResultVersionView } from '../../api/client'
-import { Notice, Skeleton, ui } from '../attendanceUi'
+import { CardTitle, Notice, Skeleton, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 
 // Shared pieces of the E6 result screens, in the "calm ledger" style of the
@@ -202,7 +202,7 @@ export function VersionHistory({ scope, scopeId, studentId, studentName, onClose
   const history = useQuery({ queryKey: ['e6', 'history', scope, scopeId, studentId], queryFn: () => authorized(token => getResultHistory(token, scope, scopeId, studentId)), retry: false })
   return <section aria-labelledby="rv-history-title" className={`${ui.card} p-4 sm:p-5`}>
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <div><h2 id="rv-history-title" className={ui.sectionTitle}>{t('rvHistoryTitle', { name: studentName })}</h2><p className="text-sm text-slate-600">{t('rvHistoryIntro')}</p></div>
+      <div><CardTitle id="rv-history-title" icon="clock">{t('rvHistoryTitle', { name: studentName })}</CardTitle><p className="text-sm text-slate-600">{t('rvHistoryIntro')}</p></div>
       <button type="button" className={ui.ghost} onClick={onClose}>{t('rvClose')}</button>
     </div>
     {history.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : history.isError ? <div className="mt-3"><Notice tone="error">{t('rvErrGeneric')}</Notice></div> : history.data.length === 0 ? <p className="mt-3 text-sm text-slate-600">{t('rvHistoryEmpty')}</p> :
