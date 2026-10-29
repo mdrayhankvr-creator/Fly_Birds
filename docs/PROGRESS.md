@@ -10,6 +10,24 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — M15 Stage B1: Promotion Backend (2026-10-29)
+
+On `feature/m15-stage-b-promotion`, from `main` `5681ce44` (stage A merged, PR #34). Backend only; no screens. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [ENROLMENT_AND_PROMOTION.md](ENROLMENT_AND_PROMOTION.md) §7.
+
+**Implementation:**
+- **Migration 1702:** class progression; `promotion_batches` and `promotion_items`; leaving closes the year (withdrawn, transferred, graduated) and readmission reopens it or opens a new one; generic moves of a student with records refused (`FB002` → 409 `use_promotion`); revert support in the enrolment trigger; login follows withdrawal and transfer (`students.login_suspended_at`); per-session fee concessions; four permissions.
+- **Package `promotion`:** recommendations from the published annual result (passed → promote or graduate from the top class, failed → repeat, withheld or missing → blocked), decisions with reasons, placement (same section code; rolls keep, merit, name or manual), refresh, blockers and warnings, approval bound to `inputs_sha256` (head teacher only), apply in one transaction (idempotent, serialized), revert while the new year is empty.
+- **Fees:** concessions per session, dues generation per session, `GET /fees/concessions/review`.
+- **API:** 12 promotion operations and the concession review, with permissions, the students (or fees) module, audit and OpenAPI.
+
+**Verification (disposable resources only):**
+- **Go:** on a freshly created disposable PostgreSQL 17 database, `go test ./... -p 1 -count=1` passed 27 of 27 packages with tests: 175 top-level tests and 24 subtests, none failed; one skipped (the opt-in E3 performance test). `go vet` clean; gofmt clean on the changed files. After a later one-line change to 1702's audit count, the M15, exams, fees and HTTP tests were rerun on a fresh database and passed.
+- **New tests:** `TestPostgresPromotionKeepsTheOldYear` (E6 year published, promote/repeat/withdraw, old tabulations, report cards, analytics and every mark/result/version/attendance/fee row unchanged, idempotent apply, correction and term/annual republish of the old year after promotion, concession not carried over, revert refused after activity then allowed), `TestPostgresPromotionGraduatesAndLeavers`, `TestPostgresPromotionConcurrentApply` (two transactions), `TestPostgresPromotionRoutesEnforceRoles`.
+- **API e2e:** `e2e/promotion.mjs` on a disposable stack (`m15b1`, demo seed) built from this branch: 31 of 31 checks, twice in a row.
+- **Upgrade of a demo school built with `main` `5681ce44`:** see the M15 document §7; no mark, result, attendance, due, payment or user row changed.
+
+**Not covered:** screens (B2); browser tests; the stack ran 1702 before its final audit-count change.
+
 ## Current Status — Premium UI, Checkpoint 1 (2026-10-28)
 
 On `feature/premium-ui-checkpoint-1`, from `main` `9b68bf7` (E6 and the ID card merged). Frontend only, apart from the guardian correction below (one read-only route) and migration 1750 (students pay online for their own fees): no authentication, result or ID-card change. The approved prototype (`feature/ui-design-prototype`, `108df01`, mock data at `/design-preview`) is the visual reference and is not merged. The completion figures above do not change.

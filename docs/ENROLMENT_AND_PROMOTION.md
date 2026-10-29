@@ -9,8 +9,9 @@ It is delivered in two stages:
 
 | Stage | Scope | Status |
 |---|---|---|
-| **A — Enrolment history foundation** | Enrolment table and history, migration 1701 with backfill, marks and results tied to the year they belong to, history-safe rosters and reports, history API and export | This branch |
-| **B — Promotion workflow and UI** | Class progression, promotion batches (review, approve, apply, revert), repeat/graduate/withdraw/transfer, login handling, per-session concession review, screens | Not started |
+| **A — Enrolment history foundation** | Enrolment table and history, migration 1701 with backfill, marks and results tied to the year they belong to, history-safe rosters and reports, history API and export | Merged (PR #34) |
+| **B1 — Promotion backend** | Migration 1702: class progression, promotion batches (recommend, decide, approve, apply, revert), repeat/graduate/withdraw/transfer, login follows withdrawal (QA-03), per-session fee concessions and their review, generic edits guarded; API, tests and an API e2e script | `feature/m15-stage-b-promotion` |
+| **B2 — Screens** | Promotion and history screens | Not started (coordinate shared frontend files with Joy) |
 
 ## 1. The problem stage A fixes
 
@@ -69,9 +70,16 @@ enrolment in step, so every writer (admission, CSV import, the demo seed,
   recorded.
 - **Another session:** if nothing is recorded for the student in the old
   year, the enrolment is corrected in place (a wrong session at admission).
-  Otherwise the old year is closed with outcome `moved` and a new current
-  enrolment opens. Moving back into a year the student already has is
-  refused (409).
+  Otherwise the move is refused with 409 `use_promotion` (since stage B1;
+  in stage A it closed the old year with outcome `moved`, which existing
+  data may still show). Moving back into a year the student already has is
+  refused (409 `enrolment_history`).
+- **Leaving (stage B1):** setting the status to `inactive` (withdrawn),
+  `transferred` or `graduated` closes the year with that outcome; the
+  student then has no current enrolment. Setting it back to `active` in the
+  same session reopens the year; a student who left can be readmitted as
+  `active` into another session, which opens a new year (source
+  `readmission`).
 - A commit-time check refuses any change that leaves the current enrolment
   different from the `students` row.
 
@@ -155,20 +163,134 @@ attendance:
 - `exam-verify`: 6 published exams, 36 results, 108 marks, no differences;
 - migration time about 1 s.
 
-## 7. Stage B (planned, not implemented)
+## 7. Stage B1 — promotion backend (migration 1702)
 
-Decisions recorded on 2026-10-29:
+### Rules (decided 2026-10-29)
 
 1. Automatic recommendations require a published annual result. Missing or
-   withheld results block automatic promotion; an authorized person decides
+   withheld results block the student; an authorized person decides
    manually with a reason.
-2. Failed students are recommended to repeat. An authorized override needs
-   a recorded reason; there is no invented pass/fail threshold.
+2. Failed students are recommended to repeat. An override needs a recorded
+   reason; there is no pass/fail threshold of our own.
 3. Withdrawal or transfer disables the student's login and keeps all
-   history. Graduates keep read-only access to their academic records.
-4. Fee concessions do not carry into a new session automatically; they are
-   reviewed for the new session.
+   history; readmission re-enables it. Graduates keep their login and
+   read-only access to their records.
+4. Fee concessions do not carry into a new session; they are reviewed for
+   it.
+
+The top class has no next class. Its students who passed are recommended
+to **graduate**; those who failed, to repeat. (Graduating also needs a
+passed annual result or a manual decision.)
+
+### Class progression
+
+`academic_classes.next_class_id`: the class a class is promoted to; empty
+means the top class. A batch warns (`top_class`) when a class without a
+next class has a later class, since a missing setting would graduate the
+class. Cycles are refused.
+
+### Batches
+
+One batch per class of one session (`promotion_batches`, one open batch per
+class and session) with one item per active student (`promotion_items`).
+
+| Step | Who | What |
+|---|---|---|
+| Create | Administrator | Items for every active student of the class, each with its published annual result and the recommendation; decisions default to the recommendation (none while blocked); target section = same section code in the new session; rolls kept |
+| Decide | Administrator | `promote`, `repeat`, `graduate`, `withdraw`, `transfer`; a reason whenever it differs from the recommendation or replaces a blocked one; target section and roll may be set per student |
+| Arrange | Administrator | Rolls by `keep`, `merit` (annual class position), `name` or `manual`; numbering skips rolls taken in the target section |
+| Refresh | Administrator | Adds students who joined, drops those who left, re-reads annual results; reasoned decisions stay |
+| Approve | Head teacher only | Bound to `inputs_sha256`, the hash of everything apply acts on; refused while blockers remain |
+| Apply | Administrator | One transaction; refused if the inputs changed since approval; again → no change; two at once → one applies, the other gets the result |
+| Revert | Administrator, with a reason | Only while the new year has nothing recorded for the batch's students and nobody moved since |
+
+Any edit after approval returns the batch to draft.
+
+**Blockers:** `decision_required`, `section_required`, `no_next_class`,
+`roll_duplicate`, `roll_taken`, `student_changed`, `student_missing`,
+`annual_changed`. **Warnings:** `override`, `roll_missing`, `top_class`,
+`concessions_to_review`.
+
+**Apply**, per student:
+
+- promote / repeat: a new enrolment in the next session (next class, or
+  the same class), the old year closed as `promoted` / `repeated`;
+- graduate: the year closed as `graduated`, no new enrolment, login kept;
+- withdraw / transfer: the year closed as `withdrawn` / `transferred`, the
+  login suspended and its sessions revoked (audited
+  `student.login_suspended`).
+
+Optional-subject choices and fee concessions are not copied. Nothing
+recorded for the old year is changed.
+
+**Revert:** promoted and repeating students return to their old year (the
+empty new enrolment is removed and the old one reopened); students who
+graduated or left are readmitted to it, and a login the batch suspended is
+restored.
+
+### Logins (QA-03)
+
+A trigger follows the status: `inactive` or `transferred` suspends an
+active login and records `students.login_suspended_at`; returning to
+`active` (or `graduated`) restores only a login suspended that way. A login
+an administrator disabled stays disabled. Existing withdrawn students'
+logins are not changed by the upgrade.
+
+### Fee concessions
+
+`fee_concessions.session_id` (the upgrade sets each to the student's
+current session). A concession applies only to dues of its session, so
+dues already generated are unchanged and nothing carries over. Saving one
+without a session uses the student's current session.
+`GET /fees/concessions/review?from_session_id&to_session_id` lists last
+year's concessions of students enrolled in the new year, with any
+percentage already set there.
+
+### Generic edits
+
+`PATCH /students/{id}` can no longer move a student whose current year has
+records to another session (409 `use_promotion`); a year with nothing
+recorded can still be corrected.
+
+### API
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/promotions/progression` | `promotions:read` (admin, head teacher) |
+| PUT | `/promotions/progression/{classId}` | `promotions:manage` + administrator |
+| GET | `/promotions` | `promotions:read` |
+| POST | `/promotions` | `promotions:manage` + administrator |
+| GET | `/promotions/{id}` | `promotions:read` |
+| PATCH | `/promotions/{id}/items/{studentId}` | `promotions:manage` + administrator |
+| POST | `/promotions/{id}/arrange` | `promotions:manage` + administrator |
+| POST | `/promotions/{id}/refresh` | `promotions:manage` + administrator |
+| POST | `/promotions/{id}/discard` | `promotions:manage` + administrator |
+| POST | `/promotions/{id}/approve` | `promotions:approve` + head-teacher role |
+| POST | `/promotions/{id}/apply` | `promotions:apply` + administrator |
+| POST | `/promotions/{id}/revert` | `promotions:apply` + administrator |
+| GET | `/fees/concessions/review` | `fees:read` (fees module) |
+
+All promotion routes need the students module; every change is audited
+(`promotion.*`, `academic.class_progression_saved`). Teachers, accountants,
+students and guardians have none of these permissions.
+
+### Upgrade (1702)
+
+Additive, plus three data steps on rows M15 owns or that change meaning
+only: students who had already left (backfilled as current in 1701) get
+their year closed with the matching outcome; each fee concession gets the
+student's current session; one `student.promotion_migrated` audit event.
+No mark, result, attendance, due or payment changes.
+
+Verified on a disposable demo school built with `main` `5681ce44` (1701),
+plus one concession and one withdrawn student with a login: 72 of 77 tables
+identical row for row; `academic_classes`, `students` and `fee_concessions`
+differ only by their new empty or backfilled column (no class got a next
+class, no login was suspended, the concession is in the student's current
+session); the withdrawn student's year is closed as `withdrawn`; 35 of 35
+active students match their current enrolment; `users` unchanged; audit
+`{"closed_for_leavers": 1, "concessions": 1}`; about 0.2 s.
 
 Shared frontend files (`App.tsx`, `StudentProfilePage.tsx`,
 `StudentsPage.tsx`, `i18n.ts`, `styles.css`) are coordinated with Joy
-before stage B touches them.
+before stage B2 touches them.
