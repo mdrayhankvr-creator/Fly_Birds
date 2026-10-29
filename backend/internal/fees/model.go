@@ -58,6 +58,8 @@ type StructureInput struct {
 type Concession struct {
 	ID             string  `json:"id"`
 	StudentID      string  `json:"student_id"`
+	SessionID      string  `json:"session_id"`
+	SessionName    string  `json:"session_name"`
 	CategoryID     string  `json:"category_id"`
 	Percent        float64 `json:"percent"`
 	Reason         string  `json:"reason"`
@@ -66,11 +68,26 @@ type Concession struct {
 	CategoryNameEN string  `json:"category_name_en"`
 	CategoryNameBN string  `json:"category_name_bn"`
 }
+
+// ConcessionInput: SessionID is optional and defaults to the student's
+// current session. A concession applies only to dues of its session.
 type ConcessionInput struct {
 	StudentID  string  `json:"student_id"`
+	SessionID  string  `json:"session_id"`
 	CategoryID string  `json:"category_id"`
 	Percent    float64 `json:"percent"`
 	Reason     string  `json:"reason"`
+}
+
+// ConcessionReview is a concession of the earlier session of a student
+// enrolled in the new one, for the office to decide again: nothing carries
+// over by itself.
+type ConcessionReview struct {
+	Concession
+	ToSessionID   string   `json:"to_session_id"`
+	ToClassName   string   `json:"to_class_name"`
+	ToSectionName string   `json:"to_section_name"`
+	ToPercent     *float64 `json:"to_percent"`
 }
 type Due struct {
 	ID             string  `json:"id"`

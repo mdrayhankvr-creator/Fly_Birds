@@ -150,6 +150,12 @@ func (h *feeHandler) saveConcession(c *gin.Context) {
 		respond(c, 200, v, err)
 	}
 }
+func (h *feeHandler) reviewConcessions(c *gin.Context) {
+	if h.ready(c) {
+		v, err := h.service.ReviewConcessions(c.Request.Context(), c.Query("from_session_id"), c.Query("to_session_id"))
+		respond(c, 200, v, err)
+	}
+}
 func (h *feeHandler) deleteConcession(c *gin.Context) {
 	if h.ready(c) {
 		respond(c, 200, gin.H{"deleted": true}, h.service.DeleteConcession(c.Request.Context(), feeUser(c).ID, c.Param("id")))
