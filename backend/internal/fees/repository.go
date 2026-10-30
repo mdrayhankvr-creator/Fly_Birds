@@ -236,10 +236,10 @@ func (r *GormRepository) SaveStructure(ctx context.Context, actor, id string, in
 	return out, dbErr(err)
 }
 
-const concessionSelect = "fc.id,fc.student_id,fc.category_id,fc.percent,fc.reason,s.name_en AS student_name,s.admission_no,c.name_en AS category_name_en,c.name_bn AS category_name_bn"
+const concessionSelect = "fc.id,fc.student_id,fc.session_id,se.name AS session_name,fc.category_id,fc.percent,fc.reason,s.name_en AS student_name,s.admission_no,c.name_en AS category_name_en,c.name_bn AS category_name_bn"
 
 func concessionBase(db *gorm.DB) *gorm.DB {
-	return db.Table("fee_concessions fc").Joins("JOIN students s ON s.id=fc.student_id").Joins("JOIN fee_categories c ON c.id=fc.category_id")
+	return db.Table("fee_concessions fc").Joins("JOIN students s ON s.id=fc.student_id").Joins("JOIN fee_categories c ON c.id=fc.category_id").Joins("JOIN academic_sessions se ON se.id=fc.session_id")
 }
 
 func (r *GormRepository) ListConcessions(ctx context.Context, q Query) (Page[Concession], error) {
@@ -247,28 +247,58 @@ func (r *GormRepository) ListConcessions(ctx context.Context, q Query) (Page[Con
 	if q.StudentID != "" {
 		base = base.Where("fc.student_id=?", q.StudentID)
 	}
+	if q.SessionID != "" {
+		base = base.Where("fc.session_id=?", q.SessionID)
+	}
 	if q.Search != "" {
 		p := likePattern(strings.ToLower(q.Search))
 		base = base.Where("(lower(s.admission_no) LIKE ? OR lower(s.name_en) LIKE ?)", p, p)
 	}
-	return paginate[Concession](base, q, concessionSelect, nil, "s.admission_no,c.code")
+	return paginate[Concession](base, q, concessionSelect, nil, "se.start_date DESC,s.admission_no,c.code")
 }
 
 // SaveConcession creates or replaces a student's standing percentage for one
-// category. It applies to dues created afterwards, never to existing dues.
+// category in one session (the student's current one unless given). It
+// applies to that session's dues created afterwards, never to existing dues.
 func (r *GormRepository) SaveConcession(ctx context.Context, actor string, in ConcessionInput) (Concession, error) {
 	var out Concession
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if in.SessionID == "" {
+			if err := tx.Raw("SELECT session_id FROM students WHERE id=?", in.StudentID).Row().Scan(&in.SessionID); err != nil {
+				return ErrNotFound
+			}
+		}
+		var enrolled bool
+		if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM student_enrolments WHERE student_id=? AND session_id=?)", in.StudentID, in.SessionID).Row().Scan(&enrolled); err != nil {
+			return err
+		}
+		if !enrolled {
+			return ErrInvalid
+		}
 		var id string
-		if err := tx.Raw("INSERT INTO fee_concessions(student_id,category_id,percent,reason,created_by) VALUES (?,?,?,?,?) ON CONFLICT (student_id,category_id) DO UPDATE SET percent=EXCLUDED.percent,reason=EXCLUDED.reason RETURNING id", in.StudentID, in.CategoryID, in.Percent, in.Reason, actor).Row().Scan(&id); err != nil {
+		if err := tx.Raw("INSERT INTO fee_concessions(student_id,session_id,category_id,percent,reason,created_by) VALUES (?,?,?,?,?,?) ON CONFLICT (student_id,session_id,category_id) DO UPDATE SET percent=EXCLUDED.percent,reason=EXCLUDED.reason RETURNING id", in.StudentID, in.SessionID, in.CategoryID, in.Percent, in.Reason, actor).Row().Scan(&id); err != nil {
 			return dbErr(err)
 		}
 		if err := concessionBase(tx).Select(concessionSelect).Where("fc.id=?", id).Take(&out).Error; err != nil {
 			return err
 		}
-		return audit.Record(tx, &actor, "fee.concession_saved", "student", in.StudentID, map[string]any{"category_id": in.CategoryID, "percent": in.Percent})
+		return audit.Record(tx, &actor, "fee.concession_saved", "student", in.StudentID, map[string]any{"category_id": in.CategoryID, "session_id": in.SessionID, "percent": in.Percent})
 	})
 	return out, dbErr(err)
+}
+
+// ReviewConcessions lists the concessions of one session held by students
+// enrolled in another (usually the next) session, with the percentage
+// already set there if any, so the office can decide them again.
+func (r *GormRepository) ReviewConcessions(ctx context.Context, from, to string) ([]ConcessionReview, error) {
+	out := []ConcessionReview{}
+	err := concessionBase(r.db.WithContext(ctx)).
+		Joins("JOIN student_enrolments en ON en.student_id=fc.student_id AND en.session_id=?", to).
+		Joins("JOIN academic_classes tc ON tc.id=en.class_id").Joins("JOIN academic_sections tsec ON tsec.id=en.section_id").
+		Joins("LEFT JOIN fee_concessions nfc ON nfc.student_id=fc.student_id AND nfc.category_id=fc.category_id AND nfc.session_id=?", to).
+		Select(concessionSelect+",en.session_id AS to_session_id,tc.name AS to_class_name,tsec.name AS to_section_name,nfc.percent AS to_percent").
+		Where("fc.session_id=?", from).Order("tc.display_order,tsec.name,s.admission_no,c.code").Scan(&out).Error
+	return out, err
 }
 
 func (r *GormRepository) DeleteConcession(ctx context.Context, actor, id string) error {
@@ -400,7 +430,7 @@ func (r *GormRepository) AssignDue(ctx context.Context, actor string, in DueInpu
 		}
 		amount, _ := ToCents(st.Amount)
 		var percent float64
-		if err := tx.Raw("SELECT COALESCE((SELECT percent FROM fee_concessions WHERE student_id=? AND category_id=?),0)", in.StudentID, st.Category).Row().Scan(&percent); err != nil {
+		if err := tx.Raw("SELECT COALESCE((SELECT percent FROM fee_concessions WHERE student_id=? AND category_id=? AND session_id=?),0)", in.StudentID, st.Category, st.SessionID).Row().Scan(&percent); err != nil {
 			return err
 		}
 		discount := PercentOf(amount, percent)
@@ -446,7 +476,7 @@ func (r *GormRepository) GenerateDues(ctx context.Context, actor string, in Gene
   FROM fee_structures fs
   JOIN fee_categories c ON c.id=fs.category_id AND c.is_active
   JOIN student_rolls s ON s.session_id=fs.session_id AND s.class_id=fs.class_id
-  LEFT JOIN fee_concessions fc ON fc.student_id=s.student_id AND fc.category_id=c.id
+  LEFT JOIN fee_concessions fc ON fc.student_id=s.student_id AND fc.category_id=c.id AND fc.session_id=fs.session_id
   WHERE fs.session_id=? AND fs.is_active AND (?='' OR fs.class_id::text=?) AND (c.frequency='monthly' OR ?)
 ), inserted AS (
   INSERT INTO student_fees(student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,created_by)

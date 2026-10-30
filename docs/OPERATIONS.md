@@ -422,6 +422,26 @@ recorded as version 1 exactly as stored; the audit log records
 nothing families see changes. Run `exam-verify` before and after, as in §8.1;
 it now checks each exam against the grading bands it was published with.
 
+### 8.6 Logins of students who left before M15 (`suspend-leaver-logins`)
+
+Since M15 stage B, withdrawing or transferring a student disables their
+login and revokes their sessions; readmission restores it. Students who left
+**before** the upgrade may still have working logins. To find and close
+them:
+
+```sh
+fb exec backend /app/suspend-leaver-logins            # lists only; changes nothing
+fb exec backend /app/suspend-leaver-logins -confirm   # disables those logins
+```
+
+Without `-confirm` it only reads, in a read-only transaction, and prints each
+withdrawn or transferred student with an active login and their open
+sessions. With `-confirm` it disables those logins and revokes their sessions
+in one transaction and records one `student.login_suspended` audit event per
+student. It never runs by itself, and it does not migrate the database (start
+the application once after upgrading). Readmitting such a student later
+restores the login. A login an administrator disabled is never listed.
+
 ## 9. Data protection checklist before go-live
 
 - [ ] No demo accounts (`@demo.flybirds.test`) exist in the school's database.

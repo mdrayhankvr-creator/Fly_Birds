@@ -14,6 +14,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/exams"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/fees"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/promotion"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/rbac"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/routine"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
@@ -109,6 +110,12 @@ func NewRouterWithAdmin(service *auth.Service, secureCookies bool, grants *rbac.
 // NewRouterWithAnalytics adds the M11 analytics and report routes; a nil
 // analytics service answers them with 503.
 func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices, analyticsService *analytics.Service) *gin.Engine {
+	return NewRouterWithPromotion(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService, nil)
+}
+
+// NewRouterWithPromotion adds the M15 year-end promotion routes; a nil
+// promotion service answers them with 503.
+func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices, analyticsService *analytics.Service, promotionService *promotion.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -303,6 +310,7 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	management.POST("/fees/structures", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveStructure)
 	management.PATCH("/fees/structures/:id", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveStructure)
 	management.GET("/fees/concessions", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.concessions)
+	management.GET("/fees/concessions/review", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.reviewConcessions)
 	management.POST("/fees/concessions", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.saveConcession)
 	management.DELETE("/fees/concessions/:id", RequirePermission(service, "fees:manage"), moduleGuard("fees"), feeWriters, fh.deleteConcession)
 	management.GET("/fees/dues", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.dues)
@@ -369,6 +377,7 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 	academicRoutes.POST("/sections", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
 	academicRoutes.GET("/sections/:id", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), sectionHandler.get)
 	academicRoutes.PATCH("/sections/:id", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
+	registerPromotions(router, service, &promotionHandler{service: promotionService}, moduleGuard("students"))
 	peopleHandler := &peopleHandler{service: peopleService}
 	studentRoutes := router.Group("/students")
 	studentRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), RequireModule(schoolService, "students"))

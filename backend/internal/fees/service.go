@@ -35,6 +35,7 @@ type Repository interface {
 	ListConcessions(context.Context, Query) (Page[Concession], error)
 	SaveConcession(context.Context, string, ConcessionInput) (Concession, error)
 	DeleteConcession(context.Context, string, string) error
+	ReviewConcessions(context.Context, string, string) ([]ConcessionReview, error)
 	ListDues(context.Context, Query) (Page[Due], error)
 	AssignDue(context.Context, string, DueInput) (Due, error)
 	GenerateDues(context.Context, string, GenerateInput) (GenerateResult, error)
@@ -220,10 +221,16 @@ func (s *Service) SaveConcession(ctx context.Context, actor string, in Concessio
 	var ok bool
 	in.Reason, ok = text(in.Reason, 240, true)
 	basis, valid := ToCents(in.Percent)
-	if !uuid.MatchString(actor) || !uuid.MatchString(in.StudentID) || !uuid.MatchString(in.CategoryID) || !ok || !valid || basis <= 0 || basis > 10000 {
+	if !uuid.MatchString(actor) || !uuid.MatchString(in.StudentID) || !uuid.MatchString(in.CategoryID) || !ok || !valid || basis <= 0 || basis > 10000 || (in.SessionID != "" && !uuid.MatchString(in.SessionID)) {
 		return Concession{}, ErrInvalid
 	}
 	return s.repo.SaveConcession(ctx, actor, in)
+}
+func (s *Service) ReviewConcessions(ctx context.Context, from, to string) ([]ConcessionReview, error) {
+	if !uuid.MatchString(from) || !uuid.MatchString(to) || from == to {
+		return nil, ErrInvalid
+	}
+	return s.repo.ReviewConcessions(ctx, from, to)
 }
 func (s *Service) DeleteConcession(ctx context.Context, actor, id string) error {
 	if !uuid.MatchString(actor) || !uuid.MatchString(id) {

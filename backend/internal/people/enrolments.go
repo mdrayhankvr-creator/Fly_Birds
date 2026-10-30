@@ -14,6 +14,10 @@ import (
 // section transfer instead.
 var ErrHistory = errors.New("the change would rewrite enrolment history")
 
+// ErrUsePromotion: the student has records in their current year, so a
+// move to another session must go through year-end promotion.
+var ErrUsePromotion = errors.New("use promotion to move this student to another session")
+
 // Enrolment is one academic year of a student: where they were and how the
 // year ended. Events list what changed during it, oldest first.
 type Enrolment struct {
@@ -95,11 +99,15 @@ func setActor(tx *gorm.DB, a Actor) error {
 	return tx.Exec("SELECT set_config('flybirds.actor_id', ?, true)", a.ID).Error
 }
 
-// historyError maps the enrolment triggers' refusal (SQLSTATE FB001).
+// historyError maps the enrolment triggers' refusals (SQLSTATE FB001 and
+// FB002).
 func historyError(err error) error {
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) && pg.Code == "FB001" {
 		return ErrHistory
+	}
+	if errors.As(err, &pg) && pg.Code == "FB002" {
+		return ErrUsePromotion
 	}
 	return err
 }

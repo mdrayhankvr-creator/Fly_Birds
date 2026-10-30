@@ -28,6 +28,8 @@ func peopleError(c *gin.Context, err error) {
 		failure(c, 404, "not_found", "record not found")
 	case errors.Is(err, people.ErrDuplicate):
 		failure(c, 409, "duplicate_record", "record already exists")
+	case errors.Is(err, people.ErrUsePromotion):
+		failure(c, 409, "use_promotion", "the student has records this year; move them to another session with year-end promotion")
 	case errors.Is(err, people.ErrHistory):
 		failure(c, 409, "enrolment_history", "this change would rewrite the student's enrolment history; use a section transfer or year-end promotion")
 	case errors.Is(err, people.ErrForbidden):

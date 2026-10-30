@@ -9,7 +9,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/reset-password ./cmd/reset-password \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/restore-backup ./cmd/restore-backup \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/seed-demo ./cmd/seed-demo \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/exam-verify ./cmd/exam-verify
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/exam-verify ./cmd/exam-verify \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/suspend-leaver-logins ./cmd/suspend-leaver-logins
 
 FROM alpine:3.22
 RUN adduser -D -u 10001 app && mkdir -p /app/uploads /app/backups && chown app:app /app/uploads /app/backups
@@ -19,6 +20,7 @@ COPY --from=build /out/reset-password /app/reset-password
 COPY --from=build /out/restore-backup /app/restore-backup
 COPY --from=build /out/seed-demo /app/seed-demo
 COPY --from=build /out/exam-verify /app/exam-verify
+COPY --from=build /out/suspend-leaver-logins /app/suspend-leaver-logins
 USER app
 EXPOSE 8080
 # Healthy means the API answers and PostgreSQL is reachable (GET /readyz).
