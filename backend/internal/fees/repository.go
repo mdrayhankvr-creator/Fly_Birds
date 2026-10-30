@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -103,11 +104,28 @@ func (r *GormRepository) SearchStudents(ctx context.Context, q Query) (Page[Stud
 	if q.SectionID != "" {
 		base = base.Where("s.section_id=?", q.SectionID)
 	}
+	order := "s.admission_no,s.id"
 	if q.Search != "" {
 		p := likePattern(strings.ToLower(q.Search))
-		base = base.Where("(lower(s.admission_no) LIKE ? OR lower(s.name_en) LIKE ? OR s.name_bn LIKE ?)", p, p, likePattern(q.Search))
+		cond, args := "lower(s.admission_no) LIKE ? OR lower(s.name_en) LIKE ? OR s.name_bn LIKE ?", []any{p, p, likePattern(q.Search)}
+		// At the counter staff also type a roll number or the guardian's
+		// phone; Bangla digits count as digits.
+		if digits, onlyDigits := searchDigits(q.Search); digits != "" {
+			if roll, err := strconv.Atoi(digits); err == nil && onlyDigits && len(digits) <= 6 {
+				cond += " OR s.roll_no = ?"
+				args = append(args, roll)
+				// An exact roll number comes before admission numbers that
+				// merely contain the digits.
+				order = fmt.Sprintf("(s.roll_no = %d) DESC,s.admission_no,s.id", roll)
+			}
+			if len(digits) >= 5 {
+				cond += " OR EXISTS (SELECT 1 FROM student_guardians sg JOIN guardians g ON g.id=sg.guardian_id WHERE sg.student_id=s.id AND regexp_replace(translate(g.phone,'০১২৩৪৫৬৭৮৯','0123456789'),'[^0-9]','','g') LIKE ?)"
+				args = append(args, "%"+digits+"%")
+			}
+		}
+		base = base.Where("("+cond+")", args...)
 	}
-	return paginate[StudentRef](base, q, studentSelect, nil, "s.admission_no,s.id")
+	return paginate[StudentRef](base, q, studentSelect, nil, order)
 }
 
 func (r *GormRepository) ListCategories(ctx context.Context, q Query) (Page[Category], error) {
@@ -1090,4 +1108,28 @@ WHERE %s GROUP BY s.id,s.admission_no,s.name_en,s.name_bn,ac.name,sec.name HAVIN
 	pageArgs := append(append([]any{}, groupedArgs...), q.PageSize, (q.Page-1)*q.PageSize)
 	err := db.Raw(grouped+" ORDER BY overdue DESC,balance DESC,s.admission_no LIMIT ? OFFSET ?", pageArgs...).Scan(&out.Items).Error
 	return out, err
+}
+
+// searchDigits returns the digits of a search (Bangla digits as ASCII, a
+// leading +880 dropped) and whether the search was digits, spaces and phone
+// punctuation only.
+func searchDigits(search string) (string, bool) {
+	var b strings.Builder
+	only := true
+	for _, r := range strings.TrimSpace(search) {
+		switch {
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r >= '০' && r <= '৯':
+			b.WriteRune('0' + (r - '০'))
+		case r == ' ' || r == '-' || r == '+' || r == '(' || r == ')':
+		default:
+			only = false
+		}
+	}
+	d := b.String()
+	if strings.HasPrefix(d, "880") && len(d) == 13 {
+		d = d[2:]
+	}
+	return d, only
 }

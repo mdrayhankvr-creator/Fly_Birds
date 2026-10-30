@@ -2207,8 +2207,8 @@ paths:
   /fees/students:
     get:
       operationId: searchFeeStudents
-      summary: Search students by admission number or name for fee collection
-      description: Requires fees:read and the fees module. Returns minimal identity and class context only.
+      summary: Search students by admission number, name, roll number or guardian phone for fee collection
+      description: Requires fees:read and the fees module. Returns minimal identity and class context only. A search of digits also matches the roll number (exact roll matches first) and, from five digits, the linked guardians' phone numbers compared by digits; Bangla digits and a +880 prefix are accepted. Guardian phones are matched but not returned.
       tags: [fees]
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/FeeSession' }, { $ref: '#/components/parameters/FeeClass' }, { name: section_id, in: query, schema: { type: string, format: uuid } }]
