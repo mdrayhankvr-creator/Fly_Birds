@@ -21,7 +21,16 @@ func (h *peopleHandler) available(c *gin.Context) bool {
 	return false
 }
 func peopleError(c *gin.Context, err error) {
+	var match *people.GuardianMatchError
 	switch {
+	case errors.As(err, &match):
+		c.JSON(409, gin.H{"error": gin.H{"code": "guardian_exists", "message": "a guardian with this phone or email is already on record; link them or confirm a new guardian", "index": match.Index, "matches": match.Matches}})
+	case errors.Is(err, people.ErrLoginTaken):
+		failure(c, 409, "login_email_taken", "this login email is already registered")
+	case errors.Is(err, people.ErrAdmissionNoTaken):
+		failure(c, 409, "admission_no_taken", "this admission number is already used")
+	case errors.Is(err, people.ErrRollTaken):
+		failure(c, 409, "roll_taken", "this roll number is already used in the section")
 	case errors.Is(err, people.ErrInvalid):
 		failure(c, 400, "invalid_request", "invalid student or guardian input")
 	case errors.Is(err, people.ErrNotFound):
@@ -320,6 +329,46 @@ func (h *peopleHandler) child(c *gin.Context) {
 		return
 	}
 	v, err := h.service.GetStudent(c.Request.Context(), actorFrom(c), c.Param("id"))
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 200, v)
+}
+
+// admit creates a student, an optional login and up to two guardians in one
+// transaction. The response carries the login's initial password once.
+func (h *peopleHandler) admit(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var v people.AdmissionInput
+	if !decodeSchoolJSON(c, 32*1024, &v) {
+		return
+	}
+	result, err := h.service.Admit(c.Request.Context(), actorFrom(c), v)
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 201, result)
+}
+func (h *peopleHandler) admissionDefaults(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	v, err := h.service.AdmissionDefaults(c.Request.Context(), actorFrom(c), c.Query("section_id"))
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 200, v)
+}
+func (h *peopleHandler) guardianMatches(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	v, err := h.service.GuardianMatches(c.Request.Context(), c.Query("phone"), c.Query("email"))
 	if err != nil {
 		peopleError(c, err)
 		return

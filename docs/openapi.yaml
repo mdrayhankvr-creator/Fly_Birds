@@ -1101,6 +1101,24 @@ paths:
       parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: section_id, in: query, required: true, schema: { type: string, format: uuid } }]
       requestBody: { required: true, content: { text/csv: { schema: { type: string, format: binary } } } }
       responses: { '201': { description: Imported count }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Duplicate student or roll; transaction rolled back }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/admission:
+    post:
+      operationId: admitStudent
+      tags: [students]
+      summary: Admit a student with an optional login and up to two guardians in one transaction
+      description: Requires students:manage and administrator; guardians:manage when guardians are given and users:create when a login is created. Body is {student, account {create, email}, guardians [{guardian_id | new, relationship, is_primary, confirm_new}]}. Everything is created or nothing is. A new guardian whose phone (compared by digits) or email matches an existing guardian is refused with guardian_exists and the matches, unless confirm_new is true. The response carries the login's generated initial password once; it is never stored in plain text, logged or audited.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '201': { description: Admitted student, guardians and the login with its one-time initial password }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: 'guardian_exists (with index and matches), login_email_taken, admission_no_taken or roll_taken; nothing was written' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/admission/defaults:
+    get:
+      operationId: getAdmissionDefaults
+      tags: [students]
+      summary: Suggested roll number, admission number and login domain for a new admission
+      description: Requires students:manage and administrator. next_roll is one above the highest roll used in the section; admission_no continues the school's numbering when recent admission numbers share a prefix and end in digits, otherwise it is empty.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: section_id, in: query, required: false, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Defaults }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /students/me:
     get:
       operationId: getOwnStudent
@@ -1277,6 +1295,15 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianInput' } } } }
       responses: { '201': { description: Guardian, content: { application/json: { schema: { $ref: '#/components/schemas/GuardianResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /guardians/matches:
+    get:
+      operationId: findGuardianMatches
+      tags: [guardians]
+      summary: Existing guardians with the same phone or email
+      description: Requires guardians:read. Phones are compared by their last ten digits (Bangla digits and a +880 prefix are accepted); email is compared case-insensitively. Each match lists up to five linked students' names.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: phone, in: query, required: false, schema: { type: string } }, { name: email, in: query, required: false, schema: { type: string } }]
+      responses: { '200': { description: Matching guardians }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /guardians/me:
     get:
       operationId: getOwnGuardian
