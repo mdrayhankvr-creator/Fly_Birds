@@ -770,6 +770,93 @@ paths:
       description: Requires staff:read_self and the staff module. Resolves the profile by authenticated user ID.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Own employee profile }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /staff/me/profile:
+    get:
+      operationId: getOwnStaffProfile
+      tags: [staff]
+      summary: Read own staff profile
+      description: 'Requires staff:read_self and the staff module. The caller''s own profile with every field, the NID masked, and the visibility choices.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      operationId: saveOwnStaffProfile
+      tags: [staff]
+      summary: Change own qualifications and who sees contact details
+      description: 'Requires staff:read_self and the staff module. Body {qualifications [up to 20 strings], visibility {phone, email, qualifications: {staff, families}}}. Administrators and the head teacher always see these fields; the MPO/index number and NID cannot be shared (unknown keys are refused).'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/me/photo:
+    put:
+      operationId: saveOwnStaffPhoto
+      tags: [staff]
+      summary: Upload own staff photo
+      description: 'Requires staff:read_self and the staff module. JPEG or PNG up to 6 MiB, at least 64 px; stored cropped to a centred square of 480 px and re-encoded as JPEG.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      operationId: deleteOwnStaffPhoto
+      tags: [staff]
+      summary: Remove own staff photo
+      description: 'Requires staff:read_self and the staff module.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/profiles/{id}:
+    get:
+      operationId: getStaffProfile
+      tags: [staff]
+      summary: Open a staff profile, filtered for the viewer
+      description: 'Requires staff:profiles_read (every signed-in role) and the staff module. Always: photo version, name, designation, subjects and classes taught in the active session, today''s periods. Phone, email and qualifications: administrators, the head teacher and the employee, plus other staff or students and guardians when the employee shares them. Joining date, attendance, recent leave and MPO/index: administrators, the head teacher and the employee. NID: administrators and the employee, masked only. Students and guardians see active staff only.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/profiles/{id}/photo:
+    get:
+      operationId: getStaffPhoto
+      tags: [staff]
+      summary: Read a staff photo
+      description: 'Requires staff:profiles_read and the staff module, for a profile the viewer may open. JPEG, privately cached.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: JPEG image, content: { image/jpeg: { schema: { type: string, format: binary } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/profiles/{id}/nid-reveal:
+    post:
+      operationId: revealStaffNID
+      tags: [staff]
+      summary: Show the full NID once, audited
+      description: 'Requires staff:profiles_read and the staff module; only administrators and the employee themselves (403 otherwise). Each reveal is recorded in the audit log as staff.nid_revealed, without the number. Not cached.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/employees/{id}/official:
+    patch:
+      operationId: saveStaffOfficial
+      tags: [staff]
+      summary: Set official staff details
+      description: 'Requires staff:manage, administrator and the staff module. Body {email, mpo_index, nid}; a field left out is unchanged. The NID has 10, 13 or 17 digits. The audit lists the fields changed, never their values; the response carries the NID masked.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/employees/{id}/photo:
+    put:
+      operationId: saveStaffPhoto
+      tags: [staff]
+      summary: Upload a staff photo as an administrator
+      description: 'Requires staff:manage, administrator and the staff module. As PUT /staff/me/photo.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      operationId: deleteStaffPhoto
+      tags: [staff]
+      summary: Remove a staff photo as an administrator
+      description: 'Requires staff:manage, administrator and the staff module.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /staff/me/assignments:
     get:
       operationId: getOwnAssignments
