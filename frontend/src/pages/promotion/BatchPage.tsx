@@ -9,6 +9,7 @@ import {
 } from '../../api/promotions'
 import { confirmAction } from '../../components/ConfirmDialog'
 import { Icon } from '../../components/icons'
+import { tone } from '../../components/modules'
 import { StateScreen } from '../../components/StateScreen'
 import { Notice, SectionCard, ui } from '../attendanceUi'
 import {
@@ -51,7 +52,7 @@ export function BatchPage({ caps }: { caps: Caps }) {
 
   const open = b.status === 'draft' || b.status === 'approved'
   const editable = caps.manage && open
-  return <div className="space-y-5">
+  return <div className="space-y-5" style={tone('people')}>
     <Link to="/admin/promotions" className={ui.ghost}><Icon name="chevronLeft" className="h-4 w-4" />{t('pmAllBatches')}</Link>
     <BatchHeader b={b} />
     {message && <Notice tone={message.tone}>{message.text}</Notice>}
@@ -76,7 +77,7 @@ function BatchHeader({ b }: { b: PromotionBatch }) {
   ]
   const current = b.status === 'draft' ? 0 : b.status === 'approved' ? 2 : 3
   const target = b.class_is_final ? t('pmGraduatesFrom') : b.next_class_name ? t('pmPromotesInto', { name: b.next_class_name }) : t('pmNoProgression')
-  return <header className="ds-role-head p-4 sm:p-5" style={{ ['--s' as string]: 'var(--mod-people)' }}>
+  return <header className="ds-role-head p-4 sm:p-5" style={tone('people')}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="text-xs font-semibold text-slate-600">{t('pmEyebrow')}</p>

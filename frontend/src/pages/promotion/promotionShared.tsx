@@ -4,6 +4,7 @@ import { ApiError } from '../../api/client'
 import type { BatchStatus, Decision, PromotionBatch, PromotionIssue, Recommendation } from '../../api/promotions'
 import { useAuth } from '../../auth/AuthProvider'
 import { Icon } from '../../components/icons'
+import { tone } from '../../components/modules'
 import { LinkTabs, PageHeader } from '../attendanceUi'
 
 // Shared parts of the year-end promotion screens (M15 stage B2).
@@ -50,8 +51,9 @@ export function PromotionFrame({ caps, title, description, actions, children }: 
     { to: '/admin/promotions/progression', label: t('pmTabProgression') },
     ...(caps.fees ? [{ to: '/admin/promotions/concessions', label: t('pmTabConcessions') }] : []),
   ]
-  return <div className="space-y-6">
-    <PageHeader eyebrow={t('pmEyebrow')} title={title} description={description} actions={actions} />
+  // Promotion belongs to People: its colour tints the header, tabs and cards.
+  return <div className="space-y-6" style={tone('people')}>
+    <PageHeader eyebrow={t('pmEyebrow')} title={title} description={description} actions={actions} icon="trend" module="people" />
     <LinkTabs label={t('pmEyebrow')} items={tabs} />
     {children}
   </div>
