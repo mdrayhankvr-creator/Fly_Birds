@@ -23,6 +23,7 @@ const AcademicSessionsPage = lazy(() => import('./pages/AcademicSessionsPage').t
 const StaffPage = lazy(() => import('./pages/StaffPage').then(m => ({ default: m.StaffPage })))
 const TeacherAttendancePage = lazy(() => import('./pages/TeacherAttendancePage').then(m => ({ default: m.TeacherAttendancePage })))
 const StudentAttendancePage = lazy(() => import('./pages/StudentAttendancePage').then(m => ({ default: m.StudentAttendancePage })))
+const QuickAttendancePage = lazy(() => import('./pages/QuickAttendancePage').then(m => ({ default: m.QuickAttendancePage })))
 const StudentAttendanceReportPage = lazy(() => import('./pages/StudentAttendancePage').then(m => ({ default: m.StudentAttendanceReportPage })))
 const SectionsPage = lazy(() => import('./pages/SectionsPage').then(m => ({ default: m.SectionsPage })))
 const StudentsPage = lazy(() => import('./pages/StudentsPage').then(m => ({ default: m.StudentsPage })))
@@ -142,13 +143,14 @@ function AttendanceGate({ permissions, own, enabled, loading, error }: { permiss
   return <TeacherAttendancePage permissions={permissions} own={own} />
 }
 
-function StudentAttendanceGate({ kind, permissions, enabled, loading, error }: { kind: 'manage' | 'self' | 'guardian'; permissions: string[] | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+function StudentAttendanceGate({ kind, permissions, enabled, loading, error }: { kind: 'manage' | 'quick' | 'self' | 'guardian'; permissions: string[] | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
   if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
   if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
-  const required = kind === 'manage' ? 'attendance:students_read' : kind === 'self' ? 'attendance:students_read_self' : 'attendance:guardians_read_children'
+  const required = kind === 'quick' ? 'attendance:students_manage' : kind === 'manage' ? 'attendance:students_read' : kind === 'self' ? 'attendance:students_read_self' : 'attendance:guardians_read_children'
   if (!permissions?.includes(required)) return <StateScreen kind="denied" message={t('permissionDenied')} />
   if (!enabled) return <StateScreen kind="disabled" message={t('attendanceModuleDisabled')} />
+  if (kind === 'quick') return <QuickAttendancePage />
   return kind === 'manage' ? <StudentAttendancePage permissions={permissions} /> : <StudentAttendanceReportPage guardian={kind === 'guardian'} />
 }
 
@@ -451,6 +453,7 @@ export default function App() {
         <Route path="/admin/staff" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own={false} enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
         <Route path="/staff/me" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
         <Route path="/admin/attendance/students" element={<ProtectedRoute><StudentAttendanceGate kind="manage" permissions={myPermissions.data} enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />
+        <Route path="/admin/attendance/students/quick" element={<ProtectedRoute><StudentAttendanceGate kind="quick" permissions={myPermissions.data} enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />
         <Route path="/student/attendance" element={<ProtectedRoute><StudentAttendanceGate kind="self" permissions={myPermissions.data} enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />
         {/* Families use the student's account; old guardian links go home. */}
         <Route path="/guardian/*" element={<Navigate to="/dashboard" replace />} />

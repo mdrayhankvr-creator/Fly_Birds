@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError, getAttendanceSessions, getAttendanceSections, getStudentAttendanceRoster, getStudentAttendanceMonthly, getOwnStudentAttendanceReport, getGuardianStudentAttendanceReport, saveStudentAttendanceRoster, scanStudentAttendance, getAbsenceEvents, type StudentAttendanceRosterItem, type StudentAttendanceRecord } from '../api/client'
 import { Icon } from '../components/icons'
@@ -181,7 +181,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
   ]
 
   return <div className="space-y-5 pb-4">
-    <PageHeader eyebrow={t('attnEyebrow')} title={t('studentAttendanceHeading')} description={t('attnDescription')} />
+    <PageHeader eyebrow={t('attnEyebrow')} title={t('studentAttendanceHeading')} description={t('attnDescription')} actions={canManage ? <Link to="/admin/attendance/students/quick" className={ui.primary}><Icon name="check" className="h-4 w-4" />{t('c3QuickTitle')}</Link> : undefined} />
 
     <section className={`${ui.card} p-4 sm:p-5`} aria-label={t('attnContext')}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1.2fr_1.6fr]">
