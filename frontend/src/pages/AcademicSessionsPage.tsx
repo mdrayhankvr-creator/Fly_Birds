@@ -112,7 +112,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
       <label className={ui.label}>{t('startDate')}<input className={fieldClass} type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></label>
       <label className={ui.label}>{t('endDate')}<input className={fieldClass} type="date" required min={form.start_date} value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></label>
       <p className="text-sm text-slate-600 sm:col-span-3">{t('sessionNameHint')}</p>
-      <div className="flex flex-wrap gap-2 sm:col-span-3"><button disabled={busy} className={ui.primary}>{t(editing ? 'saveChanges' : 'createSession')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyForm) }} className="rounded-lg border px-4 py-2 font-semibold">{t('cancel')}</button>}</div>
+      <div className="flex flex-wrap gap-2 sm:col-span-3"><button disabled={busy} className={ui.primary}>{t(editing ? 'saveChanges' : 'createSession')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyForm) }} className={ui.secondary}>{t('cancel')}</button>}</div>
     </form>}
     <section className={`${ui.card} p-4 sm:p-6`}>
       <CardTitle icon="calendar">{t('sessionList')}</CardTitle>
@@ -123,7 +123,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
             <div className="mt-5 grid gap-3 md:grid-cols-2">{sessions.data.items.map((session) => <article key={session.id} className="min-w-0 rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold text-slate-900">{session.name}</h3>{session.is_active && <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{t('active')}</span>}</div>
               <p className="mt-2 text-sm text-slate-600">{session.start_date} → {session.end_date}</p>
-              <div className="mt-4 flex flex-wrap gap-2">{canUpdate && <button type="button" onClick={() => edit(session)} className="rounded-lg border px-3 py-2 text-sm font-semibold">{t('editSession')}</button>}{canActivate && <button type="button" disabled={busy} onClick={() => activation(session)} className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50">{t(session.is_active ? 'deactivate' : 'activate')}</button>}</div>
+              <div className="mt-4 flex flex-wrap gap-2">{canUpdate && <button type="button" onClick={() => edit(session)} className={`${ui.secondary} btn-sm`}>{t('editSession')}</button>}{canActivate && <button type="button" disabled={busy} onClick={() => activation(session)} className={`${ui.secondary} btn-sm`}>{t(session.is_active ? 'deactivate' : 'activate')}</button>}</div>
             </article>)}</div>}
       {(sessions.data?.total || 0) > 10 && <div className="mt-5 border-t border-slate-100 pt-4 flex flex-wrap items-center justify-between gap-2 text-sm"><button type="button" disabled={page <= 1 || sessions.isPending} onClick={() => setPage(page - 1)} className={ui.secondary}>{t('previous')}</button><span>{t('pageOf', { page, total: Math.max(1, Math.ceil((sessions.data?.total || 0) / 10)) })}</span><button type="button" disabled={sessions.isPending || !sessions.data || page * 10 >= sessions.data.total} onClick={() => setPage(page + 1)} className={ui.secondary}>{t('next')}</button></div>}
     </section>

@@ -123,7 +123,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
   return <section className="space-y-8">
     <PageHeader eyebrow={t('administration')} title={t('schoolSettings')} description={t('schoolSettingsDescription')} />
     {loading && <p role="status">{t('loadingSettings')}</p>}
-    {loadError && <p role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800">{t('schoolLoadError')} <button type="button" className="underline" onClick={() => { void settings.refetch(); if (canReadGrading) void grading.refetch(); if (canReadModules) void modules.refetch() }}>{t('reload')}</button></p>}
+    {loadError && <p role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800">{t('schoolLoadError')} <button type="button" className={ui.ghost} onClick={() => { void settings.refetch(); if (canReadGrading) void grading.refetch(); if (canReadModules) void modules.refetch() }}>{t('reload')}</button></p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-4 text-emerald-800">{notice}</p>}
     {error && <p role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800">{error}</p>}
     {!loading && !loadError && draft && <>
@@ -153,7 +153,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
           <p className="mt-3 text-sm">{t('previewText')}</p>
           <span className="brand-button mt-3 inline-block rounded-lg px-4 py-2 text-sm font-semibold">{t('previewAction')}</span>
         </div>
-        {canEditSettings && <div className="mt-6 flex flex-wrap gap-3"><button className="brand-button rounded-lg px-5 py-2.5 font-semibold disabled:opacity-50" type="submit" disabled={saveSettings.isPending}>{saveSettings.isPending ? t('saving') : t('saveProfile')}</button><button type="button" className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold" onClick={resetDrafts}>{t('discardChanges')}</button></div>}
+        {canEditSettings && <div className="mt-6 flex flex-wrap gap-3"><button className={ui.primary} type="submit" disabled={saveSettings.isPending}>{saveSettings.isPending ? t('saving') : t('saveProfile')}</button><button type="button" className={ui.secondary} onClick={resetDrafts}>{t('discardChanges')}</button></div>}
       </form>
       {canEditSettings && <LandingPhotos authorized={authorized} />}
       {canReadGrading && bands && <form onSubmit={submitGrading} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
@@ -161,12 +161,12 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
         <div className="mt-5 overflow-x-auto"><table className="ds-cards w-full min-w-[18rem] text-left text-sm"><thead><tr className="border-b border-slate-200"><th className="px-3 py-2.5">{t('grade')}</th><th className="px-3 py-2.5">{t('minMarks')}</th><th className="px-3 py-2.5">{t('maxMarks')}</th><th className="px-3 py-2.5">{t('gpa')}</th></tr></thead><tbody>{bands.map((band, index) => <tr key={index} className="border-b border-slate-100">
           {(['grade', 'min_marks', 'max_marks', 'gpa'] as const).map((field) => <td className="px-3 py-2.5" key={field}><input aria-label={`${t(field === 'min_marks' ? 'minMarks' : field === 'max_marks' ? 'maxMarks' : field)} ${band.grade}`} className={`${inputClass} min-w-0 px-2`} type={field === 'grade' ? 'text' : 'number'} min={field === 'gpa' ? 0 : field === 'grade' ? undefined : 0} max={field === 'gpa' ? 5 : field === 'grade' ? undefined : 100} step={field === 'gpa' ? '0.01' : '1'} required disabled={!canEditGrading} value={band[field]} onChange={(event) => setBands((current) => current?.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: field === 'grade' ? event.target.value : Number(event.target.value) } : row) ?? null)} /></td>)}
         </tr>)}</tbody></table></div>
-        {canEditGrading && <div className="mt-5 flex flex-wrap gap-3"><button type="submit" disabled={saveGrading.isPending} className="brand-button rounded-lg px-5 py-2.5 font-semibold disabled:opacity-50">{saveGrading.isPending ? t('saving') : t('saveGrading')}</button><button type="button" onClick={resetDrafts} className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold">{t('discardChanges')}</button></div>}
+        {canEditGrading && <div className="mt-5 flex flex-wrap gap-3"><button type="submit" disabled={saveGrading.isPending} className={ui.primary}>{saveGrading.isPending ? t('saving') : t('saveGrading')}</button><button type="button" onClick={resetDrafts} className={ui.secondary}>{t('discardChanges')}</button></div>}
       </form>}
       {canReadModules && modules.data && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         <CardTitle icon="layers">{t('schoolModules')}</CardTitle><p className="mt-2 text-sm text-slate-600">{t('m10SettingsModulesMoved')}</p>
         <ul className="mt-4 flex flex-wrap gap-2">{modules.data.items.map((module) => <li key={module.key} className={`rounded-full px-3 py-1 text-sm font-medium ${module.enabled ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{t(`m10Module_${module.key}`, { defaultValue: module.name })} · {module.enabled ? t('enabled') : t('disabled')}</li>)}</ul>
-        <Link to="/admin/modules" className="brand-button mt-5 inline-block rounded-lg px-5 py-2.5 font-semibold">{t('m10OpenModules')}</Link>
+        <Link to="/admin/modules" className={`${ui.primary} mt-5`}>{t('m10OpenModules')}</Link>
       </section>}
     </>}
   </section>

@@ -50,9 +50,9 @@ export function ConfirmHost() {
           <p id="confirm-body" className="mt-1.5 text-sm leading-6 text-slate-600">{request.message}</p></div>
       </div>
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button ref={cancelRef} type="button" onClick={() => close(false)} className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]">{t('m12Cancel')}</button>
+        <button ref={cancelRef} type="button" onClick={() => close(false)} className="btn btn-secondary">{t('m12Cancel')}</button>
         <button ref={confirmRef} type="button" onClick={() => close(true)}
-          className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 ${danger ? 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:outline-rose-600' : 'bg-[var(--brand-primary)] text-[var(--brand-on)] hover:brightness-110 focus-visible:outline-[var(--brand-primary)]'}`}>
+          className={danger ? 'btn btn-danger-solid' : 'btn btn-primary'}>
           {request.confirmLabel ?? t('m12Continue')}</button>
       </div>
     </div>
