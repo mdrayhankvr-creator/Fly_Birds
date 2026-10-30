@@ -5,6 +5,8 @@ export type AuthUser = {
   email: string
   role: string
   display_name?: string
+  // Set when someone else chose the password; the app shows only the change-password page.
+  must_change_password?: boolean
 }
 
 export type AuthSession = {

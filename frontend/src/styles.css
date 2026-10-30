@@ -378,6 +378,10 @@ main table tbody tr:hover { background-color: #f8fafc; }
   body:has(.exam-report) .exam-report,
   body:has(.exam-report) .exam-report * { visibility: visible !important; }
   .exam-report { position: absolute; inset: 0; width: 100%; border: 0; box-shadow: none; }
+  body:has(.print-slip) * { visibility: hidden !important; }
+  body:has(.print-slip) .print-slip,
+  body:has(.print-slip) .print-slip * { visibility: visible !important; }
+  .print-slip { position: absolute; inset: 0 auto auto 0; width: 100%; }
   body:has(.admission-slip) * { visibility: hidden !important; }
   body:has(.admission-slip) .admission-slip,
   body:has(.admission-slip) .admission-slip * { visibility: visible !important; }
