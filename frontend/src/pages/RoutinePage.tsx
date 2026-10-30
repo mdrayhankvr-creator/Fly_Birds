@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError, deleteClassRoutineSlot, deleteExamRoutine, deleteExamRoutineSlot, getAcademicClasses, getAcademicSections, getAcademicSessions, getAcademicSubjects, getClassRoutine, getEmployees, getExamRoutine, getExamRoutines, publishExamRoutine, saveClassRoutineSlot, saveExamRoutine, saveExamRoutineSlot, type ClassRoutineInput, type ClassRoutineSlot, type ExamRoutine, type ExamRoutineInput, type ExamRoutineSlotInput } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
@@ -104,7 +104,7 @@ export function RoutinePage({ mode, canManage }: { mode: Mode; canManage: boolea
             {slots.length === 0 ? <p className="mt-2 px-1 text-xs text-slate-500">{t('uxNoClasses')}</p> : <div className="mt-2 space-y-2">{slots.map(item => <article key={item.id} className="rounded-lg border border-slate-200 border-l-[3px] border-l-[var(--s)] bg-white p-2.5 text-sm shadow-sm">
               <p className="text-xs font-semibold tabular-nums text-slate-500">{item.start_time}–{item.end_time}</p>
               <p className="mt-0.5 break-words font-semibold leading-snug text-slate-900">{name(item.subject_name, item.subject_name_bn)}</p>
-              <p className="mt-0.5 break-words text-xs text-slate-600">{mode === 'teacher' ? `${item.class_name} · ${item.section_name}` : item.teacher_name}</p>
+              <p className="mt-0.5 break-words text-xs text-slate-600">{mode === 'teacher' ? `${item.class_name} · ${item.section_name}` : <Link className={ui.link} to={`/staff/profiles/${item.teacher_id}`}>{item.teacher_name}</Link>}</p>
               {item.room && <p className="break-words text-xs text-slate-500">{item.room}</p>}
               {canManage && <div className="mt-2 flex gap-1 print:hidden"><button type="button" className={ui.ghost} onClick={() => selectClass(item)}>{t('edit')}</button><button type="button" className={`${ui.ghost} text-rose-700`} disabled={busy} onClick={() => void run(() => authorized(token => deleteClassRoutineSlot(token, item.id)))}>{t('delete')}</button></div>}</article>)}</div>}
           </div>
