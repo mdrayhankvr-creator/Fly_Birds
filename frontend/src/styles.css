@@ -145,6 +145,11 @@ body { background-color: var(--app-surface); color: #0f172a; }
   background: var(--ds-nav); backdrop-filter: saturate(1.6) blur(16px);
   border: 1px solid var(--ds-line); border-radius: 1.5rem; box-shadow: 0 18px 40px -20px rgb(15 23 42 / .5);
 }
+/* Save bars stay in reach while a long form or roster scrolls, above the
+   phone tab bar. */
+.ds-action-bar { position: sticky; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 20; }
+@media (min-width: 1024px) { .ds-action-bar { bottom: 12px; } }
+@media print { .ds-action-bar { display: none; } }
 .ds-tab { color: var(--ds-ink-3); min-height: 56px; -webkit-tap-highlight-color: transparent; }
 .ds-tab .ds-tab-pill { transition: background-color .2s, color .2s; }
 .ds-tab[aria-current="page"] { color: color-mix(in oklab, var(--s) 64%, var(--ds-ink)); }
@@ -313,6 +318,10 @@ main table tbody tr:hover { background-color: #f8fafc; }
   body:has(.exam-report) .exam-report,
   body:has(.exam-report) .exam-report * { visibility: visible !important; }
   .exam-report { position: absolute; inset: 0; width: 100%; border: 0; box-shadow: none; }
+  body:has(.admission-slip) * { visibility: hidden !important; }
+  body:has(.admission-slip) .admission-slip,
+  body:has(.admission-slip) .admission-slip * { visibility: visible !important; }
+  .admission-slip { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0; box-shadow: none; }
   body:has(.fee-receipt) * { visibility: hidden !important; }
   body:has(.fee-receipt) .fee-receipt,
   body:has(.fee-receipt) .fee-receipt * { visibility: visible !important; }

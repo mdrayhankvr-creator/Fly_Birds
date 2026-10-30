@@ -5,6 +5,7 @@ import { ApiError } from '../api/client'
 import { searchFeeStudents, type FeeDue, type FeeReceipt, type FeeStatement, type FeeStudent } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
 import { EmptyState, ui } from './attendanceUi'
+import { amountInWordsBN, amountInWordsEN } from './amountWords'
 
 export const feeField = ui.field
 export const feeButton = ui.primary
@@ -97,8 +98,10 @@ export function StatusBadge({ due }: { due: Pick<FeeDue, 'status' | 'overdue'> }
 }
 
 // Fee tables become labelled cards on phones; the printed receipt keeps its table.
-export function TableWrap({ children, cards = true }: { children: ReactNode; cards?: boolean }) {
-  return <div className="mt-3 overflow-x-auto"><table className={`${cards ? 'ds-cards ' : ''}w-full min-w-[36rem] border-collapse text-left text-sm`}>{children}</table></div>
+// A table kept as a table may scroll sideways on phones, so its scroll area
+// takes keyboard focus.
+export function TableWrap({ children, cards = true, label }: { children: ReactNode; cards?: boolean; label?: string }) {
+  return <div className="mt-3 overflow-x-auto" {...(cards ? {} : { tabIndex: 0, role: 'region', 'aria-label': label })}><table className={`${cards ? 'ds-cards min-w-[36rem] ' : 'min-w-[18rem] '}w-full border-collapse text-left text-sm`}>{children}</table></div>
 }
 
 export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent) => void; label?: string }) {
@@ -117,7 +120,7 @@ export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent)
   </div>
 }
 
-export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose?: () => void }) {
+export function ReceiptView({ receipt, onClose, actions = true }: { receipt: FeeReceipt; onClose?: () => void; actions?: boolean }) {
   const { t, i18n } = useTranslation()
   const money = useMoney()
   const month = useMonthLabel()
@@ -135,18 +138,19 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
     {p.voided_at && <div role="note" className="mt-3 rounded-xl border-2 border-slate-800 bg-slate-50 p-3 text-slate-900"><VoidLabel /><p className="mt-1 text-sm">{t('feeVoidedOn', { date: p.voided_at, reason: p.void_reason })}</p></div>}
     {receipt.replayed && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-900 print:hidden">{t('feeReplayed')}</p>}
     <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-      <div><dt className="text-slate-500">{t('feeStudent')}</dt><dd className="font-semibold">{name(p.student_name, p.student_name_bn)} · {p.admission_no}</dd></div>
+      <div><dt className="text-slate-500">{t('feeStudent')}</dt><dd className="font-semibold">{p.student_name}{p.student_name_bn && <span lang="bn" className="block">{p.student_name_bn}</span>}<span className="block font-normal text-slate-600">{p.admission_no}</span></dd></div>
       <div><dt className="text-slate-500">{t('feeClassSection')}</dt><dd>{p.class_name} / {p.section_name}</dd></div>
       <div><dt className="text-slate-500">{t('feeMethod')}</dt><dd>{t(`feeMethod_${p.method}`)}{p.source === 'online' ? ` · ${t('feeOnline')}` : ''}</dd></div>
       {p.reference && <div><dt className="text-slate-500">{t('feeReference')}</dt><dd className="break-all font-mono">{p.reference}</dd></div>}
     </dl>
-    <TableWrap cards={false}><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
+    <TableWrap cards={false} label={t('feeReceiptTitle')}><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
       <tbody>{receipt.allocations.map(a => <tr key={a.student_fee_id} className="border-b border-slate-100"><td className="px-3 py-2.5">{name(a.category_name_en, a.category_name_bn)}</td><td className="px-3 py-2.5">{month(a.period)}</td><td className="px-3 py-2.5">{a.due_date}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(a.amount)}</td></tr>)}</tbody>
       <tfoot><tr className="font-bold"><td className="px-3 py-2.5" colSpan={3}>{t(p.simulated ? 'feeSimulatedAmount' : 'feeTotalPaid')}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td></tr></tfoot>
     </TableWrap>
+    <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('c3InWords')}</p><p className="font-semibold text-slate-900">{amountInWordsEN(p.amount)}</p><p lang="bn" className="font-semibold text-slate-900">{amountInWordsBN(p.amount)}</p></div>
     <div className="mt-4 flex flex-wrap justify-between gap-2 text-sm"><p>{t('feeBalanceAfter')}: <strong>{money(receipt.balance_after)}</strong></p>{p.received_by_name && <p>{t('feeReceivedBy')}: {p.received_by_name}</p>}</div>
     {p.note && <p className="mt-2 text-sm text-slate-600">{p.note}</p>}
-    <div className="mt-5 flex flex-wrap gap-2 print:hidden"><button type="button" className={feeButton} onClick={() => window.print()}>{t('feePrintReceipt')}</button>{onClose && <button type="button" className={feeSecondary} onClick={onClose}>{t('feeClose')}</button>}</div>
+    {actions && <div className="mt-5 flex flex-wrap gap-2 print:hidden"><button type="button" className={feeButton} onClick={() => window.print()}>{t('feePrintReceipt')}</button>{onClose && <button type="button" className={feeSecondary} onClick={onClose}>{t('feeClose')}</button>}</div>}
   </article>
 }
 

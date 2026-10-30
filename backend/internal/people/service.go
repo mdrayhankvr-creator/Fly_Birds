@@ -163,6 +163,10 @@ type Repository interface {
 	SectionCards(context.Context, Actor, string) ([]Card, error)
 	ReissueCard(context.Context, Actor, string) error
 	VerifyCard(context.Context, string, string) (CardVerification, error)
+	Admit(context.Context, Actor, admitRecord) (string, string, error)
+	GuardianMatches(context.Context, string, string) ([]GuardianMatch, error)
+	AdmissionDefaults(context.Context, Actor, string) (AdmissionDefaults, error)
+	FindAdmission(context.Context, Actor, string) (admissionRecord, bool, error)
 }
 type Service struct{ repo Repository }
 

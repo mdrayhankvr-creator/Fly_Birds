@@ -2,10 +2,11 @@ import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { adjustFeeDue, assignFeeDue, deleteFeeDue, generateFeeDues, getFeeAdjustments, getFeeDues, getFeeOptions, getFeeReceipt, getFeeStructures, getStudentFeeStatement, recordFeePayment, type FeeDue, type FeeMethod, type FeeOptions, type FeeReceipt, type FeeStudent } from '../api/fees'
+import { adjustFeeDue, deleteFeeDue, generateFeeDues, getFeeAdjustments, getFeeDues, getFeeOptions, type FeeDue, type FeeOptions } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
-import { SimulatedLabel, DuesTable, Notice, useFeeAction, type FeeAccess, Pager, PaymentsList, ReceiptView, StudentPicker, Totals, feeButton, feeCard, feeField, feeSecondary, newKey, todayInDhaka, useLocalName, useMoney } from './feeShared'
+import { Notice, useFeeAction, type FeeAccess, Pager, feeButton, feeCard, feeField, feeSecondary, todayInDhaka, useLocalName, useMoney } from './feeShared'
 import { FeeReportsPanel, FeeSetupPanel, LedgerPanel } from './FeeAdminPanels'
+import { CounterPanel } from './FeeCounter'
 import { CardTitle, ui, PageHeader, Tabs } from './attendanceUi'
 
 type Tab = 'collect' | 'dues' | 'setup' | 'reports' | 'ledger'
@@ -20,91 +21,12 @@ export function FeesPage({ access }: { access: FeeAccess }) {
     <PageHeader eyebrow={t('m12Group_finance')} title={t('feeHeading')} description={t('feeIntro')} />
     <Tabs label={t('feeHeading')} value={tab} onChange={setTab} items={tabs.map(key => ({ value: key, label: t(`feeTab_${key}`) }))} />
     {options.isPending ? <p role="status">{t('feeLoading')}</p> : options.isError ? <p role="alert" className="text-rose-700">{t('feeErrGeneric')}</p> : <>
-      {tab === 'collect' && <CollectPanel access={access} options={options.data} />}
+      {tab === 'collect' && <CounterPanel access={access} options={options.data} />}
       {tab === 'dues' && <DuesPanel access={access} options={options.data} />}
       {tab === 'setup' && <FeeSetupPanel access={access} options={options.data} />}
       {tab === 'reports' && <FeeReportsPanel options={options.data} />}
       {tab === 'ledger' && access.canReadAccounts && <LedgerPanel canManage={access.canManageAccounts} />}
     </>}
-  </div>
-}
-
-function CollectPanel({ access, options }: { access: FeeAccess; options: FeeOptions }) {
-  const { t } = useTranslation()
-  const authorized = usePeopleApi()
-  const name = useLocalName()
-  const money = useMoney()
-  const action = useFeeAction()
-  const [student, setStudent] = useState<FeeStudent | null>(null)
-  const [selected, setSelected] = useState<string[]>([])
-  const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState<FeeMethod>('cash')
-  const [reference, setReference] = useState('')
-  const [paidOn, setPaidOn] = useState(todayInDhaka())
-  const [note, setNote] = useState('')
-  const [attempt, setAttempt] = useState(newKey())
-  const [receipt, setReceipt] = useState<FeeReceipt | null>(null)
-  const [assign, setAssign] = useState({ structure_id: '', period: todayInDhaka().slice(0, 7) })
-  const statement = useQuery({ queryKey: ['fees', 'statement', student?.id], enabled: !!student, queryFn: () => authorized(token => getStudentFeeStatement(token, student!.id)), retry: false })
-  const structures = useQuery({ queryKey: ['fees', 'structures', 'student', student?.session_id, student?.class_id], enabled: !!student && access.canManage, queryFn: () => authorized(token => getFeeStructures(token, new URLSearchParams({ session_id: student!.session_id, class_id: student!.class_id, page_size: '100' }))), retry: false })
-  const outstanding = statement.data?.dues.filter(d => d.balance > 0) ?? []
-  const selectedBalance = outstanding.filter(d => selected.includes(d.id)).reduce((sum, d) => sum + d.balance, 0)
-  const suggested = selected.length ? selectedBalance : statement.data?.totals.balance ?? 0
-
-  function pick(next: FeeStudent) {
-    setStudent(next); setSelected([]); setAmount(''); setReference(''); setNote(''); setReceipt(null); setAttempt(newKey()); action.clear()
-  }
-  function toggle(id: string) { setSelected(current => current.includes(id) ? current.filter(v => v !== id) : [...current, id]) }
-  async function pay(event: FormEvent) {
-    event.preventDefault()
-    if (!student) return
-    const value = Number(amount || suggested)
-    const result = await action.run(() => authorized(token => recordFeePayment(token, { student_id: student.id, amount: value, method, reference: reference.trim(), paid_on: paidOn, note: note.trim(), idempotency_key: attempt, fee_ids: selected })), r => t(r.replayed ? 'feeReplayed' : 'feePaymentSaved', { receipt: r.payment.receipt_no }))
-    if (result) { setReceipt(result); setSelected([]); setAmount(''); setReference(''); setNote(''); setAttempt(newKey()) }
-  }
-  async function openReceipt(id: string) {
-    const result = await action.run(() => authorized(token => getFeeReceipt(token, `/fees/payments/${encodeURIComponent(id)}`)), '')
-    if (result) setReceipt(result)
-  }
-  async function assignDue(event: FormEvent) {
-    event.preventDefault()
-    if (student) await action.run(() => authorized(token => assignFeeDue(token, { student_id: student.id, ...assign })), t('feeAssigned'))
-  }
-  const selectedStructure = structures.data?.items.find(s => s.id === assign.structure_id)
-
-  return <div className="space-y-5">
-    <section className={`${feeCard} print:hidden`}><StudentPicker onPick={pick} />
-      {student && <p className="mt-3 text-sm">{t('feeSelectedStudent')}: <strong>{name(student.name_en, student.name_bn)}</strong> · {student.admission_no} · {student.class_name} / {student.section_name} · {student.session_name}{student.status !== 'active' && <span className="ml-2 rounded bg-slate-200 px-2 text-xs">{t(`feeStudentStatus_${student.status}`, { defaultValue: student.status })}</span>}</p>}
-    </section>
-    <Notice error={action.error} message={action.message} />
-    {statement.data && statement.data.totals.simulated_unreviewed > 0 && <p role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-rose-700 bg-rose-50 px-4 py-3 text-sm text-rose-900 print:hidden"><SimulatedLabel />{t('feeSimulatedUnreviewedStaff', { amount: money(statement.data.totals.simulated_unreviewed) })}</p>}
-    {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
-    {student && (statement.isPending ? <p role="status">{t('feeLoading')}</p> : statement.isError ? <p role="alert" className="text-rose-700">{t('feeErrGeneric')}</p> : <>
-      <section className={`${feeCard} print:hidden`}><CardTitle icon="money">{t('feeStatement')}</CardTitle><div className="mt-3"><Totals totals={statement.data.totals} /></div>
-        <DuesTable dues={statement.data.dues} selectable={access.canCollect} selected={selected} onToggle={toggle} />
-      </section>
-      {access.canCollect && <section className={`${feeCard} print:hidden`}><CardTitle icon="money">{t('feeRecordPayment')}</CardTitle>
-        {outstanding.length === 0 ? <p className="mt-2 text-slate-600">{t('feeNothingOutstanding')}</p> :
-          <form onSubmit={pay} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <p className="text-sm text-slate-600 sm:col-span-2 lg:col-span-3">{selected.length ? t('feePayingSelected', { count: selected.length, amount: money(selectedBalance) }) : t('feePayingOldest')}</p>
-            <label className={ui.label}>{t('feeAmount')}<input type="number" inputMode="decimal" min="0.01" step="0.01" max={suggested || undefined} className={feeField} value={amount} placeholder={suggested.toFixed(2)} onChange={e => setAmount(e.target.value)} /></label>
-            <label className={ui.label}>{t('feeMethod')}<select className={feeField} value={method} onChange={e => setMethod(e.target.value as FeeMethod)}>{(['cash', 'bank', 'bkash', 'nagad'] as const).map(m => <option key={m} value={m}>{t(`feeMethod_${m}`)}</option>)}</select></label>
-            <label className={ui.label}>{t('feeReference')}<input required={method !== 'cash'} maxLength={80} className={feeField} value={reference} placeholder={method === 'cash' ? t('feeOptional') : t('feeReferenceHint')} onChange={e => setReference(e.target.value)} /></label>
-            <label className={ui.label}>{t('feePaidOn')}<input required type="date" max={todayInDhaka()} className={feeField} value={paidOn} onChange={e => setPaidOn(e.target.value)} /></label>
-            <label className={`${ui.label} sm:col-span-2`}>{t('feeNote')}<input maxLength={240} className={feeField} value={note} onChange={e => setNote(e.target.value)} /></label>
-            <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{action.busy ? t('feeSaving') : t('feeCollect')}</button></div>
-          </form>}
-      </section>}
-      {access.canManage && <section className={`${feeCard} print:hidden`}><CardTitle icon="layers">{t('feeAssignTitle')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeAssignHint')}</p>
-        <form onSubmit={assignDue} className="mt-3 grid gap-3 sm:grid-cols-3">
-          <label className={ui.label}>{t('feeStructure')}<select required className={feeField} value={assign.structure_id} onChange={e => setAssign({ ...assign, structure_id: e.target.value })}><option value="">{t('feeChoose')}</option>{structures.data?.items.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{name(s.category_name_en, s.category_name_bn)} · {money(s.amount)}</option>)}</select></label>
-          <label className={ui.label}>{t('feeMonth')}<input type="month" required={selectedStructure?.frequency !== 'one_time'} className={feeField} value={assign.period} onChange={e => setAssign({ ...assign, period: e.target.value })} /></label>
-          <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{t('feeAssign')}</button></div>
-        </form>
-      </section>}
-      <section className={`${feeCard} print:hidden`}><CardTitle icon="receipt">{t('feeReceipts')}</CardTitle><PaymentsList payments={statement.data.payments} onOpen={id => void openReceipt(id)} /></section>
-    </>)}
-    {!student && options.categories.length === 0 && <p className={`${feeCard} text-slate-600`}>{t('feeSetupFirst')}</p>}
   </div>
 }
 
