@@ -124,7 +124,9 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
   function another() {
     setResult(null); setNameEN(''); setNameBN(''); setDob(''); setDetails(blankDetails()); setErrors({})
     setGuardians(canManageGuardians ? [blankGuardian('Father', true)] : []); setLogin({ create: canCreateLogin, email: '', touched: false })
-    setRoll({ value: '', touched: false }); setAdmissionNo({ value: '', touched: false })
+    // Start from the current suggestions; the refetch moves them on if they changed.
+    setRoll({ value: placement.section_id && defaults.data ? String(defaults.data.next_roll) : '', touched: false })
+    setAdmissionNo({ value: defaults.data?.admission_no ?? '', touched: false })
     void defaults.refetch()
     top.current?.scrollIntoView({ block: 'start' })
   }
