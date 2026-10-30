@@ -170,7 +170,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
           <label className={ui.label}>{t('studentNameBN')}<input maxLength={160} lang="bn" autoComplete="off" className={peopleField} value={nameBN} onChange={e => setNameBN(e.target.value)} /></label>
           <label className={ui.label}>{t('dateOfBirth')}<input type="date" max={todayInDhaka()} className={peopleField} value={dob} onChange={e => setDob(e.target.value)} /></label>
         </div>
-        <details className="group mt-4 rounded-xl border border-slate-200 bg-slate-50/60">
+        <details className="group mt-4 rounded-xl border border-slate-200 bg-slate-50">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">{t('c3MoreDetails')}<Icon name="chevronDown" className="h-4 w-4 transition group-open:rotate-180" /></summary>
           <div className="grid gap-3 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className={ui.label}>{t('profileGender')}<select className={peopleField} value={details.gender} onChange={e => setDetails({ ...details, gender: e.target.value as Gender })}><option value="">{t('profileNotProvided')}</option>{(['female', 'male', 'other'] as const).map(g => <option key={g} value={g}>{t(`gender_${g}`)}</option>)}</select></label>
@@ -246,7 +246,7 @@ function GuardianCard({ index, draft, error, onChange, onRemove }: { index: numb
   const matches = draft.matches.length ? draft.matches : lookup.data ?? []
   const relations: Relation[] = ['Father', 'Mother', 'other']
   const title = t(index === 0 ? 'c3GuardianOne' : 'c3GuardianTwo')
-  return <fieldset className={`min-w-0 rounded-xl border p-3 sm:p-4 ${error ? 'border-amber-400 bg-amber-50/40' : 'border-slate-200'}`}>
+  return <fieldset className={`min-w-0 rounded-xl border p-3 sm:p-4 ${error ? 'border-amber-300 bg-amber-50' : 'border-slate-200'}`}>
     <legend className="px-1 text-sm font-bold text-slate-900">{title}</legend>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div role="radiogroup" aria-label={`${t('relationshipLabel')} · ${title}`} className="inline-flex flex-wrap gap-1.5">
@@ -264,9 +264,9 @@ function GuardianCard({ index, draft, error, onChange, onRemove }: { index: numb
       <label className={ui.label}>{t('phoneLabel')}<input type="tel" inputMode="tel" maxLength={32} autoComplete="off" className={peopleField} value={draft.phone} onChange={e => onChange({ phone: e.target.value, matches: [], confirmNew: false })} /></label>
       <label className={ui.label}>{t('email')}<input type="email" maxLength={254} autoComplete="off" className={peopleField} value={draft.email} onChange={e => onChange({ email: e.target.value, matches: [], confirmNew: false })} /></label>
     </div>}
-    {!draft.existing && !draft.confirmNew && matches.length > 0 && <div role={error ? 'alert' : 'status'} className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+    {!draft.existing && !draft.confirmNew && matches.length > 0 && <div role={error ? 'alert' : 'status'} className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
       <p className="font-semibold">{error ?? t('c3MatchFound')}</p>
-      <ul className="mt-2 space-y-2">{matches.map(m => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/80 px-3 py-2">
+      <ul className="mt-2 space-y-2">{matches.map(m => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2">
         <span className="min-w-0"><strong>{m.name_en}</strong>{m.name_bn && <> · <span lang="bn">{m.name_bn}</span></>}<span className="block text-xs text-slate-600">{[m.phone, m.email].filter(Boolean).join(' · ')}{m.children.length > 0 && <> · {t('c3GuardianOf', { names: m.children.join(', ') })}</>}</span></span>
         <button type="button" className={ui.primary} onClick={() => onChange({ existing: m, matches: [] })}>{t('c3UseGuardian')}</button>
       </li>)}</ul>

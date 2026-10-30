@@ -98,8 +98,10 @@ export function StatusBadge({ due }: { due: Pick<FeeDue, 'status' | 'overdue'> }
 }
 
 // Fee tables become labelled cards on phones; the printed receipt keeps its table.
-export function TableWrap({ children, cards = true }: { children: ReactNode; cards?: boolean }) {
-  return <div className="mt-3 overflow-x-auto"><table className={`${cards ? 'ds-cards ' : ''}w-full min-w-[36rem] border-collapse text-left text-sm`}>{children}</table></div>
+// A table kept as a table may scroll sideways on phones, so its scroll area
+// takes keyboard focus.
+export function TableWrap({ children, cards = true, label }: { children: ReactNode; cards?: boolean; label?: string }) {
+  return <div className="mt-3 overflow-x-auto" {...(cards ? {} : { tabIndex: 0, role: 'region', 'aria-label': label })}><table className={`${cards ? 'ds-cards ' : ''}w-full min-w-[36rem] border-collapse text-left text-sm`}>{children}</table></div>
 }
 
 export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent) => void; label?: string }) {
@@ -141,7 +143,7 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
       <div><dt className="text-slate-500">{t('feeMethod')}</dt><dd>{t(`feeMethod_${p.method}`)}{p.source === 'online' ? ` · ${t('feeOnline')}` : ''}</dd></div>
       {p.reference && <div><dt className="text-slate-500">{t('feeReference')}</dt><dd className="break-all font-mono">{p.reference}</dd></div>}
     </dl>
-    <TableWrap cards={false}><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
+    <TableWrap cards={false} label={t('feeReceiptTitle')}><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
       <tbody>{receipt.allocations.map(a => <tr key={a.student_fee_id} className="border-b border-slate-100"><td className="px-3 py-2.5">{name(a.category_name_en, a.category_name_bn)}</td><td className="px-3 py-2.5">{month(a.period)}</td><td className="px-3 py-2.5">{a.due_date}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(a.amount)}</td></tr>)}</tbody>
       <tfoot><tr className="font-bold"><td className="px-3 py-2.5" colSpan={3}>{t(p.simulated ? 'feeSimulatedAmount' : 'feeTotalPaid')}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td></tr></tfoot>
     </TableWrap>
