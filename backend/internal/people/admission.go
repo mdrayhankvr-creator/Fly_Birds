@@ -368,6 +368,18 @@ func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (st
 		if err := setActor(tx, a); err != nil {
 			return err
 		}
+		// Requests with the same key run one after the other; a later one
+		// finds the admission the first made and is answered from it.
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?, 1752))", "admission:"+in.IdempotencyKey).Error; err != nil {
+			return err
+		}
+		var done int64
+		if err := tx.Table("admission_requests").Where("idempotency_key = ?", in.IdempotencyKey).Count(&done).Error; err != nil {
+			return err
+		}
+		if done > 0 {
+			return errAdmissionKeyTaken
+		}
 		// Duplicate guardians are refused before anything is written.
 		for i, g := range in.Guardians {
 			if g.New == nil || g.ConfirmNew {
@@ -422,6 +434,9 @@ func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (st
 		var match *GuardianMatchError
 		if errors.As(err, &match) {
 			return "", "", match
+		}
+		if errors.Is(err, errAdmissionKeyTaken) {
+			return "", "", err
 		}
 		return "", "", admissionError(err)
 	}
