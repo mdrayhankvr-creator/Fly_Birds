@@ -161,6 +161,7 @@ func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/users/:id", RequirePermission(service, "users:read"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.get)
 	management.PATCH("/users/:id", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.update)
 	management.PATCH("/users/:id/status", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.status)
+	management.POST("/users/:id/password-reset", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.resetPassword)
 	management.GET("/audit/actions", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{service: auditService}).actions)
 	registerAdmin(management, service, adminServices, moduleGuard("permissions"))
 	registerAnalytics(management, service, analyticsService, schoolService, moduleGuard)

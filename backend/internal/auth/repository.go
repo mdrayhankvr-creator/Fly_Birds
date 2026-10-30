@@ -226,7 +226,7 @@ func (r *GormRepository) ChangePassword(ctx context.Context, userID, keepSession
 	var revoked int64
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updated := tx.Model(&User{}).Where("id = ? AND is_active = true AND password_hash = ?", userID, verifiedHash).Updates(map[string]any{
-			"password_hash": newHash, "failed_login_attempts": 0, "locked_until": nil, "updated_at": now,
+			"password_hash": newHash, "failed_login_attempts": 0, "locked_until": nil, "must_change_password": false, "updated_at": now,
 		})
 		if updated.Error != nil {
 			return updated.Error

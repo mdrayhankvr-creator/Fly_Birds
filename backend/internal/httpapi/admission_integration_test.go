@@ -186,7 +186,7 @@ func TestPostgresOnePageAdmission(t *testing.T) {
 		t.Fatalf("guardians %+v", first.Guardians)
 	}
 	// The initial password signs in as the new student, and only it does.
-	if creds, err := authService.Login(ctx, first.Login.Email, first.Login.InitialPassword); err != nil || creds.User.Role != "student" || creds.User.ID != *first.Student.UserID {
+	if creds, err := authService.Login(ctx, first.Login.Email, first.Login.InitialPassword); err != nil || creds.User.Role != "student" || creds.User.ID != *first.Student.UserID || !creds.User.MustChangePassword {
 		t.Fatalf("initial password login: %+v %v", creds.User, err)
 	}
 	var hash string

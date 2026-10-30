@@ -2,9 +2,7 @@ package people
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
@@ -123,24 +121,6 @@ func PhoneDigits(phone string) string {
 	return d
 }
 
-// newInitialPassword returns 14 characters in groups, avoiding look-alike
-// letters and digits so it can be read off a printed slip.
-func newInitialPassword() (string, error) {
-	const alphabet = "abcdefghjkmnpqrstuvwxyzACDEFGHJKMNPQRTUVWXY2346789"
-	var b strings.Builder
-	for i := 0; i < 12; i++ {
-		if i > 0 && i%4 == 0 {
-			b.WriteByte('-')
-		}
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
-		if err != nil {
-			return "", err
-		}
-		b.WriteByte(alphabet[n.Int64()])
-	}
-	return b.String(), nil
-}
-
 func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (AdmissionResult, error) {
 	if !validID(a.ID) || !validID(in.IdempotencyKey) {
 		return AdmissionResult{}, ErrInvalid
@@ -199,7 +179,7 @@ func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (Admiss
 			return AdmissionResult{}, ErrInvalid
 		}
 		record.Account.Email = email
-		if password, err = newInitialPassword(); err != nil {
+		if password, err = auth.TemporaryPassword(); err != nil {
 			return AdmissionResult{}, err
 		}
 		if record.PasswordHash, err = auth.HashPassword(password); err != nil {
@@ -403,7 +383,8 @@ func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (st
 		}
 		student := in.Student
 		if in.Account.Create {
-			if err := tx.Raw("INSERT INTO users (email,display_name,role,is_active,password_hash) VALUES (?,?,'student',true,?) RETURNING id", in.Account.Email, student.NameEN, in.PasswordHash).Scan(&userID).Error; err != nil {
+			// The student sets their own password at the first sign-in.
+			if err := tx.Raw("INSERT INTO users (email,display_name,role,is_active,password_hash,must_change_password) VALUES (?,?,'student',true,?,true) RETURNING id", in.Account.Email, student.NameEN, in.PasswordHash).Scan(&userID).Error; err != nil {
 				return err
 			}
 			if err := audit.Record(tx, &a.ID, "user.created", "user", userID, map[string]any{"role": "student", "source": "admission"}); err != nil {

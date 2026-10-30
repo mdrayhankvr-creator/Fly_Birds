@@ -469,6 +469,22 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { description: User not found }
         '409': { description: Email already registered }
+  /users/{id}/password-reset:
+    post:
+      operationId: resetUserPassword
+      tags: [users]
+      summary: Reset another user's password to a temporary one shown once
+      description: Requires active admin, users:update, and the permissions module. Not for the caller's own account (409 own_password; use change password). Generates a temporary password returned only in this response, requires the account to set a new password at its next sign-in (until then every other request is refused with 403 password_change_required), clears any lockout and revokes all of the account's sessions in one transaction. The audit entry records the reset without the password.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: The account, the one-time temporary password and the number of sessions revoked }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: own_password }
   /users/{id}/status:
     patch:
       operationId: setUserStatus

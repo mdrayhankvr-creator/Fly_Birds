@@ -41,8 +41,11 @@ type User struct {
 	IsActive            bool       `gorm:"not null" json:"-"`
 	FailedLoginAttempts int        `gorm:"not null" json:"-"`
 	LockedUntil         *time.Time `json:"-"`
-	CreatedAt           time.Time  `json:"-"`
-	UpdatedAt           time.Time  `json:"-"`
+	// MustChangePassword: the password was set by someone else (admission or
+	// an administrator's reset); the account may only change it until it does.
+	MustChangePassword bool      `gorm:"not null;default:false" json:"must_change_password"`
+	CreatedAt          time.Time `json:"-"`
+	UpdatedAt          time.Time `json:"-"`
 }
 
 func (User) TableName() string { return "users" }
