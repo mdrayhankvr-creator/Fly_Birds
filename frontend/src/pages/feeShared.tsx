@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '../api/client'
 import { searchFeeStudents, type FeeDue, type FeeReceipt, type FeeStatement, type FeeStudent } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
-import { ui } from './attendanceUi'
+import { EmptyState, ui } from './attendanceUi'
 
 export const feeField = ui.field
 export const feeButton = ui.primary
@@ -96,8 +96,9 @@ export function StatusBadge({ due }: { due: Pick<FeeDue, 'status' | 'overdue'> }
   return <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{t(`feeStatus_${due.status}`)}{due.overdue ? ` · ${t('feeOverdue')}` : ''}</span>
 }
 
-export function TableWrap({ children }: { children: ReactNode }) {
-  return <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[36rem] border-collapse text-left text-sm">{children}</table></div>
+// Fee tables become labelled cards on phones; the printed receipt keeps its table.
+export function TableWrap({ children, cards = true }: { children: ReactNode; cards?: boolean }) {
+  return <div className="mt-3 overflow-x-auto"><table className={`${cards ? 'ds-cards ' : ''}w-full min-w-[36rem] border-collapse text-left text-sm`}>{children}</table></div>
 }
 
 export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent) => void; label?: string }) {
@@ -139,7 +140,7 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
       <div><dt className="text-slate-500">{t('feeMethod')}</dt><dd>{t(`feeMethod_${p.method}`)}{p.source === 'online' ? ` · ${t('feeOnline')}` : ''}</dd></div>
       {p.reference && <div><dt className="text-slate-500">{t('feeReference')}</dt><dd className="break-all font-mono">{p.reference}</dd></div>}
     </dl>
-    <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
+    <TableWrap cards={false}><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th></tr></thead>
       <tbody>{receipt.allocations.map(a => <tr key={a.student_fee_id} className="border-b border-slate-100"><td className="px-3 py-2.5">{name(a.category_name_en, a.category_name_bn)}</td><td className="px-3 py-2.5">{month(a.period)}</td><td className="px-3 py-2.5">{a.due_date}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(a.amount)}</td></tr>)}</tbody>
       <tfoot><tr className="font-bold"><td className="px-3 py-2.5" colSpan={3}>{t(p.simulated ? 'feeSimulatedAmount' : 'feeTotalPaid')}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td></tr></tfoot>
     </TableWrap>
@@ -153,7 +154,7 @@ export function Totals({ totals }: { totals: FeeStatement['totals'] }) {
   const { t } = useTranslation()
   const money = useMoney()
   const items: [string, number, string][] = [['feeCharged', totals.charged, ''], ['feeDiscount', totals.discount, ''], ['feePaid', totals.paid, 'text-emerald-800'], ['feeBalance', totals.balance, 'text-slate-900'], ['feeArrears', totals.overdue, totals.overdue > 0 ? 'text-rose-700' : '']]
-  return <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">{items.map(([key, value, tone]) => <div key={key} className="rounded-xl bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t(key)}</dt><dd className={`mt-1 text-lg font-bold ${tone}`}>{money(value)}</dd></div>)}</dl>
+  return <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-5 sm:gap-3">{items.map(([key, value, tone]) => <div key={key} className={`min-w-0 px-3.5 py-3 ${key === 'feeBalance' ? 'ds-tint' : 'ds-stat'}`}><dt className="text-xs font-semibold text-slate-600">{t(key)}</dt><dd className={`mt-1 truncate text-lg font-extrabold tabular-nums tracking-tight sm:text-xl ${tone}`}>{money(value)}</dd></div>)}</dl>
 }
 
 export function DuesTable({ dues, selectable, selected, onToggle, actions }: { dues: FeeDue[]; selectable?: boolean; selected?: string[]; onToggle?: (id: string) => void; actions?: (due: FeeDue) => ReactNode }) {
@@ -161,7 +162,7 @@ export function DuesTable({ dues, selectable, selected, onToggle, actions }: { d
   const money = useMoney()
   const month = useMonthLabel()
   const name = useLocalName()
-  if (dues.length === 0) return <p className="mt-3 text-slate-600">{t('feeNoDues')}</p>
+  if (dues.length === 0) return <div className="mt-3"><EmptyState icon="receipt" title={t('feeNoDues')} /></div>
   return <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">{selectable && <th className="px-3 py-2.5"><span className="sr-only">{t('feeSelect')}</span></th>}<th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feePeriod')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeDiscount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feePaid')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeBalance')}</th><th className="px-3 py-2.5">{t('feeStatus')}</th>{actions && <th className="px-3 py-2.5 print:hidden">{t('feeActions')}</th>}</tr></thead>
     <tbody>{dues.map(d => <tr key={d.id} className="border-b align-top">
       {selectable && <td className="px-3 py-2.5">{d.balance > 0 && <input type="checkbox" aria-label={`${t('feeSelect')} ${name(d.category_name_en, d.category_name_bn)} ${d.due_date}`} checked={selected?.includes(d.id) ?? false} onChange={() => onToggle?.(d.id)} />}</td>}
@@ -174,7 +175,7 @@ export function DuesTable({ dues, selectable, selected, onToggle, actions }: { d
 export function PaymentsList({ payments, onOpen }: { payments: FeeStatement['payments']; onOpen: (id: string) => void }) {
   const { t } = useTranslation()
   const money = useMoney()
-  if (payments.length === 0) return <p className="mt-3 text-slate-600">{t('feeNoPayments')}</p>
+  if (payments.length === 0) return <div className="mt-3"><EmptyState icon="receipt" title={t('feeNoPayments')} /></div>
   return <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeReceiptNo')}</th><th className="px-3 py-2.5">{t('feePaidOn')}</th><th className="px-3 py-2.5">{t('feeMethod')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 print:hidden"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
     <tbody>{payments.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}{p.simulated && <SimulatedLabel className="mt-1 block font-sans" />}{p.voided_at && <VoidLabel className="mt-1 block font-sans" />}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
       <td className="px-3 py-2.5 print:hidden"><button type="button" className={ui.link} onClick={() => onOpen(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody>

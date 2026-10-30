@@ -5,7 +5,7 @@ import { getFeePayments, getOnlinePaymentStatus, saveOnlinePaymentSettings, void
 import { confirmAction } from '../components/ConfirmDialog'
 import { usePeopleApi } from './peopleShared'
 import { Notice, SimulatedLabel, TableWrap, feeButton, feeCard, feeField, feeSecondary, useFeeAction, useLocalName, useMoney } from './feeShared'
-import { ui } from './attendanceUi'
+import { CardTitle, ui } from './attendanceUi'
 
 // OnlinePaymentsPanel is the administrator's view of online payment: whether
 // simulation (test mode) is on, and the simulated payments recorded before
@@ -32,7 +32,7 @@ export function OnlinePaymentsPanel() {
 
   const s = status.data
   return <section className={feeCard} aria-labelledby="online-payments-heading">
-    <h2 id="online-payments-heading" className={ui.sectionTitle}>{t('feeOnlinePayments')}</h2>
+    <CardTitle id="online-payments-heading" icon="globe">{t('feeOnlinePayments')}</CardTitle>
     <div className="mt-3"><Notice error={action.error} message={action.message} /></div>
     {status.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : !s ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : <>
       {s.mode === 'simulation'

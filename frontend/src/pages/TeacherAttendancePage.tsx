@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, correctTeacherAttendance, getAttendanceSessions, getOwnTeacherAttendance, getOwnTeacherMonthly, getTeacherMonthlyReport, getTeacherRoster, recordTeacherAttendance, type AttendanceSession, type TeacherRosterItem } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
-import { Avatar, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, tones, ui, type SegmentOption } from './attendanceUi'
+import { Avatar, CardTitle, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, tones, ui, type SegmentOption } from './attendanceUi'
 import { useDhakaFormat } from './commShared'
 
 const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
@@ -98,7 +98,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
     </section>
 
     {!own && sessionId && <section className={`${ui.card} p-2 sm:p-3`} aria-labelledby="teacher-roster-heading">
-      <h2 id="teacher-roster-heading" className="px-2 pt-2 text-lg font-bold sm:px-3">{t('attendanceDaily')}</h2>
+      <CardTitle id="teacher-roster-heading" icon="clipboard" className="px-2 pt-2 sm:px-3">{t('attendanceDaily')}</CardTitle>
       {!validDay ? <div className="p-3"><Notice tone="warning">{t('attendanceInvalidDate')}</Notice></div> : roster.isPending ? <div className="px-3 py-2.5"><Skeleton /></div> : roster.isError ? <p role="alert" className="p-3 text-rose-700">{t('attendanceLoadError')}</p> : !roster.data?.items.length ? <div className="p-3"><EmptyState title={t('attendanceNoTeachers')} /></div> : <>
         <ul className="mt-2 divide-y divide-slate-100">{roster.data.items.map(item => {
           const draft = drafts[item.employee_id]
@@ -121,19 +121,19 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
       </>}
     </section>}
 
-    {own && sessionId && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="own-history-heading"><h2 id="own-history-heading" className="text-lg font-bold">{t('attendanceDaily')}</h2>
+    {own && sessionId && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="own-history-heading"><CardTitle id="own-history-heading" icon="clipboard">{t('attendanceDaily')}</CardTitle>
       {history.isPending ? <div className="mt-3"><Skeleton rows={3} /></div> : history.isError ? <p role="alert" className="mt-3 text-rose-700">{t('attendanceLoadError')}</p> : history.data?.items.length ? <>
         <ul className="mt-3 divide-y divide-slate-100">{history.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><span className="text-sm font-medium text-slate-800">{fmt.date(item.attendance_date)}</span><StatusBadge tone={item.status}>{statusLabel(item.status)}</StatusBadge></li>)}</ul>
         {pager(historyPage, history.data.total, setHistoryPage)}</> : <div className="mt-3"><EmptyState title={t('attendanceNoHistory')} /></div>}
     </section>}
 
     {sessionId && (own || canReport) && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="teacher-monthly-heading">
-      <div className="flex flex-wrap items-end justify-between gap-3"><h2 id="teacher-monthly-heading" className="text-lg font-bold">{t('attendanceMonthly')}</h2>
+      <div className="flex flex-wrap items-end justify-between gap-3"><CardTitle id="teacher-monthly-heading" icon="chart">{t('attendanceMonthly')}</CardTitle>
         <label className={ui.label}>{t('attendanceMonth')}<input className={ui.field} type="month" value={month} onChange={event => { setMonth(event.target.value); setReportPage(1) }} /></label></div>
       {!validMonth ? <div className="mt-3"><Notice tone="warning">{t('attendanceInvalidDate')}</Notice></div> : own ? ownMonth.isPending ? <div className="mt-3"><Skeleton rows={1} /></div> : ownMonth.isError ? <p role="alert" className="mt-3 text-rose-700">{t('attendanceLoadError')}</p> :
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4"><StatTile tone="present" label={t('attendancePresent')} value={ownMonth.data?.present ?? 0} /><StatTile tone="absent" label={t('attendanceAbsent')} value={ownMonth.data?.absent ?? 0} /><StatTile tone="leave" label={t('attendanceLeave')} value={ownMonth.data?.leave ?? 0} /><StatTile tone="unmarked" label={t('attendanceTotal')} value={ownMonth.data?.total ?? 0} /></dl>
         : report.isPending ? <div className="mt-3"><Skeleton /></div> : report.isError ? <p role="alert" className="mt-3 text-rose-700">{t('attendanceLoadError')}</p> : report.data?.items.length ? <>
-          <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[32rem] text-left text-sm"><thead><tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500"><th className="py-2 pr-3 font-semibold">{t('attendanceName')}</th><th className="px-2 text-right font-semibold">{t('attendancePresent')}</th><th className="px-2 text-right font-semibold">{t('attendanceAbsent')}</th><th className="px-2 text-right font-semibold">{t('attendanceLeave')}</th><th className="pl-2 text-right font-semibold">{t('attendanceTotal')}</th></tr></thead>
+          <div className="mt-4 overflow-x-auto"><table className="ds-cards w-full min-w-[32rem] text-left text-sm"><thead><tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500"><th className="py-2 pr-3 font-semibold">{t('attendanceName')}</th><th className="px-2 text-right font-semibold">{t('attendancePresent')}</th><th className="px-2 text-right font-semibold">{t('attendanceAbsent')}</th><th className="px-2 text-right font-semibold">{t('attendanceLeave')}</th><th className="pl-2 text-right font-semibold">{t('attendanceTotal')}</th></tr></thead>
             <tbody>{report.data.items.map(item => <tr key={item.employee_id} className="border-b border-slate-100"><td className="py-2.5 pr-3"><p className="font-semibold text-slate-900">{name(item.name_en, item.name_bn)}</p><p className="text-xs text-slate-500">{item.employee_code}</p></td>
               <td className={`px-2 text-right font-semibold tabular-nums ${tones.present.text}`}>{item.present}</td><td className={`px-2 text-right font-semibold tabular-nums ${tones.absent.text}`}>{item.absent}</td><td className={`px-2 text-right font-semibold tabular-nums ${tones.leave.text}`}>{item.leave}</td><td className="pl-2 text-right font-semibold tabular-nums">{item.total}</td></tr>)}</tbody></table></div>
           {pager(reportPage, report.data.total, setReportPage)}</> : <div className="mt-3"><EmptyState title={t('attendanceNoReport')} /></div>}

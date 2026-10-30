@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -10,40 +10,55 @@ import { buildNavigation } from './components/navigation'
 import { ConfirmHost } from './components/ConfirmDialog'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { LandingPage } from './pages/LandingPage'
-import { AccountPage } from './pages/AccountPage'
-import { PermissionPage } from './pages/PermissionPage'
-import { SchoolSettingsPage } from './pages/SchoolSettingsPage'
-import { UsersPage } from './pages/UsersPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { AcademicPage } from './pages/AcademicPage'
-import { AcademicSessionsPage } from './pages/AcademicSessionsPage'
-import { StaffPage } from './pages/StaffPage'
-import { TeacherAttendancePage } from './pages/TeacherAttendancePage'
-import { StudentAttendancePage, StudentAttendanceReportPage } from './pages/StudentAttendancePage'
-import { SectionsPage } from './pages/SectionsPage'
-import { StudentsPage } from './pages/StudentsPage'
-import { StudentProfilePage } from './pages/StudentProfilePage'
-import { IdCardPrintPage } from './pages/IdCardPrintPage'
-import { VerifyCardPage } from './pages/VerifyCardPage'
-import { RoutinePage } from './pages/RoutinePage'
-import { ExamsPage } from './pages/ExamsPage'
-import { MarksQueue } from './pages/marks/MarksQueue'
-import { MarksWorkspace } from './pages/marks/MarksWorkspace'
-import { ExamSetup } from './pages/exams/ExamSetup'
-import { BlueprintBuilder } from './pages/exams/BlueprintBuilder'
-import { TermWizard } from './pages/exams/TermWizard'
-import { TermResults } from './pages/exams/TermResults'
-import { ResultsCentre } from './pages/exams/ResultsCentre'
-import { ResultReview } from './pages/exams/ResultReview'
-import { FeesPage } from './pages/FeesPage'
-import { MyFeesPage } from './pages/MyFeesPage'
-import { NoticesPage } from './pages/NoticesPage'
-import { EventsPage } from './pages/EventsPage'
-import { AdminNotificationsPage, NotificationBell, NotificationsPage } from './pages/NotificationsPage'
-import { AdminDiaryPage, DiaryFeedPage, TeacherDiaryPage } from './pages/DiaryPages'
-import { AdminOverviewPage, AuditLogPage, BackupsPage, DataExportPage, ModulesPage } from './pages/AdminPages'
-import { AnalyticsPage, ChildrenProgressPage, MyProgressPage, ReportsPage, StaffStudentPage } from './pages/AnalyticsPages'
 import { StateScreen } from './components/StateScreen'
+
+// Each page loads on first visit, so phones download only the screens they open.
+const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })))
+const PermissionPage = lazy(() => import('./pages/PermissionPage').then(m => ({ default: m.PermissionPage })))
+const SchoolSettingsPage = lazy(() => import('./pages/SchoolSettingsPage').then(m => ({ default: m.SchoolSettingsPage })))
+const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })))
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
+const AcademicPage = lazy(() => import('./pages/AcademicPage').then(m => ({ default: m.AcademicPage })))
+const AcademicSessionsPage = lazy(() => import('./pages/AcademicSessionsPage').then(m => ({ default: m.AcademicSessionsPage })))
+const StaffPage = lazy(() => import('./pages/StaffPage').then(m => ({ default: m.StaffPage })))
+const TeacherAttendancePage = lazy(() => import('./pages/TeacherAttendancePage').then(m => ({ default: m.TeacherAttendancePage })))
+const StudentAttendancePage = lazy(() => import('./pages/StudentAttendancePage').then(m => ({ default: m.StudentAttendancePage })))
+const StudentAttendanceReportPage = lazy(() => import('./pages/StudentAttendancePage').then(m => ({ default: m.StudentAttendanceReportPage })))
+const SectionsPage = lazy(() => import('./pages/SectionsPage').then(m => ({ default: m.SectionsPage })))
+const StudentsPage = lazy(() => import('./pages/StudentsPage').then(m => ({ default: m.StudentsPage })))
+const StudentProfilePage = lazy(() => import('./pages/StudentProfilePage').then(m => ({ default: m.StudentProfilePage })))
+const IdCardPrintPage = lazy(() => import('./pages/IdCardPrintPage').then(m => ({ default: m.IdCardPrintPage })))
+const VerifyCardPage = lazy(() => import('./pages/VerifyCardPage').then(m => ({ default: m.VerifyCardPage })))
+const RoutinePage = lazy(() => import('./pages/RoutinePage').then(m => ({ default: m.RoutinePage })))
+const ExamsPage = lazy(() => import('./pages/ExamsPage').then(m => ({ default: m.ExamsPage })))
+const MarksQueue = lazy(() => import('./pages/marks/MarksQueue').then(m => ({ default: m.MarksQueue })))
+const MarksWorkspace = lazy(() => import('./pages/marks/MarksWorkspace').then(m => ({ default: m.MarksWorkspace })))
+const ExamSetup = lazy(() => import('./pages/exams/ExamSetup').then(m => ({ default: m.ExamSetup })))
+const BlueprintBuilder = lazy(() => import('./pages/exams/BlueprintBuilder').then(m => ({ default: m.BlueprintBuilder })))
+const TermWizard = lazy(() => import('./pages/exams/TermWizard').then(m => ({ default: m.TermWizard })))
+const TermResults = lazy(() => import('./pages/exams/TermResults').then(m => ({ default: m.TermResults })))
+const ResultsCentre = lazy(() => import('./pages/exams/ResultsCentre').then(m => ({ default: m.ResultsCentre })))
+const ResultReview = lazy(() => import('./pages/exams/ResultReview').then(m => ({ default: m.ResultReview })))
+const FeesPage = lazy(() => import('./pages/FeesPage').then(m => ({ default: m.FeesPage })))
+const MyFeesPage = lazy(() => import('./pages/MyFeesPage').then(m => ({ default: m.MyFeesPage })))
+const NoticesPage = lazy(() => import('./pages/NoticesPage').then(m => ({ default: m.NoticesPage })))
+const EventsPage = lazy(() => import('./pages/EventsPage').then(m => ({ default: m.EventsPage })))
+const AdminNotificationsPage = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.AdminNotificationsPage })))
+const NotificationBell = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationBell })))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })))
+const AdminDiaryPage = lazy(() => import('./pages/DiaryPages').then(m => ({ default: m.AdminDiaryPage })))
+const DiaryFeedPage = lazy(() => import('./pages/DiaryPages').then(m => ({ default: m.DiaryFeedPage })))
+const TeacherDiaryPage = lazy(() => import('./pages/DiaryPages').then(m => ({ default: m.TeacherDiaryPage })))
+const AdminOverviewPage = lazy(() => import('./pages/AdminPages').then(m => ({ default: m.AdminOverviewPage })))
+const AuditLogPage = lazy(() => import('./pages/AdminPages').then(m => ({ default: m.AuditLogPage })))
+const BackupsPage = lazy(() => import('./pages/AdminPages').then(m => ({ default: m.BackupsPage })))
+const DataExportPage = lazy(() => import('./pages/AdminPages').then(m => ({ default: m.DataExportPage })))
+const ModulesPage = lazy(() => import('./pages/AdminPages').then(m => ({ default: m.ModulesPage })))
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPages').then(m => ({ default: m.AnalyticsPage })))
+const ChildrenProgressPage = lazy(() => import('./pages/AnalyticsPages').then(m => ({ default: m.ChildrenProgressPage })))
+const MyProgressPage = lazy(() => import('./pages/AnalyticsPages').then(m => ({ default: m.MyProgressPage })))
+const ReportsPage = lazy(() => import('./pages/AnalyticsPages').then(m => ({ default: m.ReportsPage })))
+const StaffStudentPage = lazy(() => import('./pages/AnalyticsPages').then(m => ({ default: m.StaffStudentPage })))
 
 function NotFound() {
   return <StateScreen kind="notFound" />
@@ -150,7 +165,7 @@ function PeopleGate({ kind, permissions, role, enabled, loading, error }: { kind
   if (!enabled) return <StateScreen kind="disabled" message={t('peopleModuleDisabled')} />
   if (kind === 'students' && canStudents) return <StudentsPage canManage={canManageStudents} />
   if ((kind === 'cards' || kind === 'card') && canManageStudents) return <IdCardPrintPage mode={kind === 'card' ? 'single' : 'bulk'} />
-  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} />
+  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} canReadHistory={!!permissions?.includes('students:history_read')} />
   if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
   return <StateScreen kind="denied" message={t('permissionDenied')} />
 }
@@ -411,6 +426,7 @@ export default function App() {
     on: key => ({ academics: academicEnabled, students: peopleEnabled, staff: staffEnabled, attendance: attendanceEnabled, routine: routineEnabled, examinations: examsEnabled, fees: feesEnabled, notices: noticesEnabled, diary: diaryEnabled, analytics: analyticsEnabled } as Record<string, boolean>)[key] ?? moduleEnabled(key),
   }) : []
   const routes = (
+    <Suspense fallback={<StateScreen kind="loading" />}>
       <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage branding={branding.data} />} />
         <Route path="/login" element={<LandingPage branding={branding.data} />} />
@@ -474,11 +490,12 @@ export default function App() {
         <Route path="/analytics/students/:id" element={<ProtectedRoute><AnalyticsGate kind="staff-student" permissions={myPermissions.data} role={user?.role} enabled={analyticsEnabled} loading={analyticsLoading} error={myPermissions.isError || myModules.isError || academicNavigation.isError} /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+    </Suspense>
   )
 
   if (ready && user) {
     return <AppShell branding={branding.data} user={user} groups={navigation} onLanguage={language => void setLanguage(language)} onSignOut={() => void handleLogout()}
-      bell={myPermissions.data?.includes('notifications:read_self') && noticesEnabled && user?.role !== 'guardian' ? <NotificationBell /> : undefined}>
+      bell={myPermissions.data?.includes('notifications:read_self') && noticesEnabled && user?.role !== 'guardian' ? <Suspense fallback={null}><NotificationBell /></Suspense> : undefined}>
       {logoutError && <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{t('logoutError')}</p>}
       {routes}
       <ConfirmHost />

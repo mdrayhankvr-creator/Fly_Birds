@@ -1,4 +1,5 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { tone, type Module } from '../modules'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { ApiError } from '../../api/client'
@@ -9,26 +10,7 @@ import { Icon, type IconName } from '../icons'
 // the design tokens in styles.css, so every part follows the school's brand
 // and the light or dark theme.
 
-export type Module = 'home' | 'routine' | 'homework' | 'diary' | 'notices' | 'events' | 'alerts' | 'exams' | 'attendance' | 'fees' | 'people' | 'analytics' | 'admin'
-
-// tone passes a module (or any CSS colour) to the ds-* classes through --s.
-export function tone(color: Module | string): CSSProperties {
-  return { '--s': color.startsWith('#') || color.startsWith('var(') ? color : `var(--mod-${color})` } as CSSProperties
-}
-
-// Module for each navigation key, so links and tabs share their module's colour.
-const NAV_MODULE: Record<string, Module> = {
-  dashboard: 'home', analytics: 'analytics', analytics_teacher: 'analytics', progress: 'analytics', reports: 'analytics',
-  students: 'people', guardians: 'people', staff: 'people', me: 'people', children: 'people', staff_me: 'people',
-  classes: 'exams', sections: 'exams', subjects: 'exams', sessions: 'routine',
-  routines: 'routine', routine_me: 'routine',
-  exams: 'exams', exams_me: 'exams', results: 'exams',
-  diary: 'diary', diary_me: 'diary', diary_admin: 'diary',
-  student_attendance: 'attendance', teacher_attendance: 'attendance', attendance_me: 'attendance', attendance_self: 'attendance',
-  fees: 'fees', fees_me: 'fees',
-  notices: 'notices', events: 'events', notifications: 'notices', delivery: 'notices',
-}
-export const navModule = (key: string): Module => NAV_MODULE[key] ?? 'admin'
+export { navModule, tone, type Module } from '../modules'
 
 export function Panel({ title, icon, action, children, className = '', module }: { title: string; icon?: IconName; action?: ReactNode; children: ReactNode; className?: string; module?: Module }) {
   return <section className={`${ui.card} flex flex-col p-4 sm:p-5 ${className}`} aria-label={title} style={module ? tone(module) : undefined}>

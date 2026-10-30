@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { approveResults, getResultReview, publishResults, type ResultReview as Review, type ResultScope, type ResultScopeRef } from '../../api/client'
 import { confirmAction } from '../../components/ConfirmDialog'
-import { EmptyState, Notice, PageHeader, Skeleton, ui } from '../attendanceUi'
+import { CardTitle, EmptyState, Notice, PageHeader, Skeleton, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 import { DiffTable, ProvisionalFrame, ResultMatrix, StateChip, VersionHistory, useOutputChanges, useResultError, useWhen, type MatrixRow } from './resultUi'
 
@@ -84,7 +84,7 @@ export function ResultReview({ canApprove, canPublish }: { canApprove: boolean; 
       {history && <VersionHistory scope={ref.scope} scopeId={ref.scope_id} studentId={history.id} studentName={history.name} onClose={() => setHistory(null)} />}
 
       {v.published && v.changed > 0 && <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="rv-changes-title">
-        <h2 id="rv-changes-title" className={ui.sectionTitle}>{t('rvChangesTitle', { count: v.changed })}</h2>
+        <CardTitle id="rv-changes-title" icon="alert">{t('rvChangesTitle', { count: v.changed })}</CardTitle>
         <p className="mt-1 text-sm text-slate-600">{t('rvChangesIntro')}</p>
         <ul className="mt-3 space-y-3">{v.students.filter(s => s.change !== 'same').map(s => <li key={s.student_id} className="rounded-xl border border-slate-200 p-3">
           <p className="font-semibold text-slate-900">{s.name} <span className="text-xs font-normal text-slate-500">{s.section_name} · {s.admission_no}</span></p>

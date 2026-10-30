@@ -8,6 +8,7 @@ import { usePeopleApi } from './peopleShared'
 import { CardBack, CardFront, type CardLanguage } from '../components/IdCard'
 import { Icon } from '../components/icons'
 import { StateScreen } from '../components/StateScreen'
+import { AcademicHistory } from './AcademicHistory'
 import { Avatar, EmptyState, Notice as Banner, PageHeader, SectionCard, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 
 function formatDate(value: string, lang: string) {
@@ -31,7 +32,7 @@ function Field({ label, children, wide = false }: { label: string; children: Rea
   </div>
 }
 
-export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean }) {
+export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians, canReadHistory = mode === 'self' }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean; canReadHistory?: boolean }) {
   const { id } = useParams()
   const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
@@ -121,14 +122,14 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         <Link to="/admin/students" className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t('studentsHeading')}</Link></div> : undefined} />
     {error && <Banner tone="error">{error}</Banner>}{message && <Banner tone="success">{message}</Banner>}
 
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="profile-identity">
-      <div className="h-2 bg-[var(--brand-primary)]" aria-hidden="true" />
+    <section className={`${ui.card} overflow-hidden`} aria-labelledby="profile-identity">
+      <div className="ds-softer border-b border-slate-100">
       <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
         {photoUrl
-          ? <img src={photoUrl} alt={t('idCardPhotoAlt', { name })} className="h-28 w-24 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
-          : <span role="img" aria-label={t('noPhoto')} className="grid h-28 w-24 shrink-0 place-items-center rounded-xl bg-[var(--brand-soft)] text-3xl font-bold text-[var(--brand-ink)]">{[...name][0]}</span>}
+          ? <img src={photoUrl} alt={t('idCardPhotoAlt', { name })} className="h-28 w-24 shrink-0 rounded-2xl object-cover shadow-sm ring-4 ring-white" />
+          : <span role="img" aria-label={t('noPhoto')} className="ds-fill grid h-28 w-24 shrink-0 place-items-center rounded-2xl text-3xl font-bold shadow-sm">{[...name][0]}</span>}
         <div className="min-w-0 flex-1">
-          <h2 id="profile-identity" className="text-xl font-bold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name}</h2>
+          <h2 id="profile-identity" className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl" style={{ overflowWrap: 'anywhere' }}>{name}</h2>
           {alternate(value.name_en, value.name_bn) && <p className="text-sm text-slate-600">{alternate(value.name_en, value.name_bn)}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <StatusBadge tone={statusTone}>{t(`${value.status}Student`)}</StatusBadge>
@@ -138,13 +139,14 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
           </div>
         </div>
       </div>
+      </div>
       {canManagePhoto && <form className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-end sm:px-6" onSubmit={e => void upload(e)}>
         <label className={`${ui.label} flex-1`}>{t('selectPhoto')}<input type="file" required accept="image/jpeg,image/png" className={ui.field} onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} /></label>
         <button disabled={busy || !photoFile} className={ui.primary}>{t('uploadPhoto')}</button></form>}
     </section>
 
     <div className="grid gap-6 lg:grid-cols-2">
-      <SectionCard title={t('profilePersonal')} id="profile-personal">
+      <SectionCard title={t('profilePersonal')} id="profile-personal" icon="user">
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label={t('studentNameEN')}>{value.name_en}</Field>
           <Field label={t('studentNameBN')}>{value.name_bn}</Field>
@@ -153,7 +155,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
           <Field label={t('profileBloodGroup')}>{value.blood_group}</Field>
         </dl>
       </SectionCard>
-      <SectionCard title={t('profileFamily')} id="profile-family">
+      <SectionCard title={t('profileFamily')} id="profile-family" icon="users">
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label={t('profileFather')}>{pick(value.father_name_en, value.father_name_bn)}</Field>
           <Field label={t('profileMother')}>{pick(value.mother_name_en, value.mother_name_bn)}</Field>
@@ -162,13 +164,13 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
           <Field label={t('profileGuardianPhone')}>{guardian?.phone ? <a className="text-[var(--brand-ink)] underline-offset-2 hover:underline" href={`tel:${guardian.phone.replace(/[^+0-9]/g, '')}`}>{guardian.phone}</a> : ''}</Field>
         </dl>
       </SectionCard>
-      <SectionCard title={t('profileAddress')} id="profile-address">
+      <SectionCard title={t('profileAddress')} id="profile-address" icon="home">
         <dl className="grid gap-4">
           <Field label={t('profilePresentAddress')}>{value.present_address}</Field>
           <Field label={t('profilePermanentAddress')}>{value.permanent_address}</Field>
         </dl>
       </SectionCard>
-      <SectionCard title={t('profileAcademic')} id="profile-academic">
+      <SectionCard title={t('profileAcademic')} id="profile-academic" icon="book">
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label={t('idCardStudentId')}>{value.student_code}</Field>
           <Field label={t('admissionNo')}>{value.admission_no}</Field>
@@ -181,7 +183,9 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
       </SectionCard>
     </div>
 
-    <SectionCard title={t('studentCard')} description={t('idCardPreviewHelp')} id="student-card"
+    {canReadHistory && <AcademicHistory studentId={value.id} />}
+
+    <SectionCard title={t('studentCard')} description={t('idCardPreviewHelp')} id="student-card" icon="card"
       actions={<label className="flex items-center gap-2 text-sm font-semibold text-slate-700">{t('idCardLanguage')}<select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={cardLang} onChange={e => setCardLang(e.target.value as CardLanguage)}><option value="en">English</option><option value="bn">বাংলা</option></select></label>}>
       {card.isPending ? <Skeleton rows={3} /> : card.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> :
         // Focusable so keyboard users can scroll the preview on narrow screens.
@@ -193,7 +197,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         </div>}
     </SectionCard>
 
-    {(canReadGuardians || mode === 'self') && <SectionCard title={t('guardiansForStudent')} description={t(mode === 'self' ? 'p1GuardiansOwnHelp' : 'linkHelp')} id="student-guardians">
+    {(canReadGuardians || mode === 'self') && <SectionCard title={t('guardiansForStudent')} description={t(mode === 'self' ? 'p1GuardiansOwnHelp' : 'linkHelp')} id="student-guardians" icon="users">
       {guardianLinks.isPending ? <Skeleton rows={2} /> : guardianLinks.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> : guardianLinks.data.length === 0 ? <EmptyState icon="users" title={t('noGuardians')} /> :
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">{guardianLinks.data.map(item => {
           const guardianName = pick(item.guardian_name, item.guardian_name_bn ?? '')

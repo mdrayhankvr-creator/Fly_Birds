@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, addClassSubject, getAcademicClasses, getAcademicSubjects, getClassSubjects, removeClassSubject, saveAcademicClass, saveAcademicSubject, updateClassSubject, type AcademicClass, type AcademicClassInput, type AcademicSubject, type AcademicSubjectInput, type Page } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
-import { ui, PageHeader, LinkTabs } from './attendanceUi'
+import { CardTitle, ui, PageHeader, LinkTabs } from './attendanceUi'
 
 const field = ui.field
 const emptyClass: AcademicClassInput = { name: '', display_order: 0, is_active: true }
@@ -100,7 +100,7 @@ export function AcademicPage({ kind, canManage }: { kind: 'classes' | 'subjects'
       </section>}
     </div>
     {kind === 'classes' && selectedClass && <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('classSubjects')}>
-      <h2 className={ui.sectionTitle}>{t('classSubjects')}: {selectedClass.name}</h2>
+      <CardTitle icon="book">{t('classSubjects')}: {selectedClass.name}</CardTitle>
       <label className="mt-4 block max-w-sm text-sm font-semibold">{t('search')}<input className={field} value={mappingSearch} onChange={(e) => { setMappingSearch(e.target.value); setMappingPage(1) }} /></label>
       {mappings.isPending ? <p className="mt-4" role="status">{t('academicLoading')}</p> : mappings.isError ? <p className="mt-4 text-rose-700" role="alert">{t('academicLoadError')}</p> : mappings.data?.items.length === 0 ? <p className="mt-4 text-slate-600">{t('noClassSubjects')}</p> : <ul className="mt-4 grid gap-2 sm:grid-cols-2">{mappings.data?.items.map((mapping) => <li key={mapping.id} className="rounded-xl border border-slate-200 p-3"><p className="font-semibold">{i18n.language === 'bn' ? mapping.subject_name_bn : mapping.subject_name_en} ({mapping.subject_code})</p><p className="mt-1 text-sm text-slate-600">{t(mapping.is_required ? 'requiredSubject' : 'fourthSubject')}</p>{canManage && <div className="mt-3 flex flex-wrap gap-2 text-sm"><button disabled={busy} className={ui.secondary} onClick={() => void run(() => authorized((token) => updateClassSubject(token, selectedClass.id, mapping.subject_id, mapping.is_required)))}>{t('switchSubjectType')}</button><button disabled={busy} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700" onClick={async () => { if ((await confirmAction(t('confirmRemoveSubject')))) void run(() => authorized((token) => removeClassSubject(token, selectedClass.id, mapping.subject_id))) }}>{t('remove')}</button></div>}</li>)}</ul>}
       {mappingPages > 1 && <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between gap-3 text-sm"><button className={ui.secondary} disabled={mappingPage <= 1} onClick={() => setMappingPage(mappingPage-1)}>{t('previous')}</button><span>{t('pageOf', { page: mappingPage, total: mappingPages })}</span><button className={ui.secondary} disabled={mappingPage >= mappingPages} onClick={() => setMappingPage(mappingPage+1)}>{t('next')}</button></div>}

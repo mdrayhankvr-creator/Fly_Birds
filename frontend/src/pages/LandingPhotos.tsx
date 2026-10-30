@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, addSchoolSlide, deleteSchoolSlide, getSchoolSlides, reorderSchoolSlides, slideImageUrl, updateSchoolSlide, type SchoolSlide } from '../api/client'
 import { confirmAction } from '../components/ConfirmDialog'
-import { ui } from './attendanceUi'
+import { CardTitle, ui } from './attendanceUi'
 
 const MAX_PHOTOS = 8
 const MAX_WIDTH = 1600
@@ -129,7 +129,7 @@ export function LandingPhotos({ authorized }: { authorized: <T>(request: (token:
   return <section aria-labelledby="landing-photos" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 id="landing-photos" className={ui.sectionTitle}>{t('p3Photos')}</h2>
+        <CardTitle id="landing-photos" icon="image">{t('p3Photos')}</CardTitle>
         <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{t('p3PhotosHelp')}</p>
       </div>
       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{t('p3PhotosCount', { count: list.length, max: MAX_PHOTOS })}</span>

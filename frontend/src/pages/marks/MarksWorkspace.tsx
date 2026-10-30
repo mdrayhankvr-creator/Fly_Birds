@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, examSheetAction, getExamSheetHistory, getExamSheetWorkspace, saveExamMarkCells, type ExamMarkRow, type ExamMarkStatus, type ExamSheetComponent, type ExamSheetHistoryEntry, type ExamSheetPermissions } from '../../api/client'
 import { useAuth } from '../../auth/AuthProvider'
 import { confirmAction } from '../../components/ConfirmDialog'
-import { Notice, Skeleton, ui } from '../attendanceUi'
+import { CardTitle, Notice, Skeleton, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 import { Progress, SheetChip } from './examUi'
 import { isMultiCell, parseCell, parseTable, planPaste, type PastePlan } from './marksInput'
@@ -547,7 +547,7 @@ function HistoryPanel({ examId, sheetId, teacher, onClose }: { examId: string; s
   const line = (h: ExamSheetHistoryEntry) => h.action === 'exam.mark_saved' ? `${h.student_name}: ${mark(h.metadata.old_status, h.metadata.old_marks)} → ${mark(h.metadata.new_status, h.metadata.new_marks)}`
     : h.action === 'exam.sheet_returned' ? t('mwH_returned', { reason: h.metadata.reason ?? '' }) : t(h.action === 'exam.sheet_submitted' ? 'mwH_submitted' : 'mwH_approved')
   return <aside className={`${ui.card} max-h-[70vh] overflow-auto p-4`} aria-labelledby="mw-history-title">
-    <div className="flex items-center justify-between gap-2"><h2 id="mw-history-title" className={ui.sectionTitle}>{t('mwHistoryTitle')}</h2>
+    <div className="flex items-center justify-between gap-2"><CardTitle id="mw-history-title" icon="clock">{t('mwHistoryTitle')}</CardTitle>
       <button type="button" className={ui.ghost} onClick={onClose}>{t('mwHistoryClose')}</button></div>
     {history.isPending ? <div className="mt-3"><Skeleton rows={4} /></div> : history.isError ? <p role="alert" className="mt-3 text-sm text-rose-700">{t('mwLoadError')}</p>
       : history.data.length === 0 ? <p className="mt-3 text-sm text-slate-600">{t('mwHistoryEmpty')}</p>

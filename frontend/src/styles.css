@@ -159,6 +159,62 @@ body { background-color: var(--app-surface); color: #0f172a; }
 .ds-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 :root:lang(bn) .ds-eyebrow { text-transform: none; letter-spacing: 0; font-size: 12px; }
 
+/* Module page header (premium UI, checkpoint 2): every inner screen opens
+   with the same panel, tinted with its module's colour. */
+.ds-page-head {
+  position: relative; overflow: hidden;
+  background: color-mix(in oklab, var(--s) 6%, var(--ds-surface));
+  border: 1px solid color-mix(in oklab, var(--s) 20%, var(--ds-line));
+  border-radius: 1.25rem; box-shadow: var(--ds-shadow);
+}
+.ds-page-head::before {
+  content: ""; position: absolute; right: -56px; top: -72px; width: 200px; height: 200px; border-radius: 50%;
+  border: 24px solid color-mix(in oklab, var(--s) 8%, transparent); pointer-events: none;
+}
+.ds-page-head > * { position: relative; }
+/* Selected tab and segmented choices carry the module colour. */
+.ds-tab-btn[aria-selected="true"], .ds-tab-btn[aria-current="page"] { color: color-mix(in oklab, var(--s, var(--brand-primary)) 64%, var(--ds-ink)); box-shadow: inset 0 -2px 0 var(--s, var(--brand-primary)), 0 1px 2px rgb(15 23 42 / .06); }
+.ds-empty { background: color-mix(in oklab, var(--s, #94a3b8) 4%, var(--ds-surface-2)); border-color: color-mix(in oklab, var(--s, #94a3b8) 24%, var(--ds-line)); }
+
+/* Data tables become a stack of cards on phones. Add ds-cards to a table;
+   the shell copies each column heading onto its cells as data-label and keeps
+   table roles for screen readers. Wide grids (marks, permissions, tabulation)
+   stay tables and scroll inside their own card instead. */
+@media (max-width: 639.98px) {
+  table.ds-cards { min-width: 0 !important; border-collapse: separate; }
+  table.ds-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  table.ds-cards, table.ds-cards > tbody, table.ds-cards > tfoot, table.ds-cards > tbody > tr, table.ds-cards > tfoot > tr { display: block; width: 100%; }
+  table.ds-cards > tbody > tr, table.ds-cards > tfoot > tr {
+    margin-bottom: .625rem; padding: .375rem .875rem; border: 1px solid var(--ds-line); border-radius: 1rem; background: var(--ds-surface);
+  }
+  main table.ds-cards > tbody > tr:hover { background: var(--ds-surface); }
+  table.ds-cards > tbody > tr > *, table.ds-cards > tfoot > tr > * {
+    display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; width: 100%;
+    padding: .4rem 0 !important; border: 0 !important; text-align: right; white-space: normal; min-width: 0; overflow-wrap: anywhere;
+  }
+  table.ds-cards > tbody > tr > * + * { border-top: 1px dashed var(--ds-line) !important; }
+  table.ds-cards > tbody > tr > *::before, table.ds-cards > tfoot > tr > *::before {
+    content: attr(data-label); flex: 0 1 45%; text-align: left; font-size: 12px; font-weight: 600; color: var(--ds-ink-3);
+  }
+  table.ds-cards > tbody > tr > [data-label=""]::before, table.ds-cards > tfoot > tr > [data-label=""]::before { display: none; }
+  /* The first cell is the card's title. */
+  table.ds-cards > tbody > tr > :first-child { display: block; text-align: left; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+  table.ds-cards > tbody > tr > :first-child::before { display: none; }
+  table.ds-cards > tbody > tr > [colspan] { justify-content: center; text-align: center; }
+  table.ds-cards > tbody > tr > [colspan]::before { display: none; }
+  table.ds-cards > tbody > tr > * > :is(div, span, a, button, form):only-child { max-width: 60%; }
+  table.ds-cards > tbody > tr > :first-child > :only-child { max-width: 100%; }
+  /* Action cells keep their buttons together on the right. */
+  table.ds-cards > tbody > tr > [data-actions] { justify-content: flex-end; flex-wrap: wrap; }
+  table.ds-cards > tbody > tr > [data-actions]::before { display: none; }
+}
+
+/* File pickers: one quiet button style everywhere. */
+main input[type="file"]::file-selector-button {
+  margin-right: .75rem; padding: .375rem .75rem; border: 0; border-radius: .5rem; cursor: pointer;
+  background: color-mix(in oklab, var(--s, var(--brand-primary)) 12%, var(--ds-surface)); color: var(--ds-ink); font-weight: 600; font-size: .875rem;
+}
+
 /* Tables inside cards: quiet headers and comfortable rows everywhere. */
 main table thead th { font-weight: 600; }
 main table tbody tr { transition: background-color 120ms; }

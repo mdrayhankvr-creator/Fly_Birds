@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, getAcademicClasses, getAcademicSections, getAcademicSessions, saveAcademicSection, type AcademicSection, type AcademicSectionInput } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
-import { ui, PageHeader, LinkTabs } from './attendanceUi'
+import { ui, CardTitle, PageHeader, LinkTabs } from './attendanceUi'
 
 const field = ui.field
 const emptyForm: AcademicSectionInput = { session_id: '', class_id: '', name: '', code: '', display_order: 0, is_active: true }
@@ -78,7 +78,7 @@ export function SectionsPage({ canManage }: { canManage: boolean }) {
         {pages > 1 && <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-between gap-3 text-sm"><button type="button" className={ui.secondary} disabled={page <= 1} onClick={() => setPage(page - 1)}>{t('previous')}</button><span>{t('pageOf', { page, total: pages })}</span><button type="button" className={ui.secondary} disabled={page >= pages} onClick={() => setPage(page + 1)}>{t('next')}</button></div>}
       </section>
       {canManage && <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('academicEditor')}>
-        <h2 className={ui.sectionTitle}>{t(editingId ? 'edit' : 'sectionCreate')}</h2>
+        <CardTitle icon={editingId ? 'settings' : 'plus'}>{t(editingId ? 'edit' : 'sectionCreate')}</CardTitle>
         <form className="mt-4 space-y-4" onSubmit={(event) => void save(event)}>
           <label className={ui.label}>{t('sectionSession')}{!editingId && <input className={field} placeholder={t('search')} value={sessionSearch} onChange={(e) => setSessionSearch(e.target.value)} />}<select required disabled={!!editingId} className={field} value={form.session_id} onChange={(e) => setForm({ ...form, session_id: e.target.value })}><option value="">{t('sectionChooseSession')}</option>{sessions.data?.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}{editingId && form.session_id && !sessions.data?.items.some((item) => item.id === form.session_id) && <option value={form.session_id}>{form.session_id}</option>}</select></label>
           <label className={ui.label}>{t('sectionClass')}{!editingId && <input className={field} placeholder={t('search')} value={classSearch} onChange={(e) => setClassSearch(e.target.value)} />}<select required disabled={!!editingId} className={field} value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })}><option value="">{t('sectionChooseClass')}</option>{classes.data?.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}{editingId && form.class_id && !classes.data?.items.some((item) => item.id === form.class_id) && <option value={form.class_id}>{form.class_id}</option>}</select></label>

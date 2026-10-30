@@ -7,7 +7,7 @@ import {
   createBackup, deleteBackup, downloadBackup, downloadExport, formatBytes, getAdminOverview, getAuditActions, getAuditEvents, getBackups,
   getExportDatasets, getManagedModules, saveBlob, setManagedModule, verifyBackup, type AuditItem, type BackupRun, type ManagedModule,
 } from '../api/admin'
-import { EmptyState, Notice, PageHeader, Pager, Skeleton, ui } from './attendanceUi'
+import { CardTitle, EmptyState, Notice, PageHeader, Pager, Skeleton, ui } from './attendanceUi'
 import { shiftDay, todayDhaka, useApi, useDhakaFormat } from './commShared'
 
 function useAdminError() {
@@ -64,7 +64,7 @@ export function AdminOverviewPage() {
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <div className={`${ui.card} p-5`}>
-          <h2 className="font-bold text-slate-900">{t('m10UsersByRole')}</h2>
+          <CardTitle icon="users">{t('m10UsersByRole')}</CardTitle>
           <ul className="mt-3 divide-y divide-slate-100">{o.users.map(r => <li key={r.role} className="flex items-center justify-between gap-3 py-2 text-sm">
             <span className="font-medium text-slate-800">{t(`m10Role_${r.role}`, { defaultValue: r.role })}</span>
             <span className="tabular-nums text-slate-600">{t('m10ActiveOf', { active: f.number(r.active), total: f.number(r.total) })}</span></li>)}</ul>
@@ -72,7 +72,7 @@ export function AdminOverviewPage() {
           <Link to="/admin/users" className={`${ui.ghost} mt-2`}>{t('m10NavUsers')} →</Link>
         </div>
         <div className={`${ui.card} p-5`}>
-          <h2 className="font-bold text-slate-900">{t('m10Security')}</h2>
+          <CardTitle icon="shield">{t('m10Security')}</CardTitle>
           <dl className="mt-3 grid grid-cols-2 gap-3">
             <div><dt className="text-xs font-semibold text-slate-500">{t('m10AuditEvents')}</dt><dd className="text-2xl font-bold tabular-nums">{f.number(o.audit_last_day)}</dd></div>
             <div><dt className="text-xs font-semibold text-slate-500">{t('m10DeniedAttempts')}</dt><dd className={`text-2xl font-bold tabular-nums ${o.denied_last_day > 0 ? 'text-rose-700' : ''}`}>{f.number(o.denied_last_day)}</dd></div>
@@ -84,7 +84,7 @@ export function AdminOverviewPage() {
           <Link to="/admin/backups" className={`${ui.ghost} mt-2`}>{t('m10NavBackups')} →</Link>
         </div>
         <div className={`${ui.card} p-5`}>
-          <div className="flex items-center justify-between gap-2"><h2 className="font-bold text-slate-900">{t('m10RecentActivity')}</h2><Link to="/admin/audit" className={ui.ghost}>{t('m10ViewAll')}</Link></div>
+          <div className="flex items-center justify-between gap-2"><CardTitle icon="report">{t('m10RecentActivity')}</CardTitle><Link to="/admin/audit" className={ui.ghost}>{t('m10ViewAll')}</Link></div>
           {o.recent_events.length === 0 ? <p className="mt-3 text-sm text-slate-600">{t('m10NoEvents')}</p>
             : <ul className="mt-3 space-y-2">{o.recent_events.map(e => <li key={e.id} className="text-sm">
               <div className="flex items-center justify-between gap-2"><code className="truncate font-mono text-xs text-slate-800">{e.action}</code><OutcomeBadge outcome={e.outcome} /></div>

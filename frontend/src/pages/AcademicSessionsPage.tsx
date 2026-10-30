@@ -8,7 +8,7 @@ import {
   type AcademicSession, type AcademicSessionInput,
 } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
-import { ui, PageHeader, LinkTabs } from './attendanceUi'
+import { CardTitle, ui, PageHeader, LinkTabs } from './attendanceUi'
 
 const emptyForm: AcademicSessionInput = { name: '', start_date: '', end_date: '' }
 const fieldClass = ui.field
@@ -101,13 +101,13 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
     {message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-900">{message}</p>}
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
     <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('currentSession')}>
-      <h2 className="text-lg font-semibold text-slate-900">{t('currentSession')}</h2>
+      <CardTitle icon="calendar">{t('currentSession')}</CardTitle>
       {current.isPending ? <p role="status" className="mt-2 text-slate-600">{t('loadingSessions')}</p> :
         current.isError ? <p role="alert" className="mt-2 text-rose-700">{current.error instanceof ApiError && current.error.code === 'module_disabled' ? t('academicModuleDisabled') : t('loadSessionsError')}</p> :
           <p className="mt-2 text-slate-700">{current.data?.name ?? t('noCurrentSession')}</p>}
     </section>
     {(canCreate || (canUpdate && editing)) && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
-      <h2 className="text-xl font-semibold text-slate-900 sm:col-span-3">{t(editing ? 'editSession' : 'createSession')}</h2>
+      <CardTitle icon="calendar" className="sm:col-span-3">{t(editing ? 'editSession' : 'createSession')}</CardTitle>
       <label className={ui.label}>{t('sessionName')}<input className={fieldClass} required maxLength={9} placeholder="2026–2027" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
       <label className={ui.label}>{t('startDate')}<input className={fieldClass} type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></label>
       <label className={ui.label}>{t('endDate')}<input className={fieldClass} type="date" required min={form.start_date} value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></label>
@@ -115,7 +115,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
       <div className="flex flex-wrap gap-2 sm:col-span-3"><button disabled={busy} className={ui.primary}>{t(editing ? 'saveChanges' : 'createSession')}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyForm) }} className="rounded-lg border px-4 py-2 font-semibold">{t('cancel')}</button>}</div>
     </form>}
     <section className={`${ui.card} p-4 sm:p-6`}>
-      <h2 className={ui.sectionTitle}>{t('sessionList')}</h2>
+      <CardTitle icon="calendar">{t('sessionList')}</CardTitle>
       <label className="mt-4 block max-w-sm text-sm font-semibold text-slate-700">{t('search')}<input className={fieldClass} value={search} maxLength={100} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></label>
       {sessions.isPending ? <p role="status" className="mt-5">{t('loadingSessions')}</p> :
         sessions.isError ? <p role="alert" className="mt-5 text-rose-700">{sessions.error instanceof ApiError && sessions.error.code === 'module_disabled' ? t('academicModuleDisabled') : t('loadSessionsError')}</p> :
