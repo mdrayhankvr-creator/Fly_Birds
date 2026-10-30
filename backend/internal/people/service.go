@@ -166,6 +166,7 @@ type Repository interface {
 	Admit(context.Context, Actor, admitRecord) (string, string, error)
 	GuardianMatches(context.Context, string, string) ([]GuardianMatch, error)
 	AdmissionDefaults(context.Context, Actor, string) (AdmissionDefaults, error)
+	FindAdmission(context.Context, Actor, string) (admissionRecord, bool, error)
 }
 type Service struct{ repo Repository }
 

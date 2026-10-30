@@ -29,6 +29,8 @@ func peopleError(c *gin.Context, err error) {
 		failure(c, 409, "login_email_taken", "this login email is already registered")
 	case errors.Is(err, people.ErrAdmissionNoTaken):
 		failure(c, 409, "admission_no_taken", "this admission number is already used")
+	case errors.Is(err, people.ErrAdmissionKeyReused):
+		failure(c, 409, "idempotency_key_reused", "this request key already admitted a different student")
 	case errors.Is(err, people.ErrRollTaken):
 		failure(c, 409, "roll_taken", "this roll number is already used in the section")
 	case errors.Is(err, people.ErrInvalid):
@@ -351,7 +353,11 @@ func (h *peopleHandler) admit(c *gin.Context) {
 		peopleError(c, err)
 		return
 	}
-	success(c, 201, result)
+	status := 201
+	if result.Replayed {
+		status = 200
+	}
+	success(c, status, result)
 }
 func (h *peopleHandler) admissionDefaults(c *gin.Context) {
 	if !h.available(c) {

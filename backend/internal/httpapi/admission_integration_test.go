@@ -125,12 +125,25 @@ func TestPostgresOnePageAdmission(t *testing.T) {
 	newGuardian := func(name, phone, email, relationship string, primary, confirm bool) string {
 		return fmt.Sprintf(`{"new":{"name_en":%q,"name_bn":"","phone":%q,"email":%q,"address":""},"relationship":%q,"is_primary":%t,"confirm_new":%t}`, name+" "+suffix, phone, email, relationship, primary, confirm)
 	}
-	admission := func(admissionNo string, roll int, loginEmail string, guardians ...string) string {
+	newKey := func() string {
+		var b [16]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			t.Fatal(err)
+		}
+		b[6], b[8] = (b[6]&0x0f)|0x40, (b[8]&0x3f)|0x80
+		h := hex.EncodeToString(b[:])
+		return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
+	}
+	keyed := func(key, admissionNo string, roll int, loginEmail string, guardians ...string) string {
 		account := `{"create":false}`
 		if loginEmail != "" {
 			account = fmt.Sprintf(`{"create":true,"email":%q}`, loginEmail)
 		}
-		return fmt.Sprintf(`{"student":%s,"account":%s,"guardians":[%s]}`, studentJSON(admissionNo, roll), account, strings.Join(guardians, ","))
+		return fmt.Sprintf(`{"idempotency_key":%q,"student":%s,"account":%s,"guardians":[%s]}`, key, studentJSON(admissionNo, roll), account, strings.Join(guardians, ","))
+	}
+	// admission is one attempt with a fresh key.
+	admission := func(admissionNo string, roll int, loginEmail string, guardians ...string) string {
+		return keyed(newKey(), admissionNo, roll, loginEmail, guardians...)
 	}
 	// leftovers counts what an admission attempt could have written.
 	leftovers := func(admissionNo, loginEmail, guardianName string) (students, users, guardians int64) {
@@ -143,14 +156,16 @@ func TestPostgresOnePageAdmission(t *testing.T) {
 	phone := fmt.Sprintf("0171%07d", time.Now().UnixNano()%10000000)
 
 	// Permissions: only an administrator with students:manage may admit.
-	body := admission("ADM-"+suffix+"-0001", 1, mail("kid1"), newGuardian("Father One", phone, "", "Father", true, false))
+	firstKey := newKey()
+	body := keyed(firstKey, "ADM-"+suffix+"-0001", 1, mail("kid1"), newGuardian("Father One", phone, "", "Father", true, false))
 	call("POST", "/students/admission", body, nil, 401)
 	call("POST", "/students/admission", body, headH, 403)
 	call("POST", "/students/admission", body, teacherH, 403)
 	call("POST", "/students/admission", body, studentH, 403)
 	call("GET", "/students/admission/defaults?section_id="+sectionID, "", headH, 403)
 	call("GET", "/guardians/matches?phone="+phone, "", studentH, 403)
-	call("POST", "/students/admission", `{"student":`+studentJSON("ADM-"+suffix+"-bad", 1)+`,"account":{"create":true,"email":"not-an-email"}}`, adminH, 400)
+	call("POST", "/students/admission", `{"idempotency_key":"`+newKey()+`","student":`+studentJSON("ADM-"+suffix+"-bad", 1)+`,"account":{"create":true,"email":"not-an-email"}}`, adminH, 400)
+	call("POST", "/students/admission", `{"student":`+studentJSON("ADM-"+suffix+"-bad", 1)+`,"account":{"create":false}}`, adminH, 400)
 	call("POST", "/students/admission", admission("ADM-"+suffix+"-bad", 1, "", newGuardian("G1", "", "", "Father", true, false), newGuardian("G2", "", "", "Mother", true, false)), adminH, 400)
 	if n, _, _ := leftovers("ADM-"+suffix+"-0001", mail("kid1"), "Father One"); n != 0 {
 		t.Fatal("a refused admission wrote a student")
@@ -196,6 +211,38 @@ func TestPostgresOnePageAdmission(t *testing.T) {
 		t.Fatalf("current enrolments %d", enrolments)
 	}
 	fatherID := first.Guardians[0].GuardianID
+
+	// Retry safety: the same key again returns the original admission (200,
+	// replayed, the login's email but never its password) and creates nothing.
+	var retried struct {
+		Data people.AdmissionResult `json:"data"`
+	}
+	if err := json.Unmarshal(call("POST", "/students/admission", body, adminH, 200), &retried); err != nil {
+		t.Fatal(err)
+	}
+	again := retried.Data
+	if !again.Replayed || first.Replayed || again.Student.ID != first.Student.ID || again.Login == nil || again.Login.Email != first.Login.Email || again.Login.UserID != first.Login.UserID || again.Login.InitialPassword != "" || len(again.Guardians) != 1 || again.Guardians[0].GuardianID != fatherID {
+		t.Fatalf("retried admission %+v", again)
+	}
+	if s, u, g := leftovers("ADM-"+suffix+"-0001", mail("kid1"), "Father One"); s != 1 || u != 1 || g != 1 {
+		t.Fatalf("a retry created records: %d students, %d logins, %d guardians", s, u, g)
+	}
+	// The same key with another admission number is not a retry.
+	if code := errorCode(call("POST", "/students/admission", keyed(firstKey, "ADM-"+suffix+"-other", 9, ""), adminH, 409)); code != "idempotency_key_reused" {
+		t.Fatalf("reused key: %s", code)
+	}
+	// A new key with the same admission number is a second admission: refused.
+	if code := errorCode(call("POST", "/students/admission", admission("ADM-"+suffix+"-0001", 9, mail("kid1b")), adminH, 409)); code != "admission_no_taken" {
+		t.Fatalf("second admission with the same number: %s", code)
+	}
+	if s, u, _ := leftovers("ADM-"+suffix+"-0001", mail("kid1b"), ""); s != 1 || u != 0 {
+		t.Fatalf("a refused second admission left %d students, %d logins", s, u)
+	}
+	var requests int64
+	db.Table("admission_requests").Where("idempotency_key=?", firstKey).Count(&requests)
+	if requests != 1 {
+		t.Fatalf("admission requests for the key: %d", requests)
+	}
 
 	// Duplicate guardian: the same phone written another way is offered
 	// instead of created, and nothing else is written.
@@ -271,6 +318,22 @@ func TestPostgresOnePageAdmission(t *testing.T) {
 		t.Fatalf("defaults %+v", defaults.Data)
 	}
 	call("GET", "/students/admission/defaults?section_id=nope", "", adminH, 400)
+
+	// Two requests with the same key at the same moment admit once.
+	raceBody := admission("ADM-"+suffix+"-0010", 10, "")
+	codes := make(chan int, 2)
+	for range 2 {
+		go func() { codes <- perform(router, "POST", "/students/admission", raceBody, nil, adminH).Code }()
+	}
+	got := map[int]int{}
+	for range 2 {
+		got[<-codes]++
+	}
+	var raced int64
+	db.Table("students").Where("admission_no=?", "ADM-"+suffix+"-0010").Count(&raced)
+	if raced != 1 || got[201] != 1 || got[200] != 1 {
+		t.Fatalf("concurrent same-key admissions: %v, %d students", got, raced)
+	}
 
 	// Each part keeps its own permission: without users:create an
 	// administrator can admit, but not create a login.

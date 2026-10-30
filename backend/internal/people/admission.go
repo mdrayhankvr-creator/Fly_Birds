@@ -20,11 +20,15 @@ import (
 // nothing behind (no half-created student, no orphan account or guardian).
 
 var (
-	ErrGuardianMatch     = errors.New("a guardian with this phone or email is already on record")
-	ErrLoginTaken        = errors.New("login email already registered")
-	ErrAdmissionNoTaken  = errors.New("admission number already used")
-	ErrRollTaken         = errors.New("roll number already used in this section")
-	admissionNumberShape = regexp.MustCompile(`^(.*?)(\d+)$`)
+	ErrGuardianMatch    = errors.New("a guardian with this phone or email is already on record")
+	ErrLoginTaken       = errors.New("login email already registered")
+	ErrAdmissionNoTaken = errors.New("admission number already used")
+	ErrRollTaken        = errors.New("roll number already used in this section")
+	// ErrAdmissionKeyReused: an idempotency key already admitted a student
+	// with a different admission number, so this is not a retry of it.
+	ErrAdmissionKeyReused = errors.New("admission key already used for another admission")
+	errAdmissionKeyTaken  = errors.New("admission key recorded concurrently")
+	admissionNumberShape  = regexp.MustCompile(`^(.*?)(\d+)$`)
 )
 
 // GuardianMatchError reports existing guardians that look like the new one
@@ -52,9 +56,12 @@ type AdmissionAccount struct {
 	Email  string `json:"email"`
 }
 type AdmissionInput struct {
-	Student   StudentInput        `json:"student"`
-	Account   AdmissionAccount    `json:"account"`
-	Guardians []AdmissionGuardian `json:"guardians"`
+	// IdempotencyKey identifies this admission attempt (a UUID made by the
+	// client and resent on retries). A retry returns the original admission.
+	IdempotencyKey string              `json:"idempotency_key"`
+	Student        StudentInput        `json:"student"`
+	Account        AdmissionAccount    `json:"account"`
+	Guardians      []AdmissionGuardian `json:"guardians"`
 }
 type AdmissionLogin struct {
 	UserID string `json:"user_id"`
@@ -67,6 +74,17 @@ type AdmissionResult struct {
 	Student   Student         `json:"student"`
 	Guardians []Relationship  `json:"guardians"`
 	Login     *AdmissionLogin `json:"login,omitempty"`
+	// Replayed: this request repeated an admission already made with the same
+	// key. Nothing new was created and the initial password is not shown again.
+	Replayed bool `json:"replayed"`
+}
+
+// admissionRecord is what an earlier request with the same key admitted.
+type admissionRecord struct {
+	StudentID   string
+	AdmissionNo string
+	UserID      string
+	LoginEmail  string
 }
 type GuardianMatch struct {
 	Guardian
@@ -124,9 +142,10 @@ func newInitialPassword() (string, error) {
 }
 
 func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (AdmissionResult, error) {
-	if !validID(a.ID) {
+	if !validID(a.ID) || !validID(in.IdempotencyKey) {
 		return AdmissionResult{}, ErrInvalid
 	}
+	in.IdempotencyKey = strings.ToLower(in.IdempotencyKey)
 	if in.Student.Status == "" {
 		in.Student.Status = "active"
 	}
@@ -139,6 +158,10 @@ func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (Admiss
 		return AdmissionResult{}, err
 	}
 	in.Student = student
+	// A retry of an admission already made returns it before any work.
+	if out, found, err := s.replay(ctx, a, in); found || err != nil {
+		return out, err
+	}
 	primary, seen := 0, map[string]bool{}
 	for i := range in.Guardians {
 		g := &in.Guardians[i]
@@ -186,6 +209,12 @@ func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (Admiss
 		record.Account = AdmissionAccount{}
 	}
 	id, userID, err := s.repo.Admit(ctx, a, record)
+	if errors.Is(err, errAdmissionKeyTaken) {
+		// The same key was admitted by a request running at the same time.
+		if out, found, err := s.replay(ctx, a, in); found || err != nil {
+			return out, err
+		}
+	}
 	if err != nil {
 		return AdmissionResult{}, err
 	}
@@ -200,6 +229,29 @@ func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (Admiss
 		out.Login = &AdmissionLogin{UserID: userID, Email: record.Account.Email, InitialPassword: password}
 	}
 	return out, nil
+}
+
+// replay returns the admission an earlier request with the same key made:
+// the student, the guardians and the login's email, never its password.
+func (s *Service) replay(ctx context.Context, a Actor, in AdmissionInput) (AdmissionResult, bool, error) {
+	done, found, err := s.repo.FindAdmission(ctx, a, in.IdempotencyKey)
+	if err != nil || !found {
+		return AdmissionResult{}, false, err
+	}
+	if !strings.EqualFold(done.AdmissionNo, in.Student.AdmissionNo) {
+		return AdmissionResult{}, false, ErrAdmissionKeyReused
+	}
+	out := AdmissionResult{Replayed: true}
+	if out.Student, err = s.repo.GetStudent(ctx, a, done.StudentID); err != nil {
+		return AdmissionResult{}, false, err
+	}
+	if out.Guardians, err = s.repo.ListRelationships(ctx, done.StudentID); err != nil {
+		return AdmissionResult{}, false, err
+	}
+	if done.UserID != "" {
+		out.Login = &AdmissionLogin{UserID: done.UserID, Email: done.LoginEmail}
+	}
+	return out, true, nil
 }
 
 // GuardianMatches lists guardians with the same phone (compared by digits) or
@@ -280,6 +332,8 @@ func admissionError(err error) error {
 			return ErrAdmissionNoTaken
 		case "students_section_roll_key", "student_enrolments_roll_key":
 			return ErrRollTaken
+		case "admission_requests_pkey":
+			return errAdmissionKeyTaken
 		}
 	}
 	return databaseError(err)
@@ -361,6 +415,9 @@ func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (st
 		if studentID, err = saveStudentTx(tx, "", student); err != nil {
 			return err
 		}
+		if err := tx.Exec("INSERT INTO admission_requests (idempotency_key,student_id,admission_no,created_by) VALUES (?,?,?,?)", in.IdempotencyKey, studentID, student.AdmissionNo, a.ID).Error; err != nil {
+			return err
+		}
 		created := 0
 		for _, g := range in.Guardians {
 			guardianID := g.GuardianID
@@ -388,6 +445,19 @@ func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (st
 		return "", "", admissionError(err)
 	}
 	return studentID, userID, nil
+}
+
+func (r *GormRepository) FindAdmission(ctx context.Context, a Actor, key string) (admissionRecord, bool, error) {
+	db := r.db.WithContext(ctx)
+	if err := requireAdmin(db, a, "students:manage"); err != nil {
+		return admissionRecord{}, false, err
+	}
+	var rows []admissionRecord
+	err := db.Raw("SELECT ar.student_id, ar.admission_no, COALESCE(s.user_id::text,'') AS user_id, COALESCE(u.email,'') AS login_email FROM admission_requests ar JOIN students s ON s.id=ar.student_id LEFT JOIN users u ON u.id=s.user_id WHERE ar.idempotency_key=?", key).Scan(&rows).Error
+	if err != nil || len(rows) == 0 {
+		return admissionRecord{}, false, err
+	}
+	return rows[0], true, nil
 }
 
 func (r *GormRepository) AdmissionDefaults(ctx context.Context, a Actor, sectionID string) (AdmissionDefaults, error) {
