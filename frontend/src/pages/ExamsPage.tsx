@@ -73,7 +73,7 @@ function SheetsPanel({data,mode,canManage,canReview,busy,onAction}:{data:ExamShe
 
 export function ExamsPage({mode,canManage,canReview=false}:{mode:Mode;canManage:boolean;canReview?:boolean}) {
  const {t,i18n}=useTranslation();const {id:childId}=useParams();const {accessToken,renew,expire}=useAuth();const client=useQueryClient()
- const [page,setPage]=useState(1),[search,setSearch]=useState(''),[selected,setSelected]=useState(''),[selectedStudent,setSelectedStudent]=useState('')
+ const [page,setPage]=useState(1),[search,setSearch]=useState(''),[selected,setSelected]=useState(()=>new URLSearchParams(window.location.search).get('exam')??''),[selectedStudent,setSelectedStudent]=useState(()=>new URLSearchParams(window.location.search).get('student')??'')
  const [form,setForm]=useState<ResultExamInput>(blank),[subject,setSubject]=useState({subject_id:'',full_marks:100,pass_marks:33})
  const [markDraft,setMarkDraft]=useState<Record<string,string>>({}),[statusDraft,setStatusDraft]=useState<Record<string,ExamMarkStatus>>({}),[reasonDraft,setReasonDraft]=useState<Record<string,string>>({}),[cellErrors,setCellErrors]=useState<Record<string,string>>({})
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')

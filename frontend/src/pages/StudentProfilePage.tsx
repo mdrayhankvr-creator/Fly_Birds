@@ -9,6 +9,8 @@ import { CardBack, CardFront, type CardLanguage } from '../components/IdCard'
 import { Icon } from '../components/icons'
 import { StateScreen } from '../components/StateScreen'
 import { AcademicHistory } from './AcademicHistory'
+import { StudentInsights, type InsightAccess } from './StudentInsights'
+import { Fact, ProfilePhoto } from './profileUi'
 import { Avatar, EmptyState, Notice as Banner, PageHeader, SectionCard, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 
 function formatDate(value: string, lang: string) {
@@ -32,7 +34,7 @@ function Field({ label, children, wide = false }: { label: string; children: Rea
   </div>
 }
 
-export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians, canReadHistory = mode === 'self' }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean; canReadHistory?: boolean }) {
+export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians, canReadHistory = mode === 'self', insights }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean; canReadHistory?: boolean; insights?: InsightAccess }) {
   const { id } = useParams()
   const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
@@ -113,7 +115,12 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
   const name = pick(value.name_en, value.name_bn)
   const statusTone = value.status === 'active' ? 'present' : value.status === 'inactive' ? 'unmarked' : 'leave'
   const guardian = value.primary_guardian
-  const alternate = (en: string, other: string) => en && other ? (bn ? en : other) : ''
+  // The sections this viewer has, for the jump bar.
+  const sections: [string, string][] = [['profile-personal', 'c4SectionPersonal'], ['profile-academic', 'c4SectionAcademic'],
+    ...(canReadGuardians || mode === 'self' ? [['student-guardians', 'c4SectionGuardians'] as [string, string]] : []),
+    ...(insights?.analytics ? [['student-attendance', 'c4SectionAttendance'], ['student-results', 'c4SectionResults']] as [string, string][] : []),
+    ...(insights?.fees ? [['student-fees', 'c4SectionFees'] as [string, string]] : []),
+    ['student-card', 'c4SectionCard']]
   return <div className="space-y-6">
     <PageHeader eyebrow={t(mode === 'self' ? 'myStudentProfile' : 'profileHeading')} title={name}
       description={`${t('admissionNo')}: ${value.admission_no} · ${value.class_name} · ${value.section_name}`}
@@ -123,27 +130,36 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
     {error && <Banner tone="error">{error}</Banner>}{message && <Banner tone="success">{message}</Banner>}
 
     <section className={`${ui.card} overflow-hidden`} aria-labelledby="profile-identity">
-      <div className="ds-softer border-b border-slate-100">
-      <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
-        {photoUrl
-          ? <img src={photoUrl} alt={t('idCardPhotoAlt', { name })} className="h-28 w-24 shrink-0 rounded-2xl object-cover shadow-sm ring-4 ring-white" />
-          : <span role="img" aria-label={t('noPhoto')} className="ds-fill grid h-28 w-24 shrink-0 place-items-center rounded-2xl text-3xl font-bold shadow-sm">{[...name][0]}</span>}
-        <div className="min-w-0 flex-1">
-          <h2 id="profile-identity" className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl" style={{ overflowWrap: 'anywhere' }}>{name}</h2>
-          {alternate(value.name_en, value.name_bn) && <p className="text-sm text-slate-600">{alternate(value.name_en, value.name_bn)}</p>}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <StatusBadge tone={statusTone}>{t(`${value.status}Student`)}</StatusBadge>
-            {value.blood_group && <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-800">{t('profileBloodGroup')}: {value.blood_group}</span>}
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">{t('idCardStudentId')}: {value.student_code || value.admission_no}</span>
-            {!photoUrl && <span className="text-xs text-slate-500">{t('noPhoto')}</span>}
+      <div className="ds-page-head rounded-none border-0 p-5 sm:p-7">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          {photoUrl ? <img src={photoUrl} alt={t('idCardPhotoAlt', { name })} className="h-36 w-28 shrink-0 rounded-3xl object-cover shadow-md ring-4 ring-white sm:h-44 sm:w-36" />
+            : <span role="img" aria-label={t('noPhoto')}><ProfilePhoto name={value.name_en} size="h-36 w-28 sm:h-44 sm:w-36" /></span>}
+          <div className="min-w-0 flex-1">
+            <h2 id="profile-identity" className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl" style={{ overflowWrap: 'anywhere' }}>{value.name_en}</h2>
+            {value.name_bn && <p lang="bn" className="text-xl font-bold text-slate-700">{value.name_bn}</p>}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <StatusBadge tone={statusTone}>{t(`${value.status}Student`)}</StatusBadge>
+              {value.blood_group && <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-800">{t('profileBloodGroup')}: {value.blood_group}</span>}
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3 xl:grid-cols-6">
+              <Fact label={t('idCardStudentId')}>{value.student_code || value.admission_no}</Fact>
+              <Fact label={t('admissionNo')}>{value.admission_no}</Fact>
+              <Fact label={t('classLabel')}>{value.class_name}</Fact>
+              <Fact label={t('sectionLabel')}>{value.section_name}</Fact>
+              <Fact label={t('rollNo')}>{value.roll_no == null ? '—' : num(value.roll_no)}</Fact>
+              <Fact label={t('sessionLabel')}>{value.session_name}</Fact>
+            </dl>
           </div>
         </div>
-      </div>
       </div>
       {canManagePhoto && <form className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-end sm:px-6" onSubmit={e => void upload(e)}>
         <label className={`${ui.label} flex-1`}>{t('selectPhoto')}<input type="file" required accept="image/jpeg,image/png" className={ui.field} onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} /></label>
         <button disabled={busy || !photoFile} className={ui.primary}>{t('uploadPhoto')}</button></form>}
     </section>
+
+    <nav aria-label={t('c4ProfileSections')} className="ds-sunken sticky top-16 z-10 -mx-1 flex gap-1.5 overflow-x-auto px-2 py-2 print:hidden lg:top-20">
+      {sections.map(([target, label]) => <a key={target} href={`#${target}`} className="btn btn-quiet btn-sm shrink-0" onClick={event => { event.preventDefault(); document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{t(label)}</a>)}
+    </nav>
 
     <div className="grid gap-6 lg:grid-cols-2">
       <SectionCard title={t('profilePersonal')} id="profile-personal" icon="user">
@@ -184,6 +200,8 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
     </div>
 
     {canReadHistory && <AcademicHistory studentId={value.id} />}
+
+    {insights && <StudentInsights studentId={value.id} access={insights} />}
 
     <SectionCard title={t('studentCard')} description={t('idCardPreviewHelp')} id="student-card" icon="card"
       actions={<label className="flex items-center gap-2 text-sm font-semibold text-slate-700">{t('idCardLanguage')}<select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={cardLang} onChange={e => setCardLang(e.target.value as CardLanguage)}><option value="en">English</option><option value="bn">বাংলা</option></select></label>}>

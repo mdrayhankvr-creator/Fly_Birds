@@ -2,6 +2,7 @@ import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { StudentName } from '../components/StudentLink'
 import { adjustFeeDue, deleteFeeDue, generateFeeDues, getFeeAdjustments, getFeeDues, getFeeOptions, type FeeDue, type FeeOptions } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
 import { Notice, useFeeAction, type FeeAccess, Pager, feeButton, feeCard, feeField, feeSecondary, todayInDhaka, useLocalName, useMoney } from './feeShared'
@@ -81,7 +82,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
       </div>
       {dues.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : dues.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrGeneric')}</p> : dues.data.items.length === 0 ? <p className="mt-3 text-slate-600">{t('feeNoDues')}</p> : <>
         <div className="mt-3 overflow-x-auto"><table className="ds-cards w-full min-w-[48rem] border-collapse text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeStudent')}</th><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeDiscount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feePaid')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeBalance')}</th><th className="px-3 py-2.5">{t('feeStatus')}</th>{access.canManage && <th className="px-3 py-2.5">{t('feeActions')}</th>}</tr></thead>
-          <tbody>{dues.data.items.map(d => <tr key={d.id} className="border-b align-top"><td className="px-3 py-2.5"><strong>{name(d.student_name, d.student_name_bn)}</strong><span className="block text-xs text-slate-600">{d.admission_no} · {d.class_name}</span></td>
+          <tbody>{dues.data.items.map(d => <tr key={d.id} className="border-b align-top"><td className="px-3 py-2.5"><strong><StudentName id={d.student_id}>{name(d.student_name, d.student_name_bn)}</StudentName></strong><span className="block text-xs text-slate-600">{d.admission_no} · {d.class_name}</span></td>
             <td className="px-3 py-2.5">{name(d.category_name_en, d.category_name_bn)}{d.period && <span className="block text-xs text-slate-600">{d.period}</span>}</td><td className="whitespace-nowrap p-2">{d.due_date}</td>
             <td className="px-3 py-2.5 text-right tabular-nums">{money(d.amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.discount_amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}</td>
             <td className="px-3 py-2.5"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${d.overdue ? 'bg-rose-100 text-rose-800' : 'bg-slate-100'}`}>{t(`feeStatus_${d.status}`)}{d.overdue ? ` · ${t('feeOverdue')}` : ''}</span></td>

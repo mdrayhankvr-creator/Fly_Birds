@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { StudentName } from '../components/StudentLink'
 import { Link, useParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError, getAttendanceSessions, getAttendanceSections, getStudentAttendanceRoster, getStudentAttendanceMonthly, getOwnStudentAttendanceReport, getGuardianStudentAttendanceReport, saveStudentAttendanceRoster, scanStudentAttendance, getAbsenceEvents, type StudentAttendanceRosterItem, type StudentAttendanceRecord } from '../api/client'
@@ -258,7 +259,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="w-9 shrink-0 text-center font-mono text-lg font-bold tabular-nums text-slate-500" aria-label={t('attnRoll', { roll: item.roll_no ?? '—' })}>{item.roll_no == null ? '—' : num(item.roll_no)}</span>
                     <Avatar name={item.name_en} />
-                    <div className="min-w-0"><p className="truncate font-semibold text-slate-900">{display}</p>
+                    <div className="min-w-0"><p className="truncate font-semibold text-slate-900"><StudentName id={item.student_id}>{display}</StudentName></p>
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span>{item.admission_no}</span>
                         {item.status && !draft && <StatusBadge tone={item.status}>{t('attnSaved')}{item.source === 'qr' ? ' · QR' : ''}</StatusBadge>}
                         {draft && <span className="font-semibold text-[var(--brand-ink)]">{item.record_id ? t('attnCorrection') : t('attnUnsaved')}</span>}

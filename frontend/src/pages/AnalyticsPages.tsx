@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useCanOpenStudents } from '../components/StudentLink'
 import { Link, useParams } from 'react-router'
 import { ApiError, getMyPermissions } from '../api/client'
 import { saveBlob } from '../api/admin'
@@ -582,9 +583,10 @@ export function StaffStudentPage() {
   const { t } = useTranslation()
   const { id = '' } = useParams()
   const api = useApi()
+  const canOpenStudents = useCanOpenStudents()
   const q = useQuery({ queryKey: ['analytics', 'student', id], queryFn: () => api(token => getStudentSummary(token, id)), retry: false })
   return <section className="space-y-5">
-    <PageHeader eyebrow={t('m11Eyebrow')} title={t('m11StudentProgress')} actions={<button type="button" className={ui.secondary} onClick={() => history.back()}>{t('m11Back')}</button>} />
+    <PageHeader eyebrow={t('m11Eyebrow')} title={t('m11StudentProgress')} actions={<div className="flex flex-wrap gap-2">{canOpenStudents && <Link className={ui.primary} to={`/admin/students/${id}`}>{t('c4OpenProfile')}</Link>}<button type="button" className={ui.secondary} onClick={() => history.back()}>{t('m11Back')}</button></div>} />
     {q.isPending ? <Skeleton rows={4} /> : q.isError ? <Failure error={q.error} retry={() => void q.refetch()} /> : <StudentSummaryView data={q.data} />}
   </section>
 }
