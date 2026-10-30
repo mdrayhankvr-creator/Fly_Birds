@@ -10,6 +10,20 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — M15 Stage B2: Promotion Screens (2026-10-31)
+
+On `feature/m15-stage-b2-promotion-ui`, from `main` `c26288e3` (stage B1 merged, PR #36). Not pushed. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [ENROLMENT_AND_PROMOTION.md](ENROLMENT_AND_PROMOTION.md) §8.
+
+**Implementation:**
+- **Screens at `/admin/promotions`** (administrator and head teacher only): class progression, batches with a create form, batch review with overrides and reasons, target sections and rolls, head-teacher approval showing exactly what is approved, apply and revert with exact counts and the logins to disable, the reason a revert is refused, and the concession review (fees access only). English and Bangla, dark mode, 375px.
+- **Backend (read only, no migration):** `counts.logins_to_disable` and `revert_blockers` on a batch; revert refuses on the same check.
+- **Shared files:** one commit with one route, one menu entry and the translations bundle registration (6 lines). Texts in `promotionTranslations.ts`.
+
+**Verification (disposable resources only):**
+- **Go:** on a freshly created disposable database, `go test ./... -p 1` passed 27 of 27 packages with tests. `go vet` and gofmt clean on the changed packages.
+- **Frontend:** typecheck and build pass; i18n check passed; unit tests 11 of 11.
+- **Browser e2e:** `e2e/promotion-ui.mjs` on `m15b1` rebuilt fresh and demo-seeded: 34 of 34 checks, no console errors; 64 screenshots (eight screens at 1440px and 375px, English and Bangla, light and dark) with overflow, contrast and axe clean.
+
 ## Current Status — Premium UI Checkpoint 3: Daily Office Tasks (2026-10-31)
 
 On `feature/premium-ui-checkpoint-3`, from `main` `f4a245c` (checkpoint 2 merged, PR #37). Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migration 1752 (`admission_requests`).
