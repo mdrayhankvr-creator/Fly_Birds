@@ -24,6 +24,7 @@ import { premiumUiTranslations } from './premiumUiTranslations'
 import { landingTranslations } from './landingTranslations'
 import { idCardTranslations } from './idCardTranslations'
 import { premiumUi2Translations } from './premiumUi2Translations'
+import { checkpoint3Translations } from './checkpoint3Translations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -187,5 +188,7 @@ i18n.addResourceBundle('en', 'translation', idCardTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', idCardTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', premiumUi2Translations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', premiumUi2Translations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', checkpoint3Translations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', checkpoint3Translations.bn, true, true)
 
 export default i18n
