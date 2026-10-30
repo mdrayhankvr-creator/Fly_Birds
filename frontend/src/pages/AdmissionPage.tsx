@@ -122,6 +122,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
       else if (code === 'login_email_taken') setErrors({ login: t('c3ErrLoginTaken') })
       else if (code === 'admission_no_taken') { setErrors({ admission: t('c3ErrAdmissionTaken') }); void defaults.refetch() }
       else if (code === 'roll_taken') { setErrors({ roll: t('c3ErrRollTaken') }); setRoll(r => ({ ...r, touched: false })); void defaults.refetch() }
+      else if (!(cause instanceof ApiError)) setErrors({ form: t('c3ErrNetwork') })
       else setErrors({ form: t(code === 'forbidden' ? 'c3ErrForbidden' : code === 'invalid_request' ? 'c3ErrInvalid' : 'peopleSaveError') })
     } finally { setBusy(false) }
   }
