@@ -16,7 +16,8 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
   const { t } = useTranslation()
   const { accessToken, renew, expire } = useAuth()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
+  // Another page can open the list on one account (?search=email).
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search')?.slice(0, 100) ?? '')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)

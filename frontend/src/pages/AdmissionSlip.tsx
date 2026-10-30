@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { getSchoolBranding } from '../api/client'
 import type { AdmissionResult } from '../api/admission'
 import { useNumber } from './attendanceUi'
@@ -37,10 +38,13 @@ export function AdmissionSlip({ result }: { result: AdmissionResult }) {
       <h3 id="admission-slip-login" className="text-sm font-bold text-slate-900">{t('c3SlipLogin')}</h3>
       <dl className="mt-3 grid gap-4 sm:grid-cols-2">
         {row(t('c3LoginEmail'), <span className="font-mono">{result.login.email}</span>)}
-        {row(t('c3InitialPassword'), <span className="font-mono text-lg tracking-wider" data-initial-password>{result.login.initial_password}</span>)}
+        {result.login.initial_password ? row(t('c3InitialPassword'), <span className="font-mono text-lg tracking-wider" data-initial-password>{result.login.initial_password}</span>)
+          : row(t('c3InitialPassword'), <span className="font-normal text-slate-700">{t('c3PasswordNotAgain')}</span>)}
       </dl>
-      <p className="mt-3 text-sm text-slate-700">{t('c3SlipLoginHelp')}</p>
-      <p className="mt-1 text-xs font-semibold text-amber-800 print:hidden">{t('c3PasswordOnce')}</p>
+      {result.login.initial_password ? <>
+        <p className="mt-3 text-sm text-slate-700">{t('c3SlipLoginHelp')}</p>
+        <p className="mt-1 text-xs font-semibold text-amber-800 print:hidden">{t('c3PasswordOnce')}</p>
+      </> : <p className="mt-3 text-sm print:hidden"><Link className="font-semibold text-[var(--brand-ink)] underline underline-offset-4" to={`/admin/users?search=${encodeURIComponent(result.login.email)}`}>{t('c3OpenLoginInUsers')}</Link></p>}
     </section>}
     <footer className="mt-8 grid grid-cols-2 gap-8 text-xs text-slate-500"><p className="border-t border-slate-300 pt-2">{t('c3SlipGuardianSign')}</p><p className="border-t border-slate-300 pt-2 text-right">{t('c3SlipOfficeSign')}</p></footer>
   </article>

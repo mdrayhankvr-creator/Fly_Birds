@@ -3,9 +3,9 @@ import { bearerRequest, json, type Guardian, type GuardianInput, type Student, t
 // One-page admission (checkpoint 3): the student, an optional login and up to
 // two guardians are created in one server transaction.
 export type AdmissionGuardian = { guardian_id?: string; new?: Omit<GuardianInput, 'user_id'> & { user_id: '' }; relationship: string; is_primary: boolean; confirm_new?: boolean }
-export type AdmissionInput = { student: Omit<StudentInput, 'user_id'> & { user_id: '' }; account: { create: boolean; email: string }; guardians: AdmissionGuardian[] }
+export type AdmissionInput = { idempotency_key: string; student: Omit<StudentInput, 'user_id'> & { user_id: '' }; account: { create: boolean; email: string }; guardians: AdmissionGuardian[] }
 export type AdmissionLogin = { user_id: string; email: string; initial_password: string }
-export type AdmissionResult = { student: Student; guardians: StudentGuardian[]; login?: AdmissionLogin }
+export type AdmissionResult = { student: Student; guardians: StudentGuardian[]; login?: AdmissionLogin; replayed: boolean }
 export type GuardianMatch = Guardian & { matched_on: 'phone' | 'email'; children: string[] }
 export type AdmissionDefaults = { next_roll: number; admission_no: string; login_domain: string }
 

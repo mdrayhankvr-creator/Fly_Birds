@@ -8,7 +8,7 @@ import { Icon } from '../components/icons'
 import { peopleField, usePeopleApi } from './peopleShared'
 import { CardTitle, Notice, PageHeader, ui } from './attendanceUi'
 import { AdmissionSlip } from './AdmissionSlip'
-import { admissionLoginLocalPart, readStoredPlacement, storePlacement, todayInDhaka, type Placement } from './admissionModel'
+import { admissionLoginLocalPart, newAdmissionKey, readStoredPlacement, storePlacement, todayInDhaka, type Placement } from './admissionModel'
 
 // One-page admission (checkpoint 3): placement, the student, up to two
 // guardians and an optional login on one screen, saved in one server
@@ -40,6 +40,8 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
   const [errors, setErrors] = useState<FieldErrors>({})
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<AdmissionResult | null>(null)
+  // One key per admission: kept while the same form is retried, renewed for the next student.
+  const [attempt, setAttempt] = useState(newAdmissionKey)
   const top = useRef<HTMLDivElement>(null)
 
   const sessions = useQuery({ queryKey: ['people', 'admission', 'sessions'], queryFn: () => authorized(token => getAcademicSessions(token, new URLSearchParams({ page: '1', page_size: '100' }))), retry: false })
@@ -92,6 +94,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
     setBusy(true)
     try {
       const admitted = await authorized(token => admitStudent(token, {
+        idempotency_key: attempt,
         student: {
           admission_no: admissionNo.value.trim(), name_en: nameEN.trim(), name_bn: nameBN.trim(), date_of_birth: dob, status: 'active',
           session_id: placement.session_id, class_id: placement.class_id, section_id: placement.section_id, roll_no: roll.value ? Number(digits(roll.value)) : null, user_id: '',
@@ -115,14 +118,15 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
         const target = drafts[index]?.i ?? 0
         setGuardians(gs => gs.map((g, i) => i === target ? { ...g, matches } : g))
         setErrors({ [`guardian${target}`]: t('c3GuardianExists') })
-      } else if (code === 'login_email_taken') setErrors({ login: t('c3ErrLoginTaken') })
+      } else if (code === 'idempotency_key_reused') { setAttempt(newAdmissionKey()); setErrors({ form: t('c3ErrKeyReused') }) }
+      else if (code === 'login_email_taken') setErrors({ login: t('c3ErrLoginTaken') })
       else if (code === 'admission_no_taken') { setErrors({ admission: t('c3ErrAdmissionTaken') }); void defaults.refetch() }
       else if (code === 'roll_taken') { setErrors({ roll: t('c3ErrRollTaken') }); setRoll(r => ({ ...r, touched: false })); void defaults.refetch() }
       else setErrors({ form: t(code === 'forbidden' ? 'c3ErrForbidden' : code === 'invalid_request' ? 'c3ErrInvalid' : 'peopleSaveError') })
     } finally { setBusy(false) }
   }
   function another() {
-    setResult(null); setNameEN(''); setNameBN(''); setDob(''); setDetails(blankDetails()); setErrors({})
+    setResult(null); setAttempt(newAdmissionKey()); setNameEN(''); setNameBN(''); setDob(''); setDetails(blankDetails()); setErrors({})
     setGuardians(canManageGuardians ? [blankGuardian('Father', true)] : []); setLogin({ create: canCreateLogin, email: '', touched: false })
     // Start from the current suggestions; the refetch moves them on if they changed.
     setRoll({ value: placement.section_id && defaults.data ? String(defaults.data.next_roll) : '', touched: false })
@@ -134,7 +138,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
   const header = <PageHeader eyebrow={t('m12Group_people')} title={t('c3AdmitTitle')} description={t('c3AdmitIntro')} actions={<Link to="/admin/students" className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t('c3BackToStudents')}</Link>} />
   if (result) return <div ref={top} className="space-y-5">
     {header}
-    <Notice tone="success">{t('c3Admitted', { name: result.student.name_en })}</Notice>
+    <Notice tone={result.replayed ? 'info' : 'success'}>{t(result.replayed ? 'c3AlreadyAdmitted' : 'c3Admitted', { name: result.student.name_en })}</Notice>
     <AdmissionSlip result={result} />
     <div className="flex flex-wrap gap-2 print:hidden">
       <button type="button" className={ui.primary} onClick={() => window.print()}><Icon name="print" className="h-4 w-4" />{t('c3PrintSlip')}</button>
