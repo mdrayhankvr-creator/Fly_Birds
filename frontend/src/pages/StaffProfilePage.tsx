@@ -159,8 +159,8 @@ function OfficialCard({ profile: p, busy, onSave }: { profile: StaffProfile; bus
           <span className="font-mono text-lg font-bold tracking-wider text-slate-900" data-nid>{shown || p.nid_masked || <span className="font-sans text-sm font-normal text-slate-500">{t('profileNotProvided')}</span>}</span>
           {p.can_reveal_nid && (shown ? <button type="button" className={`${ui.quiet} btn-sm`} onClick={() => setShown('')}><Icon name="eye" className="h-4 w-4" />{t('c4HideNID')}</button>
             : <button type="button" className={`${ui.secondary} btn-sm`} disabled={revealing} onClick={() => void reveal()}><Icon name="eye" className="h-4 w-4" />{t('c4ShowNID')}</button>)}
+          <span className="block w-full text-xs text-slate-500">{t('c4NIDPrivate')}</span>
         </dd>
-        <p className="mt-1 text-xs text-slate-500">{t('c4NIDPrivate')}</p>
       </div>}
     </dl>}
   </section>
