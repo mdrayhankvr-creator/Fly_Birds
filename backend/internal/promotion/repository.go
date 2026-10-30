@@ -56,7 +56,7 @@ func (r *Repository) List(ctx context.Context, q Query) ([]Batch, error) {
 		return nil, err
 	}
 	for i := range out {
-		out[i].Items, out[i].Blockers, out[i].Warnings, out[i].Counts = []Item{}, []Issue{}, []Issue{}, map[string]int{}
+		out[i].Items, out[i].Blockers, out[i].Warnings, out[i].RevertBlockers, out[i].Counts = []Item{}, []Issue{}, []Issue{}, []Issue{}, map[string]int{}
 	}
 	return out, nil
 }
@@ -76,7 +76,7 @@ func view(tx *gorm.DB, id string) (Batch, error) {
 	if res.RowsAffected == 0 {
 		return b, ErrNotFound
 	}
-	b.Items, b.Blockers, b.Warnings, b.Counts = []Item{}, []Issue{}, []Issue{}, map[string]int{}
+	b.Items, b.Blockers, b.Warnings, b.RevertBlockers, b.Counts = []Item{}, []Issue{}, []Issue{}, []Issue{}, map[string]int{}
 	if err := tx.Raw(`SELECT i.student_id, st.name_en AS student_name, st.admission_no, i.enrolment_id, i.source_section_id, ss.name AS source_section_name,
        i.source_roll_no, i.annual_version_id, i.annual_outcome, i.annual_class_position, i.recommendation, i.decision, i.reason,
        coalesce(nullif(du.display_name, ''), du.email) AS decided_by, i.target_class_id, tc.name AS target_class_name,
@@ -105,8 +105,51 @@ func view(tx *gorm.DB, id string) (Batch, error) {
 		if err := issues(tx, &b); err != nil {
 			return b, err
 		}
+		var logins int
+		if err := tx.Raw(`SELECT count(*) FROM promotion_items i JOIN students s ON s.id = i.student_id JOIN users u ON u.id = s.user_id
+ WHERE i.batch_id = ? AND i.decision IN ('withdraw', 'transfer') AND u.is_active`, b.ID).Row().Scan(&logins); err != nil {
+			return b, err
+		}
+		b.Counts["logins_to_disable"] = logins
+	}
+	if b.Status == "applied" {
+		if err := revertIssues(tx, &b); err != nil {
+			return b, err
+		}
 	}
 	return b, nil
+}
+
+// revertIssues fills why an applied batch cannot be reverted: a promoted or
+// repeating student who has records in the new year (new_year_records), or
+// any student who is no longer where the apply left them (student_moved).
+func revertIssues(tx *gorm.DB, b *Batch) error {
+	for _, it := range b.Items {
+		if it.Decision == nil {
+			continue
+		}
+		var placed, records bool
+		switch *it.Decision {
+		case Promote, Repeat:
+			if err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM students s JOIN student_enrolments e ON e.student_id = s.id AND e.state = 'current'
+  WHERE s.id = ? AND s.session_id = ? AND s.status = 'active' AND e.id = ?), student_has_session_records(?, ?)`,
+				it.StudentID, b.ToSessionID, it.AppliedEnrolmentID, it.StudentID, b.ToSessionID).Row().Scan(&placed, &records); err != nil {
+				return err
+			}
+		default:
+			if err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM students s WHERE s.id = ? AND s.session_id = ? AND s.class_id = ? AND s.status = ?)`,
+				it.StudentID, b.FromSessionID, b.ClassID, leaveStatus[*it.Decision]).Row().Scan(&placed); err != nil {
+				return err
+			}
+		}
+		switch {
+		case !placed:
+			b.RevertBlockers = append(b.RevertBlockers, Issue{Code: "student_moved", StudentID: it.StudentID})
+		case records:
+			b.RevertBlockers = append(b.RevertBlockers, Issue{Code: "new_year_records", StudentID: it.StudentID})
+		}
+	}
+	return nil
 }
 
 // inputsHash covers everything an apply acts on: the sessions, class and its
@@ -785,23 +828,8 @@ func (r *Repository) Revert(ctx context.Context, a Actor, id, reason string) (Ba
 		if err != nil {
 			return err
 		}
-		for _, it := range v.Items {
-			var ok bool
-			switch *it.Decision {
-			case Promote, Repeat:
-				err = tx.Raw(`SELECT EXISTS (SELECT 1 FROM students s JOIN student_enrolments e ON e.student_id = s.id AND e.state = 'current'
-  WHERE s.id = ? AND s.session_id = ? AND s.status = 'active' AND e.id = ?) AND NOT student_has_session_records(?, ?)`,
-					it.StudentID, b.ToSessionID, it.AppliedEnrolmentID, it.StudentID, b.ToSessionID).Row().Scan(&ok)
-			default:
-				err = tx.Raw(`SELECT EXISTS (SELECT 1 FROM students s WHERE s.id = ? AND s.session_id = ? AND s.class_id = ? AND s.status = ?)`,
-					it.StudentID, b.FromSessionID, b.ClassID, leaveStatus[*it.Decision]).Row().Scan(&ok)
-			}
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return ErrRevertRefused
-			}
+		if len(v.RevertBlockers) > 0 {
+			return ErrRevertRefused
 		}
 		for _, it := range v.Items {
 			var res *gorm.DB

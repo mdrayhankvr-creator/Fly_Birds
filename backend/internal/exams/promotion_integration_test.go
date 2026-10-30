@@ -370,10 +370,16 @@ func TestPostgresPromotionKeepsTheOldYear(t *testing.T) {
 	// Revert: refused once the new year has a record, allowed after.
 	exec("INSERT INTO student_attendance(student_id,session_id,class_id,section_id,attendance_date,status,source,recorded_by,updated_by) SELECT id, session_id, class_id, section_id, '2306-03-01', 'present', 'manual', ?, ? FROM students WHERE id = ?",
 		f.admin, f.admin, f.students[1])
+	if v, err := ps.Get(ctx, b.ID); err != nil || len(v.RevertBlockers) != 1 || v.RevertBlockers[0].Code != "new_year_records" || v.RevertBlockers[0].StudentID != f.students[1] {
+		t.Fatalf("revert blockers after activity: %+v %v", v.RevertBlockers, err)
+	}
 	if _, err := ps.Revert(ctx, admin, b.ID, promotion.RevertInput{Reason: "Wrong class map"}); !errors.Is(err, promotion.ErrRevertRefused) {
 		t.Fatalf("revert after activity: %v", err)
 	}
 	exec("DELETE FROM student_attendance WHERE student_id = ? AND session_id = ?", f.students[1], next)
+	if v, err := ps.Get(ctx, b.ID); err != nil || len(v.RevertBlockers) != 0 {
+		t.Fatalf("revert blockers once the record is gone: %+v %v", v.RevertBlockers, err)
+	}
 	if _, err := ps.Revert(ctx, admin, b.ID, promotion.RevertInput{Reason: ""}); !errors.Is(err, promotion.ErrReasonRequired) {
 		t.Fatalf("revert without a reason: %v", err)
 	}

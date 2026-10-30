@@ -121,12 +121,16 @@ type Batch struct {
 	CreatedBy       string  `json:"created_by"`
 	CreatedAt       string  `json:"created_at"`
 	// Live view (not stored): the hash an approval must name, what stops
-	// approval or apply, and what to double-check.
-	InputsSHA256 string         `json:"inputs_sha256" gorm:"-"`
-	Counts       map[string]int `json:"counts" gorm:"-"`
-	Blockers     []Issue        `json:"blockers" gorm:"-"`
-	Warnings     []Issue        `json:"warnings" gorm:"-"`
-	Items        []Item         `json:"items" gorm:"-"`
+	// approval or apply, and what to double-check. Counts include
+	// logins_to_disable (open batches: withdraw and transfer decisions whose
+	// student has an active login). RevertBlockers (applied batches) say why
+	// a revert would be refused; empty means it is allowed.
+	InputsSHA256   string         `json:"inputs_sha256" gorm:"-"`
+	Counts         map[string]int `json:"counts" gorm:"-"`
+	Blockers       []Issue        `json:"blockers" gorm:"-"`
+	Warnings       []Issue        `json:"warnings" gorm:"-"`
+	RevertBlockers []Issue        `json:"revert_blockers" gorm:"-"`
+	Items          []Item         `json:"items" gorm:"-"`
 }
 
 type Item struct {
