@@ -38,7 +38,7 @@ export function ForcedPasswordPage() {
   }
   return <div className="mx-auto max-w-lg">
     <section className={`${ui.card} p-5 sm:p-8`} aria-labelledby="forced-title">
-      <span aria-hidden="true" className="ds-fill grid h-12 w-12 place-items-center rounded-2xl"><Icon name="lock" className="h-6 w-6" /></span>
+      <span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--brand-primary)] text-[var(--brand-on)]"><Icon name="lock" className="h-6 w-6" /></span>
       <h1 id="forced-title" className="mt-4 text-2xl font-extrabold tracking-tight text-slate-900">{t('c4ForcedTitle')}</h1>
       <p className="mt-2 text-sm leading-6 text-slate-600">{t('c4ForcedIntro', { email: user?.email ?? '' })}</p>
       {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}
