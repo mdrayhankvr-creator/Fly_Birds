@@ -101,7 +101,7 @@ export function StatusBadge({ due }: { due: Pick<FeeDue, 'status' | 'overdue'> }
 // A table kept as a table may scroll sideways on phones, so its scroll area
 // takes keyboard focus.
 export function TableWrap({ children, cards = true, label }: { children: ReactNode; cards?: boolean; label?: string }) {
-  return <div className="mt-3 overflow-x-auto" {...(cards ? {} : { tabIndex: 0, role: 'region', 'aria-label': label })}><table className={`${cards ? 'ds-cards ' : ''}w-full min-w-[36rem] border-collapse text-left text-sm`}>{children}</table></div>
+  return <div className="mt-3 overflow-x-auto" {...(cards ? {} : { tabIndex: 0, role: 'region', 'aria-label': label })}><table className={`${cards ? 'ds-cards min-w-[36rem] ' : 'min-w-[18rem] '}w-full border-collapse text-left text-sm`}>{children}</table></div>
 }
 
 export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent) => void; label?: string }) {
@@ -120,7 +120,7 @@ export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent)
   </div>
 }
 
-export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose?: () => void }) {
+export function ReceiptView({ receipt, onClose, actions = true }: { receipt: FeeReceipt; onClose?: () => void; actions?: boolean }) {
   const { t, i18n } = useTranslation()
   const money = useMoney()
   const month = useMonthLabel()
@@ -150,7 +150,7 @@ export function ReceiptView({ receipt, onClose }: { receipt: FeeReceipt; onClose
     <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('c3InWords')}</p><p className="font-semibold text-slate-900">{amountInWordsEN(p.amount)}</p><p lang="bn" className="font-semibold text-slate-900">{amountInWordsBN(p.amount)}</p></div>
     <div className="mt-4 flex flex-wrap justify-between gap-2 text-sm"><p>{t('feeBalanceAfter')}: <strong>{money(receipt.balance_after)}</strong></p>{p.received_by_name && <p>{t('feeReceivedBy')}: {p.received_by_name}</p>}</div>
     {p.note && <p className="mt-2 text-sm text-slate-600">{p.note}</p>}
-    <div className="mt-5 flex flex-wrap gap-2 print:hidden"><button type="button" className={feeButton} onClick={() => window.print()}>{t('feePrintReceipt')}</button>{onClose && <button type="button" className={feeSecondary} onClick={onClose}>{t('feeClose')}</button>}</div>
+    {actions && <div className="mt-5 flex flex-wrap gap-2 print:hidden"><button type="button" className={feeButton} onClick={() => window.print()}>{t('feePrintReceipt')}</button>{onClose && <button type="button" className={feeSecondary} onClick={onClose}>{t('feeClose')}</button>}</div>}
   </article>
 }
 

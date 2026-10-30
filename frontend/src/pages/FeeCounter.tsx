@@ -113,7 +113,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
 
     {student && <>
       {receipt && <div className="space-y-3">
-        <ReceiptView receipt={receipt} />
+        <ReceiptView receipt={receipt} actions={false} />
         <div className="flex flex-wrap gap-2 print:hidden">
           <button type="button" autoFocus className={`${ui.primary} min-h-12`} onClick={() => window.print()}><Icon name="print" className="h-4 w-4" />{t('feePrintReceipt')}</button>
           <button type="button" className={`${ui.secondary} min-h-12`} onClick={reset}><Icon name="search" className="h-4 w-4" />{t('c3NextStudent')} <kbd className="ml-1 rounded border border-slate-300 px-1 text-xs">Esc</kbd></button>
