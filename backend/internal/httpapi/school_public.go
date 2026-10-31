@@ -185,5 +185,5 @@ func (h *schoolHandler) deleteGalleryPhoto(c *gin.Context) {
 		schoolError(c, err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	success(c, http.StatusOK, gin.H{"deleted": true})
 }

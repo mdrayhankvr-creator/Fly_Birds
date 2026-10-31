@@ -343,7 +343,7 @@ paths:
       description: 'Requires school_settings:update, administrator and the school settings module.'
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
-      responses: { '204': { description: Removed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+      responses: { '200': { description: 'Removed: {deleted: true}' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /school/gallery/{id}/image:
     get:
       operationId: getGalleryImage

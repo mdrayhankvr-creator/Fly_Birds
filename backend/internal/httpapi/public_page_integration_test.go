@@ -248,7 +248,7 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	}
 
 	// Removing content hides sections again.
-	call(http.MethodDelete, "/school/gallery/"+g.ID, "", adminH, http.StatusNoContent)
+	call(http.MethodDelete, "/school/gallery/"+g.ID, "", adminH, http.StatusOK)
 	call(http.MethodDelete, "/school/public-page/head-photo", "", adminH, http.StatusOK)
 	call(http.MethodGet, "/school/public-page/head-photo", "", nil, http.StatusNotFound)
 	call(http.MethodPut, "/school/public-page", `{}`, adminH, http.StatusOK)

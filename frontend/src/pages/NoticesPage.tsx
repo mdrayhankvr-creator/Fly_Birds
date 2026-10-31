@@ -6,7 +6,7 @@ import { archiveNotice, deleteNotice, getManagedNotices, getNoticeFeed, publishN
 import { CardTitle, EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, Tabs, ui } from './attendanceUi'
 import { AttachmentList, Field, FileUploader, PriorityBadge, RolePicker, TargetPicker, isoToLocal, localToIso, useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
 
-const blank: NoticeInput = { title_en: '', title_bn: '', body_en: '', body_bn: '', priority: 'normal', audience_roles: ['student', 'guardian', 'teacher'], targets: [], expires_at: null, file_ids: [] }
+const blank: NoticeInput = { title_en: '', title_bn: '', body_en: '', body_bn: '', priority: 'normal', audience_roles: ['student', 'guardian', 'teacher'], targets: [], expires_at: null, file_ids: [], show_public: false }
 
 function NoticeCard({ notice, manager }: { notice: Notice; manager?: boolean }) {
   const { t } = useTranslation()
@@ -76,7 +76,7 @@ function NoticeManager() {
   function open(n: Notice | 'new') {
     setEditing(n); setMessage(null); setScheduleAt('')
     if (n === 'new') { setForm(blank); setFiles([]); setExpires('') }
-    else { setForm({ title_en: n.title_en, title_bn: n.title_bn, body_en: n.body_en, body_bn: n.body_bn, priority: n.priority, audience_roles: n.audience_roles, targets: n.targets, expires_at: n.expires_at, file_ids: n.attachments.map(a => a.id) }); setFiles(n.attachments); setExpires(isoToLocal(n.expires_at)) }
+    else { setForm({ title_en: n.title_en, title_bn: n.title_bn, body_en: n.body_en, body_bn: n.body_bn, priority: n.priority, audience_roles: n.audience_roles, targets: n.targets, expires_at: n.expires_at, file_ids: n.attachments.map(a => a.id), show_public: n.show_public }); setFiles(n.attachments); setExpires(isoToLocal(n.expires_at)) }
   }
   async function run(task: () => Promise<Notice | unknown>, success: string, close = false) {
     setBusy(true); setMessage(null)
@@ -115,6 +115,7 @@ function NoticeManager() {
         <Field label={t('m9ExpiresAt')}><input type="datetime-local" className={ui.field} value={expires} onChange={e => setExpires(e.target.value)} /></Field>
       </div>
       <RolePicker value={form.audience_roles} onChange={roles => setForm({ ...form, audience_roles: roles })} />
+      <label className="flex min-h-11 items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-primary)]" checked={form.show_public} onChange={e => setForm({ ...form, show_public: e.target.checked })} /><span><span className="block font-semibold text-slate-900">{t('c5ShowOnPublicPage')}</span><span className="block text-slate-600">{t('c5ShowOnPublicPageHint')}</span></span></label>
       <TargetPicker value={form.targets} onChange={targets => setForm({ ...form, targets })} />
       <div><p className={ui.label}>{t('m9Attachments')}</p><AttachmentList items={files} pathFor={f => current && current.attachments.some(a => a.id === f.id) ? `/notices/${current.id}/files/${f.id}` : ''} onRemove={id => setFiles(files.filter(f => f.id !== id))} />
         <div className="mt-2"><FileUploader path="/notices/files" max={10 - files.length} onBusy={setUploading} onUploaded={f => setFiles(prev => [...prev, f])} /></div></div>
