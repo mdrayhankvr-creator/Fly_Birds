@@ -58,8 +58,8 @@ paths:
   /auth/login:
     post:
       operationId: login
-      summary: Sign in with email and password
-      description: Returns a 15-minute JWT access token. Sets a seven-day HttpOnly refresh cookie and a session-bound CSRF cookie. Invalid, unknown, locked, and disabled accounts receive the same credentials error.
+      summary: Sign in with an email or Student ID and a password
+      description: Returns a 15-minute JWT access token. Sets a seven-day HttpOnly refresh cookie and a session-bound CSRF cookie. The account is named by an email address or, for students, by a sign-in ID (any text without spaces or "@", matched ignoring case). Invalid, unknown, locked, and disabled accounts receive the same credentials error whichever form is used; placeholder addresses under no-email.invalid are refused.
       tags: [authentication]
       security: []
       requestBody:
@@ -1231,6 +1231,15 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: section_id, in: query, required: false, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Defaults }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/logins:
+    post:
+      operationId: createSectionStudentLogins
+      tags: [students]
+      summary: Give every active student in a section without a login one
+      description: 'Requires students:manage, users:create and administrator. Query section_id. In one transaction, creates a login for each active student in the section who has none, with the sign-in ID (Student ID when unique, otherwise the admission number) and a temporary password the student must change at first sign-in. Returns {logins: [...]} with each one-time password; passwords are never stored in plain text, logged or audited. 409 no_students_without_login when there is nobody to give a login.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: section_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '201': { description: The created logins with their one-time passwords }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'no_students_without_login or no_login_id' } }
   /students/me:
     get:
       operationId: getOwnStudent
@@ -1247,6 +1256,16 @@ paths:
       description: Requires students:read_self and the students module. Takes no student ID, so it only ever returns the caller's own guardians (name, Bangla name, relationship, primary flag and phone).
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Relationships }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/{id}/login:
+    post:
+      operationId: createStudentLogin
+      tags: [students]
+      summary: Create and link a login for one student
+      description: 'Requires students:manage, users:create and administrator. Body {email} (optional; empty for a sign-in ID only). Returns the slip: the sign-in ID, the email when given, and the temporary password once. The student must change it at first sign-in. Audited as user.created without the password.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '201': { description: The login with its one-time password }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'student_has_login, login_email_taken or no_login_id' } }
   /students/{id}:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:
@@ -4208,10 +4227,12 @@ components:
         description: { type: string }
     LoginRequest:
       type: object
-      required: [email, password]
+      required: [password]
       additionalProperties: false
+      description: Send identifier (an email address or a student's sign-in ID). email is still accepted and may hold either form; when both are sent they must match.
       properties:
-        email: { type: string, format: email, maxLength: 254 }
+        identifier: { type: string, maxLength: 254 }
+        email: { type: string, maxLength: 254 }
         password: { type: string, format: password, minLength: 1, maxLength: 72 }
     AuthUser:
       type: object

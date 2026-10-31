@@ -61,10 +61,10 @@ func requireScopedGrant(tx *gorm.DB, a Actor) error {
 	return nil
 }
 
-const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo,s.student_code,s.gender,s.blood_group,s.father_name_en,s.father_name_bn,s.mother_name_en,s.mother_name_bn,s.present_address,s.permanent_address,COALESCE(to_char(s.admission_date,'YYYY-MM-DD'),'') AS admission_date"
+const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo,s.student_code,s.gender,s.blood_group,s.father_name_en,s.father_name_bn,s.mother_name_en,s.mother_name_bn,s.present_address,s.permanent_address,COALESCE(to_char(s.admission_date,'YYYY-MM-DD'),'') AS admission_date,COALESCE(lu.login_id,'') AS login_id"
 
 func studentBase(db *gorm.DB) *gorm.DB {
-	return db.Table("students AS s").Joins("JOIN academic_sessions AS a ON a.id=s.session_id").Joins("JOIN academic_classes AS c ON c.id=s.class_id").Joins("JOIN academic_sections AS sec ON sec.id=s.section_id").Joins("LEFT JOIN student_photos AS p ON p.student_id=s.id")
+	return db.Table("students AS s").Joins("JOIN academic_sessions AS a ON a.id=s.session_id").Joins("JOIN academic_classes AS c ON c.id=s.class_id").Joins("JOIN academic_sections AS sec ON sec.id=s.section_id").Joins("LEFT JOIN student_photos AS p ON p.student_id=s.id").Joins("LEFT JOIN users AS lu ON lu.id=s.user_id")
 }
 func (r *GormRepository) ListStudents(ctx context.Context, q Query) (Page[Student], error) {
 	base := studentBase(r.db.WithContext(ctx))

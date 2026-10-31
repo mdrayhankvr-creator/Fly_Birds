@@ -25,6 +25,12 @@ func peopleError(c *gin.Context, err error) {
 	switch {
 	case errors.As(err, &match):
 		c.JSON(409, gin.H{"error": gin.H{"code": "guardian_exists", "message": "a guardian with this phone or email is already on record; link them or confirm a new guardian", "index": match.Index, "matches": match.Matches}})
+	case errors.Is(err, people.ErrHasLogin):
+		failure(c, 409, "student_has_login", "this student already has a login")
+	case errors.Is(err, people.ErrNoLoginID):
+		failure(c, 409, "no_login_id", "the Student ID and admission number are both unusable as a sign-in ID (spaces, or already used by another login)")
+	case errors.Is(err, people.ErrNoStudentsToLink):
+		failure(c, 409, "no_students_without_login", "every active student in this section already has a login")
 	case errors.Is(err, people.ErrLoginTaken):
 		failure(c, 409, "login_email_taken", "this login email is already registered")
 	case errors.Is(err, people.ErrAdmissionNoTaken):
@@ -359,6 +365,41 @@ func (h *peopleHandler) admit(c *gin.Context) {
 	}
 	success(c, status, result)
 }
+
+// createStudentLogin creates and links a login for one student. The response
+// carries the temporary password once; it is not stored or logged.
+func (h *peopleHandler) createStudentLogin(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var v struct {
+		Email string `json:"email"`
+	}
+	if !decodeSchoolJSON(c, 2*1024, &v) {
+		return
+	}
+	login, err := h.service.CreateStudentLogin(c.Request.Context(), actorFrom(c), c.Param("id"), v.Email)
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 201, login)
+}
+
+// createSectionLogins gives every active student in a section without a
+// login one, and returns their slips.
+func (h *peopleHandler) createSectionLogins(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	logins, err := h.service.CreateSectionLogins(c.Request.Context(), actorFrom(c), c.Query("section_id"))
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 201, gin.H{"logins": logins})
+}
+
 func (h *peopleHandler) admissionDefaults(c *gin.Context) {
 	if !h.available(c) {
 		return
