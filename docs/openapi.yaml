@@ -270,6 +270,89 @@ paths:
       responses:
         '200': { description: Public branding, content: { application/json: { schema: { $ref: '#/components/schemas/BrandingResponse' } } } }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /school/public-page:
+    get:
+      operationId: getPublicSchoolPage
+      tags: [school]
+      summary: The public school page below the sign-in form
+      description: 'No sign-in. Returns only what the administrator wrote for the public: about (with optional totals of active students and teachers), the head teacher''s message, the gallery, notices whose authors chose to show them publicly (title and text, newest six, live only) and contact details. A section with no content is null. Never includes student records. Cached for 60 seconds.'
+      security: []
+      responses: { '200': { description: The public page } }
+    put:
+      operationId: savePublicSchoolPage
+      tags: [school]
+      summary: Edit the public school page
+      description: 'Requires school_settings:update, administrator and the school settings module. Body: about_en/bn, founded_year, eiin (6 digits or empty), show_counts, head_name_en/bn, head_message_en/bn, contact_address_en/bn, contact_phone, contact_email, map_url (https only). Every field is replaced.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: The saved page }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/public-page/edit:
+    get:
+      operationId: getPublicSchoolPageForEdit
+      tags: [school]
+      summary: The public school page with every field, for editing
+      description: 'Requires school_settings:update, administrator and the school settings module.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: 'page and gallery' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/public-page/head-photo:
+    get:
+      operationId: getHeadTeacherPhoto
+      tags: [school]
+      summary: The head teacher's photo on the public page
+      description: No sign-in. JPEG; with ?v= matching the current version it may be cached for a year.
+      security: []
+      responses: { '200': { description: JPEG image }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      operationId: saveHeadTeacherPhoto
+      tags: [school]
+      summary: Upload the head teacher's photo
+      description: 'Requires school_settings:update, administrator and the school settings module. JPEG or PNG up to 8 MB; cropped square, resized to 480 px and re-encoded (which drops metadata).'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: The page }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '413': { description: too_large }, '415': { description: unsupported_media_type } }
+    delete:
+      operationId: deleteHeadTeacherPhoto
+      tags: [school]
+      summary: Remove the head teacher's photo
+      description: 'Requires school_settings:update, administrator and the school settings module.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: The page }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/gallery:
+    post:
+      operationId: addGalleryPhoto
+      tags: [school]
+      summary: Add a photo to the public gallery
+      description: 'Requires school_settings:update, administrator and the school settings module. JPEG or PNG up to 8 MB; stored at most 1600 px on its longest side with a 480 px copy for the grid, re-encoded (which drops metadata). At most 48 photos. Get guardians'' consent before publishing children''s photos, and never caption them with names.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '201': { description: The photo }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: gallery_limit }, '413': { description: too_large }, '415': { description: unsupported_media_type } }
+  /school/gallery/{id}:
+    patch:
+      operationId: updateGalleryPhoto
+      tags: [school]
+      summary: Change a gallery photo's captions
+      description: 'Requires school_settings:update, administrator and the school settings module. Body {caption_en, caption_bn}, 140 characters each.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: The photo }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      operationId: deleteGalleryPhoto
+      tags: [school]
+      summary: Remove a gallery photo
+      description: 'Requires school_settings:update, administrator and the school settings module.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '204': { description: Removed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /school/gallery/{id}/image:
+    get:
+      operationId: getGalleryImage
+      tags: [school]
+      summary: A gallery photo
+      description: No sign-in. size=thumb gives the 480 px grid copy. With ?v= matching the version it may be cached for a year.
+      security: []
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: size, in: query, schema: { type: string, enum: [thumb] } }]
+      responses: { '200': { description: JPEG image }, '404': { $ref: '#/components/responses/NotFound' } }
   /school/slides:
     get:
       operationId: listPublicSchoolSlides

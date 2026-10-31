@@ -43,7 +43,7 @@ func dbErr(err error) error {
 
 const liveSQL = "(n.status = 'published' AND n.publish_at <= now() AND (n.expires_at IS NULL OR n.expires_at > now()))"
 const utcFormat = `'YYYY-MM-DD"T"HH24:MI:SS"Z"'`
-const noticeSelect = "n.id,n.title_en,n.title_bn,n.body_en,n.body_bn,n.priority,array_to_json(n.audience_roles)::text AS roles_json,n.status," +
+const noticeSelect = "n.id,n.title_en,n.title_bn,n.body_en,n.body_bn,n.priority,array_to_json(n.audience_roles)::text AS roles_json,n.status,n.show_public," +
 	"to_char(n.publish_at AT TIME ZONE 'UTC'," + utcFormat + ") AS publish_at,to_char(n.expires_at AT TIME ZONE 'UTC'," + utcFormat + ") AS expires_at," +
 	liveSQL + " AS live,COALESCE(NULLIF(au.display_name,''),au.email) AS author_name,to_char(n.updated_at AT TIME ZONE 'UTC'," + utcFormat + ") AS updated_at"
 
@@ -189,8 +189,8 @@ func (r *GormRepository) Save(ctx context.Context, actor, id string, in NoticeIn
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		roles := pgTextArray(in.AudienceRoles)
 		if id == "" {
-			if err := tx.Raw("INSERT INTO notices(title_en,title_bn,body_en,body_bn,priority,audience_roles,expires_at,created_by,updated_by) VALUES (?,?,?,?,?,?::text[],?,?,?) RETURNING id",
-				in.TitleEN, in.TitleBN, in.BodyEN, in.BodyBN, in.Priority, roles, in.ExpiresAt, actor, actor).Row().Scan(&id); err != nil {
+			if err := tx.Raw("INSERT INTO notices(title_en,title_bn,body_en,body_bn,priority,audience_roles,expires_at,show_public,created_by,updated_by) VALUES (?,?,?,?,?,?::text[],?,?,?,?) RETURNING id",
+				in.TitleEN, in.TitleBN, in.BodyEN, in.BodyBN, in.Priority, roles, in.ExpiresAt, in.ShowPublic, actor, actor).Row().Scan(&id); err != nil {
 				return dbErr(err)
 			}
 		} else {
@@ -201,8 +201,8 @@ func (r *GormRepository) Save(ctx context.Context, actor, id string, in NoticeIn
 			if status == "archived" {
 				return ErrConflict
 			}
-			if err := tx.Exec("UPDATE notices SET title_en=?,title_bn=?,body_en=?,body_bn=?,priority=?,audience_roles=?::text[],expires_at=?,updated_by=?,updated_at=now() WHERE id=?",
-				in.TitleEN, in.TitleBN, in.BodyEN, in.BodyBN, in.Priority, roles, in.ExpiresAt, actor, id).Error; err != nil {
+			if err := tx.Exec("UPDATE notices SET title_en=?,title_bn=?,body_en=?,body_bn=?,priority=?,audience_roles=?::text[],expires_at=?,show_public=?,updated_by=?,updated_at=now() WHERE id=?",
+				in.TitleEN, in.TitleBN, in.BodyEN, in.BodyBN, in.Priority, roles, in.ExpiresAt, in.ShowPublic, actor, id).Error; err != nil {
 				return dbErr(err)
 			}
 		}
@@ -242,7 +242,7 @@ func (r *GormRepository) Save(ctx context.Context, actor, id string, in NoticeIn
 		if out, err = r.get(tx, actor, id, true); err != nil {
 			return err
 		}
-		return audit.Record(tx, &actor, "notice.saved", "notice", id, map[string]any{"priority": in.Priority, "roles": in.AudienceRoles, "targets": len(in.Targets), "attachments": len(in.FileIDs)})
+		return audit.Record(tx, &actor, "notice.saved", "notice", id, map[string]any{"priority": in.Priority, "roles": in.AudienceRoles, "targets": len(in.Targets), "attachments": len(in.FileIDs), "show_public": in.ShowPublic})
 	})
 	return out, dbErr(err)
 }

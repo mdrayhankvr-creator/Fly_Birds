@@ -33,22 +33,24 @@ type Attachment struct {
 	Size        int    `json:"size"`
 }
 type Notice struct {
-	ID            string       `json:"id"`
-	TitleEN       string       `json:"title_en"`
-	TitleBN       string       `json:"title_bn"`
-	BodyEN        string       `json:"body_en"`
-	BodyBN        string       `json:"body_bn"`
-	Priority      string       `json:"priority"`
-	AudienceRoles []string     `json:"audience_roles" gorm:"-"`
-	RolesJSON     string       `json:"-"`
-	Status        string       `json:"status"`
-	PublishAt     *string      `json:"publish_at"`
-	ExpiresAt     *string      `json:"expires_at"`
-	Live          bool         `json:"live"`
-	AuthorName    string       `json:"author_name"`
-	UpdatedAt     string       `json:"updated_at"`
-	Targets       []Target     `json:"targets" gorm:"-"`
-	Attachments   []Attachment `json:"attachments" gorm:"-"`
+	ID            string   `json:"id"`
+	TitleEN       string   `json:"title_en"`
+	TitleBN       string   `json:"title_bn"`
+	BodyEN        string   `json:"body_en"`
+	BodyBN        string   `json:"body_bn"`
+	Priority      string   `json:"priority"`
+	AudienceRoles []string `json:"audience_roles" gorm:"-"`
+	RolesJSON     string   `json:"-"`
+	Status        string   `json:"status"`
+	PublishAt     *string  `json:"publish_at"`
+	ExpiresAt     *string  `json:"expires_at"`
+	Live          bool     `json:"live"`
+	// ShowPublic puts a published notice on the public school page too.
+	ShowPublic  bool         `json:"show_public"`
+	AuthorName  string       `json:"author_name"`
+	UpdatedAt   string       `json:"updated_at"`
+	Targets     []Target     `json:"targets" gorm:"-"`
+	Attachments []Attachment `json:"attachments" gorm:"-"`
 }
 type NoticeInput struct {
 	TitleEN       string   `json:"title_en"`
@@ -60,6 +62,9 @@ type NoticeInput struct {
 	Targets       []Target `json:"targets"`
 	ExpiresAt     *string  `json:"expires_at"`
 	FileIDs       []string `json:"file_ids"`
+	// ShowPublic also shows the notice, once published, on the public school
+	// page (title and text only). Off unless the author chooses it.
+	ShowPublic bool `json:"show_public"`
 }
 type PublishInput struct {
 	PublishAt *string `json:"publish_at"`

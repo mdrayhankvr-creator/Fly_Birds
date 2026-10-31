@@ -355,6 +355,11 @@ func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *r
 	// Public landing-page slideshow: photos the administrator chose to show.
 	router.GET("/school/slides", schoolHandler.slides)
 	router.GET("/school/slides/:id/image", schoolHandler.slideImage)
+	// Public school page below the sign-in: only what the administrator wrote
+	// for the public, never student records.
+	router.GET("/school/public-page", schoolHandler.publicPage)
+	router.GET("/school/public-page/head-photo", schoolHandler.headPhoto)
+	router.GET("/school/gallery/:id/image", schoolHandler.galleryImage)
 	// Public card check: unauthenticated by design and reveals no personal data.
 	router.GET("/public/id-cards/:token", verifyCard(&peopleHandler{service: peopleService}, schoolService))
 	schoolRoutes := router.Group("/school")
@@ -365,6 +370,13 @@ func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *r
 	schoolRoutes.PUT("/slides/order", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.reorderSlides)
 	schoolRoutes.PATCH("/slides/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.updateSlide)
 	schoolRoutes.DELETE("/slides/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.deleteSlide)
+	schoolRoutes.GET("/public-page/edit", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.publicPageForEdit)
+	schoolRoutes.PUT("/public-page", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.savePublicPage)
+	schoolRoutes.PUT("/public-page/head-photo", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveHeadPhoto)
+	schoolRoutes.DELETE("/public-page/head-photo", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.deleteHeadPhoto)
+	schoolRoutes.POST("/gallery", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.addGalleryPhoto)
+	schoolRoutes.PATCH("/gallery/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.updateGalleryPhoto)
+	schoolRoutes.DELETE("/gallery/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.deleteGalleryPhoto)
 	schoolRoutes.GET("/grading", RequirePermission(service, "grading:read"), RequireModule(schoolService, "school_settings"), schoolHandler.grading)
 	schoolRoutes.PUT("/grading", RequirePermission(service, "grading:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveGrading)
 	schoolRoutes.GET("/modules", RequirePermission(service, "modules:read"), RequireModule(schoolService, "school_settings"), schoolHandler.modules)
