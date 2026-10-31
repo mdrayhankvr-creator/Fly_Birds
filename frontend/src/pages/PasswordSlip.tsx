@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { getSchoolBranding } from '../api/client'
+import { getSchoolBranding, isPlaceholderEmail } from '../api/client'
 
 // PasswordSlip is the printable note of a temporary password set by an
 // administrator. The password is shown only here, once.
-export function PasswordSlip({ name, email, password }: { name: string; email: string; password: string }) {
+export function PasswordSlip({ name, email, loginId, password }: { name: string; email: string; loginId?: string; password: string }) {
   const { t, i18n } = useTranslation()
   const branding = useQuery({ queryKey: ['school', 'branding'], queryFn: ({ signal }) => getSchoolBranding(signal), retry: false, staleTime: 60_000 })
   const bn = i18n.language === 'bn'
@@ -18,7 +18,8 @@ export function PasswordSlip({ name, email, password }: { name: string; email: s
     </header>
     <dl className="mt-4 grid gap-4 sm:grid-cols-2">
       <div className="min-w-0"><dt className={label}>{t('displayName')}</dt><dd className="mt-0.5 font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name || '—'}</dd></div>
-      <div className="min-w-0"><dt className={label}>{t('c3LoginEmail')}</dt><dd className="mt-0.5 font-mono font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{email}</dd></div>
+      {loginId && <div className="min-w-0"><dt className={label}>{t('c5SignInId')}</dt><dd className="mt-0.5 font-mono font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{loginId}</dd></div>}
+      {!isPlaceholderEmail(email) && <div className="min-w-0"><dt className={label}>{t('c3LoginEmail')}</dt><dd className="mt-0.5 font-mono font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{email}</dd></div>}
       <div className="min-w-0 sm:col-span-2"><dt className={label}>{t('c4TemporaryPassword')}</dt><dd className="mt-0.5 font-mono text-xl font-bold tracking-wider text-slate-900" data-temporary-password>{password}</dd></div>
     </dl>
     <p className="mt-4 text-sm text-slate-700">{t('c4SlipHelp')}</p>

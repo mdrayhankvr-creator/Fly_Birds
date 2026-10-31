@@ -61,7 +61,7 @@ func actorFrom(c *gin.Context) people.Actor {
 }
 func peopleQuery(c *gin.Context) (people.Query, error) {
 	page, size, err := parsePage(c)
-	return people.Query{Search: c.Query("search"), Status: c.Query("status"), SessionID: c.Query("session_id"), ClassID: c.Query("class_id"), SectionID: c.Query("section_id"), Page: page, PageSize: size}, err
+	return people.Query{Search: c.Query("search"), Status: c.Query("status"), SessionID: c.Query("session_id"), ClassID: c.Query("class_id"), SectionID: c.Query("section_id"), WithoutLogin: c.Query("without_login") == "true", Page: page, PageSize: size}, err
 }
 func (h *peopleHandler) students(c *gin.Context) {
 	if !h.available(c) {

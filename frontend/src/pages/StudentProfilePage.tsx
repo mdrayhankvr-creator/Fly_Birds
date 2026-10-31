@@ -11,6 +11,8 @@ import { StateScreen } from '../components/StateScreen'
 import { AcademicHistory } from './AcademicHistory'
 import { StudentInsights, type InsightAccess } from './StudentInsights'
 import { Fact, ProfilePhoto } from './profileUi'
+import { createStudentLogin, type StudentLogin } from '../api/studentLogins'
+import { LoginSlipSheet } from './LoginSlips'
 import { Avatar, EmptyState, Notice as Banner, PageHeader, SectionCard, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 
 function formatDate(value: string, lang: string) {
@@ -34,7 +36,7 @@ function Field({ label, children, wide = false }: { label: string; children: Rea
   </div>
 }
 
-export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians, canReadHistory = mode === 'self', insights }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean; canReadHistory?: boolean; insights?: InsightAccess }) {
+export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians, canReadHistory = mode === 'self', canCreateLogin = false, insights }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean; canReadHistory?: boolean; canCreateLogin?: boolean; insights?: InsightAccess }) {
   const { id } = useParams()
   const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
@@ -52,6 +54,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [cardLang, setCardLang] = useState<CardLanguage>(i18n.language === 'bn' ? 'bn' : 'en')
+  const [newLogin, setNewLogin] = useState<StudentLogin | null>(null)
   const student = useQuery({ queryKey: ['people', 'profile', mode, id], queryFn: () => authorized(token => mode === 'self' ? getMyStudent(token) : getStudent(token, id!)), enabled: mode === 'self' || !!id, retry: false })
   const studentID = student.data?.id
   const card = useQuery({ queryKey: ['people', 'card', studentID], queryFn: () => authorized(token => getStudentCard(token, studentID!)), enabled: !!studentID, retry: false })
@@ -107,6 +110,14 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
     try { await authorized(token => unlinkStudentGuardian(token, studentID, guardianId)); await refreshLinks(); if (editor.kind === 'edit' && editor.guardianId === guardianId) setEditor({ kind: 'closed' }); setMessage(t('peopleSaved')) }
     catch { setError(t('peopleSaveError')) } finally { setBusy(false) }
   }
+  // One click: the login is created and linked, and its slip shown once.
+  async function makeLogin() {
+    if (!studentID) return
+    setBusy(true); setError(''); setMessage(''); setNewLogin(null)
+    try { setNewLogin(await authorized(token => createStudentLogin(token, studentID))); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }) }
+    catch (cause) { setError(t(cause instanceof ApiError && cause.code === 'student_has_login' ? 'c5AlreadyHasLogin' : cause instanceof ApiError && cause.code === 'no_login_id' ? 'c5NoLoginId' : 'c5LoginsFailed')) }
+    finally { setBusy(false) }
+  }
   if (student.isPending) return <StateScreen kind="loading" message={t('academicLoading')} />
   if (student.isError) return <StateScreen kind="error" message={t('peopleLoadError')} />
   const value: Student = student.data
@@ -125,9 +136,11 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
     <PageHeader eyebrow={t(mode === 'self' ? 'myStudentProfile' : 'profileHeading')} title={name}
       description={`${t('admissionNo')}: ${value.admission_no} · ${value.class_name} · ${value.section_name}`}
       actions={mode === 'staff' ? <div className="flex flex-wrap gap-2">
+        {canCreateLogin && !value.user_id && <button type="button" className={ui.primary} disabled={busy} onClick={() => void makeLogin()}><Icon name="lock" className="h-4 w-4" />{t('c5CreateLogin')}</button>}
         {canManagePhoto && <Link to={`/admin/students/${value.id}/card`} className={ui.primary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintOne')}</Link>}
         <Link to="/admin/students" className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t('studentsHeading')}</Link></div> : undefined} />
     {error && <Banner tone="error">{error}</Banner>}{message && <Banner tone="success">{message}</Banner>}
+    {newLogin && <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('c5LoginCreated')}><Banner tone="success">{t('c5LoginCreated')}</Banner><div className="mt-4"><LoginSlipSheet logins={[newLogin]} /></div></section>}
 
     <section className={`${ui.card} overflow-hidden`} aria-labelledby="profile-identity">
       <div className="ds-page-head rounded-none border-0 p-5 sm:p-7">
@@ -148,6 +161,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
               <Fact label={t('sectionLabel')}>{value.section_name}</Fact>
               <Fact label={t('rollNo')}>{value.roll_no == null ? '—' : num(value.roll_no)}</Fact>
               <Fact label={t('sessionLabel')}>{value.session_name}</Fact>
+              {value.login_id && <Fact label={t('c5SignInId')}><span className="font-mono">{value.login_id}</span></Fact>}
             </dl>
           </div>
         </div>

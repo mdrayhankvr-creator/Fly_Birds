@@ -84,6 +84,9 @@ func (r *GormRepository) ListStudents(ctx context.Context, q Query) (Page[Studen
 	if q.SectionID != "" {
 		base = base.Where("s.section_id=?", q.SectionID)
 	}
+	if q.WithoutLogin {
+		base = base.Where("s.user_id IS NULL")
+	}
 	out := Page[Student]{Items: []Student{}, Page: q.Page, PageSize: q.PageSize}
 	if err := base.Count(&out.Total).Error; err != nil {
 		return Page[Student]{}, err

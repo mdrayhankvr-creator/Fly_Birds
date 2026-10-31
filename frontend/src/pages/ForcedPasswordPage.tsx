@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ApiError, changeOwnPassword } from '../api/client'
+import { ApiError, changeOwnPassword, signInName } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { Icon } from '../components/icons'
 import { Notice, ui } from './attendanceUi'
@@ -40,7 +40,7 @@ export function ForcedPasswordPage() {
     <section className={`${ui.card} p-5 sm:p-8`} aria-labelledby="forced-title">
       <span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--brand-primary)] text-[var(--brand-on)]"><Icon name="lock" className="h-6 w-6" /></span>
       <h1 id="forced-title" className="mt-4 text-2xl font-extrabold tracking-tight text-slate-900">{t('c4ForcedTitle')}</h1>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{t('c4ForcedIntro', { email: user?.email ?? '' })}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{t('c4ForcedIntro', { email: user ? signInName(user) : '' })}</p>
       {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}
       <form className="mt-5 space-y-4" onSubmit={e => void submit(e)}>
         <label className={ui.label}>{t('c4TemporaryPassword')}<input className={ui.field} type="password" required autoComplete="current-password" value={current} onChange={e => setCurrent(e.target.value)} /></label>

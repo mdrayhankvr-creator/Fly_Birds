@@ -1193,7 +1193,7 @@ paths:
       summary: Search and page student directory
       description: Requires students:read and the students module; administrator and head teacher only.
       security: [{ bearerAuth: [] }]
-      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { name: status, in: query, schema: { type: string, enum: [active, inactive, graduated, transferred] } }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: section_id, in: query, schema: { type: string, format: uuid } }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { name: status, in: query, schema: { type: string, enum: [active, inactive, graduated, transferred] } }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: section_id, in: query, schema: { type: string, format: uuid } }, { name: without_login, in: query, description: 'true keeps only students with no linked login', schema: { type: boolean } }]
       responses: { '200': { description: Students, content: { application/json: { schema: { $ref: '#/components/schemas/StudentPageResponse' } } } }, '403': { $ref: '#/components/responses/Forbidden' }, '401': { $ref: '#/components/responses/Unauthorized' } }
     post:
       operationId: createStudent

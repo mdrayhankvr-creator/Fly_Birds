@@ -7,6 +7,8 @@ export type AuthUser = {
   display_name?: string
   // Set when someone else chose the password; the app shows only the change-password page.
   must_change_password?: boolean
+  // A student sign-in ID; students without an email have a placeholder address.
+  login_id?: string
 }
 
 export type AuthSession = {
@@ -42,11 +44,12 @@ async function authRequest(path: string, options: RequestInit): Promise<Response
   return response
 }
 
-export async function login(email: string, password: string): Promise<AuthSession> {
+// identifier is an email address or a student's sign-in ID.
+export async function login(identifier: string, password: string): Promise<AuthSession> {
   const response = await authRequest('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   })
   const body = await response.json()
   return body.data as AuthSession
@@ -170,7 +173,13 @@ export const putSchoolModule = (token: string, key: string, enabled: boolean) =>
   { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) },
 )
 
-export type ManagedUser = { id: string; email: string; display_name: string; role: string; is_active: boolean }
+export type ManagedUser = { id: string; email: string; display_name: string; role: string; is_active: boolean; login_id?: string }
+// Student logins made without an email have a placeholder address here;
+// they sign in with their sign-in ID (login_id).
+export const isPlaceholderEmail = (email: string) => email.toLowerCase().endsWith('@no-email.invalid')
+// signInName is what the account signs in with: its email, or its sign-in ID
+// when it has only a placeholder address.
+export const signInName = (u: { email: string; login_id?: string }) => isPlaceholderEmail(u.email) ? (u.login_id ?? '') : u.email
 export type NewUser = { email: string; display_name: string; role: string; password: string }
 export type DashboardNavigation = { key: string; name: string; path: string; coming_soon: boolean }
 export type DashboardSummary = {
@@ -220,9 +229,9 @@ export type Gender = '' | 'male' | 'female' | 'other'
 export const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
 export type StudentProfileDetails = { student_code: string; gender: Gender; blood_group: string; father_name_en: string; father_name_bn: string; mother_name_en: string; mother_name_bn: string; present_address: string; permanent_address: string; admission_date: string }
 export type GuardianSummary = { name_en: string; name_bn: string; relationship: string; phone: string }
-export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; session_name: string; class_name: string; section_name: string; has_photo: boolean; primary_guardian?: GuardianSummary } & StudentProfileDetails
+export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; login_id?: string; session_name: string; class_name: string; section_name: string; has_photo: boolean; primary_guardian?: GuardianSummary } & StudentProfileDetails
 // Profile details are optional on input: an omitted detail keeps its stored value.
-export type StudentInput = Omit<Student, 'id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails> & Partial<StudentProfileDetails>
+export type StudentInput = Omit<Student, 'id' | 'login_id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails> & Partial<StudentProfileDetails>
 export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
 export type GuardianInput = Omit<Guardian, 'id'>
 // One school year of a student (M15): where they were and how the year ended.

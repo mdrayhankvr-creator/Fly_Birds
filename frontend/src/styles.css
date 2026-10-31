@@ -364,6 +364,15 @@ main table tbody tr:hover { background-color: #f8fafc; }
 
 [data-theme-preview="dark"] { background-color: #0b1424; color: #f8fafc; }
 /* ID cards print from a separate root under <body>; on screen it is hidden. */
+.login-slips-print { display: none; }
+@media print {
+  /* Student login slips: two across, eight to an A4 page, always light. */
+  body:has(> .login-slips-print) > :not(.login-slips-print) { display: none !important; }
+  body:has(> .login-slips-print) { margin: 0; background: #ffffff !important; }
+  .login-slips-print { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; padding: 6mm; }
+  .login-slips-print .login-slip { break-inside: avoid; padding: 3.5mm; }
+  .login-slips-print, .login-slips-print * { color: #0f172a !important; background: #ffffff !important; border-color: #64748b !important; }
+}
 .idcard-print-root { display: none; }
 @media print {
   /* display: none (not visibility) so the app adds no blank pages. */

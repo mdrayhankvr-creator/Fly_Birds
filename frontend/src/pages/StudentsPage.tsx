@@ -12,7 +12,7 @@ const blankProfile: StudentProfileDetails = { student_code: '', gender: '', bloo
 type StudentForm = StudentInput & StudentProfileDetails
 const blank: StudentForm = { admission_no: '', name_en: '', name_bn: '', date_of_birth: '', status: 'active', session_id: '', class_id: '', section_id: '', roll_no: null, user_id: '', ...blankProfile }
 
-export function StudentsPage({ canManage }: { canManage: boolean }) {
+export function StudentsPage({ canManage, canCreateLogins = false }: { canManage: boolean; canCreateLogins?: boolean }) {
   const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
   const num = useNumber()
@@ -82,7 +82,7 @@ export function StudentsPage({ canManage }: { canManage: boolean }) {
   const set = <K extends keyof StudentForm>(key: K, value: StudentForm[K]) => setForm({ ...form, [key]: value })
   const legend = 'flex items-center gap-2 px-1 text-sm font-bold text-slate-900'
   return <div className="space-y-6">
-    <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} actions={canManage ? <><Link to="/admin/students/admit" className={ui.primary}><Icon name="plus" className="h-4 w-4" />{t('c3AdmitButton')}</Link><Link to="/admin/students/cards" className={ui.secondary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintBulk')}</Link></> : undefined} />
+    <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} actions={canManage ? <><Link to="/admin/students/admit" className={ui.primary}><Icon name="plus" className="h-4 w-4" />{t('c3AdmitButton')}</Link><Link to="/admin/students/cards" className={ui.secondary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintBulk')}</Link>{canCreateLogins && <Link to="/admin/students/logins" className={ui.secondary}><Icon name="lock" className="h-4 w-4" />{t('c5LoginsTitle')}</Link>}</> : undefined} />
     {error && <Notice tone="error">{error}</Notice>}{message && <Notice tone="success">{message}</Notice>}
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
       <section className={`${ui.card} min-w-0 p-4 sm:p-6`} aria-labelledby="students-list-title">

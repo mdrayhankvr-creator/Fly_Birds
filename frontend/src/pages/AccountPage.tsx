@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ApiError, changeOwnPassword, getCurrentUser, type AuthUser } from '../api/client'
+import { ApiError, changeOwnPassword, getCurrentUser, isPlaceholderEmail, signInName, type AuthUser } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { Icon } from '../components/icons'
 import { StateScreen } from '../components/StateScreen'
@@ -33,7 +33,7 @@ export function AccountPage({ permissions }: { permissions?: string[] }) {
 
   if (error) return <StateScreen kind="error" message={t('accountError')} />
   if (!user) return <StateScreen kind="loading" message={t('loadingAccount')} />
-  const name = user.display_name?.trim() || user.email
+  const name = user.display_name?.trim() || signInName(user)
   const initials = name.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(part => [...part][0]).join('').toUpperCase()
   return <div className="space-y-6">
     <PageHeader eyebrow={t('uxAccountEyebrow')} title={t('accountHeading')} description={t('accountDescription')} />
@@ -46,7 +46,8 @@ export function AccountPage({ permissions }: { permissions?: string[] }) {
         </div>
         <dl className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
           {user.display_name && <InfoRow label={t('uxDisplayName')}>{user.display_name}</InfoRow>}
-          <InfoRow label={t('email')}><span className="break-all">{user.email}</span></InfoRow>
+          {user.login_id && <InfoRow label={t('c5SignInId')}><span className="break-all font-mono">{user.login_id}</span></InfoRow>}
+          {!isPlaceholderEmail(user.email) && <InfoRow label={t('email')}><span className="break-all">{user.email}</span></InfoRow>}
           <InfoRow label={t('role')}>{t(`role_${user.role}`)}</InfoRow>
         </dl>
       </SectionCard>

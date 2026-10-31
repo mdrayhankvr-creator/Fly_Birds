@@ -123,7 +123,9 @@ type LinkInput struct {
 }
 type Query struct {
 	Search, Status, SessionID, ClassID, SectionID string
-	Page, PageSize                                int
+	// WithoutLogin keeps only students with no linked login.
+	WithoutLogin   bool
+	Page, PageSize int
 }
 type Page[T any] struct {
 	Items    []T   `json:"items"`
