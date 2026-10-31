@@ -12,6 +12,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/exam-verify ./cmd/exam-verify \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/suspend-leaver-logins ./cmd/suspend-leaver-logins
 
+# The document renderer (E7): the official Typst image, pinned by digest;
+# only its binary is copied.
+FROM ghcr.io/typst/typst:0.15.1@sha256:032e292249bcd378480cc7c142cfa324b63ef8aadeb88d7e7230320c4c9c422f AS typst
+
 FROM alpine:3.22
 RUN adduser -D -u 10001 app && mkdir -p /app/uploads /app/backups && chown app:app /app/uploads /app/backups
 COPY --from=build /out/api /app/api
@@ -21,6 +25,8 @@ COPY --from=build /out/restore-backup /app/restore-backup
 COPY --from=build /out/seed-demo /app/seed-demo
 COPY --from=build /out/exam-verify /app/exam-verify
 COPY --from=build /out/suspend-leaver-logins /app/suspend-leaver-logins
+COPY --from=typst /bin/typst /usr/local/bin/typst
+COPY assets/fonts /app/fonts
 USER app
 EXPOSE 8080
 # Healthy means the API answers and PostgreSQL is reachable (GET /readyz).
