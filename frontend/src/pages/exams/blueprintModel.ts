@@ -144,3 +144,60 @@ export function issueSubject(issue: BlueprintIssue): number | null {
   const m = /^subjects\.(\d+)/.exec(issue.path)
   return m ? Number(m[1]) : null
 }
+
+/** Whole-blueprint presets: one click sets every graded subject's term exam
+ * components and term rule, which can then be edited subject by subject. */
+export type BlueprintPreset = 'cq_mcq' | 'cq_mcq_prac'
+
+/** Applies a preset to every graded subject for one term. With classTest, the
+ * class tests count 20 % and the term exam 80 % (a class test is added if the
+ * term has none); without, the term exam is the whole mark. Returns null when
+ * the term does not have exactly one term exam. */
+export function applyBlueprintPreset(def: BlueprintDefinition, termId: string, preset: BlueprintPreset, classTest: boolean, passPercent = 33): BlueprintDefinition | null {
+  let next = structuredClone(def)
+  if (termAssessments(next, termId).finals.length !== 1) return null
+  if (classTest && termAssessments(next, termId).cts.length === 0) next = addAssessment(next, termId, 'class_test', 'Class test')
+  const rule = presetRule(next, termId, classTest ? 'ct_final' : 'final_only', defaultPresetOptions, passPercent)
+  if (!rule) return null
+  const final = termAssessments(next, termId).finals[0].key
+  const components = componentPresets[preset]
+  return {
+    ...next,
+    subjects: next.subjects.map(s => {
+      if (s.role === 'non_graded') return s
+      const withRule = setTermRule(s, structuredClone(rule), next)
+      return {
+        ...withRule,
+        sheets: withRule.sheets.map(sh => sh.assessment === final
+          ? { ...sh, pass: passFor(sumMarks(components.map(c => c.full)), passPercent), components: structuredClone(components) }
+          : sh),
+      }
+    }),
+  }
+}
+
+/** Copies another class's blueprint (same session) into a draft: its
+ * assessments, policies and, for every subject the two classes share, that
+ * subject's sheets and term rules. Subjects the other class does not have keep
+ * only what still applies, for the admin to finish. */
+export function copyFromClass(target: BlueprintDefinition, source: BlueprintDefinition): { def: BlueprintDefinition; copied: number } {
+  const keys = new Set(source.assessments.map(a => a.key))
+  let copied = 0
+  const subjects = target.subjects.map(s => {
+    const from = source.subjects.find(x => x.subject_id === s.subject_id && x.role !== 'non_graded')
+    if (s.role === 'non_graded') return structuredClone(s)
+    if (from) {
+      copied++
+      return { ...structuredClone(s), combined_key: from.combined_key, sheets: structuredClone(from.sheets), terms: structuredClone(from.terms) }
+    }
+    return {
+      ...structuredClone(s),
+      sheets: s.sheets.filter(x => keys.has(x.assessment)),
+      terms: s.terms.map(t => ({ ...t, contributions: t.contributions.map(c => ({ ...c, from: c.from.filter(f => keys.has(f)) })).filter(c => c.from.length > 0) })).filter(t => t.contributions.length > 0),
+    }
+  })
+  return {
+    def: { ...structuredClone(target), assessments: structuredClone(source.assessments), paper_rule: source.paper_rule, annual: structuredClone(source.annual), policy: structuredClone(source.policy), subjects },
+    copied,
+  }
+}

@@ -2,7 +2,7 @@
 // runner and type stripping: npm run test:unit).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addAssessment, applyToAll, passFor, presetOf, presetRule, removeAssessment, sheetFull, sumMarks, setTermRule } from '../src/pages/exams/blueprintModel.ts'
+import { addAssessment, applyBlueprintPreset, copyFromClass, applyToAll, passFor, presetOf, presetRule, removeAssessment, sheetFull, sumMarks, setTermRule } from '../src/pages/exams/blueprintModel.ts'
 
 const base = () => ({
   assessments: [
@@ -74,4 +74,48 @@ test('adding and removing assessments keeps the definition consistent', () => {
   def = removeAssessment(def, 'CT2')
   assert.ok(!def.subjects[0].sheets.some(s => s.assessment === 'CT2'))
   assert.deepEqual(def.subjects[0].terms[0].contributions[0].from, ['CT1', 'CT3', 'CT4'])
+})
+
+test('a blueprint preset sets every graded subject in one click', () => {
+  const def = base()
+  const plain = applyBlueprintPreset(def, 'T1', 'cq_mcq', false)
+  for (const s of plain.subjects.filter(x => x.role !== 'non_graded')) {
+    const ex = s.sheets.find(x => x.assessment === 'EX1')
+    assert.deepEqual(ex.components.map(c => `${c.key}:${c.full}`), ['CQ:70', 'MCQ:30'])
+    assert.equal(ex.pass, 33)
+    assert.equal(presetOf(s.terms[0], plain), 'final_only')
+    assert.equal(s.sheets.length, 1, 'no class-test sheets without class tests')
+  }
+  assert.deepEqual(plain.subjects[2], def.subjects[2], 'a non-graded subject is untouched')
+  const ct = applyBlueprintPreset(def, 'T1', 'cq_mcq_prac', true)
+  const math = ct.subjects[0]
+  assert.equal(presetOf(math.terms[0], ct), 'ct_final')
+  assert.deepEqual(math.terms[0].contributions.map(c => c.worth), [20, 80])
+  assert.deepEqual(math.sheets.find(x => x.assessment === 'EX1').components.map(c => c.key), ['CQ', 'MCQ', 'PRAC'])
+  assert.equal(math.sheets.filter(x => x.assessment.startsWith('CT')).length, 3)
+})
+
+test('a class-test preset adds a class test when the term has none', () => {
+  const def = base()
+  def.assessments = def.assessments.filter(a => a.kind === 'term_exam')
+  const next = applyBlueprintPreset(def, 'T1', 'cq_mcq', true)
+  assert.equal(next.assessments.filter(a => a.kind === 'class_test').length, 1)
+  assert.equal(presetOf(next.subjects[1].terms[0], next), 'ct_final')
+  assert.equal(def.assessments.length, 1, 'the original is not changed')
+  assert.equal(applyBlueprintPreset({ ...def, assessments: [] }, 'T1', 'cq_mcq', false), null)
+})
+
+test('copying another class takes its structure and the shared subjects', () => {
+  const source = applyBlueprintPreset(base(), 'T1', 'cq_mcq', true)
+  source.policy.ranking = 'dense'
+  const target = base()
+  target.assessments = [{ key: 'EX1', name: 'First Term', term_id: 'T1', kind: 'term_exam', visibility: 'with_assessment_publication' }]
+  target.subjects = [{ subject_id: 'MATH', role: 'required', sheets: [], terms: [] }, { subject_id: 'BIO', role: 'required', sheets: [{ assessment: 'OLD1', pass: 7, components: [{ key: 'TOTAL', full: 20 }] }], terms: [] }]
+  const { def, copied } = copyFromClass(target, source)
+  assert.equal(copied, 1)
+  assert.equal(def.policy.ranking, 'dense')
+  assert.deepEqual(def.assessments.map(a => a.key), source.assessments.map(a => a.key))
+  assert.deepEqual(def.subjects[0].terms, source.subjects[0].terms)
+  assert.deepEqual(def.subjects[1].sheets, [], 'a subject the other class lacks loses sheets of unknown assessments')
+  assert.equal(target.subjects[0].terms.length, 0, 'the draft passed in is not changed')
 })
