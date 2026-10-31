@@ -141,7 +141,7 @@ func prepareLogin(studentID, rawEmail string) (newLogin, error) {
 	if in.Password, err = auth.TemporaryPassword(); err != nil {
 		return newLogin{}, err
 	}
-	if in.Hash, err = auth.HashPassword(in.Password); err != nil {
+	if in.Hash, err = auth.HashTemporaryPassword(in.Password); err != nil {
 		return newLogin{}, err
 	}
 	return in, nil

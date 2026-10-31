@@ -22,7 +22,9 @@ type Service struct {
 	repo      Repository
 	tokens    *TokenManager
 	dummyHash string
-	now       func() time.Time
+	// dummyTemporary pads sign-in work; see Login.
+	dummyTemporary string
+	now            func() time.Time
 	// demoQuickLogin is set only from DEMO_QUICK_LOGIN (see demo.go).
 	demoQuickLogin bool
 }
@@ -43,7 +45,11 @@ func NewService(repo Repository, signingKey []byte) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{repo: repo, tokens: tokens, dummyHash: string(dummyHash), now: func() time.Time { return time.Now().UTC() }}, nil
+	dummyTemporary, err := bcrypt.GenerateFromPassword([]byte(dummy), temporaryCost)
+	if err != nil {
+		return nil, err
+	}
+	return &Service{repo: repo, tokens: tokens, dummyHash: string(dummyHash), dummyTemporary: string(dummyTemporary), now: func() time.Time { return time.Now().UTC() }}, nil
 }
 
 func NormalizeEmail(raw string) (string, error) {
@@ -68,14 +74,14 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (Crede
 	}
 	user, err := s.findForLogin(ctx, identifier)
 	if errors.Is(err, ErrNotFound) {
-		VerifyPassword(s.dummyHash, password)
+		s.verifyPadded(s.dummyHash, password)
 		return Credentials{}, ErrInvalidCredentials
 	}
 	if err != nil {
 		return Credentials{}, err
 	}
 	now := s.now()
-	valid := VerifyPassword(user.PasswordHash, password)
+	valid := s.verifyPadded(user.PasswordHash, password)
 	if !user.IsActive || (user.LockedUntil != nil && user.LockedUntil.After(now)) {
 		return Credentials{}, ErrInvalidCredentials
 	}
@@ -89,6 +95,20 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (Crede
 		return Credentials{}, err
 	}
 	return s.newSession(ctx, user, now)
+}
+
+// verifyPadded checks a password and then does one more check at the other
+// bcrypt cost, so every sign-in costs one full-cost and one temporary-cost
+// comparison: an unknown account, a temporary password and a chosen one all
+// take the same time.
+func (s *Service) verifyPadded(hash, password string) bool {
+	valid := VerifyPassword(hash, password)
+	if cost, err := bcrypt.Cost([]byte(hash)); err == nil && cost < passwordCost {
+		VerifyPassword(s.dummyHash, password)
+	} else {
+		VerifyPassword(s.dummyTemporary, password)
+	}
+	return valid
 }
 
 func (s *Service) findForLogin(ctx context.Context, identifier string) (User, error) {
