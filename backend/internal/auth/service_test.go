@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +22,14 @@ func (r *memoryRepository) FindUserByEmail(_ context.Context, email string) (Use
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.user.Email != email {
+		return User{}, ErrNotFound
+	}
+	return r.user, nil
+}
+func (r *memoryRepository) FindUserByLoginID(_ context.Context, loginID string) (User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.user.LoginID == nil || !strings.EqualFold(*r.user.LoginID, loginID) {
 		return User{}, ErrNotFound
 	}
 	return r.user, nil

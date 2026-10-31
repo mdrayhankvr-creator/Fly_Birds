@@ -27,6 +27,9 @@ type User struct {
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role"`
 	IsActive    bool   `json:"is_active"`
+	// LoginID is a student login's sign-in ID. A student login without an
+	// email has a placeholder address (auth.PlaceholderDomain) instead.
+	LoginID string `json:"login_id,omitempty"`
 }
 type CreateInput struct {
 	Email       string `json:"email"`

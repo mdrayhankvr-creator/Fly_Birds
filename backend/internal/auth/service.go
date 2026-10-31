@@ -58,12 +58,15 @@ func NormalizeEmail(raw string) (string, error) {
 	return email, nil
 }
 
-func (s *Service) Login(ctx context.Context, rawEmail, password string) (Credentials, error) {
-	email, err := NormalizeEmail(rawEmail)
-	if err != nil || password == "" || len(password) > 72 {
+// Login signs in with an email address or, for students, a sign-in ID. An
+// unknown email, an unknown ID and a wrong password all take the same path
+// (a password check against a dummy hash) and give the same error, so the
+// ID form reveals no more about which accounts exist than the email form.
+func (s *Service) Login(ctx context.Context, identifier, password string) (Credentials, error) {
+	if !ValidIdentifier(identifier) || password == "" || len(password) > 72 {
 		return Credentials{}, ErrInvalidCredentials
 	}
-	user, err := s.repo.FindUserByEmail(ctx, email)
+	user, err := s.findForLogin(ctx, identifier)
 	if errors.Is(err, ErrNotFound) {
 		VerifyPassword(s.dummyHash, password)
 		return Credentials{}, ErrInvalidCredentials
@@ -86,6 +89,18 @@ func (s *Service) Login(ctx context.Context, rawEmail, password string) (Credent
 		return Credentials{}, err
 	}
 	return s.newSession(ctx, user, now)
+}
+
+func (s *Service) findForLogin(ctx context.Context, identifier string) (User, error) {
+	identifier = strings.TrimSpace(identifier)
+	if strings.Contains(identifier, "@") {
+		email, err := NormalizeEmail(identifier)
+		if err != nil || IsPlaceholderEmail(email) {
+			return User{}, ErrNotFound
+		}
+		return s.repo.FindUserByEmail(ctx, email)
+	}
+	return s.repo.FindUserByLoginID(ctx, identifier)
 }
 
 func (s *Service) newSession(ctx context.Context, user User, now time.Time) (Credentials, error) {

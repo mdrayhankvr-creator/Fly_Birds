@@ -41,7 +41,7 @@ func (r *GormRepository) Create(ctx context.Context, actor string, user User, ha
 		if err := tx.Table("users").Create(map[string]any{"email": user.Email, "display_name": user.DisplayName, "role": user.Role, "is_active": true, "password_hash": hash}).Error; err != nil {
 			return err
 		}
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active").Where("email=?", user.Email).Take(&user).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("email=?", user.Email).Take(&user).Error; err != nil {
 			return err
 		}
 		return audit.Record(tx, &actor, "user.created", "user", user.ID, map[string]any{"role": user.Role})
@@ -52,7 +52,7 @@ func (r *GormRepository) List(ctx context.Context, q Query) (Page, error) {
 	base := r.db.WithContext(ctx).Table("users")
 	if q.Search != "" {
 		term := "%" + q.Search + "%"
-		base = base.Where("email ILIKE ? OR display_name ILIKE ?", term, term)
+		base = base.Where("email ILIKE ? OR display_name ILIKE ? OR login_id ILIKE ?", term, term, term)
 	}
 	if q.Role != "" {
 		base = base.Where("role=?", q.Role)
@@ -64,12 +64,12 @@ func (r *GormRepository) List(ctx context.Context, q Query) (Page, error) {
 	if err := base.Count(&page.Total).Error; err != nil {
 		return Page{}, err
 	}
-	err := base.Select("id,email,display_name,role,is_active").Order("email ASC,id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
+	err := base.Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Order("email ASC,id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
 	return page, err
 }
 func (r *GormRepository) Get(ctx context.Context, id string) (User, error) {
 	var user User
-	err := r.db.WithContext(ctx).Table("users").Select("id,email,display_name,role,is_active").Where("id=?", id).Take(&user).Error
+	err := r.db.WithContext(ctx).Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return User{}, ErrNotFound
 	}
@@ -82,7 +82,7 @@ func (r *GormRepository) Update(ctx context.Context, actor, id string, input Upd
 			return err
 		}
 		var before User
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active").Where("id=?", id).Take(&before).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&before).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
@@ -116,7 +116,7 @@ func (r *GormRepository) ResetPassword(ctx context.Context, actor, id, hash stri
 		if err := require(tx, actor, "users:update"); err != nil {
 			return err
 		}
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active").Where("id=?", id).Take(&user).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
@@ -144,7 +144,7 @@ func (r *GormRepository) SetStatus(ctx context.Context, actor, id string, active
 		if err := require(tx, actor, "users:update"); err != nil {
 			return err
 		}
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active").Where("id=?", id).Take(&user).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}

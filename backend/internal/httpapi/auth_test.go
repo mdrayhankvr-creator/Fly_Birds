@@ -26,6 +26,9 @@ func (r *handlerRepository) FindUserByEmail(_ context.Context, email string) (au
 	}
 	return r.user, nil
 }
+func (r *handlerRepository) FindUserByLoginID(context.Context, string) (auth.User, error) {
+	return auth.User{}, auth.ErrNotFound
+}
 func (r *handlerRepository) RecordLoginFailure(context.Context, string, time.Time) error { return nil }
 func (r *handlerRepository) ClearLoginFailures(context.Context, string, time.Time) error { return nil }
 func (r *handlerRepository) CreateSession(_ context.Context, session *auth.Session) error {
@@ -191,9 +194,18 @@ func TestLoginErrorsDoNotRevealAccountStatus(t *testing.T) {
 	if wrong.Code != http.StatusUnauthorized || unknown.Code != wrong.Code || wrong.Body.String() != unknown.Body.String() {
 		t.Fatalf("login errors differ: %d %q vs %d %q", wrong.Code, wrong.Body.String(), unknown.Code, unknown.Body.String())
 	}
-	bad := perform(fixture.router, http.MethodPost, "/auth/login", `{"email":"bad","password":"x"}`, nil, nil)
-	if bad.Code != http.StatusBadRequest {
-		t.Fatalf("invalid input status %d", bad.Code)
+	// Neither an email address nor a sign-in ID: a malformed address, or an
+	// ID with a space in it.
+	for _, input := range []string{`{"email":"bad@","password":"x"}`, `{"identifier":"bad id","password":"x"}`, `{"identifier":"","password":"x"}`} {
+		if bad := perform(fixture.router, http.MethodPost, "/auth/login", input, nil, nil); bad.Code != http.StatusBadRequest {
+			t.Fatalf("invalid input %s status %d", input, bad.Code)
+		}
+	}
+	// A word without "@" is a sign-in ID; an unknown one is answered like an
+	// unknown email.
+	id := perform(fixture.router, http.MethodPost, "/auth/login", `{"email":"bad","password":"wrong"}`, nil, nil)
+	if id.Code != wrong.Code || id.Body.String() != wrong.Body.String() {
+		t.Fatalf("unknown sign-in ID answered differently: %d %q", id.Code, id.Body.String())
 	}
 	form := perform(fixture.router, http.MethodPost, "/auth/login", `{"email":"teacher@example.test","password":"x"}`, nil, map[string]string{"Content-Type": "text/plain"})
 	if form.Code != http.StatusUnsupportedMediaType {

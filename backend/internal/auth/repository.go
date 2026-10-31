@@ -13,6 +13,7 @@ import (
 
 type Repository interface {
 	FindUserByEmail(context.Context, string) (User, error)
+	FindUserByLoginID(context.Context, string) (User, error)
 	RecordLoginFailure(context.Context, string, time.Time) error
 	ClearLoginFailures(context.Context, string, time.Time) error
 	CreateSession(context.Context, *Session) error
@@ -33,6 +34,16 @@ func NewRepository(db *gorm.DB) *GormRepository { return &GormRepository{db: db}
 func (r *GormRepository) FindUserByEmail(ctx context.Context, email string) (User, error) {
 	var user User
 	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return User{}, ErrNotFound
+	}
+	return user, err
+}
+
+// FindUserByLoginID finds a student login by its sign-in ID, ignoring case.
+func (r *GormRepository) FindUserByLoginID(ctx context.Context, loginID string) (User, error) {
+	var user User
+	err := r.db.WithContext(ctx).Where("lower(login_id) = lower(?) AND role = 'student'", loginID).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return User{}, ErrNotFound
 	}

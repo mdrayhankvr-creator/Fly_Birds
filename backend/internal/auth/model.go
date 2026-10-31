@@ -43,9 +43,12 @@ type User struct {
 	LockedUntil         *time.Time `json:"-"`
 	// MustChangePassword: the password was set by someone else (admission or
 	// an administrator's reset); the account may only change it until it does.
-	MustChangePassword bool      `gorm:"not null;default:false" json:"must_change_password"`
-	CreatedAt          time.Time `json:"-"`
-	UpdatedAt          time.Time `json:"-"`
+	MustChangePassword bool `gorm:"not null;default:false" json:"must_change_password"`
+	// LoginID is a student login's sign-in ID (Student ID or admission
+	// number); staff and guardians have none and sign in with their email.
+	LoginID   *string   `gorm:"column:login_id" json:"login_id,omitempty"`
+	CreatedAt time.Time `json:"-"`
+	UpdatedAt time.Time `json:"-"`
 }
 
 func (User) TableName() string { return "users" }
