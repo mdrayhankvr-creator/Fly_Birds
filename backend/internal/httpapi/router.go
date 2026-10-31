@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/documents"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -116,6 +117,12 @@ func NewRouterWithAnalytics(service *auth.Service, secureCookies bool, grants *r
 // NewRouterWithPromotion adds the M15 year-end promotion routes; a nil
 // promotion service answers them with 503.
 func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices, analyticsService *analytics.Service, promotionService *promotion.Service) *gin.Engine {
+	return NewRouterWithDocuments(service, secureCookies, grants, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService, promotionService, nil)
+}
+
+// NewRouterWithDocuments adds the E7 result document routes; a nil
+// documents service answers them with 503.
+func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices, analyticsService *analytics.Service, promotionService *promotion.Service, documentService *documents.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -402,6 +409,7 @@ func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *r
 	academicRoutes.GET("/sections/:id", RequirePermission(service, "academics:read"), RequireModule(schoolService, "academics"), sectionHandler.get)
 	academicRoutes.PATCH("/sections/:id", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
 	registerPromotions(router, service, &promotionHandler{service: promotionService}, moduleGuard("students"))
+	registerDocuments(router, service, schoolService, &documentHandler{service: documentService}, moduleGuard("examinations"))
 	peopleHandler := &peopleHandler{service: peopleService}
 	studentRoutes := router.Group("/students")
 	studentRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), RequireModule(schoolService, "students"))

@@ -46,6 +46,8 @@ services:
       # Payment simulation (fake bKash/Nagad checkouts) only on disposable
       # test installations; never true for a real school.
       PAYMENT_SIMULATION_ALLOWED: ${PAYMENT_SIMULATION_ALLOWED:-false}
+      # Printed in the verification QR code on result marksheets.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://${SCHOOL_DOMAIN}}
     volumes:
       - uploads_data:/app/uploads
       - backups_data:/app/backups

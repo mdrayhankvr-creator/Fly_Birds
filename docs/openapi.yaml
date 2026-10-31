@@ -413,6 +413,17 @@ paths:
       responses:
         '200': { description: Card state, content: { application/json: { schema: { $ref: '#/components/schemas/CardVerificationResponse' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
+  /public/results/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{22}$' } }]
+    get:
+      operationId: verifyResult
+      summary: Publicly check a result marksheet
+      description: Unauthenticated by design; the QR code on a marksheet opens it. Returns whether the result is current, superseded by a correction or withdrawn, what it is of (term or annual, session, class), its version, publication date and document code, and the school identity. No name, identifier, mark or grade. Unknown and malformed tokens, and a disabled Examinations module, return 404.
+      tags: [exams]
+      security: []
+      responses:
+        '200': { description: Result state, content: { application/json: { schema: { $ref: '#/components/schemas/ResultVerificationResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
   /school/settings:
     get:
       operationId: getSchoolSettings
@@ -1269,6 +1280,50 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 3, maxLength: 500 } } } } } }
       responses: { '200': { description: Reverted batch, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionBatchResponse' } } } }, '400': { description: invalid_request or reason_required, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'progression_unset, batch_open, batch_state, batch_blocked, inputs_changed, revert_refused or promotion_conflict', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/documents/classes:
+    get:
+      operationId: listResultDocumentClasses
+      tags: [exams]
+      summary: List classes with published results to make documents of
+      description: Requires exams:documents and the examinations module. The administrator and the head teacher see every class with published term or annual results; a teacher sees only the classes they teach in that session. Newest first, at most 200.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Classes, content: { application/json: { schema: { $ref: '#/components/schemas/ResultDocumentClassesResponse' } } } }, '503': { description: documents_unavailable }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/documents:
+    post:
+      operationId: requestResultDocument
+      tags: [exams]
+      summary: Create (or reuse) a result document
+      description: 'Requires exams:documents and the examinations module. Kinds: marksheet (one student; student_id), marksheets (a class or section in one PDF), tabulation, merit_list, failed_list and summary. Built only from the current published term or annual versions (snapshots), never from live marks; provisional previews of unpublished results are for the administrator and the head teacher only and carry a PROVISIONAL watermark. A document is cached by the versions it came from, the template and the branding: a correction gives a new document and the old file is deleted. Small documents are ready in the response; marksheet bundles of more than 12 students are queued and report progress. Teachers may only ask for classes they teach.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ResultDocumentRequest' } } } }
+      responses: { '200': { description: The document (done, queued or running), content: { application/json: { schema: { $ref: '#/components/schemas/ResultDocumentResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'results_not_published or document_not_ready (the provisional results have blockers)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '503': { description: documents_unavailable }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/documents/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      operationId: getResultDocument
+      tags: [exams]
+      summary: A result document's status and progress
+      description: Requires exams:documents; the same class access as creating it. Another class's document is 404.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Document, content: { application/json: { schema: { $ref: '#/components/schemas/ResultDocumentResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/documents/{id}/file:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      operationId: downloadResultDocument
+      tags: [exams]
+      summary: Download a finished result document (PDF)
+      description: Requires exams:documents; the same class access as creating it.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: document_not_ready, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/me/documents/{versionId}:
+    parameters: [{ name: versionId, in: path, required: true, schema: { type: string, format: uuid } }, { name: lang, in: query, schema: { type: string, enum: [en, bn], default: en } }]
+    get:
+      operationId: downloadMyMarksheet
+      tags: [exams]
+      summary: Download my marksheet (PDF) of a published term or annual result
+      description: Requires exams:read_self (a student account; families use it too). Only the student's own current published version; another student's, a superseded or a withdrawn version is 404. Prepared at once (or taken from the cache) and sent.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }, '404': { $ref: '#/components/responses/NotFound' }, '503': { description: documents_unavailable }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /students:
     get:
       operationId: listStudents
@@ -3838,6 +3893,84 @@ components:
       type: object
       required: [data]
       properties: { data: { type: object, required: [cards, school, settings], properties: { cards: { type: array, items: { $ref: '#/components/schemas/StudentCardData' } }, school: { $ref: '#/components/schemas/CardSchool' }, settings: { $ref: '#/components/schemas/CardSettings' } } } }
+    ResultDocumentRequest:
+      type: object
+      required: [kind, scope, scope_id, class_id]
+      properties:
+        kind: { type: string, enum: [marksheet, marksheets, tabulation, merit_list, failed_list, summary] }
+        scope: { type: string, enum: [term, annual] }
+        scope_id: { type: string, format: uuid, description: The term (term) or the session (annual). }
+        class_id: { type: string, format: uuid }
+        section_id: { type: string, format: uuid, description: Optional; one section instead of the whole class. }
+        student_id: { type: string, format: uuid, description: Required for marksheet, not allowed otherwise. }
+        language: { type: string, enum: [en, bn], default: en }
+        provisional: { type: boolean, description: 'Unpublished results, watermarked; administrator and head teacher only.' }
+    ResultDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        scope: { type: string, enum: [term, annual] }
+        scope_id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        class_id: { type: string, format: uuid }
+        section_id: { type: string, format: uuid, nullable: true }
+        student_id: { type: string, format: uuid, nullable: true }
+        language: { type: string, enum: [en, bn] }
+        provisional: { type: boolean }
+        status: { type: string, enum: [queued, running, done, failed] }
+        progress_done: { type: integer, description: Students rendered so far (marksheet bundles). }
+        progress_total: { type: integer }
+        pages: { type: integer, nullable: true }
+        bytes: { type: integer, nullable: true }
+        sha256: { type: string, nullable: true }
+        error: { type: string }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+        file_name: { type: string }
+    ResultDocumentResponse:
+      type: object
+      required: [data]
+      properties: { data: { $ref: '#/components/schemas/ResultDocument' } }
+    ResultDocumentClassesResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              scope: { type: string, enum: [term, annual] }
+              scope_id: { type: string, format: uuid }
+              session_id: { type: string, format: uuid }
+              session_name: { type: string }
+              class_id: { type: string, format: uuid }
+              class_name: { type: string }
+              title: { type: string, description: The term's name, or the session's for an annual result. }
+              revision: { type: integer }
+              published_at: { type: string, format: date-time }
+              students: { type: integer }
+              sections: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, name: { type: string } } } }
+    ResultVerificationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          description: No name, identifier, mark or grade of the student.
+          properties:
+            state: { type: string, enum: [current, superseded, withdrawn] }
+            code: { type: string, description: The document code printed on the marksheet. }
+            scope: { type: string, enum: [term, annual] }
+            title: { type: string }
+            session_name: { type: string }
+            class_name: { type: string }
+            version: { type: integer }
+            published_at: { type: string, format: date-time }
+            school_name_en: { type: string }
+            school_name_bn: { type: string }
+            logo_url: { type: string }
     CardVerificationResponse:
       type: object
       required: [data]
