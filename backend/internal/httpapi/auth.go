@@ -194,6 +194,12 @@ func (h *authHandler) permissions(c *gin.Context) {
 	success(c, http.StatusOK, ids)
 }
 
+// forcedChangeAllows lists what an account that must change its password may
+// still do: read who it is and its grants, and change the password.
+func forcedChangeAllows(route string) bool {
+	return route == "/auth/me" || route == "/auth/permissions" || route == "/auth/password"
+}
+
 func RequireAuth(service *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if service == nil {
@@ -221,6 +227,12 @@ func RequireAuth(service *auth.Service) gin.HandlerFunc {
 		}
 		c.Set("auth_user", user)
 		c.Set("auth_session", sessionID)
+		// A password set by someone else must be replaced before anything else.
+		if user.MustChangePassword && !forcedChangeAllows(c.FullPath()) {
+			failure(c, http.StatusForbidden, "password_change_required", "set a new password before continuing")
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }

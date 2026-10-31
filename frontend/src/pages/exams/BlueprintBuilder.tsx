@@ -189,7 +189,7 @@ function Structure({ v, def, editable, change, onVisibility, canChangeVisibility
                 <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{a.key}</span>
                 <input aria-label={t('bpAssessmentName', { key: a.key })} disabled={!editable} maxLength={80} value={a.name} onChange={e => rename(a.key, e.target.value)}
                   className="min-h-9 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-sm disabled:border-transparent disabled:bg-transparent disabled:font-semibold disabled:text-slate-900" />
-                {editable && <button type="button" aria-label={t('bpRemoveAssessment', { name: a.name })} className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-700"
+                {editable && <button type="button" aria-label={t('bpRemoveAssessment', { name: a.name })} className="grid h-11 w-11 place-items-center rounded-lg sm:h-9 sm:w-9 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
                   onClick={() => void (async () => { if (await confirmAction(t('bpRemoveAssessmentConfirm', { name: a.name }))) change(removeAssessment(def, a.key)) })()}>×</button>}
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -357,7 +357,7 @@ function Contributions({ def, rule, editable, termAssessments, onChange }: {
         </label>}
         {editable && c.combine === 'best' && <NumberField label={t('bpBestN')} step="1" value={c.best || 1} onChange={n => set(i, { ...c, best: Math.round(n) })} />}
         {editable ? <NumberField label={t('bpWorth')} value={c.worth} onChange={n => set(i, { ...c, worth: n })} /> : <p className="text-right text-sm tabular-nums text-slate-900">{t('bpWorthValue', { worth: twoDecimals(c.worth) })}</p>}
-        {editable && <button type="button" aria-label={t('bpRemoveContribution')} className="grid h-10 w-10 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-700" onClick={() => onChange({ ...rule, contributions: rule.contributions.filter((_, j) => j !== i) })}>×</button>}
+        {editable && <button type="button" aria-label={t('bpRemoveContribution')} className="grid h-11 w-11 place-items-center rounded-lg sm:h-10 sm:w-10 text-slate-500 hover:bg-rose-50 hover:text-rose-700" onClick={() => onChange({ ...rule, contributions: rule.contributions.filter((_, j) => j !== i) })}>×</button>}
       </li>)}
     </ul>
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-3 py-2 text-sm">
@@ -381,7 +381,7 @@ function SheetEditor({ sheet, name, editable, onChange }: { sheet: BlueprintShee
         <td className="py-1.5 pr-2">{editable ? <input aria-label={t('bpComponentKey')} maxLength={16} value={c.key} onChange={e => setComp(i, { ...c, key: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })} className="min-h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 font-mono text-sm" /> : <span className="font-mono">{c.key}</span>}</td>
         <td className="py-1.5 pr-2 text-right">{editable ? <input aria-label={t('bpComponentFull', { key: c.key })} type="number" min="0" step="0.01" value={c.full} onChange={e => setComp(i, { ...c, full: num(e.target.value) || 0 })} className="min-h-9 w-20 rounded-lg border border-slate-300 bg-white px-2 text-right tabular-nums" /> : <span className="tabular-nums">{twoDecimals(c.full)}</span>}</td>
         <td className="py-1.5 pr-2 text-right">{editable ? <input aria-label={t('bpComponentPass', { key: c.key })} type="number" min="0" step="0.01" placeholder="—" value={c.pass ?? ''} onChange={e => setComp(i, { ...c, pass: e.target.value === '' ? null : num(e.target.value) })} className="min-h-9 w-20 rounded-lg border border-slate-300 bg-white px-2 text-right tabular-nums" /> : <span className="tabular-nums">{c.pass == null ? '—' : twoDecimals(c.pass)}</span>}</td>
-        {editable && <td>{sheet.components.length > 1 && <button type="button" aria-label={t('bpRemove')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-700" onClick={() => onChange({ ...sheet, components: sheet.components.filter((_, j) => j !== i) })}>×</button>}</td>}
+        {editable && <td>{sheet.components.length > 1 && <button type="button" aria-label={t('bpRemove')} className="grid h-11 w-11 place-items-center rounded-lg sm:h-9 sm:w-9 text-slate-500 hover:bg-rose-50 hover:text-rose-700" onClick={() => onChange({ ...sheet, components: sheet.components.filter((_, j) => j !== i) })}>×</button>}</td>}
       </tr>)}</tbody>
     </table>
     {editable && <div className="mt-2 flex flex-wrap items-end justify-between gap-2">

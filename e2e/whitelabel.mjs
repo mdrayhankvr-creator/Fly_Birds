@@ -13,7 +13,7 @@ const contrastJs = `(() => {
   const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
   const bgOf = el => { while (el) { const c = getComputedStyle(el).backgroundColor; if (!/rgba\\(0, 0, 0, 0\\)|transparent/.test(c)) return parse(c); el = el.parentElement } return [255, 255, 255] }
   const pair = el => el ? Math.round(ratio(parse(getComputedStyle(el).color), bgOf(el)) * 100) / 100 : null
-  return { nav: pair(document.querySelector('[aria-current="page"]')), button: pair([...document.querySelectorAll('a,button')].find(e => getComputedStyle(e).backgroundColor === getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim() || e.className.includes('bg-[var(--brand-primary)]'))),
+  return { nav: pair(document.querySelector('[aria-current="page"]')), button: pair([...document.querySelectorAll('a,button')].find(e => getComputedStyle(e).backgroundColor === getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim() || e.className.includes('bg-[var(--brand-primary)]') || e.classList.contains('btn-primary'))),
     link: pair([...document.querySelectorAll('a')].find(e => e.className.includes('text-[var(--brand-ink)]'))) }
 })()`
 try {

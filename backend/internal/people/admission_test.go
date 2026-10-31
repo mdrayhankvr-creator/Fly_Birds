@@ -3,6 +3,8 @@ package people
 import (
 	"regexp"
 	"testing"
+
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 )
 
 func TestPhoneDigits(t *testing.T) {
@@ -47,7 +49,7 @@ func TestInitialPasswordShape(t *testing.T) {
 	shape := regexp.MustCompile(`^[a-zA-Z2-9]{4}-[a-zA-Z2-9]{4}-[a-zA-Z2-9]{4}$`)
 	seen := map[string]bool{}
 	for i := 0; i < 50; i++ {
-		p, err := newInitialPassword()
+		p, err := auth.TemporaryPassword()
 		if err != nil {
 			t.Fatal(err)
 		}

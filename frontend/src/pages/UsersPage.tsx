@@ -4,6 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, createUser, getUser, getUsers, setUserRole, setUserStatus, updateUser, type ManagedUser, type NewUser } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import { resetUserPassword, type PasswordReset } from '../api/account'
+import { PasswordSlip } from './PasswordSlip'
+import { Icon } from '../components/icons'
 import { CardTitle, ui, PageHeader, Notice, Skeleton, EmptyState, StatusBadge } from './attendanceUi'
 
 const roles = ['admin', 'head_teacher', 'teacher', 'student', 'guardian', 'accountant']
@@ -14,7 +17,8 @@ const inputClass = ui.field
 
 export function UsersPage({ permissions }: { permissions: string[] }) {
   const { t } = useTranslation()
-  const { accessToken, renew, expire } = useAuth()
+  const { accessToken, renew, expire, user: me } = useAuth()
+  const [reset, setReset] = useState<PasswordReset | null>(null)
   const queryClient = useQueryClient()
   // Another page can open the list on one account (?search=email).
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search')?.slice(0, 100) ?? '')
@@ -50,7 +54,7 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
   const users = useQuery({ queryKey: ['users', params.toString()], queryFn: () => authorized((token) => getUsers(token, params)), retry: false })
   const selected = useQuery({ queryKey: ['user', selectedId], enabled: !!selectedId, queryFn: () => authorized((token) => getUser(token, selectedId)), retry: false })
 
-  function selectUser(user: ManagedUser) { setSelectedId(user.id); setEdit({ email: user.email, display_name: user.display_name }); setChosenRole(user.role); setError(''); setMessage('') }
+  function selectUser(user: ManagedUser) { setReset(null); setSelectedId(user.id); setEdit({ email: user.email, display_name: user.display_name }); setChosenRole(user.role); setError(''); setMessage('') }
   async function run(action: () => Promise<unknown>) {
     setBusy(true); setError(''); setMessage('')
     try {
@@ -76,6 +80,14 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
     if (!(await confirmAction(t(user.is_active ? 'confirmDeactivate' : 'confirmActivate', { name: user.display_name })))) return
     void run(() => authorized((token) => setUserStatus(token, user.id, !user.is_active)))
   }
+  // Reset another account's password; the temporary one is shown once.
+  async function resetPassword(user: ManagedUser) {
+    if (!(await confirmAction(t('c4ResetConfirm', { name: user.display_name || user.email }), { tone: 'danger', confirmLabel: t('c4ResetPassword') }))) return
+    setBusy(true); setError(''); setMessage(''); setReset(null)
+    try { setReset(await authorized(token => resetUserPassword(token, user.id))) }
+    catch (cause) { setError(cause instanceof ApiError && cause.code === 'own_password' ? t('c4OwnReset') : t('userSaveError')) }
+    finally { setBusy(false) }
+  }
   async function changeRole(user: ManagedUser) {
     if (!(await confirmAction(t('confirmRole', { name: user.display_name, role: chosenRole })))) return
     void run(() => authorized((token) => setUserRole(token, user.id, chosenRole)))
@@ -100,7 +112,8 @@ export function UsersPage({ permissions }: { permissions: string[] }) {
     {selectedId && <section className={`${ui.card} p-4 sm:p-6`}><CardTitle icon="user">{t('userDetails')}</CardTitle>
       {selected.isPending ? <p role="status">{t('loadingUsers')}</p> : selected.isError ? <p role="alert">{t('loadUsersError')}</p> : <div className="mt-4 space-y-4"><p className="break-all text-sm text-slate-600">{selected.data.id}</p><p>{t('status')}: {t(selected.data.is_active ? 'active' : 'inactive')}</p>
         {canUpdate && edit && <form onSubmit={update} className="grid gap-3 sm:grid-cols-2"><label className={ui.label}>{t('displayName')}<input className={inputClass} required maxLength={160} value={edit.display_name} onChange={(e) => setEdit({ ...edit, display_name: e.target.value })} /></label><label className={ui.label}>{t('email')}<input className={inputClass} type="email" required maxLength={254} value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></label><button disabled={busy} className={`${ui.primary} sm:justify-self-start`}>{t('saveChanges')}</button></form>}
-        <div className="flex flex-wrap items-end gap-3">{canAssign && <label className={ui.label}>{t('role')}<select className={inputClass} value={chosenRole} onChange={(e) => setChosenRole(e.target.value)}>{(chosenRole === 'guardian' ? roles : assignableRoles).map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>}{canAssign && chosenRole !== selected.data.role && <button disabled={busy} onClick={() => changeRole(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t('assignRole')}</button>}{canUpdate && <button disabled={busy} onClick={() => changeStatus(selected.data)} className="rounded-lg border px-4 py-2 font-semibold disabled:opacity-50">{t(selected.data.is_active ? 'deactivate' : 'activate')}</button>}</div>
+        <div className="flex flex-wrap items-end gap-3">{canAssign && <label className={ui.label}>{t('role')}<select className={inputClass} value={chosenRole} onChange={(e) => setChosenRole(e.target.value)}>{(chosenRole === 'guardian' ? roles : assignableRoles).map((role) => <option key={role} value={role}>{t(`role_${role}`)}</option>)}</select></label>}{canAssign && chosenRole !== selected.data.role && <button disabled={busy} onClick={() => changeRole(selected.data)} className={ui.secondary}>{t('assignRole')}</button>}{canUpdate && <button disabled={busy} onClick={() => changeStatus(selected.data)} className={ui.secondary}>{t(selected.data.is_active ? 'deactivate' : 'activate')}</button>}{canUpdate && selected.data.id !== me?.id && <button type="button" disabled={busy} onClick={() => void resetPassword(selected.data)} className={ui.danger}><Icon name="lock" className="h-4 w-4" />{t('c4ResetPassword')}</button>}</div>
+        {reset && reset.user.id === selected.data.id && <div className="space-y-3"><Notice tone="success">{t('c4ResetDone', { count: reset.sessions_revoked })}</Notice><PasswordSlip name={reset.user.display_name} email={reset.user.email} password={reset.temporary_password} /><button type="button" className={`${ui.primary} print:hidden`} onClick={() => window.print()}><Icon name="print" className="h-4 w-4" />{t('c4PrintSlip')}</button></div>}
       </div>}
     </section>}
       </div>

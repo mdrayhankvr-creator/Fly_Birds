@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { StudentName } from '../components/StudentLink'
 import { assignFeeDue, getFeeReceipt, getFeeStructures, getStudentFeeStatement, recordFeePayment, searchFeeStudents, type FeeMethod, type FeeOptions, type FeeReceipt, type FeeStudent } from '../api/fees'
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
@@ -126,7 +127,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
           <div className="flex flex-wrap items-center gap-3">
             <Avatar name={student.name_en} />
             <div className="min-w-0 flex-1">
-              <p className="text-lg font-bold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{student.name_en}{student.name_bn && <span lang="bn" className="ml-2 font-semibold text-slate-600">{student.name_bn}</span>}</p>
+              <p className="text-lg font-bold text-slate-900" style={{ overflowWrap: 'anywhere' }}><StudentName id={student.id}>{student.name_en}</StudentName>{student.name_bn && <span lang="bn" className="ml-2 font-semibold text-slate-600">{student.name_bn}</span>}</p>
               <p className="text-sm text-slate-600">{student.admission_no} · {student.class_name} / {student.section_name}{student.roll_no != null && ` · ${t('p2HistoryRoll', { roll: student.roll_no })}`} · {student.session_name}{student.status !== 'active' && <span className="ml-2 rounded bg-slate-200 px-2 text-xs">{t(`feeStudentStatus_${student.status}`, { defaultValue: student.status })}</span>}</p>
             </div>
             <button type="button" className={`${ui.secondary} min-h-11`} onClick={reset}><Icon name="search" className="h-4 w-4" />{t('c3ChangeStudent')} <kbd className="ml-1 hidden rounded border border-slate-300 px-1 text-xs sm:inline">Esc</kbd></button>

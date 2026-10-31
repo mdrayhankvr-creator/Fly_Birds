@@ -16,6 +16,8 @@ var (
 	ErrForbidden = errors.New("user operation denied")
 	ErrDuplicate = errors.New("email already registered")
 	ErrLastAdmin = errors.New("last active administrator")
+	// ErrOwnReset: administrators change their own password themselves.
+	ErrOwnReset = errors.New("use change password for your own account")
 )
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
@@ -55,6 +57,16 @@ type Repository interface {
 	Get(context.Context, string) (User, error)
 	Update(context.Context, string, string, UpdateInput) (User, error)
 	SetStatus(context.Context, string, string, bool) (User, error)
+	ResetPassword(context.Context, string, string, string) (User, int64, error)
+}
+
+// PasswordReset is an administrator's reset of another account's password.
+// TemporaryPassword is returned once, in this response only; the account
+// must replace it at its next sign-in.
+type PasswordReset struct {
+	User              User   `json:"user"`
+	TemporaryPassword string `json:"temporary_password"`
+	SessionsRevoked   int64  `json:"sessions_revoked"`
 }
 type Service struct{ repo Repository }
 
@@ -73,6 +85,30 @@ func (s *Service) Create(ctx context.Context, actor string, input CreateInput) (
 		return User{}, ErrInvalid
 	}
 	return s.repo.Create(ctx, actor, User{Email: mail, DisplayName: strings.TrimSpace(input.DisplayName), Role: input.Role, IsActive: true}, hash)
+}
+
+// ResetPassword gives another account a generated temporary password, ends
+// all its sessions and makes it choose a new password at the next sign-in.
+func (s *Service) ResetPassword(ctx context.Context, actor, id string) (PasswordReset, error) {
+	if !uuid.MatchString(actor) || !uuid.MatchString(id) {
+		return PasswordReset{}, ErrInvalid
+	}
+	if strings.EqualFold(actor, id) {
+		return PasswordReset{}, ErrOwnReset
+	}
+	password, err := auth.TemporaryPassword()
+	if err != nil {
+		return PasswordReset{}, err
+	}
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		return PasswordReset{}, err
+	}
+	user, revoked, err := s.repo.ResetPassword(ctx, actor, id, hash)
+	if err != nil {
+		return PasswordReset{}, err
+	}
+	return PasswordReset{User: user, TemporaryPassword: password, SessionsRevoked: revoked}, nil
 }
 func (s *Service) List(ctx context.Context, query Query) (Page, error) {
 	if query.Page < 1 || query.Page > 100000 || query.PageSize < 1 || query.PageSize > 100 || len(query.Search) > 100 || (query.Role != "" && !auth.ValidRole(query.Role)) || (query.Status != "" && query.Status != "active" && query.Status != "inactive") {

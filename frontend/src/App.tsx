@@ -30,6 +30,8 @@ const StudentsPage = lazy(() => import('./pages/StudentsPage').then(m => ({ defa
 const StudentProfilePage = lazy(() => import('./pages/StudentProfilePage').then(m => ({ default: m.StudentProfilePage })))
 const AdmissionPage = lazy(() => import('./pages/AdmissionPage').then(m => ({ default: m.AdmissionPage })))
 const PromotionGate = lazy(() => import('./pages/promotion/PromotionPages').then(m => ({ default: m.PromotionGate })))
+const StaffProfilePage = lazy(() => import('./pages/StaffProfilePage').then(m => ({ default: m.StaffProfilePage })))
+const ForcedPasswordPage = lazy(() => import('./pages/ForcedPasswordPage').then(m => ({ default: m.ForcedPasswordPage })))
 const IdCardPrintPage = lazy(() => import('./pages/IdCardPrintPage').then(m => ({ default: m.IdCardPrintPage })))
 const VerifyCardPage = lazy(() => import('./pages/VerifyCardPage').then(m => ({ default: m.VerifyCardPage })))
 const RoutinePage = lazy(() => import('./pages/RoutinePage').then(m => ({ default: m.RoutinePage })))
@@ -126,12 +128,14 @@ function AcademicSessionsGate({ permissions, loading, error }: { permissions: st
   return <AcademicSessionsPage permissions={permissions} />
 }
 
-function StaffGate({ permissions, own, enabled, loading, error }: { permissions: string[] | undefined; own: boolean; enabled: boolean; loading: boolean; error: boolean }) {
+function StaffGate({ permissions, own, profile, enabled, loading, error }: { permissions: string[] | undefined; own: boolean; profile?: boolean; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
   if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
   if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
-  if (!permissions?.includes(own ? 'staff:read_self' : 'staff:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
-  if (!enabled) return <StateScreen kind="disabled" message={t('staffModuleDisabled')} />
+  if (!permissions?.includes(profile ? 'staff:profiles_read' : own ? 'staff:read_self' : 'staff:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  // Students and families cannot read the module list; for a profile the server enforces the module.
+  if (!enabled && !profile) return <StateScreen kind="disabled" message={t('staffModuleDisabled')} />
+  if (profile) return <StaffProfilePage />
   return <StaffPage permissions={permissions} own={own} />
 }
 
@@ -170,8 +174,8 @@ function PeopleGate({ kind, permissions, role, enabled, loading, error }: { kind
   if (kind === 'students' && canStudents) return <StudentsPage canManage={canManageStudents} />
   if (kind === 'admit' && canManageStudents) return <AdmissionPage canManageGuardians={canManageGuardians} canCreateLogin={!!permissions?.includes('users:create')} />
   if ((kind === 'cards' || kind === 'card') && canManageStudents) return <IdCardPrintPage mode={kind === 'card' ? 'single' : 'bulk'} />
-  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} canReadHistory={!!permissions?.includes('students:history_read')} />
-  if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} />
+  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} canReadHistory={!!permissions?.includes('students:history_read')} insights={{ mode: 'staff', analytics: !!permissions?.some(p => p === 'analytics:read' || p === 'analytics:read_assigned'), fees: !!permissions?.includes('fees:read') }} />
+  if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} insights={{ mode: 'self', analytics: !!permissions?.includes('analytics:read_self'), fees: !!permissions?.includes('fees:read_self') }} />
   return <StateScreen kind="denied" message={t('permissionDenied')} />
 }
 
@@ -452,6 +456,7 @@ export default function App() {
         <Route path="/admin/academic/sections" element={<ProtectedRoute><AcademicGate kind="sections" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/academic/sessions" element={<ProtectedRoute><AcademicSessionsGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own={false} enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
+        <Route path="/staff/profiles/:id" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own={false} profile enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
         <Route path="/staff/me" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
         <Route path="/admin/attendance/students" element={<ProtectedRoute><StudentAttendanceGate kind="manage" permissions={myPermissions.data} enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />
         <Route path="/admin/attendance/students/quick" element={<ProtectedRoute><StudentAttendanceGate kind="quick" permissions={myPermissions.data} enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />
@@ -501,7 +506,9 @@ export default function App() {
     </Suspense>
   )
 
-  if (ready && user) {
+  // A password chosen by someone else must be replaced before anything else.
+  const forcedChange = ready && !!user?.must_change_password
+  if (ready && user && !forcedChange) {
     return <AppShell branding={branding.data} user={user} groups={navigation} onLanguage={language => void setLanguage(language)} onSignOut={() => void handleLogout()}
       bell={myPermissions.data?.includes('notifications:read_self') && noticesEnabled && user?.role !== 'guardian' ? <Suspense fallback={null}><NotificationBell /></Suspense> : undefined}>
       {logoutError && <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{t('logoutError')}</p>}
@@ -520,12 +527,12 @@ export default function App() {
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <LanguageSwitch onChange={language => void setLanguage(language)} />
             <ThemeSwitch />
-            {ready && !landing && <Link to="/login" className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 sm:inline-block">{t('signIn')}</Link>}
+            {ready && !landing && !user && <Link to="/login" className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 sm:inline-block">{t('signIn')}</Link>}
           </div>
         </div>
       </header>
       {/* The landing page runs edge to edge; other public pages keep the reading width. */}
-      <main id="main" className={landing ? '' : 'mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14'}>{routes}</main>
+      <main id="main" className={landing ? '' : 'mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14'}>{forcedChange ? <Suspense fallback={<StateScreen kind="loading" />}><ForcedPasswordPage /></Suspense> : routes}</main>
       <ConfirmHost />
     </div>
   )

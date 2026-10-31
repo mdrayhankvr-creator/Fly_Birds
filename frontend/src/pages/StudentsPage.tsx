@@ -110,8 +110,8 @@ export function StudentsPage({ canManage }: { canManage: boolean }) {
                   </div>
                   <StatusBadge tone={statusTone(item.status)}>{t(`${item.status}Student`)}</StatusBadge>
                   <div className="flex w-full justify-end gap-1 sm:w-auto">
-                    <Link className={`${ui.ghost} min-h-10 px-3`} to={`/admin/students/${item.id}`}>{t('viewProfile')}</Link>
-                    {canManage && <button type="button" className={`${ui.ghost} min-h-10 px-3`} aria-pressed={editing === item.id} onClick={() => edit(item)}>{t('edit')}</button>}
+                    <Link className={`${ui.ghost}`} to={`/admin/students/${item.id}`}>{t('viewProfile')}</Link>
+                    {canManage && <button type="button" className={`${ui.ghost}`} aria-pressed={editing === item.id} onClick={() => edit(item)}>{t('edit')}</button>}
                   </div>
                 </li>
               })}</ul>}

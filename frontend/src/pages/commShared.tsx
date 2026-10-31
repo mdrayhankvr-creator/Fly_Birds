@@ -59,7 +59,7 @@ function formatSize(size: number) {
 }
 
 const fileKind = (file: Attachment) => file.content_type === 'application/pdf' ? 'PDF' : file.content_type === 'image/png' ? 'PNG' : file.content_type === 'image/jpeg' ? 'JPG' : 'IMG'
-const fileAction = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[var(--brand-ink)] transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60'
+const fileAction = `${ui.secondary} btn-sm`
 
 // AttachmentList fetches files with the session token, then opens or saves
 // them from a short-lived object URL. The "cards" variant shows each file as a
@@ -99,7 +99,7 @@ export function AttachmentList({ items, pathFor, onRemove, variant = 'chips' }: 
     <span className="min-w-0 truncate font-medium text-slate-800">{file.name}</span><span className="shrink-0 text-xs text-slate-500">{formatSize(file.size)}</span>
     {pathFor(file) && <><button type="button" className={ui.ghost} disabled={busy === file.id} onClick={() => void open(file, false)} aria-label={`${t('m9Open')} ${file.name}`}>{t('m9Open')}</button>
       <button type="button" className={ui.ghost} disabled={busy === file.id} onClick={() => void open(file, true)} aria-label={`${t('m9Download')} ${file.name}`}>{t('m9Download')}</button></>}
-    {onRemove && <button type="button" className="text-rose-700 hover:underline" onClick={() => onRemove(file.id)} aria-label={`${t('m9Remove')} ${file.name}`}>{t('m9Remove')}</button>}
+    {onRemove && <button type="button" className={`${ui.ghost} text-rose-700`} onClick={() => onRemove(file.id)} aria-label={`${t('m9Remove')} ${file.name}`}>{t('m9Remove')}</button>}
   </li>)}</ul>{error && <p role="alert" className="mt-1 text-sm text-rose-700">{error}</p>}</div>
 }
 
@@ -167,7 +167,7 @@ export function TargetPicker({ value, onChange }: { value: Target[]; onChange: (
     {classes.isError && <p className="mt-1 text-xs text-amber-800">{t('m9TargetsUnavailable')}</p>}
     {value.length > 0 && <ul className="mt-2 flex flex-wrap gap-2">{value.map((v, i) => <li key={`${v.class_id}-${v.section_id}`} className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm">
       {v.class_name || className(v.class_id)}{v.section_id ? ` · ${v.section_name}` : ` · ${t('m9AllSections')}`}
-      <button type="button" className="text-slate-500 hover:text-rose-700" aria-label={t('m9Remove')} onClick={() => onChange(value.filter((_, j) => j !== i))}>×</button></li>)}</ul>}
+      <button type="button" className={`${ui.ghost} text-slate-500 hover:text-rose-700`} aria-label={t('m9Remove')} onClick={() => onChange(value.filter((_, j) => j !== i))}>×</button></li>)}</ul>}
   </fieldset>
 }
 

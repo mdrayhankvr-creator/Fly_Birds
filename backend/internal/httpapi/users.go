@@ -29,6 +29,8 @@ func usersError(c *gin.Context, err error) {
 		failure(c, 403, "forbidden", "permission denied")
 	case errors.Is(err, users.ErrDuplicate):
 		failure(c, 409, "duplicate_email", "email already registered")
+	case errors.Is(err, users.ErrOwnReset):
+		failure(c, 409, "own_password", "change your own password under My account")
 	case errors.Is(err, users.ErrLastAdmin):
 		failure(c, 409, "last_admin", "an authorized administrator must remain")
 	default:
@@ -158,4 +160,20 @@ func parsePage(c *gin.Context) (int, int, error) {
 		}
 	}
 	return page, size, nil
+}
+
+// resetPassword gives another account a temporary password shown once,
+// revokes its sessions and requires a new password at its next sign-in.
+func (h *usersHandler) resetPassword(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	actor := c.MustGet("auth_user").(auth.User)
+	result, err := h.service.ResetPassword(c.Request.Context(), actor.ID, c.Param("id"))
+	if err != nil {
+		usersError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	success(c, http.StatusOK, result)
 }
