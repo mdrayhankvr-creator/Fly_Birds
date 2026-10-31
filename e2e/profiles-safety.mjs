@@ -124,6 +124,15 @@ try {
   const headView = await fieldsFor('head')
   check('the head teacher sees contact and MPO/index but no NID', headView.data.email !== undefined && headView.data.mpo_index === `MPO-${stamp}` && headView.data.nid_masked === undefined && !JSON.stringify(headView).includes(nid))
   check('nobody outside the school sees a profile', (await fetch(`${base}/api/staff/profiles/${own.id}`)).status === 401)
+  // Removing the NID is the administrator's own confirmed action.
+  await b.login(email('admin'), pw)
+  await b.go(`/staff/profiles/${own.id}`)
+  await b.waitFor(`!!document.querySelector('[data-remove-nid]')`, 15000)
+  await b.evaluate(`document.querySelector('[data-remove-nid]').click()`)
+  check('removing the NID asks first', await b.waitFor(`/Remove the NID stored for/.test(document.querySelector('[role=alertdialog]')?.innerText ?? '')`))
+  await b.evaluate(`[...document.querySelectorAll('[role=alertdialog] button')].find(e => e.innerText.trim() === 'Remove NID').click()`)
+  check('the NID is removed', await b.waitFor(`/NID removed/.test(document.querySelector('main').innerText) && /Not provided/.test(document.querySelector('[data-nid]')?.innerText ?? '') && !document.querySelector('[data-remove-nid]')`))
+  check('the removal is audited without the number', await (async () => { const ev = (await b.api(`/audit/events?page=1&page_size=10&action=staff.nid_removed`)).body.data; return JSON.stringify(ev).includes(own.id) && !JSON.stringify(ev).includes(nid) })())
 
   // ---------- 3. buttons ----------
   await b.login(email('admin'), pw)

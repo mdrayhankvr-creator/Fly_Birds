@@ -154,6 +154,7 @@ type ProfileRepository interface {
 	SaveOwnProfile(ctx context.Context, actor, id string, in OwnProfileInput) error
 	SaveOfficial(ctx context.Context, actor, id string, in OfficialInput) error
 	RevealNID(ctx context.Context, actor, id string, self bool) (string, error)
+	RemoveNID(ctx context.Context, actor, id string) error
 	SavePhoto(ctx context.Context, actor, id string, content []byte, version string) error
 	DeletePhoto(ctx context.Context, actor, id string) error
 	Photo(ctx context.Context, id string) ([]byte, string, error)
@@ -326,7 +327,12 @@ func (s *Service) SaveOfficial(ctx context.Context, v Viewer, id string, in Offi
 		if !nidPattern.MatchString(n) {
 			return Profile{}, ErrInvalid
 		}
-		in.NID = &n
+		// An empty NID keeps the stored one; removing it is RemoveNID.
+		if n == "" {
+			in.NID = nil
+		} else {
+			in.NID = &n
+		}
 	}
 	if err := repo.SaveOfficial(ctx, v.ID, id, in); err != nil {
 		return Profile{}, err
@@ -356,6 +362,22 @@ func (s *Service) RevealNID(ctx context.Context, v Viewer, id string) (string, e
 		return "", ErrNotFound
 	}
 	return repo.RevealNID(ctx, v.ID, id, self)
+}
+
+// RemoveNID clears an employee's stored NID. Only administrators may, and the
+// audit records that it happened, never the number.
+func (s *Service) RemoveNID(ctx context.Context, v Viewer, id string) (Profile, error) {
+	repo, err := s.profiles()
+	if err != nil {
+		return Profile{}, err
+	}
+	if !uuid.MatchString(v.ID) || !uuid.MatchString(id) || v.Role != "admin" {
+		return Profile{}, ErrForbidden
+	}
+	if err := repo.RemoveNID(ctx, v.ID, id); err != nil {
+		return Profile{}, err
+	}
+	return s.Profile(ctx, v, id)
 }
 
 // SavePhoto stores an employee's photo: the employee's own, or any as an
@@ -550,6 +572,22 @@ func (r *GormRepository) RevealNID(ctx context.Context, actor, id string, self b
 		return audit.Record(tx, &actor, "staff.nid_revealed", "employee", id, map[string]any{"own": self})
 	})
 	return nid, err
+}
+
+func (r *GormRepository) RemoveNID(ctx context.Context, actor, id string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireAdministrator(tx, actor, "staff:manage"); err != nil {
+			return err
+		}
+		res := tx.Exec("UPDATE employee_identity SET nid = '', updated_by = ?, updated_at = now() WHERE employee_id = ? AND nid <> ''", actor, id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected != 1 {
+			return ErrNotFound
+		}
+		return audit.Record(tx, &actor, "staff.nid_removed", "employee", id, map[string]any{})
+	})
 }
 
 func (r *GormRepository) SavePhoto(ctx context.Context, actor, id string, content []byte, version string) error {

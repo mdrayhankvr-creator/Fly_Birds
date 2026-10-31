@@ -187,6 +187,7 @@ func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/staff/profiles/:id/photo", RequirePermission(service, "staff:profiles_read"), moduleGuard("staff"), staffHandler.photo)
 	management.POST("/staff/profiles/:id/nid-reveal", RequirePermission(service, "staff:profiles_read"), moduleGuard("staff"), staffHandler.revealNID)
 	management.PATCH("/staff/employees/:id/official", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.saveOfficial)
+	management.DELETE("/staff/employees/:id/nid", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.removeNID)
 	management.PUT("/staff/employees/:id/photo", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.savePhoto)
 	management.DELETE("/staff/employees/:id/photo", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.deletePhoto)
 	management.GET("/staff/me/leaves", RequirePermission(service, "staff_leaves:request_self"), moduleGuard("staff"), staffHandler.ownLeaves)

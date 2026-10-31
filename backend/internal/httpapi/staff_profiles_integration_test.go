@@ -282,4 +282,40 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 		}
 	}
 
+	// An empty NID in an edit keeps the stored one.
+	call("admin", "PATCH", "/staff/employees/"+employeeID+"/official", `{"nid":""}`, 200)
+	if revealed("admin") != nid {
+		t.Fatal("an empty NID field cleared the stored NID")
+	}
+	// Removal is an administrator's explicit action, audited without the number.
+	for _, who := range []string{"owner", "head", "colleague", "accountant", "student", "guardian"} {
+		call(who, "DELETE", "/staff/employees/"+employeeID+"/nid", "", 403)
+	}
+	var removedBody struct {
+		Data map[string]any `json:"data"`
+	}
+	_ = json.Unmarshal(call("admin", "DELETE", "/staff/employees/"+employeeID+"/nid", "", 200), &removedBody)
+	if removedBody.Data["nid_masked"] != "" || removedBody.Data["can_reveal_nid"] == true {
+		t.Fatalf("profile after removal %v", removedBody.Data)
+	}
+	var stored, mpoKept string
+	db.Table("employee_identity").Where("employee_id = ?", employeeID).Pluck("nid", &stored)
+	db.Table("employee_identity").Where("employee_id = ?", employeeID).Pluck("mpo_index", &mpoKept)
+	if stored != "" || mpoKept != mpo {
+		t.Fatalf("after removal: NID stored %t, MPO/index kept %t", stored != "", mpoKept == mpo)
+	}
+	var removals []struct {
+		ActorUserID string
+		Metadata    string
+	}
+	db.Table("audit_events").Select("actor_user_id, metadata::text AS metadata").Where("action='staff.nid_removed' AND target_id=?", employeeID).Scan(&removals)
+	if len(removals) != 1 || removals[0].ActorUserID != adminUser.ID || strings.Contains(removals[0].Metadata, nid) {
+		t.Fatalf("removal audit %+v", removals)
+	}
+	db.Table("audit_events").Where("target_id=? AND metadata::text LIKE ?", employeeID, "%"+nid+"%").Count(&leaked)
+	if leaked != 0 {
+		t.Fatal("the NID reached the audit log")
+	}
+	call("admin", "DELETE", "/staff/employees/"+employeeID+"/nid", "", 404)
+	call("owner", "POST", "/staff/profiles/"+employeeID+"/nid-reveal", "", 404)
 }

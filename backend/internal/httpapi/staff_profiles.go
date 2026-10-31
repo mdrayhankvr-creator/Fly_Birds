@@ -95,6 +95,18 @@ func (h *staffHandler) revealNID(c *gin.Context) {
 	success(c, http.StatusOK, gin.H{"nid": nid})
 }
 
+func (h *staffHandler) removeNID(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	v, err := h.service.RemoveNID(c.Request.Context(), staffViewer(c), c.Param("id"))
+	if err != nil {
+		staffError(c, err)
+		return
+	}
+	success(c, http.StatusOK, v)
+}
+
 // photoTarget is the employee whose photo a request changes: the caller's
 // own record on /staff/me/photo, or the one in the path for administrators.
 func (h *staffHandler) photoTarget(c *gin.Context) (string, bool) {

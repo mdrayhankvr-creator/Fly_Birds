@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { ApiError, getSalaryRecords } from '../api/client'
-import { deleteStaffPhoto, getStaffPhoto, getStaffProfile, revealStaffNID, saveOwnStaffProfile, saveStaffOfficial, saveStaffPhoto, type Audience, type StaffProfile, type StaffVisibility } from '../api/staffProfile'
+import { deleteStaffPhoto, getStaffPhoto, getStaffProfile, removeStaffNID, revealStaffNID, saveOwnStaffProfile, saveStaffOfficial, saveStaffPhoto, type Audience, type StaffProfile, type StaffVisibility } from '../api/staffProfile'
+import { confirmAction } from '../components/ConfirmDialog'
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
 import { CardTitle, EmptyState, Notice, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
@@ -87,7 +88,7 @@ export function StaffProfilePage() {
           {p.qualifications.length ? <ul className="mt-2 flex flex-wrap gap-1.5">{p.qualifications.map(q => <li key={q}><Chip>{q}</Chip></li>)}</ul> : <p className="mt-1 text-sm text-slate-500">{t('profileNotProvided')}</p>}</div>}
       </section>}
 
-      {(p.joined_on !== undefined || p.mpo_index !== undefined || p.nid_masked !== undefined) && <OfficialCard profile={p} busy={busy} onSave={input => run(() => authorized(token => saveStaffOfficial(token, p.id, input)), t('c4OfficialSaved'))} />}
+      {(p.joined_on !== undefined || p.mpo_index !== undefined || p.nid_masked !== undefined) && <OfficialCard profile={p} busy={busy} onSave={input => run(() => authorized(token => saveStaffOfficial(token, p.id, input)), t('c4OfficialSaved'))} onRemoveNID={() => run(() => authorized(token => removeStaffNID(token, p.id)), t('c4NIDRemoved'))} />}
 
       {p.attendance && <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-attendance">
         <CardTitle id="staff-attendance" icon="check">{t('c4AttendanceAndLeave')}</CardTitle>
@@ -120,8 +121,8 @@ function PhotoActions({ hasPhoto, busy, onUpload, onRemove }: { hasPhoto: boolea
   </div>
 }
 
-function OfficialCard({ profile: p, busy, onSave }: { profile: StaffProfile; busy: boolean; onSave: (input: { email?: string; mpo_index?: string; nid?: string }) => Promise<unknown> }) {
-  const { t } = useTranslation()
+function OfficialCard({ profile: p, busy, onSave, onRemoveNID }: { profile: StaffProfile; busy: boolean; onSave: (input: { email?: string; mpo_index?: string; nid?: string }) => Promise<unknown>; onRemoveNID: () => Promise<unknown> }) {
+  const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
   const [shown, setShown] = useState('')
   const [revealing, setRevealing] = useState(false)
@@ -138,6 +139,11 @@ function OfficialCard({ profile: p, busy, onSave }: { profile: StaffProfile; bus
     const input: { email?: string; mpo_index?: string; nid?: string } = { email: form.email.trim(), mpo_index: form.mpo_index.trim() }
     if (form.nid.trim()) input.nid = form.nid.replace(/\s/g, '')
     await onSave(input); setEditing(false); setForm(f => ({ ...f, nid: '' })); setShown('')
+  }
+  // Removing is its own confirmed action; an empty field in the form keeps the NID.
+  async function removeNID() {
+    if (!(await confirmAction(t('c4RemoveNIDConfirm', { name: (i18n.language === 'bn' && p.name_bn) || p.name_en }), { confirmLabel: t('c4RemoveNID') }))) return
+    setShown(''); await onRemoveNID()
   }
   return <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-official">
     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -159,6 +165,7 @@ function OfficialCard({ profile: p, busy, onSave }: { profile: StaffProfile; bus
           <span className="font-mono text-lg font-bold tracking-wider text-slate-900" data-nid>{shown || p.nid_masked || <span className="font-sans text-sm font-normal text-slate-500">{t('profileNotProvided')}</span>}</span>
           {p.can_reveal_nid && (shown ? <button type="button" className={`${ui.quiet} btn-sm`} onClick={() => setShown('')}><Icon name="eye" className="h-4 w-4" />{t('c4HideNID')}</button>
             : <button type="button" className={`${ui.secondary} btn-sm`} disabled={revealing} onClick={() => void reveal()}><Icon name="eye" className="h-4 w-4" />{t('c4ShowNID')}</button>)}
+          {p.can_edit_official && p.nid_masked && <button type="button" className={`${ui.danger} btn-sm`} disabled={busy} data-remove-nid onClick={() => void removeNID()}>{t('c4RemoveNID')}</button>}
           <span className="block w-full text-xs text-slate-500">{t('c4NIDPrivate')}</span>
         </dd>
       </div>}

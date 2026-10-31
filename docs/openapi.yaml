@@ -834,10 +834,19 @@ paths:
       operationId: saveStaffOfficial
       tags: [staff]
       summary: Set official staff details
-      description: 'Requires staff:manage, administrator and the staff module. Body {email, mpo_index, nid}; a field left out is unchanged. The NID has 10, 13 or 17 digits. The audit lists the fields changed, never their values; the response carries the NID masked.'
+      description: 'Requires staff:manage, administrator and the staff module. Body {email, mpo_index, nid}; a field left out, or an empty nid, is unchanged (DELETE /staff/employees/{id}/nid removes the NID). The NID has 10, 13 or 17 digits. The audit lists the fields changed, never their values; the response carries the NID masked.'
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/employees/{id}/nid:
+    delete:
+      operationId: removeStaffNID
+      tags: [staff]
+      summary: Remove a stored staff NID
+      description: 'Requires staff:manage, administrator and the staff module. Clears the stored NID and records staff.nid_removed in the audit log without the number. 404 when no NID is stored. Returns the profile.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /staff/employees/{id}/photo:
     put:

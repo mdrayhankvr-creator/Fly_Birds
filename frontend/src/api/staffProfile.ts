@@ -21,6 +21,7 @@ export const getStaffProfile = (token: string, id: string) => bearerRequest<Staf
 export const getStaffPhoto = (token: string, id: string, version: string) => bearerBlob(`${base(id)}/photo?v=${encodeURIComponent(version)}`, token)
 export const saveOwnStaffProfile = (token: string, input: OwnProfileInput) => bearerRequest<StaffProfile>('/staff/me/profile', token, json('PATCH', input))
 export const saveStaffOfficial = (token: string, id: string, input: OfficialInput) => bearerRequest<StaffProfile>(`/staff/employees/${encodeURIComponent(id)}/official`, token, json('PATCH', input))
+export const removeStaffNID = (token: string, id: string) => bearerRequest<StaffProfile>(`/staff/employees/${encodeURIComponent(id)}/nid`, token, { method: 'DELETE' })
 export const revealStaffNID = (token: string, id: string) => bearerRequest<{ nid: string }>(`${base(id)}/nid-reveal`, token, { method: 'POST' })
 // The employee's own photo goes to /staff/me/photo; an administrator's change to the employee's record.
 export const saveStaffPhoto = (token: string, file: File, id?: string) => bearerRequest<StaffProfile>(id ? `/staff/employees/${encodeURIComponent(id)}/photo` : '/staff/me/photo', token, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
