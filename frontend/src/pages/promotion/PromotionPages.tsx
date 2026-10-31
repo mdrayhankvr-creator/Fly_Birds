@@ -154,7 +154,7 @@ function BatchesPage({ caps }: { caps: Caps }) {
     {caps.manage && <CreateBatch batches={batches.data ?? []} />}
     <SectionCard id="pm-batch-list" title={t('pmBatchList')} actions={<div role="group" aria-label={t('pmFilterLabel')} className="flex gap-1 rounded-xl bg-slate-100 p-1">
       {filters.map(f => <button key={f.value} type="button" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)}
-        className={`rounded-lg px-3 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${filter === f.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{f.label}</button>)}
+        className={`min-h-11 rounded-lg px-3 py-1.5 text-sm font-semibold sm:min-h-0 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${filter === f.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{f.label}</button>)}
     </div>}>
       {batches.isPending ? <Skeleton rows={3} /> : batches.isError ? <Notice tone="error">{t('pmLoadFailed')}</Notice>
         : shown.length === 0 ? <EmptyState icon="layers" title={t('pmNoBatches')}>{t(caps.manage ? 'pmNoBatchesHint' : 'pmNoBatchesHintRead')}</EmptyState>

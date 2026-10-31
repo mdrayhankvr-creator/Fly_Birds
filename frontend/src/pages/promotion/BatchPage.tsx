@@ -246,7 +246,7 @@ function Students({ b, editable, onEdit }: { b: PromotionBatch; editable: boolea
   return <SectionCard id="pm-students" title={t('pmStudents', { n: num(b.items.length) })}
     actions={<div role="group" aria-label={t('pmFilterLabel')} className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
       {filters.map(f => <button key={f.value} type="button" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)}
-        className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] sm:text-sm ${filter === f.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{f.label} <span className="tabular-nums">{num(f.n)}</span></button>)}
+        className={`min-h-11 rounded-lg px-2.5 py-1.5 text-xs font-semibold sm:min-h-0 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] sm:text-sm ${filter === f.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{f.label} <span className="tabular-nums">{num(f.n)}</span></button>)}
     </div>}>
     {shown.length === 0 ? <p className="text-sm text-slate-600">{t('pmNoneMatch')}</p> : <>
       <ul className="grid gap-3 md:hidden">{shown.map(i => <li key={i.student_id} className={`rounded-xl border p-3 ${blockedIds.has(i.student_id) ? 'border-rose-200' : 'border-slate-200'}`}>

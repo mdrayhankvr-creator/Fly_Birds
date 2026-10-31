@@ -5,7 +5,7 @@ import type { BatchStatus, Decision, PromotionBatch, PromotionIssue, Recommendat
 import { useAuth } from '../../auth/AuthProvider'
 import { Icon } from '../../components/icons'
 import { tone } from '../../components/modules'
-import { LinkTabs, PageHeader } from '../attendanceUi'
+import { LinkTabs, PageHeader, ui } from '../attendanceUi'
 
 // Shared parts of the year-end promotion screens (M15 stage B2).
 
@@ -145,7 +145,7 @@ export function Dialog({ title, onClose, children, footer, wide }: { title: stri
       className={`relative flex max-h-[92vh] w-full flex-col rounded-t-2xl border border-slate-200 bg-white shadow-xl sm:rounded-2xl ${wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'}`}>
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
         <h2 id={titleId} className="min-w-0 text-base font-bold text-slate-900">{title}</h2>
-        <button type="button" data-close onClick={onClose} aria-label={t('pmClose')} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]"><Icon name="close" className="h-4 w-4" /></button>
+        <button type="button" data-close onClick={onClose} aria-label={t('pmClose')} className={`${ui.quiet} w-11 shrink-0 px-0 sm:w-10`}><Icon name="close" className="h-4 w-4" /></button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
       <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">{footer}</footer>
