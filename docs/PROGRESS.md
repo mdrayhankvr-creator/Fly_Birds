@@ -10,6 +10,21 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — M15 Stage B2: Promotion Screens (2026-10-31)
+
+On `feature/m15-stage-b2-promotion-ui`, rebased onto `main` `c1e8542b` (stage B1 merged, PR #36; premium UI checkpoints 2 and 3, PRs #37 and #38). Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [ENROLMENT_AND_PROMOTION.md](ENROLMENT_AND_PROMOTION.md) §8.
+
+**Implementation:**
+- **Screens at `/admin/promotions`** (administrator and head teacher only): class progression, batches with a create form, batch review with overrides and reasons, target sections and rolls, head-teacher approval showing exactly what is approved, apply and revert with exact counts and the logins to disable, the reason a revert is refused, and the concession review (fees access only). English and Bangla, dark mode, 375px.
+- **Backend (read only, no migration):** `counts.logins_to_disable` and `revert_blockers` on a batch; revert refuses on the same check.
+- **Shared files:** one commit with one lazily loaded route (like every other page), one menu entry under People and the translations bundle registration (6 lines). Texts in `promotionTranslations.ts`. The screens use main's page header and module colour (People).
+
+**Verification (disposable resources only):**
+- **Migrations:** 1701, 1702, 1750, 1751, 1752, no duplicates; stage B2 adds none.
+- **Go:** on a freshly created disposable database, `go test ./... -p 1 -count=1` passed 27 of 27 packages with tests. `go vet ./...` clean; gofmt clean on all 222 Go files.
+- **Frontend:** typecheck and production build pass with no large-chunk warning (the promotion screens are their own 45 kB chunk); i18n check passed; unit tests 15 of 15.
+- **Browser e2e** on `m15b1` rebuilt fresh from the rebased branch and demo-seeded: `suite.mjs` 117 of 117, then `e2e/promotion-ui.mjs` 34 of 34 checks, no console errors; 64 screenshots (eight screens at 1440px and 375px, English and Bangla, light and dark) with overflow, contrast and axe clean.
+
 ## Current Status — Premium UI Checkpoint 3: Daily Office Tasks (2026-10-31)
 
 On `feature/premium-ui-checkpoint-3`, from `main` `f4a245c` (checkpoint 2 merged, PR #37). Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migration 1752 (`admission_requests`).

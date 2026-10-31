@@ -29,6 +29,7 @@ const SectionsPage = lazy(() => import('./pages/SectionsPage').then(m => ({ defa
 const StudentsPage = lazy(() => import('./pages/StudentsPage').then(m => ({ default: m.StudentsPage })))
 const StudentProfilePage = lazy(() => import('./pages/StudentProfilePage').then(m => ({ default: m.StudentProfilePage })))
 const AdmissionPage = lazy(() => import('./pages/AdmissionPage').then(m => ({ default: m.AdmissionPage })))
+const PromotionGate = lazy(() => import('./pages/promotion/PromotionPages').then(m => ({ default: m.PromotionGate })))
 const IdCardPrintPage = lazy(() => import('./pages/IdCardPrintPage').then(m => ({ default: m.IdCardPrintPage })))
 const VerifyCardPage = lazy(() => import('./pages/VerifyCardPage').then(m => ({ default: m.VerifyCardPage })))
 const RoutinePage = lazy(() => import('./pages/RoutinePage').then(m => ({ default: m.RoutinePage })))
@@ -465,6 +466,7 @@ export default function App() {
         <Route path="/admin/students/cards" element={<ProtectedRoute><PeopleGate kind="cards" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/students/:id/card" element={<ProtectedRoute><PeopleGate kind="card" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/guardians" element={<Navigate to="/admin/students" replace />} />
+        <Route path="/admin/promotions/*" element={<ProtectedRoute><PromotionGate permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} feesEnabled={feesEnabled} loading={academicLoading || feesLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/student/me" element={<ProtectedRoute><PeopleGate kind="self" permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/routines" element={<ProtectedRoute><RoutineGate mode="admin" permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
         <Route path="/teacher/routine" element={<ProtectedRoute><RoutineGate mode="teacher" permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />

@@ -11,7 +11,7 @@ It is delivered in two stages:
 |---|---|---|
 | **A — Enrolment history foundation** | Enrolment table and history, migration 1701 with backfill, marks and results tied to the year they belong to, history-safe rosters and reports, history API and export | Merged (PR #34) |
 | **B1 — Promotion backend** | Migration 1702: class progression, promotion batches (recommend, decide, approve, apply, revert), repeat/graduate/withdraw/transfer, login follows withdrawal (QA-03), per-session fee concessions and their review, generic edits guarded; API, tests and an API e2e script | `feature/m15-stage-b-promotion` |
-| **B2 — Screens** | Promotion and history screens | Not started (coordinate shared frontend files with Joy) |
+| **B2 — Screens** | Promotion screens: class progression, batches, review and overrides, approval, apply and revert, concession review (§8) | `feature/m15-stage-b2-promotion-ui` |
 
 ## 1. The problem stage A fixes
 
@@ -312,3 +312,30 @@ identical to a fresh install's.
 Shared frontend files (`App.tsx`, `StudentProfilePage.tsx`,
 `StudentsPage.tsx`, `i18n.ts`, `styles.css`) are coordinated with Joy
 before stage B2 touches them.
+
+## 8. Stage B2 — promotion screens
+
+At `/admin/promotions`, under People in the menu. Only administrators and
+head teachers with `promotions:read` see the entry or the pages; teachers,
+accountants, students and guardians are refused. Off when the students
+module is off.
+
+| Screen | Administrator | Head teacher |
+|---|---|---|
+| **Class progression** | Next class or final class per class; unset classes are marked and the suggested next class is shown, saved only on Save | Read only |
+| **Batches** | List with status (open, applied, all) and a create form: source session, class, target session; warns about an unset class and an open batch | List only |
+| **Batch review** | Per student: annual result, recommendation, decision, blockers and warnings; edit dialog with a reason required when the decision differs from the recommendation; target section and roll; number rolls (keep, merit, name, manual); reload the class; discard | Read only |
+| **Approval** | Status only | Exactly what is approved: counts per decision, logins to disable, every override with its reason; approve (bound to the batch's inputs) |
+| **Apply and revert** | Confirmation with counts of promote, repeat, graduate, withdraw and transfer and the logins to disable; revert with a reason, or the reason the server refuses it | Status only |
+| **Concession review** | Concessions of the source session and whether each is set for the target session; links to Fees | Not shown (no fees access) |
+
+Two read-only fields were added to the batch for these screens:
+`counts.logins_to_disable` (draft and approved batches) and
+`revert_blockers` (applied batches: `new_year_records`, `student_moved`).
+Revert uses the same check, so the screen shows exactly why the server
+would refuse. No migration.
+
+Shared frontend files are touched in one commit only: one route in
+`App.tsx`, one menu entry in `navigation.ts`, and the translations bundle
+registered in `i18n.ts`. Texts are in `promotionTranslations.ts`. No other
+page is restyled. Browser check: `e2e/promotion-ui.mjs`.

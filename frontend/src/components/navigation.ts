@@ -27,6 +27,7 @@ export function buildNavigation({ role, has, on }: NavContext): NavGroup[] {
       key: 'people', label: 'm12Group_people', items: [
         ...(on('students') && has('students:read') && (admin || role === 'head_teacher') ? [{ key: 'students', label: 'm12Nav_students', path: '/admin/students', icon: 'users' as const }] : []),
         ...(on('staff') && has('staff:read') ? [{ key: 'staff', label: 'm12Nav_staff', path: '/admin/staff', icon: 'teacher' as const }] : []),
+        ...(on('students') && has('promotions:read') && (admin || role === 'head_teacher') ? [{ key: 'promotions', label: 'pmNav', path: '/admin/promotions', icon: 'trend' as const }] : []),
         ...(on('students') && has('students:read_self') && role === 'student' ? [{ key: 'me', label: 'm12Nav_myProfile', path: '/student/me', icon: 'user' as const }] : []),
         ...(on('staff') && has('staff:read_self') && !admin ? [{ key: 'staff_me', label: 'm12Nav_myStaffProfile', path: '/staff/me', icon: 'user' as const }] : []),
       ],

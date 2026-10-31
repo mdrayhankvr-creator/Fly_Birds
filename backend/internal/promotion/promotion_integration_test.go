@@ -180,6 +180,10 @@ func TestPostgresPromotionGraduatesAndLeavers(t *testing.T) {
 	decide(moved, Transfer, "Transfer certificate issued")
 	decide(disabled, Withdraw, "Left the school")
 	s.exec("UPDATE users SET is_active = false WHERE id = ?", disabledUser) // disabled by the administrator beforehand
+	// What apply will do: three leavers, two of them with a login to disable.
+	if v, err := ps.Get(ctx, b.ID); err != nil || v.Counts[Withdraw] != 2 || v.Counts[Transfer] != 1 || v.Counts["logins_to_disable"] != 2 || len(v.RevertBlockers) != 0 {
+		t.Fatalf("counts before apply: %+v %+v %v", v.Counts, v.RevertBlockers, err)
+	}
 	if b, err = ps.Approve(ctx, head, b.ID, HashInput{InputsSHA256: b.InputsSHA256}); err != nil {
 		t.Fatal(err)
 	}

@@ -3680,9 +3680,10 @@ components:
         created_by: { type: string }
         created_at: { type: string, format: date-time }
         inputs_sha256: { type: string, description: The hash an approval must name }
-        counts: { type: object, additionalProperties: { type: integer } }
+        counts: { type: object, additionalProperties: { type: integer }, description: 'Per decision (promote, repeat, graduate, withdraw, transfer, undecided) and recommended_<recommendation>. Draft and approved batches also carry logins_to_disable: withdraw and transfer decisions whose student has an active login.' }
         blockers: { type: array, items: { $ref: '#/components/schemas/PromotionIssue' } }
         warnings: { type: array, items: { $ref: '#/components/schemas/PromotionIssue' } }
+        revert_blockers: { type: array, items: { $ref: '#/components/schemas/PromotionIssue' }, description: 'Applied batches only: why a revert would be refused (new_year_records, student_moved). Empty means a revert is allowed.' }
         items: { type: array, items: { $ref: '#/components/schemas/PromotionItem' } }
     PromotionBatchResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PromotionBatch' } } }
     ClassProgressionResponse:
