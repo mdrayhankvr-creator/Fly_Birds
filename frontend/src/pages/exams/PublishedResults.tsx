@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getPublishedResults, type PublishedResult } from '../../api/client'
 import { CardTitle, Notice, Skeleton } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
+import { MyMarksheet } from './resultDocuments'
 import { OutcomeChip, RevisedChip, useLineName, useWhen } from './resultUi'
 
 // Student Results (UX spec §11): published term and annual results only,
@@ -22,7 +23,7 @@ export function PublishedResults({ childId }: { childId?: string }) {
   return <section aria-labelledby="rv-published-title" className="space-y-3 print:hidden">
     <CardTitle id="rv-published-title" icon="grade">{t('rvTermResultsTitle')}</CardTitle>
     <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{results.data.map(r => <li key={r.id}><ResultCardButton r={r} selected={open === r.id} onOpen={() => setOpen(open === r.id ? '' : r.id)} /></li>)}</ul>
-    {chosen && <ResultDetail r={chosen} />}
+    {chosen && <ResultDetail r={chosen} download={!childId} />}
   </section>
 }
 
@@ -50,7 +51,7 @@ function ResultCardButton({ r, selected, onOpen }: { r: PublishedResult; selecte
   </button>
 }
 
-function ResultDetail({ r }: { r: PublishedResult }) {
+function ResultDetail({ r, download }: { r: PublishedResult; download: boolean }) {
   const { t, i18n } = useTranslation()
   const when = useWhen()
   const name = useLineName()
@@ -60,6 +61,7 @@ function ResultDetail({ r }: { r: PublishedResult }) {
       <h3 id="rv-detail-title" className="text-lg font-semibold text-slate-900">{heading(t, r)}</h3>
       <p className="text-sm text-slate-600">{student} · {r.student.admission_no} · {r.class_name} / {r.section_name}</p>
       {r.scope === 'annual' && <p className="mt-1 text-sm text-slate-600">{method(t, r)}</p>}
+      {download && <div className="mt-3"><MyMarksheet versionId={r.id} /></div>}
     </header>
     {r.withheld ? <p role="status" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-semibold text-amber-900">{t('e3ResultWithheld')}</p> : <>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
