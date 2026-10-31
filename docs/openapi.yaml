@@ -1231,6 +1231,35 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: section_id, in: query, required: false, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Defaults }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/bulk-admission/template:
+    get:
+      operationId: getBulkAdmissionTemplate
+      tags: [students]
+      summary: Download the bulk admission template
+      description: 'Requires students:manage and administrator. An .xlsx workbook (format=csv for UTF-8 CSV) with the English column names and Bangla guidance.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: format, in: query, schema: { type: string, enum: [xlsx, csv] } }]
+      responses: { '200': { description: The template file }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/bulk-admission/preview:
+    post:
+      operationId: previewBulkAdmission
+      tags: [students]
+      summary: Check a bulk admission spreadsheet row by row
+      description: 'Requires students:manage and administrator. Query session_id. Body: the file (text/csv in UTF-8, with or without BOM, or .xlsx), at most 4 MB and 1000 rows. Nothing is written. Each row comes back ready, skip (already admitted: same admission number and name) or error with codes such as missing_class, section_not_found, bad_date_of_birth, roll_taken, duplicate_admission_no_in_file, admission_no_taken, login_email_taken, guardian_ambiguous; with what happens to its guardian (new, existing, same_as_row).'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { text/csv: { schema: { type: string } }, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: The preview }, '400': { description: 'sheet_format, sheet_not_utf8, too_many_rows, empty_sheet or missing_columns (with the preview)' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /students/bulk-admission:
+    post:
+      operationId: admitBulk
+      tags: [students]
+      summary: Admit every ready row of a spreadsheet, all or nothing
+      description: 'Requires students:manage and administrator (guardians:manage when rows name guardians, users:create with create_logins). Query session_id, idempotency_key (a UUID made per upload) and create_logins=true for logins. The rows are checked again inside one transaction; if any has a problem nothing is written (422 rows_have_errors with the preview). Already admitted rows are skipped. A retry with the same key returns the first result with replayed true and no passwords; the same key with a different file is 409 idempotency_key_reused. Logins come back once with their temporary passwords.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: idempotency_key, in: query, required: true, schema: { type: string, format: uuid } }, { name: create_logins, in: query, schema: { type: boolean } }]
+      requestBody: { required: true, content: { text/csv: { schema: { type: string } }, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } } } }
+      responses: { '201': { description: 'admitted, skipped and the login slips' }, '200': { description: Replayed result of an earlier request with this key }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: idempotency_key_reused }, '422': { description: rows_have_errors (with the preview) } }
   /students/logins:
     post:
       operationId: createSectionStudentLogins
