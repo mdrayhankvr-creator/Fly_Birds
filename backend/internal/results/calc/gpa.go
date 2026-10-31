@@ -91,3 +91,25 @@ func aggregate(subjects []Subject, grades []SubjectGrade, p Policy) (Result, err
 	res.Passed = true
 	return res, nil
 }
+
+// RequiredGPA is the GPA of the required subjects alone (no fourth-subject
+// bonus): the mean of their points, capped at 5.00 and rounded like
+// Calculate. Report cards show it beside the GPA. A failed required subject
+// gives 0.00, as in Calculate.
+func RequiredGPA(points []Points, passed bool, p Policy) (Points, error) {
+	if len(points) == 0 {
+		return 0, ErrInvalid
+	}
+	if !passed {
+		return 0, nil
+	}
+	var sum Points
+	for _, pt := range points {
+		sum += pt
+	}
+	gpa := big.NewRat(int64(sum), int64(len(points)))
+	if gpa.Cmp(big.NewRat(int64(maxGPA), 1)) > 0 {
+		gpa.SetInt64(int64(maxGPA))
+	}
+	return Points(roundRat(gpa, 1, p.GPA)), nil
+}
