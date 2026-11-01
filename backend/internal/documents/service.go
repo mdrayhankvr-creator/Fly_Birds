@@ -25,7 +25,7 @@ import (
 
 // templateVersion changes whenever a template's output changes, so cached
 // documents are rebuilt.
-const templateVersion = "e7-1"
+const templateVersion = "e7-2"
 
 var (
 	ErrInvalid      = errors.New("invalid document request")

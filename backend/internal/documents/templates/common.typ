@@ -37,8 +37,10 @@
     align(center, text(size: 8.5pt, weight: "bold", fill: fail-red, tracking: 0.6pt, doc.labels.provisional)))
 }
 
-#let watermark() = if doc.provisional {
-  place(center + horizon, rotate(-32deg, text(size: 46pt, weight: "bold", fill: rgb(185, 28, 28, 38), doc.labels.provisional)))
+// The provisional watermark is drawn over each page (as its foreground), so
+// table shading cannot hide it.
+#let watermark = if doc.provisional {
+  place(center + horizon, rotate(-32deg, text(size: 46pt, weight: "bold", fill: rgb(185, 28, 28, 46), doc.labels.provisional)))
 }
 
 #let pill(body, color: accent) = box(inset: (x: 1.2mm, y: 0.5mm), radius: 2pt, stroke: 0.5pt + color,

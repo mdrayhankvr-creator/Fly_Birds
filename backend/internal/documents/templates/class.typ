@@ -9,6 +9,7 @@
   paper: if doc.paper == "a3" { "a3" } else { "a4" },
   flipped: landscape,
   margin: (x: 11mm, top: 10mm, bottom: 13mm),
+  foreground: watermark,
   footer: context {
     set text(size: 6.5pt, fill: muted)
     grid(columns: (1fr, auto), doc.footer, [#L.page #counter(page).display() / #counter(page).final().first()])
@@ -31,7 +32,6 @@
 #let zebra = (x, y) => if y == 0 { tint } else if calc.even(y) { rgb("#f8fafc") } else { none }
 #let lines = (x, y) => (bottom: if y == 0 { 0.8pt + accent.lighten(30%) } else { 0.4pt + rule })
 
-#watermark()
 #heading-block()
 
 #if doc.kind == "tabulation" {

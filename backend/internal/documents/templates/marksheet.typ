@@ -1,7 +1,7 @@
 // Student marksheet / report card: A4 portrait, one page per student.
 #import "common.typ": *
 #show: base
-#set page(paper: "a4", margin: (x: 13mm, top: 11mm, bottom: 11mm))
+#set page(paper: "a4", margin: (x: 13mm, top: 11mm, bottom: 11mm), foreground: watermark)
 
 #let L = doc.labels
 
@@ -41,7 +41,7 @@
 #let subject-table(st) = {
   let cols = doc.columns
   let head = (L.code, L.subject, ..cols, ..if doc.show_ct { (L.ct,) } else { () }, L.total, L.highest, L.grade, L.gp)
-  let widths = (9mm, 1fr, ..cols.map(_ => 14mm), ..if doc.show_ct { (14mm,) } else { () }, 19mm, 13mm, 11mm, 11mm)
+  let widths = (auto, 1fr, ..cols.map(_ => 14mm), ..if doc.show_ct { (14mm,) } else { () }, 19mm, 13mm, 11mm, 11mm)
   table(
     columns: widths,
     stroke: (x, y) => (bottom: if y == 0 { 0.8pt + accent.lighten(30%) } else { 0.4pt + rule }),
@@ -122,6 +122,5 @@
 
 #for (i, st) in doc.students.enumerate() {
   if i > 0 { pagebreak() }
-  watermark()
   card(st)
 }
