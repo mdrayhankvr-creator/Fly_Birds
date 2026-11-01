@@ -142,7 +142,7 @@ export function PublicPageEditor({ authorized }: { authorized: Authorized }) {
 
     <div className="mt-8 border-t border-slate-100 pt-6">
       <h3 className="text-base font-bold text-slate-900">{t('c5GalleryTitle')}</h3>
-      <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="note"><strong className="block">{t('c5ConsentTitle')}</strong>{t('c5ConsentText')}</div>
+      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="note"><strong className="block">{t('c5ConsentTitle')}</strong>{t('c5ConsentText')}</div>
       <label className={`${ui.secondary} mt-3 ${busy || gallery.length >= 48 ? 'pointer-events-none opacity-50' : ''}`}><Icon name="upload" className="h-4 w-4" />{t('c5AddGalleryPhotos')}<input type="file" multiple accept="image/jpeg,image/png" className="sr-only" disabled={busy || gallery.length >= 48} onChange={e => { const f = e.target.files; void upload(f, 'gallery'); e.target.value = '' }} /></label>
       <p className="mt-1 text-xs text-slate-500">{t('c5GalleryLimits', { count: gallery.length })}</p>
       {gallery.length > 0 && <ul className="mt-4 space-y-3">{gallery.map((p, i) => <GalleryRow key={p.id} photo={p} index={i} authorized={authorized} busy={busy} onChanged={refresh} onError={text => setMessage({ tone: 'error', text })} />)}</ul>}

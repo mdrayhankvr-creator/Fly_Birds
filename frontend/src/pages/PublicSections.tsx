@@ -75,7 +75,7 @@ export function PublicSections() {
   const message = v.head && pick(bn, v.head.message_en, v.head.message_bn)
   const headName = v.head && pick(bn, v.head.name_en, v.head.name_bn)
   const address = v.contact && pick(bn, v.contact.address_en, v.contact.address_bn)
-  return <div className="public-page border-t border-slate-200 bg-[var(--ds-canvas,#f8fafc)]" data-public-page>
+  return <div className="public-page border-t border-slate-200 bg-slate-50" data-public-page>
     {v.about && <Section id="public-about" title={t('c5AboutTitle')}>
       {about && <Paragraphs text={about} />}
       {facts.length > 0 && <dl className="mt-6 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">{facts.map(([label, value]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900">{value}</dd></div>)}</dl>}

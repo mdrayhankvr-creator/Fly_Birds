@@ -123,7 +123,7 @@ function Row({ row: r }: { row: BulkRow }) {
   const { t } = useTranslation()
   const tone = r.status === 'ready' ? 'present' : r.status === 'skip' ? 'unmarked' : 'absent'
   const guardian = r.guardian && (r.guardian.action === 'existing' ? t('c5GuardianExisting', { name: r.guardian.existing_name }) : r.guardian.action === 'same_as_row' ? t('c5GuardianSameAs', { name: r.guardian.name, line: r.guardian.same_as_line }) : t('c5GuardianNew', { name: r.guardian.name }))
-  return <tr className={`border-t border-slate-100 align-top ${r.status === 'error' ? 'bg-rose-50/60' : ''}`} data-bulk-line={r.line} data-bulk-status={r.status}>
+  return <tr className={`border-t border-slate-100 align-top ${r.status === 'error' ? 'bg-rose-50' : ''}`} data-bulk-line={r.line} data-bulk-status={r.status}>
     <td className={`${ui.td} tabular-nums`}>{r.line}</td>
     <td className={`${ui.td} font-mono`}>{r.admission_no || '—'}</td>
     <td className={ui.td}><span className="block font-semibold text-slate-900">{r.name_en || '—'}</span>{r.name_bn && <span lang="bn" className="block text-slate-700">{r.name_bn}</span>}{r.login_email && <span className="block text-xs text-slate-500">{r.login_email}</span>}</td>
