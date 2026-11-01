@@ -151,6 +151,8 @@ The file contains:
 | `COMPOSE_PROJECT_NAME` | The school code. Names every container, volume and network. **Never change it after installation.** |
 | `COMPOSE_PROFILES` | `edge` to run Caddy; empty with `--no-edge`. |
 | `SCHOOL_DOMAIN` | The school's public host name. |
+| `PUBLIC_BASE_URL` | Optional. The school's public address, printed in the verification QR code on every result marksheet (E7), for example `https://school.example.edu.bd`. When absent it is `https://SCHOOL_DOMAIN`. **In production it must be the school's real address** that parents and other schools can open: a wrong value prints QR codes that lead nowhere, and marksheets already issued keep it. Set it only when the school is reached at another address or port (behind a shared proxy, for example). An `http://localhost:…` value is for local trials only. |
+| `MIGRATION_TIMEOUT` | Optional. How long the API may spend applying database migrations when it starts (default `5m`, at least `10s`). A new school's first start applies every migration (a few seconds on the reference laptop). |
 | `ACME_EMAIL` | Address for certificate expiry notices. |
 | `POSTGRES_USER`, `POSTGRES_DB` | Database user and name (template defaults). |
 | `POSTGRES_PASSWORD` | Random, unique to this school. Used on the first start to create the database; to change it later, see [OPERATIONS.md, rotating secrets](OPERATIONS.md#rotating-secrets). |

@@ -135,3 +135,22 @@ Not part of E7: on phones, a signed-in visitor of the public check pages (this
 one and the ID card's) sees the app shell's user-menu button and home link
 without accessible names (axe `button-name`, `link-name`). Signed out, as a
 QR reader is, both pages are clean.
+
+## 6. Startup safety (2026-11-01)
+
+One fresh start of the rebuilt stack failed with `commit migrations: timeout`:
+the API gave connecting *and* applying every migration one 10-second
+deadline, right after Docker Desktop had started. Measured since:
+
+| | Time |
+|---|---|
+| All migrations, fresh database (test PostgreSQL in memory, 3 runs) | 2.2 s, 2.2 s, 5.1 s |
+| Upgrade from `main` `d35b1da8` (1754 → 1800, 3 runs) | 0.12–0.14 s |
+| All migrations, fresh `m15b1` on its Docker volume (3 runs) | 2.0 s, 3.2 s, 1.7 s; `up --wait` 19–22 s; no restarts |
+
+Migrations now have their own deadline (`MIGRATION_TIMEOUT`, default 5
+minutes) and the API logs how long they took; connecting keeps 10 seconds.
+The backend health check keeps its interval, timeout and retries; its start
+period grows from 30 s to 120 s, so a slow first start is not reported
+unhealthy (and the web container still starts), while the first passing check
+marks it healthy at once.
