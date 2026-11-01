@@ -10,6 +10,20 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E7: Result Documents and PDFs (2026-11-01)
+
+On `feature/e7-result-pdfs`, from `main` `d35b1da8`. Not pushed. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [exams/E7_RESULT_DOCUMENTS.md](exams/E7_RESULT_DOCUMENTS.md).
+
+**Implementation:**
+- **Renderer:** Typst 0.15.1 in the backend image (spike: correct Bangla shaping; one marksheet 0.5 s and 13 MB, 60 in one PDF 3.3 s and 98 MB; image +59.8 MB). No network, bundled Noto fonts.
+- **Documents:** student marksheets (term and annual) from published versions only, with a verification QR; tabulation sheet, merit list, failed subjects, summary and class bundles for staff; staff-only provisional previews; cached by the published versions, so a correction makes new ones (migration 1800, `exams:documents`).
+- **Screens:** downloads on student results, the results review and the teacher's marks page; the public result check; blueprint presets and copying another class's blueprint. Shared files: one commit (one route, the translations bundle).
+
+**Verification (disposable resources only):**
+- **Go:** fresh database, `go test ./... -p 1 -count=1` 29 of 29 packages; `go vet` and gofmt clean (240 files).
+- **Frontend:** typecheck and build (no large-chunk warning), i18n passed, unit tests 18 of 18.
+- **Browser** on `m15b1` rebuilt fresh: `suite.mjs` 117 of 117, `result-documents.mjs` 31 of 31; sample PDFs and page images in `Fly_Birds_QA_env\pdf-e7`.
+
 ## Current Status — Premium UI Checkpoint 5: Student ID Sign-in, Logins, Bulk Admission, Public Page (2026-11-01)
 
 On `feature/premium-ui-checkpoint-5`, from `main` `d35b1da` (checkpoint 4, PR #40, and M15 stage B2, PR #39). Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migrations 1755 (`users.login_id`), 1756 (`bulk_admissions`), 1757 (`school_public_page`, `school_gallery`, `notices.show_public`), 1758 (`users.temporary_password_expires_at`) and 1759 (school details moved to `school_settings`); the full list is 1701, 1702, 1750–1759. `origin/main` was still `d35b1da` before pushing, so no rebase was needed.
