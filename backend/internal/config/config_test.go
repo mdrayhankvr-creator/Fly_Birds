@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -53,5 +54,24 @@ func TestLoadRejectsInvalidPort(t *testing.T) {
 				t.Fatal("expected invalid PORT error")
 			}
 		})
+	}
+}
+
+func TestMigrationTimeout(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("MIGRATION_TIMEOUT", "")
+	cfg, err := Load()
+	if err != nil || cfg.MigrationTimeout != 5*time.Minute {
+		t.Fatalf("default: %s %v", cfg.MigrationTimeout, err)
+	}
+	t.Setenv("MIGRATION_TIMEOUT", "15m")
+	if cfg, err := Load(); err != nil || cfg.MigrationTimeout != 15*time.Minute {
+		t.Fatalf("15m: %s %v", cfg.MigrationTimeout, err)
+	}
+	for _, bad := range []string{"soon", "5s"} {
+		t.Setenv("MIGRATION_TIMEOUT", bad)
+		if _, err := Load(); err == nil {
+			t.Fatalf("%q was accepted", bad)
+		}
 	}
 }

@@ -42,6 +42,9 @@ type Config struct {
 	// (TYPST_BIN, DOCUMENT_FONTS_DIR); without them documents are off.
 	TypstBin         string
 	DocumentFontsDir string
+	// MigrationTimeout bounds applying the schema at startup
+	// (MIGRATION_TIMEOUT, default 5m).
+	MigrationTimeout time.Duration
 }
 
 func Load() (Config, error) {
@@ -128,12 +131,21 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("PUBLIC_BASE_URL must be an http(s) address such as https://school.example.edu.bd")
 		}
 	}
+	migrationTimeout := 5 * time.Minute
+	if raw := os.Getenv("MIGRATION_TIMEOUT"); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil || parsed < 10*time.Second {
+			return Config{}, fmt.Errorf("MIGRATION_TIMEOUT must be a duration of at least 10s, such as 5m")
+		}
+		migrationTimeout = parsed
+	}
 	fontsDir := os.Getenv("DOCUMENT_FONTS_DIR")
 	if fontsDir == "" {
 		fontsDir = "/app/fonts"
 	}
 	return Config{
 		PublicBaseURL:    publicBaseURL,
+		MigrationTimeout: migrationTimeout,
 		TypstBin:         os.Getenv("TYPST_BIN"),
 		DocumentFontsDir: fontsDir,
 		Port:             port,

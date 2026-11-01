@@ -48,6 +48,8 @@ services:
       PAYMENT_SIMULATION_ALLOWED: ${PAYMENT_SIMULATION_ALLOWED:-false}
       # Printed in the verification QR code on result marksheets.
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://${SCHOOL_DOMAIN}}
+      # Time allowed for applying migrations at startup.
+      MIGRATION_TIMEOUT: ${MIGRATION_TIMEOUT:-5m}
     volumes:
       - uploads_data:/app/uploads
       - backups_data:/app/backups

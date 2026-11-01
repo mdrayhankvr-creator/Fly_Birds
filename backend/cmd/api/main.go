@@ -74,9 +74,9 @@ func run(logger *slog.Logger) error {
 	var promotionService *promotion.Service
 	var documentService *documents.Service
 	if cfg.DatabaseURL != "" {
-		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		db, err := database.Open(connectCtx, cfg.DatabaseURL)
+		openCtx, cancelOpen := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelOpen()
+		db, err := database.Open(openCtx, cfg.DatabaseURL)
 		if err != nil {
 			return err
 		}
@@ -86,9 +86,19 @@ func run(logger *slog.Logger) error {
 		}
 		defer sqlDB.Close()
 		httpapi.SetReadiness(sqlDB.PingContext)
-		if err := database.Migrate(connectCtx, db); err != nil {
+		// Migrations get their own, longer deadline: a new school's first
+		// start applies every migration, which on a slow or busy server can
+		// take well over the 10 seconds allowed for connecting.
+		migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), cfg.MigrationTimeout)
+		started := time.Now()
+		err = database.Migrate(migrateCtx, db)
+		cancelMigrate()
+		if err != nil {
 			return err
 		}
+		logger.Info("migrations applied", "duration", time.Since(started).Round(time.Millisecond).String())
+		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		authService, err = auth.NewService(auth.NewRepository(db), cfg.JWTSigningKey)
 		if err != nil {
 			return err

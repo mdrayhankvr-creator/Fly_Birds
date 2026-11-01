@@ -30,5 +30,9 @@ COPY assets/fonts /app/fonts
 USER app
 EXPOSE 8080
 # Healthy means the API answers and PostgreSQL is reachable (GET /readyz).
-HEALTHCHECK --interval=15s --timeout=3s --start-period=30s --retries=3 CMD wget -qO- http://127.0.0.1:8080/readyz >/dev/null || exit 1
+# A new school's first start applies every migration first (about 2-5 s on
+# the reference laptop; MIGRATION_TIMEOUT caps it at 5 minutes), so failed
+# checks do not count for the first 120 s; the first passing check still
+# marks the backend healthy at once.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=120s --retries=3 CMD wget -qO- http://127.0.0.1:8080/readyz >/dev/null || exit 1
 CMD ["/app/api"]
