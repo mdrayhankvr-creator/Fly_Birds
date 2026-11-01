@@ -6,7 +6,7 @@ export const premiumUi5Translations = {
     c5EmailOrStudentId: 'Email or Student ID',
     c5EmailOrStudentIdHint: 'Students: use the Student ID printed on your login slip.',
     c5InvalidLoginForm: 'Enter your email or Student ID, and a password of at most 72 bytes.',
-    c5InvalidCredentials: 'The email, Student ID or password is not correct.',
+    c5InvalidCredentials: 'Invalid email, Student ID or password.',
     c5SignInId: 'Sign-in ID',
     // B. Logins in one click
     c5CreateLogin: 'Create login',
