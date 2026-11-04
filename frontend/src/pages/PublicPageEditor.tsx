@@ -78,7 +78,8 @@ export function PublicPageEditor({ authorized }: { authorized: Authorized }) {
   }, [data.data])
   const set = <K extends keyof PublicPageInput>(key: K, value: PublicPageInput[K]) => setForm(f => ({ ...f, [key]: value }))
   async function refresh(text: string) {
-    await cache.invalidateQueries({ queryKey: ['school', 'public-page'] })
+    // The school details here are school settings shown on the form above too.
+    await Promise.all([cache.invalidateQueries({ queryKey: ['school', 'public-page'] }), cache.invalidateQueries({ queryKey: ['school', 'settings'] })])
     setMessage({ tone: 'success', text })
   }
   async function save(event: FormEvent) {
@@ -109,6 +110,7 @@ export function PublicPageEditor({ authorized }: { authorized: Authorized }) {
   return <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="public-page-editor">
     <CardTitle id="public-page-editor" icon="home">{t('c5PublicEditorTitle')}</CardTitle>
     <p className="mt-1 text-sm text-slate-600">{t('c5PublicEditorIntro')}</p>
+    <p className="mt-1 text-sm text-slate-600">{t('c5SchoolDetailsNote')}</p>
     {message && <div className="mt-4"><Notice tone={message.tone}>{message.text}</Notice></div>}
     {data.isError && <div className="mt-4"><Notice tone="error">{t('c5PublicFailed')}</Notice></div>}
     <form className="mt-5 space-y-6" onSubmit={e => void save(e)}>
@@ -131,9 +133,9 @@ export function PublicPageEditor({ authorized }: { authorized: Authorized }) {
         </div>
       </Pair>
       <Pair label={t('c5ContactTitle')}>
-        <label className={ui.label}>{t('c5AddressEN')}<textarea className={`${ui.field} min-h-20`} maxLength={300} value={form.contact_address_en} onChange={e => set('contact_address_en', e.target.value)} /></label>
-        <label className={ui.label}>{t('c5AddressBN')}<textarea className={`${ui.field} min-h-20`} maxLength={300} lang="bn" value={form.contact_address_bn} onChange={e => set('contact_address_bn', e.target.value)} /></label>
-        <label className={ui.label}>{t('phoneLabel')}<input className={ui.field} type="tel" maxLength={40} value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} /></label>
+        <label className={ui.label}>{t('c5AddressEN')}<textarea className={`${ui.field} min-h-20`} maxLength={500} value={form.contact_address_en} onChange={e => set('contact_address_en', e.target.value)} /></label>
+        <label className={ui.label}>{t('c5AddressBN')}<textarea className={`${ui.field} min-h-20`} maxLength={500} lang="bn" value={form.contact_address_bn} onChange={e => set('contact_address_bn', e.target.value)} /></label>
+        <label className={ui.label}>{t('phoneLabel')}<input className={ui.field} type="tel" maxLength={20} value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} /></label>
         <label className={ui.label}>{t('email')}<input className={ui.field} type="email" maxLength={254} value={form.contact_email} onChange={e => set('contact_email', e.target.value)} /></label>
         <label className={`${ui.label} md:col-span-2`}>{t('c5MapLink')}<input className={ui.field} type="url" pattern="https://.*" maxLength={500} placeholder="https://maps.google.com/…" value={form.map_url} onChange={e => set('map_url', e.target.value)} /><span className="mt-1 block text-xs font-normal normal-case tracking-normal text-slate-500">{t('c5MapLinkHint')}</span></label>
       </Pair>

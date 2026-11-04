@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { Icon } from '../components/icons'
 import { Notice, ui } from './attendanceUi'
 
-const errorKeys: Record<string, string> = { invalid_current_password: 'c4WrongTemporary', account_locked: 'c4Locked', weak_password: 'c4PasswordLength', same_password: 'c4PasswordSame' }
+const errorKeys: Record<string, string> = { invalid_current_password: 'c4WrongTemporary', account_locked: 'c4Locked', weak_password: 'c4PasswordLength', same_password: 'c4PasswordSame', temporary_password_expired: 'c5TemporaryExpired' }
 
 // ForcedPasswordPage stands in for the whole app while the account's password
 // was set by someone else (admission or an administrator's reset). The server

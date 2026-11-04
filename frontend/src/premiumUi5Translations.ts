@@ -128,6 +128,7 @@ export const premiumUi5Translations = {
     c5OpenPhotoCaption: 'Open photo: {{caption}}',
     c5PublicEditorTitle: 'Public school page',
     c5PublicEditorIntro: 'Shown to everyone below the sign-in form. Write each part in English and Bangla; a part left empty is not shown. Never put results, fees or anything about individual students here.',
+    c5SchoolDetailsNote: 'The founding year, EIIN, head teacher’s name, address, phone, email and map link are your school’s details: they are also used on marksheets and other documents, and the address, phone and email are the same as in the general settings above.',
     c5InEnglish: 'In English',
     c5InBangla: 'In Bangla',
     c5ShowCounts: 'Show the number of students and teachers',
@@ -156,6 +157,13 @@ export const premiumUi5Translations = {
     c5GalleryRemoveConfirm: 'Remove this photo from the public gallery?',
     c5ShowOnPublicPage: 'Show on the public school page',
     c5ShowOnPublicPageHint: 'Anyone can then read its title and text below the sign-in form, once it is published. Leave this off for anything meant only for the school.',
+    // Temporary passwords expire 14 days after they are issued.
+    c5PasswordUseBy: 'Use this password by',
+    c5PasswordExpiryHelp: 'After this date it stops working; the school office can issue a new one.',
+    c5TemporaryExpired: 'This temporary password has expired. Ask the school office for a new one.',
+    // Phone top bar
+    c5HomeLink: 'Home, {{school}}',
+    c5AccountMenu: 'Account menu for {{name}}',
   },
   bn: {
     c5EmailOrStudentId: 'ইমেইল বা স্টুডেন্ট আইডি',
@@ -280,6 +288,7 @@ export const premiumUi5Translations = {
     c5OpenPhotoCaption: 'ছবি খুলুন: {{caption}}',
     c5PublicEditorTitle: 'বিদ্যালয়ের পাবলিক পাতা',
     c5PublicEditorIntro: 'সাইন-ইন ফর্মের নিচে সবাই দেখতে পায়। প্রতিটি অংশ ইংরেজি ও বাংলায় লিখুন; খালি অংশ দেখানো হয় না। ফলাফল, ফি বা কোনো শিক্ষার্থীর ব্যক্তিগত তথ্য এখানে কখনো দেবেন না।',
+    c5SchoolDetailsNote: 'প্রতিষ্ঠার সাল, EIIN, প্রধান শিক্ষকের নাম, ঠিকানা, ফোন, ইমেইল ও মানচিত্রের লিংক আপনার বিদ্যালয়ের তথ্য: এগুলো মার্কশিট ও অন্যান্য কাগজেও ব্যবহৃত হয়, আর ঠিকানা, ফোন ও ইমেইল উপরের সাধারণ সেটিংসের মতোই।',
     c5InEnglish: 'ইংরেজিতে',
     c5InBangla: 'বাংলায়',
     c5ShowCounts: 'শিক্ষার্থী ও শিক্ষকের সংখ্যা দেখান',
@@ -308,5 +317,10 @@ export const premiumUi5Translations = {
     c5GalleryRemoveConfirm: 'পাবলিক গ্যালারি থেকে এই ছবি সরাবেন?',
     c5ShowOnPublicPage: 'বিদ্যালয়ের পাবলিক পাতায় দেখান',
     c5ShowOnPublicPageHint: 'প্রকাশের পর সাইন-ইন ফর্মের নিচে যে কেউ এর শিরোনাম ও লেখা পড়তে পারবে। শুধু বিদ্যালয়ের জন্য হলে এটি বন্ধ রাখুন।',
+    c5PasswordUseBy: 'এই পাসওয়ার্ড ব্যবহারের শেষ তারিখ',
+    c5PasswordExpiryHelp: 'এই তারিখের পর এটি আর কাজ করবে না; বিদ্যালয়ের অফিস নতুন পাসওয়ার্ড দিতে পারবে।',
+    c5TemporaryExpired: 'এই অস্থায়ী পাসওয়ার্ডের মেয়াদ শেষ হয়ে গেছে। বিদ্যালয়ের অফিস থেকে নতুন পাসওয়ার্ড নিন।',
+    c5HomeLink: 'হোম, {{school}}',
+    c5AccountMenu: '{{name}}-এর অ্যাকাউন্ট মেনু',
   },
 } as const

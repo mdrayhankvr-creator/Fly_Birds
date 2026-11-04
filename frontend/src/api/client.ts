@@ -131,10 +131,19 @@ export type SchoolBranding = {
   primary_color: string; secondary_color: string; dashboard_theme: 'light' | 'dark'
   tagline_en?: string; tagline_bn?: string
 }
-export type SchoolSettings = SchoolBranding & {
+// School details (eiin … head_teacher_name_bn) are settings too: the public
+// page shows them and documents such as the marksheet read them. `address` is
+// the English address. The general settings form leaves them out, so saving
+// it keeps them; the public page editor edits them.
+export type SchoolDetails = {
+  eiin: string; founded_year: number | null; address_bn: string; map_url: string
+  head_teacher_name_en: string; head_teacher_name_bn: string
+}
+export const schoolDetailKeys = ['eiin', 'founded_year', 'address_bn', 'map_url', 'head_teacher_name_en', 'head_teacher_name_bn'] as const satisfies readonly (keyof SchoolDetails)[]
+export type SchoolSettings = SchoolBranding & SchoolDetails & {
   address: string; phone: string; email: string; grading_scheme_id: string; updated_at: string
 }
-export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at'>
+export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at' | keyof SchoolDetails>
 export type GradeBand = { grade: string; min_marks: number; max_marks: number; gpa: number }
 export type SchoolModule = { key: string; name: string; is_core: boolean; enabled: boolean }
 

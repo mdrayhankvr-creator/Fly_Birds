@@ -5,6 +5,7 @@ import { getSchoolBranding } from '../api/client'
 import type { StudentLogin } from '../api/studentLogins'
 import { Icon } from '../components/icons'
 import { ui } from './attendanceUi'
+import { slipDate } from './slipDate'
 
 // Login slips (checkpoint 5): the sign-in ID and the temporary password a
 // student needs for the first sign-in. Labels are in English and Bangla on
@@ -33,9 +34,11 @@ function LoginSlip({ login, school }: { login: StudentLogin; school: { en: strin
     <dl className="mt-3 grid grid-cols-2 gap-3">
       <div className="min-w-0"><dt className={label}>{both('c5SignInId')}</dt><dd className="mt-0.5 font-mono text-base font-bold" style={{ overflowWrap: 'anywhere' }} data-login-id>{login.login_id}</dd></div>
       <div className="min-w-0"><dt className={label}>{both('c4TemporaryPassword')}</dt><dd className="mt-0.5 font-mono text-base font-bold tracking-wider" data-temporary-password>{login.initial_password}</dd></div>
+      {login.password_expires_at && <div className="col-span-2 min-w-0"><dt className={label}>{both('c5PasswordUseBy')}</dt><dd className="mt-0.5 text-sm font-semibold" data-password-expires>{slipDate(login.password_expires_at, 'en')} <span lang="bn" className="font-normal">· {slipDate(login.password_expires_at, 'bn')}</span></dd></div>}
     </dl>
     <p className="mt-3 text-xs leading-5 text-slate-700">{en('c5SlipSteps', { site })}</p>
     <p lang="bn" className="text-xs leading-5 text-slate-700">{bn('c5SlipSteps', { site })}</p>
+    {login.password_expires_at && <p className="mt-1 text-xs leading-5 text-slate-700">{en('c5PasswordExpiryHelp')} <span lang="bn">{bn('c5PasswordExpiryHelp')}</span></p>}
   </article>
 }
 

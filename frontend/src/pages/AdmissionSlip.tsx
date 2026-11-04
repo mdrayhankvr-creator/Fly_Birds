@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { getSchoolBranding } from '../api/client'
 import type { AdmissionResult } from '../api/admission'
 import { useNumber } from './attendanceUi'
+import { slipDate } from './slipDate'
 
 // AdmissionSlip is the printable record of an admission. When a login was
 // created it carries the initial password, which is shown only here, once.
@@ -41,9 +42,10 @@ export function AdmissionSlip({ result }: { result: AdmissionResult }) {
         {result.login.email && row(t('c3LoginEmail'), <span className="font-mono">{result.login.email}</span>)}
         {result.login.initial_password ? row(t('c3InitialPassword'), <span className="font-mono text-lg tracking-wider" data-initial-password>{result.login.initial_password}</span>)
           : row(t('c3InitialPassword'), <span className="font-normal text-slate-700">{t('c3PasswordNotAgain')}</span>)}
+        {result.login.initial_password && result.login.password_expires_at && row(t('c5PasswordUseBy'), <span data-password-expires>{slipDate(result.login.password_expires_at, i18n.language)}</span>)}
       </dl>
       {result.login.initial_password ? <>
-        <p className="mt-3 text-sm text-slate-700">{t('c3SlipLoginHelp')}</p>
+        <p className="mt-3 text-sm text-slate-700">{t('c3SlipLoginHelp')}{result.login.password_expires_at && <> {t('c5PasswordExpiryHelp')}</>}</p>
         <p className="mt-1 text-xs font-semibold text-amber-800 print:hidden">{t('c3PasswordOnce')}</p>
       </> : <p className="mt-3 text-sm print:hidden"><Link className="font-semibold text-[var(--brand-ink)] underline underline-offset-4" to={`/admin/users?search=${encodeURIComponent(result.login.email || result.login.login_id)}`}>{t('c3OpenLoginInUsers')}</Link></p>}
     </section>}

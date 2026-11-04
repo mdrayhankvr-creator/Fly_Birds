@@ -63,6 +63,8 @@ function UserMenu({ user, onSignOut }: { user: ShellUser; onSignOut: () => void 
     <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(v => !v)}
       className="flex items-center gap-2 rounded-xl p-1 pr-2 text-left hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
       <span aria-hidden="true" className="shell-avatar flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold">{initials(name)}</span>
+      {/* On phones only the initials show, so give the button a name. */}
+      <span className="sr-only md:hidden">{t('c5AccountMenu', { name })}</span>
       <span className="hidden min-w-0 md:block"><span className="block max-w-[11rem] truncate text-sm font-semibold text-slate-900">{name}</span><span className="block text-xs text-slate-500">{t(`role_${user.role}`)}</span></span>
       <Icon name="chevronDown" className="hidden h-4 w-4 text-slate-500 md:block" />
     </button>
@@ -170,7 +172,7 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
   function toggleCollapsed() {
     setCollapsed(v => { const next = !v; try { localStorage.setItem('flybirds.sidebar', next ? 'collapsed' : 'open') } catch { /* storage unavailable */ } return next })
   }
-  const brand = (compact: boolean) => <Link to="/dashboard" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
+  const brand = (compact: boolean) => <Link to="/dashboard" aria-label={compact ? t('c5HomeLink', { school: schoolName }) : undefined} className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
     <SchoolMark branding={branding} />
     {!compact && <span className="min-w-0"><span className="line-clamp-2 block text-sm font-bold leading-snug text-slate-900">{schoolName}</span>{[...schoolName].length <= 28 && <span className="block text-xs text-slate-500">{t('m12Tagline')}</span>}</span>}
   </Link>

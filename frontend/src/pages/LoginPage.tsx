@@ -68,7 +68,8 @@ export function SignInForm() {
       await signIn(email.trim(), password)
       done()
     } catch (cause) {
-      if (cause instanceof ApiError && cause.status === 401) setError(t('c5InvalidCredentials'))
+      if (cause instanceof ApiError && cause.code === 'temporary_password_expired') setError(t('c5TemporaryExpired'))
+      else if (cause instanceof ApiError && cause.status === 401) setError(t('c5InvalidCredentials'))
       else if (cause instanceof ApiError && cause.status === 503) setError(t('authUnavailable'))
       else setError(t('loginError'))
     } finally {
