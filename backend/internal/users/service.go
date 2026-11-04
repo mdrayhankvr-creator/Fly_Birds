@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
@@ -27,6 +28,9 @@ type User struct {
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role"`
 	IsActive    bool   `json:"is_active"`
+	// LoginID is a student login's sign-in ID. A student login without an
+	// email has a placeholder address (auth.PlaceholderDomain) instead.
+	LoginID string `json:"login_id,omitempty"`
 }
 type CreateInput struct {
 	Email       string `json:"email"`
@@ -57,7 +61,7 @@ type Repository interface {
 	Get(context.Context, string) (User, error)
 	Update(context.Context, string, string, UpdateInput) (User, error)
 	SetStatus(context.Context, string, string, bool) (User, error)
-	ResetPassword(context.Context, string, string, string) (User, int64, error)
+	ResetPassword(context.Context, string, string, string) (User, int64, time.Time, error)
 }
 
 // PasswordReset is an administrator's reset of another account's password.
@@ -66,7 +70,10 @@ type Repository interface {
 type PasswordReset struct {
 	User              User   `json:"user"`
 	TemporaryPassword string `json:"temporary_password"`
-	SessionsRevoked   int64  `json:"sessions_revoked"`
+	// PasswordExpiresAt: the temporary password stops working after this
+	// unless the account has set its own.
+	PasswordExpiresAt time.Time `json:"password_expires_at"`
+	SessionsRevoked   int64     `json:"sessions_revoked"`
 }
 type Service struct{ repo Repository }
 
@@ -104,11 +111,11 @@ func (s *Service) ResetPassword(ctx context.Context, actor, id string) (Password
 	if err != nil {
 		return PasswordReset{}, err
 	}
-	user, revoked, err := s.repo.ResetPassword(ctx, actor, id, hash)
+	user, revoked, expires, err := s.repo.ResetPassword(ctx, actor, id, hash)
 	if err != nil {
 		return PasswordReset{}, err
 	}
-	return PasswordReset{User: user, TemporaryPassword: password, SessionsRevoked: revoked}, nil
+	return PasswordReset{User: user, TemporaryPassword: password, PasswordExpiresAt: expires, SessionsRevoked: revoked}, nil
 }
 func (s *Service) List(ctx context.Context, query Query) (Page, error) {
 	if query.Page < 1 || query.Page > 100000 || query.PageSize < 1 || query.PageSize > 100 || len(query.Search) > 100 || (query.Role != "" && !auth.ValidRole(query.Role)) || (query.Status != "" && query.Status != "active" && query.Status != "inactive") {

@@ -24,9 +24,13 @@ type authHandler struct {
 	secureCookies bool
 }
 
+// loginRequest names the account by email or, for students, by sign-in ID.
+// "identifier" is the field to use; "email" is still accepted and may hold
+// either form, so existing clients keep working.
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Identifier string `json:"identifier"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
 }
 
 func decodeLogin(c *gin.Context) (loginRequest, bool) {
@@ -47,8 +51,11 @@ func decodeLogin(c *gin.Context) (loginRequest, bool) {
 		failure(c, http.StatusBadRequest, "invalid_request", "valid email and password are required")
 		return loginRequest{}, false
 	}
-	if _, err := auth.NormalizeEmail(request.Email); err != nil || request.Password == "" || len(request.Password) > 72 {
-		failure(c, http.StatusBadRequest, "invalid_request", "valid email and password are required")
+	if request.Identifier == "" {
+		request.Identifier = request.Email
+	}
+	if (request.Email != "" && request.Email != request.Identifier) || !auth.ValidIdentifier(request.Identifier) || request.Password == "" || len(request.Password) > 72 {
+		failure(c, http.StatusBadRequest, "invalid_request", "an email or Student ID and a password are required")
 		return loginRequest{}, false
 	}
 	return request, true
@@ -108,9 +115,13 @@ func (h *authHandler) login(c *gin.Context) {
 	if !valid {
 		return
 	}
-	credentials, err := h.service.Login(c.Request.Context(), request.Email, request.Password)
+	credentials, err := h.service.Login(c.Request.Context(), request.Identifier, request.Password)
 	if errors.Is(err, auth.ErrInvalidCredentials) {
 		failure(c, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
+		return
+	}
+	if errors.Is(err, auth.ErrTemporaryPasswordExpired) {
+		failure(c, http.StatusUnauthorized, "temporary_password_expired", "this temporary password has expired; ask the school office for a new one")
 		return
 	}
 	if err != nil {
@@ -296,6 +307,8 @@ func (h *authHandler) changePassword(c *gin.Context) {
 		failure(c, http.StatusBadRequest, "same_password", "new password must differ from the current one")
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		failure(c, http.StatusBadRequest, "invalid_current_password", "current password is incorrect")
+	case errors.Is(err, auth.ErrTemporaryPasswordExpired):
+		failure(c, http.StatusBadRequest, "temporary_password_expired", "this temporary password has expired; ask the school office for a new one")
 	case errors.Is(err, auth.ErrAccountLocked):
 		failure(c, http.StatusTooManyRequests, "account_locked", "too many incorrect passwords; try again later")
 	case errors.Is(err, auth.ErrInvalidSession):

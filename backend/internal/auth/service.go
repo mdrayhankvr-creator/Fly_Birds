@@ -22,7 +22,9 @@ type Service struct {
 	repo      Repository
 	tokens    *TokenManager
 	dummyHash string
-	now       func() time.Time
+	// dummyTemporary pads sign-in work; see Login.
+	dummyTemporary string
+	now            func() time.Time
 	// demoQuickLogin is set only from DEMO_QUICK_LOGIN (see demo.go).
 	demoQuickLogin bool
 }
@@ -43,7 +45,11 @@ func NewService(repo Repository, signingKey []byte) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{repo: repo, tokens: tokens, dummyHash: string(dummyHash), now: func() time.Time { return time.Now().UTC() }}, nil
+	dummyTemporary, err := bcrypt.GenerateFromPassword([]byte(dummy), temporaryCost)
+	if err != nil {
+		return nil, err
+	}
+	return &Service{repo: repo, tokens: tokens, dummyHash: string(dummyHash), dummyTemporary: string(dummyTemporary), now: func() time.Time { return time.Now().UTC() }}, nil
 }
 
 func NormalizeEmail(raw string) (string, error) {
@@ -58,21 +64,24 @@ func NormalizeEmail(raw string) (string, error) {
 	return email, nil
 }
 
-func (s *Service) Login(ctx context.Context, rawEmail, password string) (Credentials, error) {
-	email, err := NormalizeEmail(rawEmail)
-	if err != nil || password == "" || len(password) > 72 {
+// Login signs in with an email address or, for students, a sign-in ID. An
+// unknown email, an unknown ID and a wrong password all take the same path
+// (a password check against a dummy hash) and give the same error, so the
+// ID form reveals no more about which accounts exist than the email form.
+func (s *Service) Login(ctx context.Context, identifier, password string) (Credentials, error) {
+	if !ValidIdentifier(identifier) || password == "" || len(password) > 72 {
 		return Credentials{}, ErrInvalidCredentials
 	}
-	user, err := s.repo.FindUserByEmail(ctx, email)
+	user, err := s.findForLogin(ctx, identifier)
 	if errors.Is(err, ErrNotFound) {
-		VerifyPassword(s.dummyHash, password)
+		s.verifyPadded(s.dummyHash, password)
 		return Credentials{}, ErrInvalidCredentials
 	}
 	if err != nil {
 		return Credentials{}, err
 	}
 	now := s.now()
-	valid := VerifyPassword(user.PasswordHash, password)
+	valid := s.verifyPadded(user.PasswordHash, password)
 	if !user.IsActive || (user.LockedUntil != nil && user.LockedUntil.After(now)) {
 		return Credentials{}, ErrInvalidCredentials
 	}
@@ -85,7 +94,37 @@ func (s *Service) Login(ctx context.Context, rawEmail, password string) (Credent
 	if err := s.repo.ClearLoginFailures(ctx, user.ID, now); err != nil {
 		return Credentials{}, err
 	}
+	// Only someone who knows the password learns that it has expired.
+	if user.TemporaryPasswordExpired(now) {
+		return Credentials{}, ErrTemporaryPasswordExpired
+	}
 	return s.newSession(ctx, user, now)
+}
+
+// verifyPadded checks a password and then does one more check at the other
+// bcrypt cost, so every sign-in costs one full-cost and one temporary-cost
+// comparison: an unknown account, a temporary password and a chosen one all
+// take the same time.
+func (s *Service) verifyPadded(hash, password string) bool {
+	valid := VerifyPassword(hash, password)
+	if cost, err := bcrypt.Cost([]byte(hash)); err == nil && cost < passwordCost {
+		VerifyPassword(s.dummyHash, password)
+	} else {
+		VerifyPassword(s.dummyTemporary, password)
+	}
+	return valid
+}
+
+func (s *Service) findForLogin(ctx context.Context, identifier string) (User, error) {
+	identifier = strings.TrimSpace(identifier)
+	if strings.Contains(identifier, "@") {
+		email, err := NormalizeEmail(identifier)
+		if err != nil || IsPlaceholderEmail(email) {
+			return User{}, ErrNotFound
+		}
+		return s.repo.FindUserByEmail(ctx, email)
+	}
+	return s.repo.FindUserByLoginID(ctx, identifier)
 }
 
 func (s *Service) newSession(ctx context.Context, user User, now time.Time) (Credentials, error) {
@@ -138,6 +177,10 @@ func (s *Service) Refresh(ctx context.Context, refresh, csrf string) (Credential
 	if err != nil {
 		return Credentials{}, err
 	}
+	// A session opened with a temporary password ends when the password expires.
+	if user.TemporaryPasswordExpired(now) {
+		return Credentials{}, ErrInvalidSession
+	}
 	access, err := s.tokens.Issue(user.ID, session.ID, now)
 	if err != nil {
 		return Credentials{}, err
@@ -175,7 +218,7 @@ func (s *Service) AuthenticateSession(ctx context.Context, rawAccess string) (Us
 	if err != nil {
 		return User{}, "", err
 	}
-	if user.ID != userID {
+	if user.ID != userID || user.TemporaryPasswordExpired(s.now()) {
 		return User{}, "", ErrInvalidToken
 	}
 	return user, sessionID, nil
@@ -207,6 +250,9 @@ func (s *Service) ChangePassword(ctx context.Context, userID, sessionID, current
 			return 0, err
 		}
 		return 0, ErrInvalidCredentials
+	}
+	if user.TemporaryPasswordExpired(now) {
+		return 0, ErrTemporaryPasswordExpired
 	}
 	if current == next {
 		return 0, ErrSamePassword

@@ -3,6 +3,7 @@ package school
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
@@ -69,6 +70,21 @@ func (r *GormRepository) UpdateSettings(ctx context.Context, actor string, input
 			updates["tagline_bn"] = *input.TaglineBN
 			fields = append(fields, "tagline_bn")
 		}
+		for column, value := range map[string]*string{"eiin": input.EIIN, "address_bn": input.AddressBN, "map_url": input.MapURL, "head_teacher_name_en": input.HeadTeacherNameEN, "head_teacher_name_bn": input.HeadTeacherNameBN} {
+			if value != nil {
+				updates[column] = *value
+				fields = append(fields, column)
+			}
+		}
+		if input.FoundedYear != nil {
+			if *input.FoundedYear == 0 {
+				updates["founded_year"] = nil
+			} else {
+				updates["founded_year"] = *input.FoundedYear
+			}
+			fields = append(fields, "founded_year")
+		}
+		sort.Strings(fields[11:])
 		result := tx.Model(&SchoolSettings{}).Where("id = ?", SingleSchoolID).Updates(updates)
 		if result.Error != nil {
 			return result.Error

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import type { SchoolBranding } from '../api/client'
+import { signInName, type SchoolBranding } from '../api/client'
 import { Icon } from './icons'
 import { activeItem, type NavGroup, type NavItem } from './navigation'
 import { navModule, tone } from './dashboard/kit'
@@ -58,16 +58,18 @@ function UserMenu({ user, onSignOut }: { user: ShellUser; onSignOut: () => void 
     document.addEventListener('mousedown', close); document.addEventListener('keydown', close)
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close) }
   }, [open])
-  const name = user.display_name || user.email
+  const name = user.display_name || signInName(user)
   return <div className="relative" ref={ref}>
     <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(v => !v)}
       className="flex items-center gap-2 rounded-xl p-1 pr-2 text-left hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
       <span aria-hidden="true" className="shell-avatar flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold">{initials(name)}</span>
+      {/* On phones only the initials show, so give the button a name. */}
+      <span className="sr-only md:hidden">{t('c5AccountMenu', { name })}</span>
       <span className="hidden min-w-0 md:block"><span className="block max-w-[11rem] truncate text-sm font-semibold text-slate-900">{name}</span><span className="block text-xs text-slate-500">{t(`role_${user.role}`)}</span></span>
       <Icon name="chevronDown" className="hidden h-4 w-4 text-slate-500 md:block" />
     </button>
     {open && <div role="menu" className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-      <div className="border-b border-slate-100 px-4 py-3"><p className="truncate text-sm font-semibold text-slate-900">{name}</p><p className="truncate text-xs text-slate-500">{user.email}</p></div>
+      <div className="border-b border-slate-100 px-4 py-3"><p className="truncate text-sm font-semibold text-slate-900">{name}</p><p className="truncate text-xs text-slate-500">{signInName(user)}</p></div>
       <Link role="menuitem" to="/account" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"><Icon name="user" className="h-4 w-4" />{t('account')}</Link>
       <button role="menuitem" type="button" onClick={() => { setOpen(false); onSignOut() }} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"><Icon name="logout" className="h-4 w-4" />{t('signOut')}</button>
     </div>}
@@ -170,7 +172,7 @@ export function AppShell({ branding, user, groups, onLanguage, onSignOut, bell, 
   function toggleCollapsed() {
     setCollapsed(v => { const next = !v; try { localStorage.setItem('flybirds.sidebar', next ? 'collapsed' : 'open') } catch { /* storage unavailable */ } return next })
   }
-  const brand = (compact: boolean) => <Link to="/dashboard" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
+  const brand = (compact: boolean) => <Link to="/dashboard" aria-label={compact ? t('c5HomeLink', { school: schoolName }) : undefined} className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
     <SchoolMark branding={branding} />
     {!compact && <span className="min-w-0"><span className="line-clamp-2 block text-sm font-bold leading-snug text-slate-900">{schoolName}</span>{[...schoolName].length <= 28 && <span className="block text-xs text-slate-500">{t('m12Tagline')}</span>}</span>}
   </Link>

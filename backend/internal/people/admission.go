@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
@@ -63,10 +64,16 @@ type AdmissionInput struct {
 }
 type AdmissionLogin struct {
 	UserID string `json:"user_id"`
-	Email  string `json:"email"`
+	// LoginID is the student's sign-in ID; Email is empty when the login has
+	// no email address.
+	LoginID string `json:"login_id"`
+	Email   string `json:"email"`
 	// InitialPassword is returned once, in this response only. It is never
 	// stored in plain text, logged or written to the audit log.
 	InitialPassword string `json:"initial_password"`
+	// PasswordExpiresAt: when the initial password stops working if unused;
+	// absent on a replayed admission, which carries no password.
+	PasswordExpiresAt *time.Time `json:"password_expires_at,omitempty"`
 }
 type AdmissionResult struct {
 	Student   Student         `json:"student"`
@@ -83,6 +90,7 @@ type admissionRecord struct {
 	AdmissionNo string
 	UserID      string
 	LoginEmail  string
+	LoginID     string
 }
 type GuardianMatch struct {
 	Guardian
@@ -98,7 +106,7 @@ type AdmissionDefaults struct {
 // admitRecord is what the repository writes; the password is already hashed.
 type admitRecord struct {
 	AdmissionInput
-	PasswordHash string
+	Login newLogin
 }
 
 // PhoneDigits keeps the digits of a phone number (Bangla digits become ASCII)
@@ -172,23 +180,15 @@ func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (Admiss
 		in.Guardians[0].IsPrimary = true
 	}
 	record := admitRecord{AdmissionInput: in}
-	var password string
 	if in.Account.Create {
-		email, err := auth.NormalizeEmail(in.Account.Email)
-		if err != nil {
-			return AdmissionResult{}, ErrInvalid
-		}
-		record.Account.Email = email
-		if password, err = auth.TemporaryPassword(); err != nil {
-			return AdmissionResult{}, err
-		}
-		if record.PasswordHash, err = auth.HashPassword(password); err != nil {
+		// The email is optional: students sign in with their sign-in ID.
+		if record.Login, err = prepareLogin("", in.Account.Email); err != nil {
 			return AdmissionResult{}, err
 		}
 	} else {
 		record.Account = AdmissionAccount{}
 	}
-	id, userID, err := s.repo.Admit(ctx, a, record)
+	id, login, err := s.repo.Admit(ctx, a, record)
 	if errors.Is(err, errAdmissionKeyTaken) {
 		// The same key was admitted by a request running at the same time.
 		if out, found, err := s.replay(ctx, a, in); found || err != nil {
@@ -205,8 +205,9 @@ func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (Admiss
 	if out.Guardians, err = s.repo.ListRelationships(ctx, id); err != nil {
 		return AdmissionResult{}, err
 	}
-	if userID != "" {
-		out.Login = &AdmissionLogin{UserID: userID, Email: record.Account.Email, InitialPassword: password}
+	if login != nil {
+		expires := login.PasswordExpiresAt
+		out.Login = &AdmissionLogin{UserID: login.UserID, LoginID: login.LoginID, Email: login.Email, InitialPassword: login.InitialPassword, PasswordExpiresAt: &expires}
 	}
 	return out, nil
 }
@@ -229,7 +230,10 @@ func (s *Service) replay(ctx context.Context, a Actor, in AdmissionInput) (Admis
 		return AdmissionResult{}, false, err
 	}
 	if done.UserID != "" {
-		out.Login = &AdmissionLogin{UserID: done.UserID, Email: done.LoginEmail}
+		out.Login = &AdmissionLogin{UserID: done.UserID, LoginID: done.LoginID, Email: done.LoginEmail}
+		if auth.IsPlaceholderEmail(done.LoginEmail) {
+			out.Login.Email = ""
+		}
 	}
 	return out, true, nil
 }
@@ -349,8 +353,9 @@ func (r *GormRepository) GuardianMatches(ctx context.Context, phone, email strin
 	return guardianMatches(r.db.WithContext(ctx), phone, email)
 }
 
-func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (string, string, error) {
-	var studentID, userID string
+func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (string, *StudentLogin, error) {
+	var studentID string
+	var login *StudentLogin
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := requireAdmin(tx, a, "students:manage"); err != nil {
 			return err
@@ -393,22 +398,20 @@ func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (st
 				return &GuardianMatchError{Index: i, Matches: matches}
 			}
 		}
-		student := in.Student
-		if in.Account.Create {
-			// The student sets their own password at the first sign-in.
-			if err := tx.Raw("INSERT INTO users (email,display_name,role,is_active,password_hash,must_change_password) VALUES (?,?,'student',true,?,true) RETURNING id", in.Account.Email, student.NameEN, in.PasswordHash).Scan(&userID).Error; err != nil {
-				return err
-			}
-			if err := audit.Record(tx, &a.ID, "user.created", "user", userID, map[string]any{"role": "student", "source": "admission"}); err != nil {
-				return err
-			}
-			student.UserID = userID
-		}
 		var err error
-		if studentID, err = saveStudentTx(tx, "", student); err != nil {
+		if studentID, err = saveStudentTx(tx, "", in.Student); err != nil {
 			return err
 		}
-		if err := tx.Exec("INSERT INTO admission_requests (idempotency_key,student_id,admission_no,created_by) VALUES (?,?,?,?)", in.IdempotencyKey, studentID, student.AdmissionNo, a.ID).Error; err != nil {
+		if in.Account.Create {
+			one := in.Login
+			one.StudentID = studentID
+			created, err := createStudentLoginTx(tx, a.ID, one, "admission")
+			if err != nil {
+				return err
+			}
+			login = &created
+		}
+		if err := tx.Exec("INSERT INTO admission_requests (idempotency_key,student_id,admission_no,created_by) VALUES (?,?,?,?)", in.IdempotencyKey, studentID, in.Student.AdmissionNo, a.ID).Error; err != nil {
 			return err
 		}
 		created := 0
@@ -433,14 +436,14 @@ func (r *GormRepository) Admit(ctx context.Context, a Actor, in admitRecord) (st
 	if err != nil {
 		var match *GuardianMatchError
 		if errors.As(err, &match) {
-			return "", "", match
+			return "", nil, match
 		}
-		if errors.Is(err, errAdmissionKeyTaken) {
-			return "", "", err
+		if errors.Is(err, errAdmissionKeyTaken) || errors.Is(err, ErrLoginTaken) || errors.Is(err, ErrNoLoginID) {
+			return "", nil, err
 		}
-		return "", "", admissionError(err)
+		return "", nil, admissionError(err)
 	}
-	return studentID, userID, nil
+	return studentID, login, nil
 }
 
 func (r *GormRepository) FindAdmission(ctx context.Context, a Actor, key string) (admissionRecord, bool, error) {
@@ -449,7 +452,7 @@ func (r *GormRepository) FindAdmission(ctx context.Context, a Actor, key string)
 		return admissionRecord{}, false, err
 	}
 	var rows []admissionRecord
-	err := db.Raw("SELECT ar.student_id, ar.admission_no, COALESCE(s.user_id::text,'') AS user_id, COALESCE(u.email,'') AS login_email FROM admission_requests ar JOIN students s ON s.id=ar.student_id LEFT JOIN users u ON u.id=s.user_id WHERE ar.idempotency_key=?", key).Scan(&rows).Error
+	err := db.Raw("SELECT ar.student_id, ar.admission_no, COALESCE(s.user_id::text,'') AS user_id, COALESCE(u.email,'') AS login_email, COALESCE(u.login_id,'') AS login_id FROM admission_requests ar JOIN students s ON s.id=ar.student_id LEFT JOIN users u ON u.id=s.user_id WHERE ar.idempotency_key=?", key).Scan(&rows).Error
 	if err != nil || len(rows) == 0 {
 		return admissionRecord{}, false, err
 	}

@@ -13,6 +13,9 @@ var (
 	ErrWeakPassword       = errors.New("password must be 12 to 72 UTF-8 bytes")
 	ErrSamePassword       = errors.New("new password must differ from the current one")
 	ErrAccountLocked      = errors.New("account is temporarily locked")
+	// ErrTemporaryPasswordExpired: the password someone else set for the
+	// account was never replaced and is past its expiry date.
+	ErrTemporaryPasswordExpired = errors.New("temporary password has expired")
 )
 
 const (
@@ -23,6 +26,10 @@ const (
 	// RefreshReuseGrace tolerates a rotated refresh token for a few seconds so
 	// two tabs refreshing at once do not revoke their own session.
 	RefreshReuseGrace = 10 * time.Second
+	// TemporaryPasswordLifetime: a temporary password (admission, reset,
+	// one-click, section or bulk logins) stops working this long after it
+	// was issued if the account never set its own.
+	TemporaryPasswordLifetime = 14 * 24 * time.Hour
 )
 
 var roles = map[string]bool{
@@ -43,12 +50,24 @@ type User struct {
 	LockedUntil         *time.Time `json:"-"`
 	// MustChangePassword: the password was set by someone else (admission or
 	// an administrator's reset); the account may only change it until it does.
-	MustChangePassword bool      `gorm:"not null;default:false" json:"must_change_password"`
-	CreatedAt          time.Time `json:"-"`
-	UpdatedAt          time.Time `json:"-"`
+	MustChangePassword bool `gorm:"not null;default:false" json:"must_change_password"`
+	// TemporaryPasswordExpiresAt is when a temporary password stops working;
+	// it only counts while MustChangePassword is set.
+	TemporaryPasswordExpiresAt *time.Time `gorm:"column:temporary_password_expires_at" json:"-"`
+	// LoginID is a student login's sign-in ID (Student ID or admission
+	// number); staff and guardians have none and sign in with their email.
+	LoginID   *string   `gorm:"column:login_id" json:"login_id,omitempty"`
+	CreatedAt time.Time `json:"-"`
+	UpdatedAt time.Time `json:"-"`
 }
 
 func (User) TableName() string { return "users" }
+
+// TemporaryPasswordExpired reports whether the account still has a temporary
+// password and it is past its expiry date.
+func (u User) TemporaryPasswordExpired(now time.Time) bool {
+	return u.MustChangePassword && u.TemporaryPasswordExpiresAt != nil && !u.TemporaryPasswordExpiresAt.After(now)
+}
 
 type Session struct {
 	ID          string    `gorm:"type:uuid;primaryKey"`

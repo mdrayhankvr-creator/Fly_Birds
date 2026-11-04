@@ -58,8 +58,8 @@ paths:
   /auth/login:
     post:
       operationId: login
-      summary: Sign in with email and password
-      description: Returns a 15-minute JWT access token. Sets a seven-day HttpOnly refresh cookie and a session-bound CSRF cookie. Invalid, unknown, locked, and disabled accounts receive the same credentials error.
+      summary: Sign in with an email or Student ID and a password
+      description: Returns a 15-minute JWT access token. Sets a seven-day HttpOnly refresh cookie and a session-bound CSRF cookie. The account is named by an email address or, for students, by a sign-in ID (any text without spaces or "@", matched ignoring case). Invalid, unknown, locked, and disabled accounts receive the same credentials error whichever form is used; placeholder addresses under no-email.invalid are refused.
       tags: [authentication]
       security: []
       requestBody:
@@ -270,6 +270,89 @@ paths:
       responses:
         '200': { description: Public branding, content: { application/json: { schema: { $ref: '#/components/schemas/BrandingResponse' } } } }
         '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /school/public-page:
+    get:
+      operationId: getPublicSchoolPage
+      tags: [school]
+      summary: The public school page below the sign-in form
+      description: 'No sign-in. Returns only what the administrator wrote for the public: about (with optional totals of active students and teachers), the head teacher''s message, the gallery, notices whose authors chose to show them publicly (title and text, newest six, live only) and contact details. A section with no content is null. Never includes student records. Cached for 60 seconds.'
+      security: []
+      responses: { '200': { description: The public page } }
+    put:
+      operationId: savePublicSchoolPage
+      tags: [school]
+      summary: Edit the public school page
+      description: 'Requires school_settings:update, administrator and the school settings module. Body: about_en/bn, founded_year, eiin (6 digits or empty), show_counts, head_name_en/bn, head_message_en/bn, contact_address_en/bn, contact_phone, contact_email, map_url (https only). Every field is replaced.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: The saved page }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/public-page/edit:
+    get:
+      operationId: getPublicSchoolPageForEdit
+      tags: [school]
+      summary: The public school page with every field, for editing
+      description: 'Requires school_settings:update, administrator and the school settings module.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: 'page and gallery' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/public-page/head-photo:
+    get:
+      operationId: getHeadTeacherPhoto
+      tags: [school]
+      summary: The head teacher's photo on the public page
+      description: No sign-in. JPEG; with ?v= matching the current version it may be cached for a year.
+      security: []
+      responses: { '200': { description: JPEG image }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      operationId: saveHeadTeacherPhoto
+      tags: [school]
+      summary: Upload the head teacher's photo
+      description: 'Requires school_settings:update, administrator and the school settings module. JPEG or PNG up to 8 MB; cropped square, resized to 480 px and re-encoded (which drops metadata).'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: The page }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '413': { description: too_large }, '415': { description: unsupported_media_type } }
+    delete:
+      operationId: deleteHeadTeacherPhoto
+      tags: [school]
+      summary: Remove the head teacher's photo
+      description: 'Requires school_settings:update, administrator and the school settings module.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: The page }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/gallery:
+    post:
+      operationId: addGalleryPhoto
+      tags: [school]
+      summary: Add a photo to the public gallery
+      description: 'Requires school_settings:update, administrator and the school settings module. JPEG or PNG up to 8 MB; stored at most 1600 px on its longest side with a 480 px copy for the grid, re-encoded (which drops metadata). At most 48 photos. Get guardians'' consent before publishing children''s photos, and never caption them with names.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '201': { description: The photo }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: gallery_limit }, '413': { description: too_large }, '415': { description: unsupported_media_type } }
+  /school/gallery/{id}:
+    patch:
+      operationId: updateGalleryPhoto
+      tags: [school]
+      summary: Change a gallery photo's captions
+      description: 'Requires school_settings:update, administrator and the school settings module. Body {caption_en, caption_bn}, 140 characters each.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: The photo }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      operationId: deleteGalleryPhoto
+      tags: [school]
+      summary: Remove a gallery photo
+      description: 'Requires school_settings:update, administrator and the school settings module.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: 'Removed: {deleted: true}' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /school/gallery/{id}/image:
+    get:
+      operationId: getGalleryImage
+      tags: [school]
+      summary: A gallery photo
+      description: No sign-in. size=thumb gives the 480 px grid copy. With ?v= matching the version it may be cached for a year.
+      security: []
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: size, in: query, schema: { type: string, enum: [thumb] } }]
+      responses: { '200': { description: JPEG image }, '404': { $ref: '#/components/responses/NotFound' } }
   /school/slides:
     get:
       operationId: listPublicSchoolSlides
@@ -1193,7 +1276,7 @@ paths:
       summary: Search and page student directory
       description: Requires students:read and the students module; administrator and head teacher only.
       security: [{ bearerAuth: [] }]
-      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { name: status, in: query, schema: { type: string, enum: [active, inactive, graduated, transferred] } }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: section_id, in: query, schema: { type: string, format: uuid } }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { name: status, in: query, schema: { type: string, enum: [active, inactive, graduated, transferred] } }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: section_id, in: query, schema: { type: string, format: uuid } }, { name: without_login, in: query, description: 'true keeps only students with no linked login', schema: { type: boolean } }]
       responses: { '200': { description: Students, content: { application/json: { schema: { $ref: '#/components/schemas/StudentPageResponse' } } } }, '403': { $ref: '#/components/responses/Forbidden' }, '401': { $ref: '#/components/responses/Unauthorized' } }
     post:
       operationId: createStudent
@@ -1231,6 +1314,44 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: section_id, in: query, required: false, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Defaults }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/bulk-admission/template:
+    get:
+      operationId: getBulkAdmissionTemplate
+      tags: [students]
+      summary: Download the bulk admission template
+      description: 'Requires students:manage and administrator. An .xlsx workbook (format=csv for UTF-8 CSV) with the English column names and Bangla guidance.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: format, in: query, schema: { type: string, enum: [xlsx, csv] } }]
+      responses: { '200': { description: The template file }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/bulk-admission/preview:
+    post:
+      operationId: previewBulkAdmission
+      tags: [students]
+      summary: Check a bulk admission spreadsheet row by row
+      description: 'Requires students:manage and administrator. Query session_id. Body: the file (text/csv in UTF-8, with or without BOM, or .xlsx), at most 4 MB and 1000 rows. Nothing is written. Each row comes back ready, skip (already admitted: same admission number and name) or error with codes such as missing_class, section_not_found, bad_date_of_birth, roll_taken, duplicate_admission_no_in_file, admission_no_taken, login_email_taken, guardian_ambiguous; with what happens to its guardian (new, existing, same_as_row).'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { text/csv: { schema: { type: string } }, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: The preview }, '400': { description: 'sheet_format, sheet_not_utf8, too_many_rows, empty_sheet or missing_columns (with the preview)' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /students/bulk-admission:
+    post:
+      operationId: admitBulk
+      tags: [students]
+      summary: Admit every ready row of a spreadsheet, all or nothing
+      description: 'Requires students:manage and administrator (guardians:manage when rows name guardians, users:create with create_logins). Query session_id, idempotency_key (a UUID made per upload) and create_logins=true for logins. The rows are checked again inside one transaction; if any has a problem nothing is written (422 rows_have_errors with the preview). Already admitted rows are skipped. A retry with the same key returns the first result with replayed true and no passwords; the same key with a different file is 409 idempotency_key_reused. Logins come back once with their temporary passwords.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: idempotency_key, in: query, required: true, schema: { type: string, format: uuid } }, { name: create_logins, in: query, schema: { type: boolean } }]
+      requestBody: { required: true, content: { text/csv: { schema: { type: string } }, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } } } }
+      responses: { '201': { description: 'admitted, skipped and the login slips' }, '200': { description: Replayed result of an earlier request with this key }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: idempotency_key_reused }, '422': { description: rows_have_errors (with the preview) } }
+  /students/logins:
+    post:
+      operationId: createSectionStudentLogins
+      tags: [students]
+      summary: Give every active student in a section without a login one
+      description: 'Requires students:manage, users:create and administrator. Query section_id. In one transaction, creates a login for each active student in the section who has none, with the sign-in ID (Student ID when unique, otherwise the admission number) and a temporary password the student must change at first sign-in. Returns {logins: [...]} with each one-time password; passwords are never stored in plain text, logged or audited. 409 no_students_without_login when there is nobody to give a login.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: section_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '201': { description: The created logins with their one-time passwords }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'no_students_without_login or no_login_id' } }
   /students/me:
     get:
       operationId: getOwnStudent
@@ -1247,6 +1368,16 @@ paths:
       description: Requires students:read_self and the students module. Takes no student ID, so it only ever returns the caller's own guardians (name, Bangla name, relationship, primary flag and phone).
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Relationships }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/{id}/login:
+    post:
+      operationId: createStudentLogin
+      tags: [students]
+      summary: Create and link a login for one student
+      description: 'Requires students:manage, users:create and administrator. Body {email} (optional; empty for a sign-in ID only). Returns the slip: the sign-in ID, the email when given, and the temporary password once. The student must change it at first sign-in. Audited as user.created without the password.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '201': { description: The login with its one-time password }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: 'student_has_login, login_email_taken or no_login_id' } }
   /students/{id}:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:
@@ -4208,10 +4339,12 @@ components:
         description: { type: string }
     LoginRequest:
       type: object
-      required: [email, password]
+      required: [password]
       additionalProperties: false
+      description: Send identifier (an email address or a student's sign-in ID). email is still accepted and may hold either form; when both are sent they must match.
       properties:
-        email: { type: string, format: email, maxLength: 254 }
+        identifier: { type: string, maxLength: 254 }
+        email: { type: string, maxLength: 254 }
         password: { type: string, format: password, minLength: 1, maxLength: 72 }
     AuthUser:
       type: object

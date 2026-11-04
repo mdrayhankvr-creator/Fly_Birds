@@ -22,9 +22,28 @@ func (h *peopleHandler) available(c *gin.Context) bool {
 }
 func peopleError(c *gin.Context, err error) {
 	var match *people.GuardianMatchError
+	var bulk *people.BulkError
 	switch {
 	case errors.As(err, &match):
 		c.JSON(409, gin.H{"error": gin.H{"code": "guardian_exists", "message": "a guardian with this phone or email is already on record; link them or confirm a new guardian", "index": match.Index, "matches": match.Matches}})
+	case errors.As(err, &bulk):
+		c.JSON(422, gin.H{"error": gin.H{"code": "rows_have_errors", "message": "some rows have problems; nothing was admitted"}, "data": bulk.Preview})
+	case errors.Is(err, people.ErrSheetFormat):
+		failure(c, 400, "sheet_format", "the file is not a readable CSV or .xlsx spreadsheet")
+	case errors.Is(err, people.ErrSheetNotUTF8):
+		failure(c, 400, "sheet_not_utf8", "save the CSV as UTF-8 so Bangla text survives")
+	case errors.Is(err, people.ErrSheetTooBig):
+		failure(c, 400, "too_many_rows", "a file may hold at most 1000 students")
+	case errors.Is(err, people.ErrBulkEmpty):
+		failure(c, 400, "empty_sheet", "the file has no student rows")
+	case errors.Is(err, people.ErrBulkKeyReused):
+		failure(c, 409, "idempotency_key_reused", "this upload key already admitted a different file")
+	case errors.Is(err, people.ErrHasLogin):
+		failure(c, 409, "student_has_login", "this student already has a login")
+	case errors.Is(err, people.ErrNoLoginID):
+		failure(c, 409, "no_login_id", "the Student ID and admission number are both unusable as a sign-in ID (spaces, or already used by another login)")
+	case errors.Is(err, people.ErrNoStudentsToLink):
+		failure(c, 409, "no_students_without_login", "every active student in this section already has a login")
 	case errors.Is(err, people.ErrLoginTaken):
 		failure(c, 409, "login_email_taken", "this login email is already registered")
 	case errors.Is(err, people.ErrAdmissionNoTaken):
@@ -55,7 +74,7 @@ func actorFrom(c *gin.Context) people.Actor {
 }
 func peopleQuery(c *gin.Context) (people.Query, error) {
 	page, size, err := parsePage(c)
-	return people.Query{Search: c.Query("search"), Status: c.Query("status"), SessionID: c.Query("session_id"), ClassID: c.Query("class_id"), SectionID: c.Query("section_id"), Page: page, PageSize: size}, err
+	return people.Query{Search: c.Query("search"), Status: c.Query("status"), SessionID: c.Query("session_id"), ClassID: c.Query("class_id"), SectionID: c.Query("section_id"), WithoutLogin: c.Query("without_login") == "true", Page: page, PageSize: size}, err
 }
 func (h *peopleHandler) students(c *gin.Context) {
 	if !h.available(c) {
@@ -359,6 +378,122 @@ func (h *peopleHandler) admit(c *gin.Context) {
 	}
 	success(c, status, result)
 }
+
+// createStudentLogin creates and links a login for one student. The response
+// carries the temporary password once; it is not stored or logged.
+func (h *peopleHandler) createStudentLogin(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var v struct {
+		Email string `json:"email"`
+	}
+	if !decodeSchoolJSON(c, 2*1024, &v) {
+		return
+	}
+	login, err := h.service.CreateStudentLogin(c.Request.Context(), actorFrom(c), c.Param("id"), v.Email)
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 201, login)
+}
+
+// createSectionLogins gives every active student in a section without a
+// login one, and returns their slips.
+func (h *peopleHandler) createSectionLogins(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	logins, err := h.service.CreateSectionLogins(c.Request.Context(), actorFrom(c), c.Query("section_id"))
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 201, gin.H{"logins": logins})
+}
+
+// bulkFile reads an uploaded spreadsheet (CSV or .xlsx), at most 4 MB.
+func bulkFile(c *gin.Context) ([]byte, bool) {
+	kind, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
+	switch {
+	case err != nil:
+		peopleError(c, people.ErrSheetFormat)
+		return nil, false
+	case kind != "text/csv" && kind != "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" && kind != "application/octet-stream":
+		peopleError(c, people.ErrSheetFormat)
+		return nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 4<<20+1))
+	if err != nil || len(body) > 4<<20 || len(body) == 0 {
+		peopleError(c, people.ErrSheetFormat)
+		return nil, false
+	}
+	return body, true
+}
+
+// bulkTemplate downloads the bulk admission template (.xlsx, or CSV).
+func (h *peopleHandler) bulkTemplate(c *gin.Context) {
+	if c.Query("format") == "csv" {
+		c.Header("Content-Disposition", `attachment; filename="student-admission-template.csv"`)
+		c.Data(200, "text/csv; charset=utf-8", people.TemplateCSV())
+		return
+	}
+	file, err := people.TemplateXLSX()
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="student-admission-template.xlsx"`)
+	c.Data(200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file)
+}
+
+// previewBulk checks every row of an uploaded spreadsheet; nothing is written.
+func (h *peopleHandler) previewBulk(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	body, ok := bulkFile(c)
+	if !ok {
+		return
+	}
+	v, err := h.service.PreviewBulk(c.Request.Context(), actorFrom(c), c.Query("session_id"), body)
+	if errors.Is(err, people.ErrBulkMissingCols) {
+		c.JSON(400, gin.H{"error": gin.H{"code": "missing_columns", "message": "required columns are missing"}, "data": v})
+		return
+	}
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	success(c, 200, v)
+}
+
+// admitBulk admits every ready row in one transaction, or none.
+func (h *peopleHandler) admitBulk(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	body, ok := bulkFile(c)
+	if !ok {
+		return
+	}
+	v, err := h.service.AdmitBulk(c.Request.Context(), actorFrom(c), c.Query("session_id"), c.Query("idempotency_key"), c.Query("create_logins") == "true", body)
+	if errors.Is(err, people.ErrBulkMissingCols) {
+		failure(c, 400, "missing_columns", "required columns are missing")
+		return
+	}
+	if err != nil {
+		peopleError(c, err)
+		return
+	}
+	status := 201
+	if v.Replayed {
+		status = 200
+	}
+	success(c, status, v)
+}
+
 func (h *peopleHandler) admissionDefaults(c *gin.Context) {
 	if !h.available(c) {
 		return

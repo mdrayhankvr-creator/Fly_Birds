@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type KeyboardEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router'
@@ -8,6 +8,21 @@ import { Icon } from '../components/icons'
 import { SignInForm } from './LoginPage'
 
 const SLIDE_MS = 7000
+// The public school page below the sign-in form loads as its own chunk.
+const PublicSections = lazy(() => import('./PublicSections').then(m => ({ default: m.PublicSections })))
+
+// True once the browser is idle after the first paint, so the sections below
+// the fold never compete with the sign-in form on a slow connection.
+function useAfterFirstPaint() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
+    if (idle) { idle(() => setReady(true), { timeout: 1500 }); return }
+    const timer = window.setTimeout(() => setReady(true), 300)
+    return () => window.clearTimeout(timer)
+  }, [])
+  return ready
+}
 
 function useReducedMotion() {
   const query = '(prefers-reduced-motion: reduce)'
@@ -75,6 +90,7 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const { user, ready } = useAuth()
   const slides = useQuery({ queryKey: ['school', 'slides'], queryFn: ({ signal }) => getSchoolSlides(signal), staleTime: 60_000, retry: 1 })
   const reduced = useReducedMotion()
+  const showPublic = useAfterFirstPaint()
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
   const [hold, setHold] = useState(false) // hover or keyboard focus inside the slideshow
@@ -97,7 +113,7 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const current = Math.min(index, Math.max(0, count - 1))
   const controls = { slides: list, index: current, onIndex: setIndex, playing, onPlaying: setPlaying, reduced, onHold: setHold }
 
-  return <div className="landing relative isolate">
+  return <><div className="landing relative isolate">
     {/* Banner: the photos on phones, the whole first screen on large screens. */}
     <section aria-label={t('p3Slides')} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}
       onFocus={() => setHold(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHold(false) }}
@@ -125,4 +141,6 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
       <div className="min-w-0 pb-10 lg:pb-0"><SignInForm /></div>
     </div>
   </div>
+  {showPublic && <Suspense fallback={null}><PublicSections /></Suspense>}
+  </>
 }

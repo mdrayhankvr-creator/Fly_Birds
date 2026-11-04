@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   ApiError, getSchoolGrading, getSchoolModules, getSchoolSettings, putSchoolGrading,
-  putSchoolSettings, type GradeBand, type SchoolSettingsInput,
+  putSchoolSettings, schoolDetailKeys, type GradeBand, type SchoolSettingsInput,
 } from '../api/client'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { CardTitle, ui, PageHeader } from './attendanceUi'
 import { LandingPhotos } from './LandingPhotos'
+import { PublicPageEditor } from './PublicPageEditor'
 
 const colorPattern = /^#[0-9a-fA-F]{6}$/
 function readableOnWhite(value: string): boolean {
@@ -59,7 +60,9 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
   useEffect(() => {
     if (settings.data) {
       const { updated_at: _updatedAt, ...fields } = settings.data
-      setDraft(fields)
+      const general: Record<string, unknown> = { ...fields }
+      for (const key of schoolDetailKeys) delete general[key]
+      setDraft(general as SchoolSettingsInput)
     }
   }, [settings.data])
   useEffect(() => { if (grading.data) setBands(grading.data.map((band) => ({ ...band }))) }, [grading.data])
@@ -71,6 +74,8 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['school', 'settings'] }),
         queryClient.invalidateQueries({ queryKey: ['school', 'branding'] }),
+        // The public page editor shows the same address, phone and email.
+        queryClient.invalidateQueries({ queryKey: ['school', 'public-page'] }),
       ])
     },
     onError: () => { setNotice(''); setError(t('schoolSaveError')) },
@@ -156,6 +161,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
         {canEditSettings && <div className="mt-6 flex flex-wrap gap-3"><button className={ui.primary} type="submit" disabled={saveSettings.isPending}>{saveSettings.isPending ? t('saving') : t('saveProfile')}</button><button type="button" className={ui.secondary} onClick={resetDrafts}>{t('discardChanges')}</button></div>}
       </form>
       {canEditSettings && <LandingPhotos authorized={authorized} />}
+      {canEditSettings && <PublicPageEditor authorized={authorized} />}
       {canReadGrading && bands && <form onSubmit={submitGrading} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         <CardTitle icon="grade">{t('gradingScheme')}</CardTitle>
         <div className="mt-5 overflow-x-auto"><table className="ds-cards w-full min-w-[18rem] text-left text-sm"><thead><tr className="border-b border-slate-200"><th className="px-3 py-2.5">{t('grade')}</th><th className="px-3 py-2.5">{t('minMarks')}</th><th className="px-3 py-2.5">{t('maxMarks')}</th><th className="px-3 py-2.5">{t('gpa')}</th></tr></thead><tbody>{bands.map((band, index) => <tr key={index} className="border-b border-slate-100">

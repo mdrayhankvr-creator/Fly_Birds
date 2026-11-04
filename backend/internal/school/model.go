@@ -7,20 +7,28 @@ const SingleSchoolID = 1
 // SchoolSettings is one deployment's persisted profile. The repository uses
 // SingleSchoolID so a future tenant-aware repository can replace it cleanly.
 type SchoolSettings struct {
-	ID                int       `gorm:"primaryKey" json:"-"`
-	NameEN            string    `json:"name_en"`
-	NameBN            string    `json:"name_bn"`
-	LogoURL           string    `json:"logo_url"`
-	Address           string    `json:"address"`
-	Phone             string    `json:"phone"`
-	Email             string    `json:"email"`
-	PreferredLanguage string    `json:"preferred_language"`
-	PrimaryColor      string    `json:"primary_color"`
-	SecondaryColor    string    `json:"secondary_color"`
-	DashboardTheme    string    `json:"dashboard_theme"`
-	GradingSchemeID   string    `json:"grading_scheme_id"`
-	TaglineEN         string    `json:"tagline_en"`
-	TaglineBN         string    `json:"tagline_bn"`
+	ID                int    `gorm:"primaryKey" json:"-"`
+	NameEN            string `json:"name_en"`
+	NameBN            string `json:"name_bn"`
+	LogoURL           string `json:"logo_url"`
+	Address           string `json:"address"`
+	Phone             string `json:"phone"`
+	Email             string `json:"email"`
+	PreferredLanguage string `json:"preferred_language"`
+	PrimaryColor      string `json:"primary_color"`
+	SecondaryColor    string `json:"secondary_color"`
+	DashboardTheme    string `json:"dashboard_theme"`
+	GradingSchemeID   string `json:"grading_scheme_id"`
+	TaglineEN         string `json:"tagline_en"`
+	TaglineBN         string `json:"tagline_bn"`
+	// School details (migration 1759), shown on the public page and read by
+	// documents such as the marksheet. Address above is the English address.
+	EIIN              string    `json:"eiin"`
+	FoundedYear       *int      `json:"founded_year"`
+	AddressBN         string    `gorm:"column:address_bn" json:"address_bn"`
+	MapURL            string    `json:"map_url"`
+	HeadTeacherNameEN string    `gorm:"column:head_teacher_name_en" json:"head_teacher_name_en"`
+	HeadTeacherNameBN string    `gorm:"column:head_teacher_name_bn" json:"head_teacher_name_bn"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
@@ -41,6 +49,14 @@ type SettingsInput struct {
 	// Taglines are optional so clients that predate them keep the saved text.
 	TaglineEN *string `json:"tagline_en,omitempty"`
 	TaglineBN *string `json:"tagline_bn,omitempty"`
+	// School details are optional too: an omitted field keeps its value.
+	// FoundedYear 0 clears the year.
+	EIIN              *string `json:"eiin,omitempty"`
+	FoundedYear       *int    `json:"founded_year,omitempty"`
+	AddressBN         *string `json:"address_bn,omitempty"`
+	MapURL            *string `json:"map_url,omitempty"`
+	HeadTeacherNameEN *string `json:"head_teacher_name_en,omitempty"`
+	HeadTeacherNameBN *string `json:"head_teacher_name_bn,omitempty"`
 }
 
 type Branding struct {

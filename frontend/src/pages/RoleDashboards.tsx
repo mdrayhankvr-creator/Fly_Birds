@@ -2,7 +2,7 @@ import { type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { getMyPermissions, getOwnAssignments, type AuthUser, type SchoolBranding } from '../api/client'
+import { getMyPermissions, getOwnAssignments, signInName, type AuthUser, type SchoolBranding } from '../api/client'
 import { getAdminOverview } from '../api/admin'
 import { getAttendance, getFees, getMySummary, getOverview, getRisks, type StudentSummary } from '../api/analytics'
 import { getDiaryFeed, getEvents, getNoticeFeed, type Notice, type SchoolEvent } from '../api/communication'
@@ -38,7 +38,7 @@ function useGreeting(user: AuthUser, branding?: SchoolBranding) {
   const part = (h => h < 12 ? 'm12GoodMorning' : h < 17 ? 'm12GoodAfternoon' : 'm12GoodEvening')(dhakaNow().hour)
   const date = new Intl.DateTimeFormat(i18n.language === 'bn' ? 'bn-BD' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: DHAKA }).format(new Date())
   const school = branding ? (i18n.language === 'bn' ? branding.name_bn : branding.name_en) : ''
-  const name = user.display_name || user.email
+  const name = user.display_name || signInName(user)
   return { name, title: t(part, { name: name.split(/[\s@]/)[0] }), eyebrow: <>{date}{school && <> · {school}</>}</> }
 }
 

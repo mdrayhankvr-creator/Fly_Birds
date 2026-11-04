@@ -73,6 +73,8 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
   const domain = defaults.data?.login_domain ?? ''
   const suggestedLogin = admissionNo.value && domain ? `${admissionLoginLocalPart(admissionNo.value)}@${domain}` : ''
   const loginEmail = login.touched ? login.email : suggestedLogin
+  // The sign-in ID the login will get: the Student ID when unique, otherwise the admission number.
+  const studentCodeOrAdmission = details.student_code.trim() || admissionNo.value.trim()
 
   function setGuardian(index: number, patch: Partial<GuardianDraft>) {
     setGuardians(list => list.map((g, i) => i === index ? { ...g, ...patch } : patch.primary ? { ...g, primary: false } : g))
@@ -203,8 +205,8 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
       {canCreateLogin && <Step n={canManageGuardians ? 4 : 3} icon="lock" title={t('c3StepLogin')}>
         <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-slate-800"><input type="checkbox" className="h-5 w-5 accent-[var(--brand-primary)]" checked={login.create} onChange={e => setLogin({ ...login, create: e.target.checked })} />{t('c3CreateLogin')}</label>
         {login.create && <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <Field label={t('c3LoginEmail')} error={errors.login} hint={!login.touched && loginEmail ? t('c3Suggested') : undefined}>
-            <input id="admit-login" type="email" required maxLength={254} autoComplete="off" className={peopleField} value={loginEmail} aria-invalid={!!errors.login} onChange={e => { setLogin({ ...login, email: e.target.value, touched: true }); setErrors(x => ({ ...x, login: undefined })) }} />
+          <Field label={t('c5LoginEmailOptional')} error={errors.login} hint={!login.touched && loginEmail ? t('c3Suggested') : t('c5EmailOptionalHint', { id: studentCodeOrAdmission })}>
+            <input id="admit-login" type="email" maxLength={254} autoComplete="off" className={peopleField} value={loginEmail} aria-invalid={!!errors.login} onChange={e => { setLogin({ ...login, email: e.target.value, touched: true }); setErrors(x => ({ ...x, login: undefined })) }} />
           </Field>
           <p className="ds-sunken self-end px-3 py-2.5 text-sm text-slate-700"><Icon name="info" className="mr-1.5 inline h-4 w-4 align-[-3px]" />{t('c3PasswordNote')}</p>
         </div>}

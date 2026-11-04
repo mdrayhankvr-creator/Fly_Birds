@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -21,6 +24,14 @@ func (r *memoryRepository) FindUserByEmail(_ context.Context, email string) (Use
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.user.Email != email {
+		return User{}, ErrNotFound
+	}
+	return r.user, nil
+}
+func (r *memoryRepository) FindUserByLoginID(_ context.Context, loginID string) (User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.user.LoginID == nil || !strings.EqualFold(*r.user.LoginID, loginID) {
 		return User{}, ErrNotFound
 	}
 	return r.user, nil
@@ -229,5 +240,47 @@ func TestPasswordValidationAndTokenTampering(t *testing.T) {
 	}
 	if _, _, err := manager.Verify(expired); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("expired token accepted: %v", err)
+	}
+}
+
+// A student login's temporary password (hashed at the lower temporary cost)
+// signs in by its sign-in ID, and every sign-in does the same bcrypt work:
+// one comparison at each cost, whatever the account's hash.
+func TestTemporaryPasswordSignInAndPadding(t *testing.T) {
+	temporary, err := TemporaryPassword()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, err := HashTemporaryPassword(temporary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cost, _ := bcrypt.Cost([]byte(hash)); cost != temporaryCost {
+		t.Fatalf("temporary hash cost %d", cost)
+	}
+	loginID := "ADM-2026-007"
+	repo := &memoryRepository{user: User{ID: "4b6f2c1e-9a3d-4e5f-8a7b-1c2d3e4f5a6b", Email: "student-0011223344556677@" + PlaceholderDomain, PasswordHash: hash, Role: "student", IsActive: true, LoginID: &loginID}, sessions: make(map[string]Session)}
+	service, err := NewService(repo, bytes.Repeat([]byte{0x54}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := service.Login(ctx, "adm-2026-007", temporary); err != nil {
+		t.Fatalf("sign-in ID: %v", err)
+	}
+	if _, err := service.Login(ctx, repo.user.Email, temporary); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("placeholder address signed in: %v", err)
+	}
+	// The padding hashes have one cost each, and padded checks still answer
+	// correctly for both kinds of account hash.
+	if full, _ := bcrypt.Cost([]byte(service.dummyHash)); full != passwordCost {
+		t.Fatalf("full-cost dummy has cost %d", full)
+	}
+	if low, _ := bcrypt.Cost([]byte(service.dummyTemporary)); low != temporaryCost {
+		t.Fatalf("temporary-cost dummy has cost %d", low)
+	}
+	chosen, _ := HashPassword("A-long-example-password-123!")
+	if !service.verifyPadded(hash, temporary) || service.verifyPadded(hash, "wrong-password") || !service.verifyPadded(chosen, "A-long-example-password-123!") || service.verifyPadded(service.dummyHash, temporary) {
+		t.Fatal("padded verification answered wrongly")
 	}
 }

@@ -60,7 +60,7 @@ export function SignInForm() {
     event.preventDefault()
     setError('')
     if (!event.currentTarget.reportValidity() || new TextEncoder().encode(password).length > 72) {
-      setError(t('invalidLoginForm'))
+      setError(t('c5InvalidLoginForm'))
       return
     }
     setPending(true)
@@ -68,7 +68,8 @@ export function SignInForm() {
       await signIn(email.trim(), password)
       done()
     } catch (cause) {
-      if (cause instanceof ApiError && cause.status === 401) setError(t('invalidCredentials'))
+      if (cause instanceof ApiError && cause.code === 'temporary_password_expired') setError(t('c5TemporaryExpired'))
+      else if (cause instanceof ApiError && cause.status === 401) setError(t('c5InvalidCredentials'))
       else if (cause instanceof ApiError && cause.status === 503) setError(t('authUnavailable'))
       else setError(t('loginError'))
     } finally {
@@ -83,9 +84,10 @@ export function SignInForm() {
       <p className="mt-1.5 text-sm text-slate-600">{t('loginDescription')}</p>
       {expired && <p role="status" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{t('sessionExpired')}</p>}
       {error && <p role="alert" className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
-      <label htmlFor="login-email" className="mt-6 block text-sm font-semibold text-slate-700">{t('email')}</label>
-      <input id="login-email" name="email" type="email" autoComplete="username" required maxLength={254} value={email}
-        onChange={(event) => setEmail(event.target.value)} disabled={pending} className={`${ui.field} py-3`} />
+      <label htmlFor="login-email" className="mt-6 block text-sm font-semibold text-slate-700">{t('c5EmailOrStudentId')}</label>
+      <input id="login-email" name="username" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={254} value={email}
+        aria-describedby="login-email-hint" onChange={(event) => setEmail(event.target.value)} disabled={pending} className={`${ui.field} py-3`} />
+      <p id="login-email-hint" className="mt-1.5 text-xs text-slate-500">{t('c5EmailOrStudentIdHint')}</p>
       <label htmlFor="login-password" className="mt-5 block text-sm font-semibold text-slate-700">{t('password')}</label>
       <div className="relative">
         <input id="login-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password}

@@ -38,10 +38,12 @@ type Student struct {
 	SectionID   string  `json:"section_id"`
 	RollNo      *int    `json:"roll_no"`
 	UserID      *string `json:"user_id"`
-	SessionName string  `json:"session_name"`
-	ClassName   string  `json:"class_name"`
-	SectionName string  `json:"section_name"`
-	HasPhoto    bool    `json:"has_photo"`
+	// LoginID is the linked login's sign-in ID, when it has one.
+	LoginID     string `json:"login_id,omitempty"`
+	SessionName string `json:"session_name"`
+	ClassName   string `json:"class_name"`
+	SectionName string `json:"section_name"`
+	HasPhoto    bool   `json:"has_photo"`
 	// Profile details (migration 1601); empty when not recorded.
 	StudentCode      string `json:"student_code"`
 	Gender           string `json:"gender"`
@@ -121,7 +123,9 @@ type LinkInput struct {
 }
 type Query struct {
 	Search, Status, SessionID, ClassID, SectionID string
-	Page, PageSize                                int
+	// WithoutLogin keeps only students with no linked login.
+	WithoutLogin   bool
+	Page, PageSize int
 }
 type Page[T any] struct {
 	Items    []T   `json:"items"`
@@ -163,7 +167,7 @@ type Repository interface {
 	SectionCards(context.Context, Actor, string) ([]Card, error)
 	ReissueCard(context.Context, Actor, string) error
 	VerifyCard(context.Context, string, string) (CardVerification, error)
-	Admit(context.Context, Actor, admitRecord) (string, string, error)
+	Admit(context.Context, Actor, admitRecord) (string, *StudentLogin, error)
 	GuardianMatches(context.Context, string, string) ([]GuardianMatch, error)
 	AdmissionDefaults(context.Context, Actor, string) (AdmissionDefaults, error)
 	FindAdmission(context.Context, Actor, string) (admissionRecord, bool, error)
