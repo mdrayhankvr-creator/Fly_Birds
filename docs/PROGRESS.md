@@ -10,6 +10,26 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Bangla User Guide and Hosting Guide (2026-11-05)
+
+On `feature/user-guide`, from `main` `0487aaa` (checkpoint 5 merged, PR #41). Documentation only: no code, migration or test changes, so the completion figures above do not change.
+
+- **[USER_GUIDE_BN.md](USER_GUIDE_BN.md)** (Bangla, with English terms in brackets): a part for everyone (sign-in with email or Student ID, language, own password, the 14-day temporary password), then one chapter per role:
+  - **Administrator:** first-time setup, school details and the public page, admission (single and bulk), logins and slips, users and password reset, attendance, exams and results, year-end promotion, backups.
+  - **Head teacher, teacher, accountant, and student and family:** each role's own tasks.
+  - 19 screenshots, taken fresh in Bangla from `fbqa-cp1b`, are in `docs/user-guide/img/` (1.6 MB).
+- **[HOSTING_GUIDE.md](HOSTING_GUIDE.md):** server sizes based on measurements, domain and HTTPS, the environment file with placeholders only, first start, the first administrator, daily backups with an encrypted off-server copy (script), a restore drill, updates, and monthly Docker disk cleanup.
+- **Checked against the code:**
+  - Every Bangla button and menu name in bold matches a Bangla string in the app.
+  - Every relative link and anchor resolves.
+  - On `fbqa-cp1b`: the off-server backup steps (newest archive, checksum, copy, encrypt, decrypt to the same checksum) and the restore drill (restore into a temporary database, matching counts, cleanup).
+  - A `school-provision` dry run with the guide's example values.
+- **Corrected while checking:**
+  - OPERATIONS.md, DEPLOYMENT.md and README still said there was no in-app password reset or change; checkpoint 4 added both.
+  - They also named a "Create backup" button that is really "Back up now".
+  - OPERATIONS.md said to compare the backup checksum "shown in Admin → Backups", which that page doesn't show. It now computes the checksum in the container.
+- **Not documented, because main doesn't have them yet:** the E7 result PDFs and `PUBLIC_BASE_URL` (on `feature/e7-result-pdfs`). The guides say the results page prints a report card, which the browser can save as PDF, and that this release has no `PUBLIC_BASE_URL`.
+
 ## Current Status — E7: Result Documents and PDFs (2026-11-01)
 
 On `feature/e7-result-pdfs`, rebased onto `main` `0487aaa3` (premium UI checkpoint 5). Pushed for review; not merged. Migrations: 1701, 1702, 1750–1759, 1800, no duplicates. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [exams/E7_RESULT_DOCUMENTS.md](exams/E7_RESULT_DOCUMENTS.md).
