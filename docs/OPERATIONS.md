@@ -121,16 +121,21 @@ In this order, because later steps depend on earlier ones:
 - A user who forgets their password, or is locked out (5 failed attempts lock
   the account for 15 minutes), contacts the school office. The login page
   says so.
-- There is **no self-service reset or in-app password change yet**. After
-  confirming the person's identity, the operator runs:
+- There is **no self-service reset**. After confirming the person's identity,
+  an administrator resets the password in **Admin → Users → Reset password**.
+  It prints a one-time slip with a temporary password, clears the lockout,
+  signs the user out on every device and writes a `user.password_reset`
+  entry to the audit log without the password. The user must choose their
+  own password at the next sign-in. A temporary password stops working 14
+  days after it was issued if it was never replaced; reset again to issue a
+  new one. Everyone can change their own password under **Account**.
+- An administrator cannot reset their own account in the app. For that, or
+  when no administrator can sign in, the operator runs (it asks for the new
+  password):
 
   ```sh
   fb exec backend /app/reset-password -email teacher@school.example.edu.bd
   ```
-
-  It sets the new password, clears the lockout, signs the user out on every
-  device and writes a `user.password_reset` entry to the audit log. Give the
-  new password to the person through a private channel.
 - Deactivate staff who leave in **Admin → Users**; deactivation ends their
   sessions.
 
@@ -141,7 +146,7 @@ every uploaded file, with a SHA-256 manifest. Archives are kept in the
 `backups_data` volume; the oldest beyond `BACKUP_RETENTION` are deleted.
 
 - **Automatic:** set `BACKUP_INTERVAL=24h` in the school's environment file.
-- **Manual:** **Admin → Backups → Create backup**, then **Verify**. Always do
+- **Manual:** **Admin → Backups → Back up now**, then **Verify**. Always do
   this before an upgrade.
 - **Off-site copies are essential.** Backups on the same server are lost
   with the server. At least weekly, download a verified archive (Admin →
@@ -150,10 +155,14 @@ every uploaded file, with a SHA-256 manifest. Archives are kept in the
 
   ```sh
   fb exec backend ls -l /app/backups
+  fb exec backend sha256sum /app/backups/flybirds-backup-<time>.tar.gz
   fb cp backend:/app/backups/flybirds-backup-<time>.tar.gz .
-  sha256sum flybirds-backup-<time>.tar.gz      # compare with the value shown in Admin → Backups
+  sha256sum flybirds-backup-<time>.tar.gz      # must match the line above
   gpg --symmetric --cipher-algo AES256 flybirds-backup-<time>.tar.gz
   ```
+
+  [HOSTING_GUIDE.md §7](HOSTING_GUIDE.md#7-daily-backups-with-an-encrypted-off-server-copy)
+  has a script that does this every day.
 
   Archives contain personal data about children. Store them encrypted, limit
   who can read them and delete copies past the school's retention period.
