@@ -74,9 +74,13 @@ func run(logger *slog.Logger) error {
 	var promotionService *promotion.Service
 	var documentService *documents.Service
 	if cfg.DatabaseURL != "" {
-		openCtx, cancelOpen := context.WithTimeout(context.Background(), 10*time.Second)
+		// Wait up to a minute for PostgreSQL: when Docker starts, both start
+		// together and the database may still be starting up.
+		openCtx, cancelOpen := context.WithTimeout(context.Background(), time.Minute)
 		defer cancelOpen()
-		db, err := database.Open(openCtx, cfg.DatabaseURL)
+		db, err := database.OpenWhenReady(openCtx, cfg.DatabaseURL, func(err error) {
+			logger.Warn("waiting for the database", "error", err.Error())
+		})
 		if err != nil {
 			return err
 		}
@@ -88,7 +92,7 @@ func run(logger *slog.Logger) error {
 		httpapi.SetReadiness(sqlDB.PingContext)
 		// Migrations get their own, longer deadline: a new school's first
 		// start applies every migration, which on a slow or busy server can
-		// take well over the 10 seconds allowed for connecting.
+		// take longer than connecting does.
 		migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), cfg.MigrationTimeout)
 		started := time.Now()
 		err = database.Migrate(migrateCtx, db)
