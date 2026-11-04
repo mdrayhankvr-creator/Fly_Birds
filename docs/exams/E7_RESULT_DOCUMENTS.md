@@ -1,6 +1,7 @@
 # E7 — Result documents and PDFs
 
-Branch `feature/e7-result-pdfs`, from `main` `d35b1da8`. Migration 1800. Builds on
+Branch `feature/e7-result-pdfs`, rebased onto `main` `0487aaa3` (premium UI
+checkpoint 5, migrations 1755–1759). Migration 1800. Builds on
 the published result versions of E6: every document comes from a version's
 snapshot (or, for a staff-only preview, from the same calculation the review
 shows), never from live marks.
@@ -37,7 +38,7 @@ API binary 1.1 MB). Fonts: Noto Sans and Noto Sans Bengali, static TTF, SIL OFL
 
 | Document | Who | Notes |
 |---|---|---|
-| Marksheet (one student; term or annual) | The student (their own, current version only); staff as below | A4 portrait. School logo (or initials), names in both languages, address and contacts, accent colour; student block with photo (placeholder if none), ID, class, section, roll, session, exam. Subject table: CQ/MCQ/practical (or each term's marks for annual), class-test share, total, highest in the class, grade, grade point; the fourth subject marked. Summary: total, GPA, GPA without the fourth subject, letter grade, result, class and section positions, publication date. Grading scale, signature lines (head teacher's signature and title from the ID-card settings), verification QR, document code and version. Withheld: a notice instead of marks |
+| Marksheet (one student; term or annual) | The student (their own, current version only); staff as below | A4 portrait. School logo (or initials), names in both languages, the EIIN when set, address (Bangla address on Bangla documents when given), phone and email from school settings, accent colour; student block with photo (placeholder if none), ID, class, section, roll, session, exam. Subject table: CQ/MCQ/practical (or each term's marks for annual), class-test share, total, highest in the class, grade, grade point; the fourth subject marked. Summary: total, GPA, GPA without the fourth subject, letter grade, result, class and section positions, publication date. Grading scale, signature lines (head teacher's signature and title from the ID-card settings), verification QR, document code and version. Withheld: a notice instead of marks |
 | Marksheets (class or section, one PDF) | Staff | One page per student; more than 12 students are made in the background in parts of 20, with progress |
 | Tabulation sheet | Staff | Landscape; A3 above ten subjects; every student × subject (marks and grade), total, GPA, position, result |
 | Merit list | Staff | Passed students by class (or section) position |
@@ -149,7 +150,7 @@ deadline, right after Docker Desktop had started. Measured since:
 | All migrations, fresh `m15b1` on its Docker volume (3 runs) | 2.0 s, 3.2 s, 1.7 s; `up --wait` 19–22 s; no restarts |
 
 Migrations now have their own deadline (`MIGRATION_TIMEOUT`, default 5
-minutes) and the API logs how long they took; connecting keeps 10 seconds.
+minutes) and the API logs how long they took.
 The backend health check keeps its interval, timeout and retries; its start
 period grows from 30 s to 120 s, so a slow first start is not reported
 unhealthy (and the web container still starts), while the first passing check
@@ -167,7 +168,22 @@ Measured again on 2026-11-05 before pushing, with the API's own
 The health check reports a backend unhealthy only after 120 s plus three
 failed checks 15 s apart (about 165 s), roughly 30 times the slowest first
 start measured. When Docker Desktop itself starts, the restart policy starts
-the API before PostgreSQL accepts connections: it exits after about a second
-and restarts until the database is up (6 quick restarts, healthy within about
-20 s on this laptop). That is the 10-second connect, not the migrations, and
-it settles by itself.
+the API and PostgreSQL together, without Compose's start order
+(`depends_on: condition: service_healthy`, which `compose.prod.yaml` already
+has, applies only to `up`). The API then exited on the first refused
+connection and restarted until the database was up (6 quick restarts, healthy
+within about 20 s on this laptop). Since 2026-11-05 the API waits for the
+database instead: it tries again every second for up to a minute, logging
+"waiting for the database" once, then migrates. The health checks are
+unchanged.
+
+## 7. School details on documents (2026-11-05)
+
+After premium UI checkpoint 5 moved the school's details into
+`school_settings` (migration 1759), every document header reads them there:
+"EIIN: 123456" under the school name when `eiin` is set (Bangla digits on
+Bangla documents; the line is left out when empty), then the address
+(`address_bn` on Bangla documents when given, otherwise `address`), the phone
+and the email. They are part of the branding key, so changing them makes new
+documents. Rendered samples with and without the EIIN are in
+`Fly_Birds_QA_env\pdf-e7` (`eiin-*`).
