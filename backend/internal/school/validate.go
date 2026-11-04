@@ -120,6 +120,9 @@ func ValidateSettings(input SettingsInput) (SettingsInput, error) {
 	if !schemeKey.MatchString(input.GradingSchemeID) {
 		return SettingsInput{}, ErrInvalid
 	}
+	if !validSchoolDetails(input.EIIN, input.FoundedYear, input.AddressBN, input.MapURL, input.HeadTeacherNameEN, input.HeadTeacherNameBN) {
+		return SettingsInput{}, ErrInvalid
+	}
 	for _, tagline := range []*string{input.TaglineEN, input.TaglineBN} {
 		if tagline == nil {
 			continue
@@ -130,6 +133,38 @@ func ValidateSettings(input SettingsInput) (SettingsInput, error) {
 		}
 	}
 	return input, nil
+}
+
+// validSchoolDetails trims and checks the optional school details; a nil
+// field is left alone. A founded year of 0 means none.
+func validSchoolDetails(eiin *string, founded *int, addressBN, mapURL, headEN, headBN *string) bool {
+	for _, v := range []*string{eiin, addressBN, mapURL, headEN, headBN} {
+		if v != nil {
+			*v = strings.TrimSpace(strings.ReplaceAll(*v, "\r\n", "\n"))
+		}
+	}
+	if eiin != nil && !eiinPattern.MatchString(*eiin) {
+		return false
+	}
+	if founded != nil && *founded != 0 && (*founded < 1800 || *founded > 2100) {
+		return false
+	}
+	if addressBN != nil && !validPublicText(*addressBN, 500, true) {
+		return false
+	}
+	if mapURL != nil && !validMapURL(*mapURL) {
+		return false
+	}
+	return (headEN == nil || validLine(*headEN, 160)) && (headBN == nil || validLine(*headBN, 160))
+}
+
+// validMapURL accepts an empty value or an https link of at most 500 bytes.
+func validMapURL(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	u, err := url.Parse(raw)
+	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil && len(raw) <= 500
 }
 
 // validLine accepts one line of text up to max characters, with no control

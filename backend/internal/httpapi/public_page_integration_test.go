@@ -63,7 +63,11 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	// Start from an empty page and put back whatever was there.
 	var saved map[string]any
 	db.Table("school_public_page").Where("id = 1").Take(&saved)
-	db.Exec("UPDATE school_public_page SET about_en='',about_bn='',founded_year=NULL,eiin='',show_counts=false,head_name_en='',head_name_bn='',head_message_en='',head_message_bn='',head_photo=NULL,head_photo_version='',contact_address_en='',contact_address_bn='',contact_phone='',contact_email='',map_url='' WHERE id=1")
+	db.Exec("UPDATE school_public_page SET about_en='',about_bn='',show_counts=false,head_message_en='',head_message_bn='',head_photo=NULL,head_photo_version='' WHERE id=1")
+	// The school details are school settings (migration 1759).
+	var savedDetails map[string]any
+	db.Table("school_settings").Select("eiin, founded_year, head_teacher_name_en, head_teacher_name_bn, address, address_bn, phone, email, map_url").Where("id = 1").Take(&savedDetails)
+	db.Exec("UPDATE school_settings SET eiin='',founded_year=NULL,head_teacher_name_en='',head_teacher_name_bn='',address='',address_bn='',phone='',email='',map_url='' WHERE id=1")
 	var galleryBefore []string
 	db.Table("school_gallery").Pluck("id::text", &galleryBefore)
 	t.Cleanup(func() {
@@ -73,6 +77,9 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 		if saved != nil {
 			delete(saved, "id")
 			_ = db.Table("school_public_page").Where("id = 1").Updates(saved).Error
+		}
+		if savedDetails != nil {
+			_ = db.Table("school_settings").Where("id = 1").Updates(savedDetails).Error
 		}
 		_ = db.Exec("DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE email LIKE ?)", "%-pub-"+suffix+"@example.test").Error
 		_ = db.Exec("UPDATE school_public_page SET updated_by = NULL WHERE updated_by IN (SELECT id FROM users WHERE email LIKE ?)", "%-pub-"+suffix+"@example.test").Error
@@ -133,6 +140,46 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	if a == nil || h == nil || c == nil || a.EIIN != "123456" || a.FoundedYear == nil || *a.FoundedYear != 1972 || a.Students == nil || a.Teachers == nil || h.NameBN != "আয়েশা রহমান" || c.Email != "office@school.example" || c.MapURL == "" {
 		t.Fatalf("public page %+v %+v %+v", a, h, c)
 	}
+
+	// The details are school settings: GET /school/settings returns them.
+	type settingsBody struct {
+		Data school.SchoolSettings `json:"data"`
+	}
+	var st settingsBody
+	if err := json.Unmarshal(call(http.MethodGet, "/school/settings", "", adminH, http.StatusOK), &st); err != nil {
+		t.Fatal(err)
+	}
+	if s := st.Data; s.EIIN != "123456" || s.FoundedYear == nil || *s.FoundedYear != 1972 || s.HeadTeacherNameEN != "Ayesha Rahman" || s.HeadTeacherNameBN != "আয়েশা রহমান" ||
+		s.Address != "Main Road, Sylhet" || s.AddressBN != "প্রধান সড়ক, সিলেট" || s.Phone != "+880 1711-000000" || s.Email != "office@school.example" || s.MapURL != "https://maps.example.com/?q=school" {
+		t.Fatalf("school settings %+v", s)
+	}
+	// PUT /school/settings changes them for the public page too; omitted
+	// details keep their values and a bad EIIN is refused.
+	general := map[string]any{"name_en": st.Data.NameEN, "name_bn": st.Data.NameBN, "logo_url": st.Data.LogoURL, "address": st.Data.Address, "phone": st.Data.Phone, "email": st.Data.Email,
+		"preferred_language": st.Data.PreferredLanguage, "primary_color": st.Data.PrimaryColor, "secondary_color": st.Data.SecondaryColor, "dashboard_theme": st.Data.DashboardTheme, "grading_scheme_id": st.Data.GradingSchemeID}
+	settingsJSON := func(extra map[string]any) string {
+		m := map[string]any{}
+		for k, v := range general {
+			m[k] = v
+		}
+		for k, v := range extra {
+			m[k] = v
+		}
+		b, _ := json.Marshal(m)
+		return string(b)
+	}
+	call(http.MethodPut, "/school/settings", settingsJSON(map[string]any{"eiin": "12345"}), adminH, http.StatusBadRequest)
+	call(http.MethodPut, "/school/settings", settingsJSON(map[string]any{"map_url": "http://maps.example.com"}), adminH, http.StatusBadRequest)
+	call(http.MethodPut, "/school/settings", settingsJSON(map[string]any{"founded_year": 1700}), adminH, http.StatusBadRequest)
+	call(http.MethodPut, "/school/settings", settingsJSON(nil), adminH, http.StatusOK)
+	if v, _ := publicView(); v.Data.About == nil || v.Data.About.EIIN != "123456" || v.Data.Head == nil || v.Data.Head.NameEN != "Ayesha Rahman" {
+		t.Fatalf("omitted details were not kept: %+v", v.Data)
+	}
+	call(http.MethodPut, "/school/settings", settingsJSON(map[string]any{"eiin": "654321", "head_teacher_name_en": "Karim Uddin"}), adminH, http.StatusOK)
+	if v, _ := publicView(); v.Data.About == nil || v.Data.About.EIIN != "654321" || v.Data.Head == nil || v.Data.Head.NameEN != "Karim Uddin" {
+		t.Fatalf("settings change not on the public page: %+v", v.Data)
+	}
+	call(http.MethodPut, "/school/public-page", page, adminH, http.StatusOK)
 
 	// Head teacher's photo: cropped square, public, versioned.
 	var photo bytes.Buffer

@@ -9,7 +9,6 @@ import (
 	"image"
 	"image/jpeg"
 	"net/mail"
-	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -41,7 +40,12 @@ var (
 	eiinPattern     = regexp.MustCompile(`^([0-9]{6})?$`)
 )
 
-// PublicPage is the page as the administrator edits it.
+// PublicPage is the page as the administrator edits it. The school details
+// in it (founded year, EIIN, head teacher's name, contact address, phone,
+// email and map link) are school settings (migration 1759): the editor shows
+// and saves the same values as GET and PUT /school/settings, under these
+// names: founded_year, eiin, head_teacher_name_en/bn, address, address_bn,
+// phone, email and map_url.
 type PublicPage struct {
 	AboutEN          string `json:"about_en"`
 	AboutBN          string `json:"about_bn"`
@@ -231,20 +235,16 @@ func (s *Service) SavePublicPage(ctx context.Context, actor string, in PublicPag
 		validPublicText(in.AboutEN, 3000, true) && validPublicText(in.AboutBN, 3000, true) &&
 		validPublicText(in.HeadMessageEN, 3000, true) && validPublicText(in.HeadMessageBN, 3000, true) &&
 		validLine(in.HeadNameEN, 160) && validLine(in.HeadNameBN, 160) &&
-		validPublicText(in.ContactAddressEN, 300, true) && validPublicText(in.ContactAddressBN, 300, true) &&
-		validLine(in.ContactPhone, 40) && eiinPattern.MatchString(in.EIIN) &&
+		// The details below are school settings, checked by the same rules.
+		validPublicText(in.ContactAddressEN, 500, true) && validPublicText(in.ContactAddressBN, 500, true) &&
+		(in.ContactPhone == "" || (phoneChars.MatchString(in.ContactPhone) && len(in.ContactPhone) <= 20)) &&
+		eiinPattern.MatchString(in.EIIN) && validMapURL(in.MapURL) &&
 		(in.FoundedYear == nil || (*in.FoundedYear >= 1800 && *in.FoundedYear <= 2100))
 	if !ok {
 		return PublicPage{}, ErrInvalid
 	}
 	if in.ContactEmail != "" {
 		if parsed, err := mail.ParseAddress(in.ContactEmail); err != nil || parsed.Address != in.ContactEmail || len(in.ContactEmail) > 254 {
-			return PublicPage{}, ErrInvalid
-		}
-	}
-	if in.MapURL != "" {
-		u, err := url.Parse(in.MapURL)
-		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || len(in.MapURL) > 500 {
 			return PublicPage{}, ErrInvalid
 		}
 	}
@@ -435,12 +435,14 @@ func scaleDown(img image.Image, r image.Rectangle, w, h int) *image.RGBA {
 	return dst
 }
 
-const publicPageColumns = "about_en, about_bn, founded_year, eiin, show_counts, head_name_en, head_name_bn, head_message_en, head_message_bn, head_photo_version, contact_address_en, contact_address_bn, contact_phone, contact_email, map_url"
+// The page's own text from school_public_page; the school details from
+// school_settings.
+const publicPageColumns = "p.about_en, p.about_bn, s.founded_year, s.eiin, p.show_counts, s.head_teacher_name_en AS head_name_en, s.head_teacher_name_bn AS head_name_bn, p.head_message_en, p.head_message_bn, p.head_photo_version, s.address AS contact_address_en, s.address_bn AS contact_address_bn, s.phone AS contact_phone, s.email AS contact_email, s.map_url"
 const galleryColumns = "id::text AS id, position, width, height, version, caption_en, caption_bn"
 
 func (r *GormRepository) PublicPage(ctx context.Context) (PublicPage, error) {
 	var out PublicPage
-	err := r.db.WithContext(ctx).Table("school_public_page").Select(publicPageColumns).Where("id = 1").Take(&out).Error
+	err := r.db.WithContext(ctx).Table("school_settings AS s").Joins("JOIN school_public_page AS p ON p.id = 1").Select(publicPageColumns).Where("s.id = ?", SingleSchoolID).Take(&out).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return PublicPage{}, nil
 	}
@@ -478,13 +480,15 @@ func (r *GormRepository) Gallery(ctx context.Context) ([]GalleryPhoto, error) {
 
 func (r *GormRepository) SavePublicPage(ctx context.Context, actor string, in PublicPageInput) (PublicPage, error) {
 	err := r.slideWrite(ctx, actor, func(tx *gorm.DB) error {
-		if err := tx.Exec(`UPDATE school_public_page SET about_en=?, about_bn=?, founded_year=?, eiin=?, show_counts=?, head_name_en=?, head_name_bn=?, head_message_en=?, head_message_bn=?,
-contact_address_en=?, contact_address_bn=?, contact_phone=?, contact_email=?, map_url=?, updated_by=?, updated_at=now() WHERE id = 1`,
-			in.AboutEN, in.AboutBN, in.FoundedYear, in.EIIN, in.ShowCounts, in.HeadNameEN, in.HeadNameBN, in.HeadMessageEN, in.HeadMessageBN,
-			in.ContactAddressEN, in.ContactAddressBN, in.ContactPhone, in.ContactEmail, in.MapURL, actor).Error; err != nil {
+		if err := tx.Exec(`UPDATE school_public_page SET about_en=?, about_bn=?, show_counts=?, head_message_en=?, head_message_bn=?, updated_by=?, updated_at=now() WHERE id = 1`,
+			in.AboutEN, in.AboutBN, in.ShowCounts, in.HeadMessageEN, in.HeadMessageBN, actor).Error; err != nil {
 			return err
 		}
-		return audit.Record(tx, &actor, "school.public_page_saved", "school", "1", map[string]any{"show_counts": in.ShowCounts})
+		if err := tx.Exec(`UPDATE school_settings SET founded_year=?, eiin=?, head_teacher_name_en=?, head_teacher_name_bn=?, address=?, address_bn=?, phone=?, email=?, map_url=?, updated_at=now() WHERE id = ?`,
+			in.FoundedYear, in.EIIN, in.HeadNameEN, in.HeadNameBN, in.ContactAddressEN, in.ContactAddressBN, in.ContactPhone, in.ContactEmail, in.MapURL, SingleSchoolID).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, &actor, "school.public_page_saved", "school", "1", map[string]any{"show_counts": in.ShowCounts, "settings_fields": []string{"address", "address_bn", "email", "eiin", "founded_year", "head_teacher_name_bn", "head_teacher_name_en", "map_url", "phone"}})
 	})
 	if err != nil {
 		return PublicPage{}, err
