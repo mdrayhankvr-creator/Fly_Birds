@@ -51,6 +51,9 @@ try {
   const loginId = await b.evaluate(`document.querySelector('main [data-login-id]').innerText.trim()`)
   const temporary = await b.evaluate(`document.querySelector('main [data-temporary-password]').innerText.trim()`)
   check('the sign-in ID is the Student ID or admission number', loginId === (pupil.student_code || pupil.admission_no) || loginId === pupil.admission_no, `${loginId} vs ${pupil.student_code}/${pupil.admission_no}`)
+  const useBy = new Date(Date.now() + 14 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dhaka' })
+  const expiryText = await b.evaluate(`document.querySelector('main [data-password-expires]')?.innerText ?? ''`)
+  check('the slip says the password must be used within 14 days, in both languages', expiryText.includes(useBy) && /ব্যবহারের শেষ তারিখ/.test(await mainText()), `${expiryText} vs ${useBy}`)
   check('the slip has English and Bangla labels and a print button', /Sign-in ID/.test(await mainText()) && /সাইন-ইন আইডি/.test(await mainText()) && await b.evaluate(`[...document.querySelectorAll('main button')].some(e => e.innerText.trim() === 'Print slip')`))
   await b.shot('create-login-slip', true)
   await b.go(`/admin/students/${pupil.id}`)
@@ -138,6 +141,8 @@ try {
   check('School Settings has the public page editor with the consent reminder', await b.waitFor(`/Public school page/.test(document.querySelector('main').innerText) && /guardians’ consent/.test(document.querySelector('main').innerText)`, 15000))
   const page = { about_en: `Green Valley teaches every child. ${stamp}`, about_bn: 'প্রতিটি শিশুর জন্য শিক্ষা।', founded_year: 1985, eiin: '123456', show_counts: true, head_name_en: 'Ayesha Rahman', head_name_bn: 'আয়েশা রহমান', head_message_en: 'Welcome to our school.', head_message_bn: 'আমাদের বিদ্যালয়ে স্বাগতম।', contact_address_en: 'Main Road, Sylhet', contact_address_bn: 'প্রধান সড়ক, সিলেট', contact_phone: '+880 1711-000000', contact_email: 'office@demo.flybirds.test', map_url: 'https://maps.example.com/?q=green-valley' }
   check('the administrator saves the public page', (await b.api('/school/public-page', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: js(page) })).status === 200)
+  const settings = (await b.api('/school/settings')).body.data
+  check('the EIIN and school details are school settings', settings.eiin === '123456' && settings.founded_year === 1985 && settings.head_teacher_name_en === 'Ayesha Rahman' && settings.address_bn === 'প্রধান সড়ক, সিলেট' && settings.map_url === page.map_url, JSON.stringify(settings).slice(0, 300))
   const photo = await b.evaluate(`(async () => { const c = document.createElement('canvas'); c.width = 1200; c.height = 800; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 1200, 800); g.addColorStop(0, '#0f766e'); g.addColorStop(1, '#f59e0b'); x.fillStyle = g; x.fillRect(0, 0, 1200, 800); const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1]); const tok = (await (await fetch('/api/auth/refresh', { method: 'POST', headers: { 'X-CSRF-Token': csrf } })).json()).data.access_token; const res = await fetch('/api/school/gallery', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'image/jpeg' }, body: blob }); const body = await res.json(); await fetch('/api/school/gallery/' + body.data.id, { method: 'PATCH', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ caption_en: 'Our playground', caption_bn: 'আমাদের খেলার মাঠ' }) }); return res.status })()`)
   check('a gallery photo is added', photo === 201)
   const notice = async (title, show) => {
@@ -177,6 +182,20 @@ try {
   await b.viewport(375, 812, true); await b.go('/'); await b.waitFor(`!!document.querySelector('[data-public-page]')`, 15000); await sleep(800)
   check('public page at 375px: no sideways scroll', !(await b.overflow()))
   check('the sign-in form comes before the public sections on phones', await b.evaluate(`document.querySelector('#login-email').getBoundingClientRect().top < document.querySelector('[data-public-page]').getBoundingClientRect().top`))
+  await b.evaluate(`localStorage.setItem('flybirds.language', 'en')`)
+
+  // ---------- 5. the phone top bar: every control has a name ----------
+  for (const lang of ['en', 'bn']) {
+    await b.login(email('admin'), pw, lang)
+    await b.viewport(375, 812, true); await b.go('/dashboard'); await b.waitFor(`!!document.querySelector('header.shell-topbar')`, 15000); await sleep(800)
+    const { nodes } = await b.send('Accessibility.getFullAXTree')
+    const header = await b.evaluate(`[...document.querySelectorAll('header.shell-topbar a, header.shell-topbar button')].filter(e => e.offsetParent !== null).length`)
+    const named = nodes.filter(n => !n.ignored && ['button', 'link'].includes(n.role?.value)).slice(0, 1 + header)
+    const empty = named.filter(n => !(n.name?.value ?? '').trim()).length
+    const names = named.map(n => n.name?.value ?? '')
+    const want = lang === 'en' ? [/^Open menu$/, /^Home, /, /^Account menu for /] : [/^মেনু খুলুন$/, /^হোম, /, /-এর অ্যাকাউন্ট মেনু$/]
+    check(`phone top bar (${lang}): the menu button, home link and account menu have names`, empty === 0 && want.every(w => names.some(n => w.test(n))), names.join(' | '))
+  }
   await b.evaluate(`localStorage.setItem('flybirds.language', 'en')`)
 } catch (e) { check('script error', false, e.stack) } finally {
   check('no JavaScript exceptions', b.errors.length === 0, b.errors.slice(0, 3).join(' | '))
