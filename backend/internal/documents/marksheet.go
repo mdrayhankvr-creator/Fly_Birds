@@ -17,6 +17,7 @@ type schoolData struct {
 	Name      string `json:"name"`
 	NameAlt   string `json:"name_alt"`
 	Contact   string `json:"contact"`
+	EIIN      string `json:"eiin"` // "EIIN: …" or ""
 	Accent    string `json:"accent"`
 	Initials  string `json:"initials"`
 	Logo      string `json:"logo"`      // asset name or ""

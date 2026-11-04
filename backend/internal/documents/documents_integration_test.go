@@ -473,7 +473,33 @@ func TestPostgresResultDocuments(t *testing.T) {
 		t.Fatalf("a superseded version's marksheet: %v", err)
 	}
 
-	// 8. Large documents go to the background worker, in parts, with progress.
+	// 8. School details from school settings: the EIIN and the address in the
+	// document's language; changing them makes new documents; no EIIN, no line.
+	if err := tx.Exec("UPDATE school_settings SET eiin = '123456', address = 'Mirpur, Dhaka', address_bn = 'মিরপুর, ঢাকা', phone = '01700 000000', email = 'office@school.example.test' WHERE id = 1").Error; err != nil {
+		t.Fatal(err)
+	}
+	withEIIN, err := svc.Request(ctx, admin, bulk)
+	if err != nil || withEIIN.ID == fresh.ID {
+		t.Fatalf("after the school details changed: %+v %v", withEIIN.ID, err)
+	}
+	if sch := fake.last().Data.(sheetData).School; sch.EIIN != "EIIN: 123456" || sch.Contact != "Mirpur, Dhaka · 01700 000000 · office@school.example.test" {
+		t.Fatalf("English header: %+v", sch)
+	}
+	if _, err := svc.Request(ctx, teacher, Request{Kind: "tabulation", Scope: exams.ScopeTerm, ScopeID: s.term, ClassID: s.classID, Language: "bn"}); err != nil {
+		t.Fatal(err)
+	}
+	if sch := fake.last().Data.(classData).School; sch.EIIN != "EIIN: ১২৩৪৫৬" || !strings.HasPrefix(sch.Contact, "মিরপুর, ঢাকা · ০১৭০০ ০০০০০০") {
+		t.Fatalf("Bangla header: %+v", sch)
+	}
+	tx.Exec("UPDATE school_settings SET eiin = '', address_bn = '' WHERE id = 1")
+	if _, err := svc.Request(ctx, admin, Request{Kind: "merit_list", Scope: exams.ScopeTerm, ScopeID: s.term, ClassID: s.classID, Language: "bn"}); err != nil {
+		t.Fatal(err)
+	}
+	if sch := fake.last().Data.(classData).School; sch.EIIN != "" || !strings.HasPrefix(sch.Contact, "Mirpur, Dhaka") {
+		t.Fatalf("without EIIN or a Bangla address: %+v", sch)
+	}
+
+	// 9. Large documents go to the background worker, in parts, with progress.
 	svc.Chunk, svc.InlineLimit = 2, 1
 	bn := bulk
 	bn.Language = "bn"

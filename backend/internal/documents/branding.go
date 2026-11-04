@@ -37,9 +37,9 @@ func (b branding) assets(into map[string][]byte) {
 
 func (s *Service) branding(ctx context.Context, l lang) (branding, error) {
 	var row struct {
-		NameEN, NameBN, LogoURL, Address, Phone, Email, PrimaryColor string
+		NameEN, NameBN, LogoURL, Address, AddressBN, Phone, Email, PrimaryColor, EIIN string
 	}
-	if err := s.db.WithContext(ctx).Raw("SELECT name_en, name_bn, logo_url, address, phone, email, primary_color FROM school_settings WHERE id = 1").Scan(&row).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw("SELECT name_en, name_bn, logo_url, address, address_bn, phone, email, primary_color, eiin FROM school_settings WHERE id = 1").Scan(&row).Error; err != nil {
 		return branding{}, err
 	}
 	var card struct {
@@ -52,12 +52,17 @@ func (s *Service) branding(ctx context.Context, l lang) (branding, error) {
 	}
 	b := branding{school: schoolData{Name: l.pick(row.NameEN, row.NameBN), NameAlt: l.other(row.NameEN, row.NameBN), Accent: accentOf(row.PrimaryColor), Initials: initials(row.NameEN)}}
 	contact := []string{}
-	for _, c := range []string{row.Address, row.Phone, row.Email} {
+	// The address in the document's language when the school gave one.
+	for _, c := range []string{l.pick(row.Address, row.AddressBN), row.Phone, row.Email} {
 		if strings.TrimSpace(c) != "" {
 			contact = append(contact, l.num(strings.TrimSpace(c)))
 		}
 	}
 	b.school.Contact = strings.Join(contact, " · ")
+	// EIIN (six digits, school settings); the line is left out when empty.
+	if eiin := strings.TrimSpace(row.EIIN); eiin != "" {
+		b.school.EIIN = "EIIN: " + l.num(eiin)
+	}
 	b.school.Signatory = l.pick(card.TitleEN, card.TitleBN)
 	if card.SignatureType != nil && len(card.Signature) > 0 {
 		b.signature = card.Signature
