@@ -12,7 +12,7 @@ M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `
 
 ## Current Status — E7: Result Documents and PDFs (2026-11-01)
 
-On `feature/e7-result-pdfs`, from `main` `d35b1da8`. Not pushed. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [exams/E7_RESULT_DOCUMENTS.md](exams/E7_RESULT_DOCUMENTS.md).
+On `feature/e7-result-pdfs`, from `main` `d35b1da8`. Pushed for review; not merged. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [exams/E7_RESULT_DOCUMENTS.md](exams/E7_RESULT_DOCUMENTS.md).
 
 **Implementation:**
 - **Renderer:** Typst 0.15.1 in the backend image (spike: correct Bangla shaping; one marksheet 0.5 s and 13 MB, 60 in one PDF 3.3 s and 98 MB; image +59.8 MB). No network, bundled Noto fonts.
@@ -23,6 +23,7 @@ On `feature/e7-result-pdfs`, from `main` `d35b1da8`. Not pushed. Outside the bri
 - **Go:** fresh database, `go test ./... -p 1 -count=1` 29 of 29 packages; `go vet` and gofmt clean (240 files).
 - **Frontend:** typecheck and build (no large-chunk warning), i18n passed, unit tests 18 of 18.
 - **Browser** on `m15b1` rebuilt fresh: `suite.mjs` 117 of 117, `result-documents.mjs` 31 of 31; sample PDFs and page images in `Fly_Birds_QA_env\pdf-e7`.
+- **Rerun before pushing (2026-11-05):** Go suite on a new database 29 of 29 packages, vet clean; frontend typecheck, build, i18n and unit tests 18 of 18; `m15b1` rebuilt with fresh volumes, `suite.mjs` 117 of 117 and `result-documents.mjs` 31 of 31. Migrations: fresh database 4.0–4.9 s, upgrade from `main` 0.19–0.24 s, fresh `m15b1` 2.9–3.7 s with no restarts (E7 document §6).
 
 ## Current Status — Premium UI Checkpoint 5: Student ID Sign-in, Logins, Bulk Admission, Public Page (2026-11-01)
 

@@ -154,3 +154,20 @@ The backend health check keeps its interval, timeout and retries; its start
 period grows from 30 s to 120 s, so a slow first start is not reported
 unhealthy (and the web container still starts), while the first passing check
 marks it healthy at once.
+
+Measured again on 2026-11-05 before pushing, with the API's own
+`migrations applied` log line:
+
+| | Time |
+|---|---|
+| All migrations, fresh database on the `m15-testdb` container (3 runs) | 4.6 s, 4.0 s, 4.9 s |
+| Upgrade from `main` `d35b1da8` (1754 → 1800, 3 runs) | 0.19–0.24 s |
+| All migrations, fresh `m15b1` (2 runs, the Go suite running alongside) | 3.7 s, 2.9 s; `up --wait` 21 s; no restarts |
+
+The health check reports a backend unhealthy only after 120 s plus three
+failed checks 15 s apart (about 165 s), roughly 30 times the slowest first
+start measured. When Docker Desktop itself starts, the restart policy starts
+the API before PostgreSQL accepts connections: it exits after about a second
+and restarts until the database is up (6 quick restarts, healthy within about
+20 s on this laptop). That is the 10-second connect, not the migrations, and
+it settles by itself.
