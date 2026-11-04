@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"gorm.io/gorm"
 )
 
@@ -109,9 +110,10 @@ func (r *GormRepository) Update(ctx context.Context, actor, id string, input Upd
 // ResetPassword stores the new hash, requires a password change at the next
 // sign-in, clears any lockout and revokes every session of the account, in
 // one transaction. The audit entry never holds the password.
-func (r *GormRepository) ResetPassword(ctx context.Context, actor, id, hash string) (User, int64, error) {
+func (r *GormRepository) ResetPassword(ctx context.Context, actor, id, hash string) (User, int64, time.Time, error) {
 	var user User
 	var revoked int64
+	var expires time.Time
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := require(tx, actor, "users:update"); err != nil {
 			return err
@@ -123,7 +125,8 @@ func (r *GormRepository) ResetPassword(ctx context.Context, actor, id, hash stri
 			return err
 		}
 		now := time.Now().UTC()
-		if err := tx.Table("users").Where("id=?", id).Updates(map[string]any{"password_hash": hash, "must_change_password": true, "failed_login_attempts": 0, "locked_until": nil, "updated_at": now}).Error; err != nil {
+		expires = now.Add(auth.TemporaryPasswordLifetime)
+		if err := tx.Table("users").Where("id=?", id).Updates(map[string]any{"password_hash": hash, "must_change_password": true, "temporary_password_expires_at": expires, "failed_login_attempts": 0, "locked_until": nil, "updated_at": now}).Error; err != nil {
 			return err
 		}
 		result := tx.Table("auth_sessions").Where("user_id=? AND revoked_at IS NULL", id).Updates(map[string]any{"revoked_at": now, "updated_at": now})
@@ -133,7 +136,7 @@ func (r *GormRepository) ResetPassword(ctx context.Context, actor, id, hash stri
 		revoked = result.RowsAffected
 		return audit.Record(tx, &actor, "user.password_reset", "user", id, map[string]any{"source": "admin", "sessions_revoked": revoked})
 	})
-	return user, revoked, mapError(err)
+	return user, revoked, expires, mapError(err)
 }
 func (r *GormRepository) SetStatus(ctx context.Context, actor, id string, active bool) (User, error) {
 	var user User

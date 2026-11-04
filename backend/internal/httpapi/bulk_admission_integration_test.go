@@ -247,6 +247,9 @@ func TestPostgresBulkAdmission(t *testing.T) {
 		if len(l.InitialPassword) != 14 {
 			t.Fatal("a slip has no password")
 		}
+		if d := time.Until(l.PasswordExpiresAt) - auth.TemporaryPasswordLifetime; d < -2*time.Minute || d > 2*time.Minute {
+			t.Fatalf("slip expiry %v", l.PasswordExpiresAt)
+		}
 		ids[l.AdmissionNo] = l.LoginID
 		if l.AdmissionNo == adm(3) && l.Email != "selim-"+suffix+"@example.test" {
 			t.Fatalf("login email %q", l.Email)

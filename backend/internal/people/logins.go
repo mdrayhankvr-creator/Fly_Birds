@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
@@ -38,6 +39,9 @@ type StudentLogin struct {
 	Email string `json:"email,omitempty"`
 	// InitialPassword is returned once, in this response only.
 	InitialPassword string `json:"initial_password"`
+	// PasswordExpiresAt: the temporary password stops working after this
+	// unless the student has set their own (auth.TemporaryPasswordLifetime).
+	PasswordExpiresAt time.Time `json:"password_expires_at"`
 }
 
 // newLogin is a login to create: the password is already hashed.
@@ -96,18 +100,24 @@ FROM students s JOIN academic_classes c ON c.id = s.class_id JOIN academic_secti
 			return StudentLogin{}, err
 		}
 	}
-	var userID string
-	// The student sets their own password at the first sign-in.
-	if err := tx.Raw("INSERT INTO users (email,display_name,role,is_active,password_hash,must_change_password,login_id) VALUES (?,?,'student',true,?,true,?) RETURNING id", email, row.NameEN, in.Hash, loginID).Scan(&userID).Error; err != nil {
+	var created struct {
+		ID        string
+		ExpiresAt time.Time
+	}
+	// The student sets their own password at the first sign-in, within
+	// auth.TemporaryPasswordLifetime.
+	expires := time.Now().UTC().Add(auth.TemporaryPasswordLifetime)
+	if err := tx.Raw("INSERT INTO users (email,display_name,role,is_active,password_hash,must_change_password,temporary_password_expires_at,login_id) VALUES (?,?,'student',true,?,true,?,?) RETURNING id, temporary_password_expires_at AS expires_at", email, row.NameEN, in.Hash, expires, loginID).Scan(&created).Error; err != nil {
 		return StudentLogin{}, loginError(err)
 	}
+	userID := created.ID
 	if err := tx.Exec("UPDATE students SET user_id = ?, updated_at = now() WHERE id = ?", userID, in.StudentID).Error; err != nil {
 		return StudentLogin{}, err
 	}
 	if err := audit.Record(tx, &actorID, "user.created", "user", userID, map[string]any{"role": "student", "source": source, "student_id": in.StudentID, "has_email": in.Email != ""}); err != nil {
 		return StudentLogin{}, err
 	}
-	out := StudentLogin{StudentID: in.StudentID, StudentName: row.NameEN, NameBN: row.NameBN, AdmissionNo: row.AdmissionNo, ClassName: row.ClassName, SectionName: row.SectionName, RollNo: row.RollNo, UserID: userID, LoginID: loginID, InitialPassword: in.Password}
+	out := StudentLogin{StudentID: in.StudentID, StudentName: row.NameEN, NameBN: row.NameBN, AdmissionNo: row.AdmissionNo, ClassName: row.ClassName, SectionName: row.SectionName, RollNo: row.RollNo, UserID: userID, LoginID: loginID, InitialPassword: in.Password, PasswordExpiresAt: created.ExpiresAt.UTC()}
 	if in.Email != "" {
 		out.Email = in.Email
 	}

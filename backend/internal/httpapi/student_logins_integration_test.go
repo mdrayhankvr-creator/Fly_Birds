@@ -132,6 +132,14 @@ func TestPostgresStudentIDSignIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	slip := made.Data
+	// Every slip says when its temporary password stops working.
+	expiresSoon := func(at time.Time) bool {
+		want := time.Now().Add(auth.TemporaryPasswordLifetime)
+		return at.After(want.Add(-2*time.Minute)) && at.Before(want.Add(2*time.Minute))
+	}
+	if !expiresSoon(slip.PasswordExpiresAt) {
+		t.Fatalf("one-click slip expiry %v", slip.PasswordExpiresAt)
+	}
 	if slip.LoginID != "SID-"+upper+"-1" || slip.Email != "" || len(slip.InitialPassword) != 14 || slip.AdmissionNo != "ADM-"+upper+"-1" || slip.RollNo == nil || *slip.RollNo != 1 {
 		t.Fatalf("slip %+v", slip)
 	}
@@ -213,8 +221,8 @@ func TestPostgresStudentIDSignIn(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, l := range bulk.Data.Logins {
-		if len(l.InitialPassword) != 14 {
-			t.Fatalf("slip without a password: %+v", l)
+		if len(l.InitialPassword) != 14 || !expiresSoon(l.PasswordExpiresAt) {
+			t.Fatalf("slip without a password or expiry: %+v", l)
 		}
 		got[l.StudentID] = l.LoginID
 	}
@@ -248,7 +256,7 @@ func TestPostgresStudentIDSignIn(t *testing.T) {
 	if err := json.Unmarshal(call(http.MethodPost, "/students/admission", body, adminH, http.StatusCreated), &admitted); err != nil {
 		t.Fatal(err)
 	}
-	if l := admitted.Data.Login; l == nil || l.LoginID != "ADM-"+upper+"-9" || l.Email != "" || len(l.InitialPassword) != 14 {
+	if l := admitted.Data.Login; l == nil || l.LoginID != "ADM-"+upper+"-9" || l.Email != "" || len(l.InitialPassword) != 14 || l.PasswordExpiresAt == nil || !expiresSoon(*l.PasswordExpiresAt) {
 		t.Fatalf("admission login %+v", admitted.Data.Login)
 	}
 	if code, _ := signIn(fmt.Sprintf(`{"identifier":"adm-%s-9","password":%q}`, suffix, admitted.Data.Login.InitialPassword)); code != http.StatusOK {

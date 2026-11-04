@@ -94,6 +94,10 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (Crede
 	if err := s.repo.ClearLoginFailures(ctx, user.ID, now); err != nil {
 		return Credentials{}, err
 	}
+	// Only someone who knows the password learns that it has expired.
+	if user.TemporaryPasswordExpired(now) {
+		return Credentials{}, ErrTemporaryPasswordExpired
+	}
 	return s.newSession(ctx, user, now)
 }
 
@@ -173,6 +177,10 @@ func (s *Service) Refresh(ctx context.Context, refresh, csrf string) (Credential
 	if err != nil {
 		return Credentials{}, err
 	}
+	// A session opened with a temporary password ends when the password expires.
+	if user.TemporaryPasswordExpired(now) {
+		return Credentials{}, ErrInvalidSession
+	}
 	access, err := s.tokens.Issue(user.ID, session.ID, now)
 	if err != nil {
 		return Credentials{}, err
@@ -210,7 +218,7 @@ func (s *Service) AuthenticateSession(ctx context.Context, rawAccess string) (Us
 	if err != nil {
 		return User{}, "", err
 	}
-	if user.ID != userID {
+	if user.ID != userID || user.TemporaryPasswordExpired(s.now()) {
 		return User{}, "", ErrInvalidToken
 	}
 	return user, sessionID, nil
@@ -242,6 +250,9 @@ func (s *Service) ChangePassword(ctx context.Context, userID, sessionID, current
 			return 0, err
 		}
 		return 0, ErrInvalidCredentials
+	}
+	if user.TemporaryPasswordExpired(now) {
+		return 0, ErrTemporaryPasswordExpired
 	}
 	if current == next {
 		return 0, ErrSamePassword

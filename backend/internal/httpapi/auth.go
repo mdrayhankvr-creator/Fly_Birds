@@ -120,6 +120,10 @@ func (h *authHandler) login(c *gin.Context) {
 		failure(c, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 		return
 	}
+	if errors.Is(err, auth.ErrTemporaryPasswordExpired) {
+		failure(c, http.StatusUnauthorized, "temporary_password_expired", "this temporary password has expired; ask the school office for a new one")
+		return
+	}
 	if err != nil {
 		failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
 		return
@@ -303,6 +307,8 @@ func (h *authHandler) changePassword(c *gin.Context) {
 		failure(c, http.StatusBadRequest, "same_password", "new password must differ from the current one")
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		failure(c, http.StatusBadRequest, "invalid_current_password", "current password is incorrect")
+	case errors.Is(err, auth.ErrTemporaryPasswordExpired):
+		failure(c, http.StatusBadRequest, "temporary_password_expired", "this temporary password has expired; ask the school office for a new one")
 	case errors.Is(err, auth.ErrAccountLocked):
 		failure(c, http.StatusTooManyRequests, "account_locked", "too many incorrect passwords; try again later")
 	case errors.Is(err, auth.ErrInvalidSession):

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
@@ -70,6 +71,9 @@ type AdmissionLogin struct {
 	// InitialPassword is returned once, in this response only. It is never
 	// stored in plain text, logged or written to the audit log.
 	InitialPassword string `json:"initial_password"`
+	// PasswordExpiresAt: when the initial password stops working if unused;
+	// absent on a replayed admission, which carries no password.
+	PasswordExpiresAt *time.Time `json:"password_expires_at,omitempty"`
 }
 type AdmissionResult struct {
 	Student   Student         `json:"student"`
@@ -202,7 +206,8 @@ func (s *Service) Admit(ctx context.Context, a Actor, in AdmissionInput) (Admiss
 		return AdmissionResult{}, err
 	}
 	if login != nil {
-		out.Login = &AdmissionLogin{UserID: login.UserID, LoginID: login.LoginID, Email: login.Email, InitialPassword: login.InitialPassword}
+		expires := login.PasswordExpiresAt
+		out.Login = &AdmissionLogin{UserID: login.UserID, LoginID: login.LoginID, Email: login.Email, InitialPassword: login.InitialPassword, PasswordExpiresAt: &expires}
 	}
 	return out, nil
 }
