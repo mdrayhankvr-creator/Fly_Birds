@@ -94,7 +94,7 @@ export function StudentExamRoutine() {
     {r.amended_on && <div className="mt-3"><Notice tone="warning">{t('e8AmendedOn', { date: day(r.amended_on.slice(0, 10), true) })}{r.reason ? ` — ${r.reason}` : ''}</Notice></div>}
     {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
     {r.papers.length === 0 ? <div className="mt-4"><EmptyState title={t('e8NoNextExam')} icon="calendar" /></div> :
-      <div className="mt-4 overflow-x-auto"><table className={`${ui.table} min-w-[36rem]`}>
+      <div className="mt-4 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={`${t('e8MyExams')} · ${r.term_name}`}><table className={`${ui.table} min-w-[36rem]`}>
         <thead><tr><th className={ui.th}>{t('e8Date')}</th><th className={ui.th}>{t('e8Sitting')}</th><th className={ui.th}>{t('e8Paper')}</th><th className={ui.th}>{t('e8Room')}</th></tr></thead>
         <tbody>{r.papers.map(p => <PaperRow key={p.paper_id} p={p} today={today} />)}</tbody>
       </table></div>}
