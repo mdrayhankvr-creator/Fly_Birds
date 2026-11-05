@@ -11,20 +11,21 @@ const b = await launch({ base: process.env.E2E_BASE_URL || 'http://127.0.0.1:517
 const email = who => `demo.${who}@demo.flybirds.test`
 // The attendance workflow takes today's attendance. On a weekly off day
 // (Friday by default, lifecycle audit QA-12) the administrator of this
-// disposable school opens the day for the run; the days are restored at the end.
-const base = process.env.E2E_BASE_URL || 'http://127.0.0.1:5173'
+// disposable school opens the day for the run; the days are restored at the
+// end. The calls go through the browser, which accepts the CI edge's
+// self-signed certificate.
 let restoreOffDays = null
 async function openTodayForAttendance() {
-  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email('admin'), password: pw }) })
-  const token = (await login.json()).data.access_token
-  const call = async (method, path, body) => (await (await fetch(`${base}/api${path}`, { method, headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined })).json()).data
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date())
-  const day = await call('GET', `/attendance/day?date=${today}`)
+  const day = (await b.api(`/attendance/day?date=${today}`)).body.data
   if (day.open) return
   if (day.reason !== 'weekly_off') throw new Error(`today is a holiday (${day.holiday_title_en}) in this school: run the suite on another day`)
-  const { updated_at: _updated, ...settings } = await call('GET', '/school/settings')
-  await call('PUT', '/school/settings', { ...settings, weekly_off_days: [] })
-  restoreOffDays = () => call('PUT', '/school/settings', { ...settings, weekly_off_days: day.weekly_off_days })
+  await b.login(email('admin'), pw)
+  const { updated_at: _updated, ...settings } = (await b.api('/school/settings')).body.data
+  const put = days => b.api('/school/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...settings, weekly_off_days: days }) })
+  await put([])
+  restoreOffDays = async () => { await b.login(email('admin'), pw); await put(day.weekly_off_days) }
+  await b.login(email('teacher'), pw)
 }
 const sidebarLabels = () => b.evaluate(`[...document.querySelectorAll('aside nav a')].map(a => a.innerText.trim())`)
 const waitDash = () => b.waitFor(`/Good (morning|afternoon|evening)|শুভ/.test(document.body.innerText) && !document.querySelector('main .animate-pulse')`, 15000)
@@ -178,8 +179,8 @@ try {
   check('Escape cancels without changing data', !(await b.evaluate(`!!document.querySelector('[role=alertdialog]')`)) && before === after)
 
   // ---------- attendance workflow (teacher) ----------
-  await openTodayForAttendance()
   await b.login(email('teacher'), pw)
+  await openTodayForAttendance()
   await b.go('/admin/attendance/students')
   await b.waitFor(`[...document.querySelectorAll('button')].some(x => x.innerText.trim() === 'Mark all present')`)
   const rolls = await b.evaluate(`[...document.querySelectorAll('main li, main [data-roll]')].map(e => e.innerText.match(/^\\s*(\\d+)\\n/)?.[1]).filter(Boolean).map(Number)`)
