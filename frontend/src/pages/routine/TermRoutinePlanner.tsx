@@ -83,7 +83,7 @@ function RoomsPanel({ canManage }: { canManage: boolean }) {
     <p className="mt-2 max-w-3xl text-sm text-slate-600">{t('e8RoomsHint')}</p>
     <div className="mt-3"><FeedbackNotice feedback={runner.feedback} /></div>
     {rooms.data && (rooms.data.length === 0 ? <p className="mt-3 text-sm text-slate-600">{t('e8NoRooms')}</p> :
-      <div className="mt-3 overflow-x-auto"><table className={`${ui.table} min-w-[30rem]`}><thead><tr><th className={ui.th}>{t('e8RoomName')}</th><th className={ui.th}>{t('e8RoomKind')}</th><th className={ui.th}>{t('e8Capacity')}</th><th className={ui.th}>{t('e8RoomActive')}</th>{canManage && <th className={ui.th}><span className="sr-only">{t('e8EditRoom')}</span></th>}</tr></thead>
+      <div className="mt-3 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('e8RoomsTitle')}><table className={`${ui.table} min-w-[30rem]`}><thead><tr><th className={ui.th}>{t('e8RoomName')}</th><th className={ui.th}>{t('e8RoomKind')}</th><th className={ui.th}>{t('e8Capacity')}</th><th className={ui.th}>{t('e8RoomActive')}</th>{canManage && <th className={ui.th}><span className="sr-only">{t('e8EditRoom')}</span></th>}</tr></thead>
         <tbody>{rooms.data.map(r => <tr key={r.id} className={r.is_active ? '' : 'text-slate-500'}><td className={`${ui.td} font-semibold`}>{name(r.name, r.name_bn)}</td><td className={ui.td}>{t(`e8RoomKind_${r.kind}`)}</td><td className={`${ui.td} tabular-nums`}>{r.capacity ? num(r.capacity) : t('e8NotSet')}</td><td className={ui.td}>{r.is_active ? '✓' : '—'}</td>
           {canManage && <td className={ui.td}><button type="button" className={ui.ghost} onClick={() => edit(r)}>{t('e8EditRoom')}</button></td>}</tr>)}</tbody></table></div>)}
     {canManage && <form className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-5" onSubmit={save}>
@@ -257,8 +257,8 @@ function ChangesPanel({ version }: { version: RoutineVersion }) {
   return <section className={card} aria-labelledby="e8-changes" data-testid="routine-changes">
     <CardTitle id="e8-changes" icon="file">{t('e8Changes', { n: num(version.previous_version ?? 0) })}</CardTitle>
     {version.changes.length === 0 ? <p className="mt-3 text-sm text-slate-600">{t('e8NoChanges')}</p> :
-      <div className="mt-3 overflow-x-auto"><table className={`${ui.table} min-w-[34rem]`}><thead><tr><th className={ui.th}>{t('e8Paper')}</th><th className={ui.th}>{t('e8Kind')}</th><th className={ui.th}>{t('e8From')}</th><th className={ui.th}>{t('e8To')}</th></tr></thead>
-        <tbody>{version.changes.map((c, i) => <tr key={i} className="bg-amber-50/60"><td className={`${ui.td} font-semibold`}>{c.class_name} {paperName(c)}</td><td className={ui.td}>{t(`e8Change_${c.change}`)}</td>
+      <div className="mt-3 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('e8Changes', { n: num(version.previous_version ?? 0) })}><table className={`${ui.table} min-w-[34rem]`}><thead><tr><th className={ui.th}>{t('e8Paper')}</th><th className={ui.th}>{t('e8Kind')}</th><th className={ui.th}>{t('e8From')}</th><th className={ui.th}>{t('e8To')}</th></tr></thead>
+        <tbody>{version.changes.map((c, i) => <tr key={i} className="bg-amber-50"><td className={`${ui.td} font-semibold`}>{c.class_name} {paperName(c)}</td><td className={ui.td}>{t(`e8Change_${c.change}`)}</td>
           <td className={ui.td}>{c.change === 'rooms' ? c.from_rooms : c.change === 'duration' ? t('e8Minutes', { n: num(c.from_duration ?? 0) }) : when(c.from_date, c.from_sitting)}</td>
           <td className={`${ui.td} font-semibold`}>{c.change === 'rooms' ? c.to_rooms : c.change === 'duration' ? t('e8Minutes', { n: num(c.to_duration ?? 0) }) : c.change === 'removed' ? '—' : when(c.to_date, c.to_sitting)}{c.change === 'moved' && c.to_rooms ? <span className="block text-xs font-normal text-slate-600">{c.to_rooms}</span> : null}</td></tr>)}</tbody></table></div>}
   </section>
@@ -317,10 +317,10 @@ function CalendarPanel({ version }: { version: RoutineVersion }) {
     <CardTitle id="e8-calendar" icon="calendar">{t('e8Calendar')}</CardTitle>
     <p className="mt-1 text-sm text-slate-600">{t('e8CalendarHint', { days: offDays })}</p>
     {version.holidays.length > 0 && <p className="mt-1 text-sm text-slate-600">{t('e8Holidays', { list: version.holidays.map(h => `${day(h.date)} (${name(h.title_en, h.title_bn)})`).join('; ') })}</p>}
-    <div className="mt-3 overflow-x-auto"><table className={`${ui.table} min-w-[36rem]`} data-testid="routine-calendar">
+    <div className="mt-3 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('e8Calendar')}><table className={`${ui.table} min-w-[36rem]`} data-testid="routine-calendar">
       <thead><tr><th className={ui.th}>{t('e8Date')}</th>{version.sittings.map(s => <th key={s.id} className={ui.th}>{name(s.name, s.name_bn)} <span className="font-normal normal-case">{s.start_time}–{s.end_time}</span></th>)}</tr></thead>
       <tbody>{version.dates.map(d => <tr key={d}><td className={`${ui.td} whitespace-nowrap font-semibold`}>{day(d)}</td>
-        {version.sittings.map(s => { const list = cells.get(`${d}|${s.id}`) ?? []; return <td key={s.id} className={`${ui.td} align-top`}>{list.length === 0 ? <span className="text-slate-400">{t('e8Empty')}</span> :
+        {version.sittings.map(s => { const list = cells.get(`${d}|${s.id}`) ?? []; return <td key={s.id} className={`${ui.td} align-top`}>{list.length === 0 ? <span className="text-slate-500">{t('e8Empty')}</span> :
           <ul className="flex flex-wrap gap-1">{list.map(p => <li key={p.id} className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800">{p.class_name} · {paperName(p)}</li>)}</ul>}</td> })}</tr>)}</tbody>
     </table></div>
   </section>
@@ -363,7 +363,7 @@ function PapersPanel({ version, editable }: { version: RoutineVersion; editable:
     <div className="mt-3"><FeedbackNotice feedback={runner.feedback} version={version} /></div>
     {version.classes.map(c => <div key={c.id} className="mt-4">
       <h3 className="text-sm font-bold text-slate-900">{c.name} <span className="font-normal text-slate-500">· {c.sections.map(s => `${s.name} (${num(s.students)})`).join(', ')}</span></h3>
-      <div className="mt-2 overflow-x-auto"><table className={`${ui.table} min-w-[40rem]`}><thead><tr><th className={ui.th}>{t('e8Paper')}</th><th className={ui.th}>{t('e8Date')}</th><th className={ui.th}>{t('e8Rooms')}</th>{editable && <th className={ui.th}><span className="sr-only">{t('e8Place')}</span></th>}</tr></thead>
+      <div className="mt-2 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={`${t('e8Papers')}: ${c.name}`}><table className={`${ui.table} min-w-[40rem]`}><thead><tr><th className={ui.th}>{t('e8Paper')}</th><th className={ui.th}>{t('e8Date')}</th><th className={ui.th}>{t('e8Rooms')}</th>{editable && <th className={ui.th}><span className="sr-only">{t('e8Place')}</span></th>}</tr></thead>
         <tbody>{version.papers.filter(p => p.class_id === c.id).map(p => <PaperRows key={p.id}>
           <tr data-testid={`paper-${p.subject_code}-${p.kind}-${p.paper_no}`}>
             <td className={ui.td}><span className="font-semibold text-slate-900">{paperName(p, numbered(p))}</span>{p.optional && <span className="ml-1 text-xs text-slate-500">({t('e8Optional')})</span>}
@@ -425,7 +425,7 @@ function DutiesPanel({ version, editable }: { version: RoutineVersion; editable:
     <p className="mt-1 max-w-3xl text-sm text-slate-600">{t('e8DutiesHint')}</p>
     <div className="mt-3"><FeedbackNotice feedback={runner.feedback} version={version} /></div>
     {version.duties.length === 0 ? <p className="mt-3 text-sm text-slate-600">{t('e8NoDuties')}</p> :
-      <div className="mt-3 max-h-96 overflow-auto"><table className={`${ui.table} min-w-[34rem]`}><thead><tr><th className={ui.th}>{t('e8Date')}</th><th className={ui.th}>{t('e8Sitting')}</th><th className={ui.th}>{t('e8Room')}</th><th className={ui.th}>{t('e8Teacher')}</th>{editable && <th className={ui.th}><span className="sr-only">{t('e8RemoveDuty')}</span></th>}</tr></thead>
+      <div className="mt-3 max-h-96 overflow-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('e8Duties')}><table className={`${ui.table} min-w-[34rem]`}><thead><tr><th className={ui.th}>{t('e8Date')}</th><th className={ui.th}>{t('e8Sitting')}</th><th className={ui.th}>{t('e8Room')}</th><th className={ui.th}>{t('e8Teacher')}</th>{editable && <th className={ui.th}><span className="sr-only">{t('e8RemoveDuty')}</span></th>}</tr></thead>
         <tbody>{version.duties.map(d => <tr key={d.id}><td className={ui.td}>{day(d.exam_date)}</td><td className={ui.td}>{sittingName(d.sitting_id)}</td><td className={ui.td}>{name(d.room_name, d.room_name_bn)}</td><td className={`${ui.td} font-semibold`}>{name(d.employee_name, d.employee_name_bn)}</td>
           {editable && <td className={ui.td}><button type="button" className={`${ui.ghost} text-rose-700`} aria-label={`${t('e8RemoveDuty')}: ${d.employee_name}`} disabled={runner.busy} onClick={() => void runner.run(() => authorized(token => deleteRoutineDuty(token, version.id, d.id)), 'e8Saved')}>{t('delete')}</button></td>}</tr>)}</tbody></table></div>}
     {editable && <form className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-5" onSubmit={e => { e.preventDefault(); void runner.run(() => authorized(token => addRoutineDuty(token, version.id, form)), 'e8Saved') }}>
