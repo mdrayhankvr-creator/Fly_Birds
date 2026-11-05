@@ -142,6 +142,8 @@ export type SchoolDetails = {
 export const schoolDetailKeys = ['eiin', 'founded_year', 'address_bn', 'map_url', 'head_teacher_name_en', 'head_teacher_name_bn'] as const satisfies readonly (keyof SchoolDetails)[]
 export type SchoolSettings = SchoolBranding & SchoolDetails & {
   address: string; phone: string; email: string; grading_scheme_id: string; updated_at: string
+  // Days without attendance, 0 Sunday … 6 Saturday (Friday by default).
+  weekly_off_days: number[]
 }
 export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at' | keyof SchoolDetails>
 export type GradeBand = { grade: string; min_marks: number; max_marks: number; gpa: number }
@@ -395,6 +397,9 @@ export type StudentAttendanceRosterItem = { student_id: string; admission_no: st
 export type StudentAttendanceSummary = { student_id: string; admission_no: string; name_en: string; name_bn: string; present: number; absent: number; late: number; total: number }
 export type StudentAttendanceReport = { student: StudentAttendanceSummary; items: StudentAttendanceRecord[] }
 export type AbsenceEvent = { id: string; student_id: string; attendance_date: string; state: 'pending' | 'cancelled'; name_en: string; guardian_count: number }
+// Whether a date takes attendance: weekly off days and published holidays do not.
+export type AttendanceDay = { date: string; open: boolean; reason?: 'weekly_off' | 'holiday'; weekday: number; holiday_title_en?: string; holiday_title_bn?: string; weekly_off_days: number[] }
+export const getAttendanceDay = (token: string, date: string) => bearerRequest<AttendanceDay>(`/attendance/day?date=${encodeURIComponent(date)}`, token)
 export const getStudentAttendanceRoster = (token: string, params: URLSearchParams) => bearerRequest<Page<StudentAttendanceRosterItem>>(`/attendance/students/roster?${params}`, token)
 export const recordStudentAttendance = (token: string, input: { student_id: string; attendance_date: string; status: StudentAttendanceRecord['status']; note: string }) => bearerRequest<StudentAttendanceRecord>('/attendance/students', token, json('POST', input))
 export type StudentRosterEntry = { student_id: string; status: StudentAttendanceRecord['status']; note: string; record_id: string | null; version: string }

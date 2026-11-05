@@ -23,13 +23,16 @@ type SchoolSettings struct {
 	TaglineBN         string `json:"tagline_bn"`
 	// School details (migration 1759), shown on the public page and read by
 	// documents such as the marksheet. Address above is the English address.
-	EIIN              string    `json:"eiin"`
-	FoundedYear       *int      `json:"founded_year"`
-	AddressBN         string    `gorm:"column:address_bn" json:"address_bn"`
-	MapURL            string    `json:"map_url"`
-	HeadTeacherNameEN string    `gorm:"column:head_teacher_name_en" json:"head_teacher_name_en"`
-	HeadTeacherNameBN string    `gorm:"column:head_teacher_name_bn" json:"head_teacher_name_bn"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	EIIN              string `json:"eiin"`
+	FoundedYear       *int   `json:"founded_year"`
+	AddressBN         string `gorm:"column:address_bn" json:"address_bn"`
+	MapURL            string `json:"map_url"`
+	HeadTeacherNameEN string `gorm:"column:head_teacher_name_en" json:"head_teacher_name_en"`
+	HeadTeacherNameBN string `gorm:"column:head_teacher_name_bn" json:"head_teacher_name_bn"`
+	// WeeklyOffDays are the days without attendance, 0 (Sunday) … 6
+	// (Saturday); Friday by default (table school_weekly_off_days).
+	WeeklyOffDays []int     `gorm:"-" json:"weekly_off_days"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 func (SchoolSettings) TableName() string { return "school_settings" }
@@ -57,6 +60,9 @@ type SettingsInput struct {
 	MapURL            *string `json:"map_url,omitempty"`
 	HeadTeacherNameEN *string `json:"head_teacher_name_en,omitempty"`
 	HeadTeacherNameBN *string `json:"head_teacher_name_bn,omitempty"`
+	// WeeklyOffDays replaces the weekly off days when present (at most six
+	// days, so at least one day takes attendance).
+	WeeklyOffDays *[]int `json:"weekly_off_days,omitempty"`
 }
 
 type Branding struct {

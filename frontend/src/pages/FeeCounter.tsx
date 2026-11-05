@@ -5,8 +5,9 @@ import { StudentName } from '../components/StudentLink'
 import { assignFeeDue, getFeeReceipt, getFeeStructures, getStudentFeeStatement, recordFeePayment, searchFeeStudents, type FeeMethod, type FeeOptions, type FeeReceipt, type FeeStudent } from '../api/fees'
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
+import { ReversePaymentPanel } from './FeeLifecyclePanels'
 import { Avatar, CardTitle, EmptyState, Skeleton, ui } from './attendanceUi'
-import { Notice, PaymentsList, ReceiptView, SimulatedLabel, StatusBadge, feeCard, feeField, newKey, todayInDhaka, useFeeAction, useLocalName, useMoney, useMonthLabel, type FeeAccess } from './feeShared'
+import { FineNote, Notice, PaymentsList, ReceiptView, SimulatedLabel, StatusBadge, feeCard, feeField, newKey, todayInDhaka, useFeeAction, useLocalName, useMoney, useMonthLabel, type FeeAccess } from './feeShared'
 
 // The fee counter (checkpoint 3): find a student by admission number, name,
 // roll or guardian phone, see their dues oldest first, and collect in two or
@@ -120,6 +121,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
           <button type="button" className={`${ui.secondary} min-h-12`} onClick={reset}><Icon name="search" className="h-4 w-4" />{t('c3NextStudent')} <kbd className="ml-1 rounded border border-slate-300 px-1 text-xs">Esc</kbd></button>
           <button type="button" className={`${ui.secondary} min-h-12`} onClick={() => setReceipt(null)}>{t('c3BackToDues')}</button>
         </div>
+        {access.role === 'admin' && access.canManage && <ReversePaymentPanel key={receipt.payment.id} payment={receipt.payment} onDone={payment => setReceipt({ ...receipt, payment })} />}
       </div>}
 
       {!receipt && <>
@@ -147,7 +149,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
                     {access.canCollect && <input type="checkbox" className="h-5 w-5 shrink-0 accent-[var(--brand-primary)]" checked={checked} onChange={() => { setSelected(c => c.includes(d.id) ? c.filter(v => v !== d.id) : [...c, d.id]); setAmount('') }} />}
                     <span className="min-w-0 flex-1"><span className="block font-semibold text-slate-900">{name(d.category_name_en, d.category_name_bn)}{d.period && <span className="font-normal text-slate-600"> · {month(d.period)}</span>}</span>
                       <span className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-600">{t('feeDueDate')} {d.due_date}<StatusBadge due={d} /></span></span>
-                    <span className="text-right font-bold tabular-nums text-slate-900">{money(d.balance)}</span>
+                    <span className="text-right font-bold tabular-nums text-slate-900">{money(d.balance)}<FineNote due={d} /></span>
                   </label></li>
                 })}</ul>
               </>}

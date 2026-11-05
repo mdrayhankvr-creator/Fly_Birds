@@ -186,6 +186,9 @@ func run(logger *slog.Logger) error {
 	if comm != nil && cfg.NotifyInterval > 0 {
 		go backgroundWork(ctx, logger, comm, cfg.NotifyInterval)
 	}
+	if feeService != nil {
+		go lateFines(ctx, logger, feeService, 30*time.Minute)
+	}
 
 	serveResult := make(chan error, 1)
 	go func() { serveResult <- server.ListenAndServe() }()
@@ -233,6 +236,32 @@ func backgroundWork(ctx context.Context, logger *slog.Logger, comm *httpapi.Comm
 				logger.Info("abandoned uploads removed", "count", removed)
 			}
 			cancel()
+		}
+	}
+}
+
+// lateFines charges the late fines that fell due, at startup and then on a
+// fixed interval. Payments and statements also charge a student's fines
+// first, so the counter never waits for this pass.
+func lateFines(ctx context.Context, logger *slog.Logger, service *fees.Service, interval time.Duration) {
+	run := func() {
+		runCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		if result, err := service.ApplyLateFines(runCtx); err != nil {
+			logger.Error("late fines failed", "error", err)
+		} else if result.Charged > 0 {
+			logger.Info("late fines charged", "dues", result.Charged, "amount", result.Amount)
+		}
+	}
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
 		}
 	}
 }

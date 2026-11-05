@@ -33,13 +33,17 @@ type CategoryInput struct {
 	IsActive  *bool  `json:"is_active"`
 }
 type Structure struct {
-	ID             string  `json:"id"`
-	SessionID      string  `json:"session_id"`
-	ClassID        string  `json:"class_id"`
-	CategoryID     string  `json:"category_id"`
-	Amount         float64 `json:"amount"`
-	DueDay         int     `json:"due_day"`
-	IsActive       bool    `json:"is_active"`
+	ID         string  `json:"id"`
+	SessionID  string  `json:"session_id"`
+	ClassID    string  `json:"class_id"`
+	CategoryID string  `json:"category_id"`
+	Amount     float64 `json:"amount"`
+	DueDay     int     `json:"due_day"`
+	IsActive   bool    `json:"is_active"`
+	// LateFine is charged once on a due still owing money after its due
+	// date; 0 is off. A due keeps the fine its structure had when it was
+	// created, so a change applies only to dues created afterwards.
+	LateFine       float64 `json:"late_fine"`
 	SessionName    string  `json:"session_name"`
 	ClassName      string  `json:"class_name"`
 	CategoryCode   string  `json:"category_code"`
@@ -54,6 +58,7 @@ type StructureInput struct {
 	Amount     float64 `json:"amount"`
 	DueDay     int     `json:"due_day"`
 	IsActive   *bool   `json:"is_active"`
+	LateFine   float64 `json:"late_fine"`
 }
 type Concession struct {
 	ID             string  `json:"id"`
@@ -100,6 +105,14 @@ type Due struct {
 	Amount         float64 `json:"amount"`
 	DiscountAmount float64 `json:"discount_amount"`
 	PaidAmount     float64 `json:"paid_amount"`
+	// LateFine is the fine this due carries; FineAmount is what was charged
+	// (0 until it is late), included in Balance.
+	LateFine      float64 `json:"late_fine"`
+	FineAmount    float64 `json:"fine_amount"`
+	FineChargedOn *string `json:"fine_charged_on"`
+	// CancellationID is set while the due is cancelled because the student
+	// left (status "cancelled").
+	CancellationID *string `json:"cancellation_id"`
 	Balance        float64 `json:"balance"`
 	Status         string  `json:"status"`
 	Overdue        bool    `json:"overdue"`
@@ -172,9 +185,15 @@ type Payment struct {
 	Method    string  `json:"method"`
 	Source    string  `json:"source"`
 	// Simulated payments moved no money; Voided ones no longer reduce dues.
-	Simulated      bool    `json:"simulated"`
-	VoidedAt       *string `json:"voided_at"`
-	VoidReason     string  `json:"void_reason"`
+	Simulated  bool    `json:"simulated"`
+	VoidedAt   *string `json:"voided_at"`
+	VoidReason string  `json:"void_reason"`
+	// A reversed counter payment no longer pays its dues ("error": recorded
+	// by mistake; "refund": paid back).
+	ReversedAt     *string `json:"reversed_at"`
+	ReversalKind   *string `json:"reversal_kind"`
+	ReversalReason string  `json:"reversal_reason"`
+	ReversedByName string  `json:"reversed_by_name"`
 	Reference      string  `json:"reference"`
 	PaidOn         string  `json:"paid_on"`
 	Note           string  `json:"note"`
@@ -225,6 +244,7 @@ type Totals struct {
 	Paid     float64 `json:"paid"`
 	Balance  float64 `json:"balance"`
 	Overdue  float64 `json:"overdue"`
+	Fines    float64 `json:"fines"`
 	// SimulatedUnreviewed is the part of Paid that came from simulated
 	// payments recorded before the payment-safety upgrade and not yet voided:
 	// no money was received for it.
@@ -262,12 +282,14 @@ type Entry struct {
 	Category  string  `json:"category"`
 	Amount    float64 `json:"amount"`
 	// Simulated marks income posted by a simulated payment: not real money.
-	Simulated     bool    `json:"simulated"`
-	EntryDate     string  `json:"entry_date"`
-	Description   string  `json:"description"`
-	Reference     string  `json:"reference"`
-	PaymentID     *string `json:"payment_id"`
-	CreatedByName string  `json:"created_by_name"`
+	Simulated   bool    `json:"simulated"`
+	EntryDate   string  `json:"entry_date"`
+	Description string  `json:"description"`
+	Reference   string  `json:"reference"`
+	PaymentID   *string `json:"payment_id"`
+	// ReversesPaymentID marks the negative fee income of a reversed payment.
+	ReversesPaymentID *string `json:"reverses_payment_id"`
+	CreatedByName     string  `json:"created_by_name"`
 }
 type EntryInput struct {
 	EntryType   string  `json:"entry_type"`
@@ -319,6 +341,7 @@ type DueReportRow struct {
 	Charged     float64 `json:"charged"`
 	Discount    float64 `json:"discount"`
 	Paid        float64 `json:"paid"`
+	Fines       float64 `json:"fines"`
 	Balance     float64 `json:"balance"`
 	Overdue     float64 `json:"overdue"`
 	OldestDue   *string `json:"oldest_due"`
@@ -403,4 +426,44 @@ type SimulationResult struct {
 
 type VoidInput struct {
 	Reason string `json:"reason"`
+}
+
+// ReverseInput reverses a counter payment: Kind "error" (recorded by
+// mistake) or "refund" (paid back to the payer), with a reason.
+type ReverseInput struct {
+	Kind   string `json:"kind"`
+	Reason string `json:"reason"`
+}
+
+// Cancellation is one leaving's cancelled dues (QA-08).
+type Cancellation struct {
+	ID             string  `json:"id"`
+	StudentID      string  `json:"student_id"`
+	StudentName    string  `json:"student_name"`
+	StudentNameBN  string  `json:"student_name_bn"`
+	AdmissionNo    string  `json:"admission_no"`
+	StudentStatus  string  `json:"student_status"`
+	ClassName      string  `json:"class_name"`
+	SessionName    string  `json:"session_name"`
+	Reason         string  `json:"reason"`
+	LeftOn         string  `json:"left_on"`
+	Dues           int     `json:"dues"`
+	Amount         float64 `json:"amount"`
+	CreatedAt      string  `json:"created_at"`
+	CreatedByName  string  `json:"created_by_name"`
+	RevertedAt     *string `json:"reverted_at"`
+	RevertReason   string  `json:"revert_reason"`
+	RevertedByName string  `json:"reverted_by_name"`
+	// Periods are the cancelled months (YYYY-MM).
+	Periods []string `json:"periods" gorm:"-"`
+}
+
+type RevertInput struct {
+	Reason string `json:"reason"`
+}
+
+// FineResult is one late-fine pass.
+type FineResult struct {
+	Charged int64   `json:"charged"`
+	Amount  float64 `json:"amount"`
 }

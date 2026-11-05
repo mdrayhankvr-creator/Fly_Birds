@@ -102,6 +102,9 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
     if (!readableOnWhite(draft.primary_color) || !readableOnWhite(draft.secondary_color)) {
       setError(t('schoolValidationError')); return
     }
+    if ((draft.weekly_off_days ?? []).length > 6) {
+      setError(t('afOffDaysTooMany')); return
+    }
     setError(''); setNotice(''); saveSettings.mutate(draft)
   }
   function submitGrading(event: FormEvent<HTMLFormElement>) {
@@ -149,6 +152,17 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
           <FormField label={t('primaryColor')}><input className={inputClass} type="text" pattern="#[0-9a-fA-F]{6}" maxLength={7} value={draft.primary_color} disabled={!canEditSettings} onChange={(event) => setField('primary_color', event.target.value)} /></FormField>
           <FormField label={t('secondaryColor')}><input className={inputClass} type="text" pattern="#[0-9a-fA-F]{6}" maxLength={7} value={draft.secondary_color} disabled={!canEditSettings} onChange={(event) => setField('secondary_color', event.target.value)} /></FormField>
         </div>
+        <fieldset className="mt-6 rounded-xl border border-slate-200 p-4 sm:p-5" aria-describedby="off-days-hint">
+          <legend className="px-1 text-base font-semibold text-slate-900">{t('afOffDaysTitle')}</legend>
+          <p id="off-days-hint" className="text-sm text-slate-600">{t('afOffDaysHint')}</p>
+          <div className="mt-3 flex flex-wrap gap-2">{[6, 0, 1, 2, 3, 4, 5].map(day => {
+            const checked = (draft.weekly_off_days ?? []).includes(day)
+            return <label key={day} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${checked ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-slate-900' : 'border-slate-300 bg-white text-slate-700'} ${canEditSettings ? '' : 'cursor-default opacity-80'}`}>
+              <input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={checked} disabled={!canEditSettings}
+                onChange={() => setField('weekly_off_days', checked ? (draft.weekly_off_days ?? []).filter(d => d !== day) : [...(draft.weekly_off_days ?? []), day].sort((a, b) => a - b))} />{t(`afWeekday_${day}`)}</label>
+          })}</div>
+          {(draft.weekly_off_days ?? []).length > 6 && <p role="alert" className="mt-2 text-sm text-rose-700">{t('afOffDaysTooMany')}</p>}
+        </fieldset>
         <div className="mt-6 rounded-xl border border-slate-200 p-5" data-theme-preview={draft.dashboard_theme} style={previewStyle}>
           <h3 className="text-lg font-semibold">{t('preview')}</h3>
           <div className="mt-3 flex flex-wrap items-center gap-4">

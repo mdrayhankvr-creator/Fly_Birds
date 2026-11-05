@@ -70,6 +70,20 @@ export function VoidLabel({ className = '' }: { className?: string }) {
   return <span className={`${display(className)} w-fit rounded-md bg-slate-800 px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide text-white ${className}`}>{t('feeVoidLabel')}</span>
 }
 
+// ReversedLabel marks a counter payment that was reversed (by mistake or refunded).
+export function ReversedLabel({ className = '' }: { className?: string }) {
+  const { t } = useTranslation()
+  return <span className={`${display(className)} w-fit rounded-md bg-amber-700 px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide text-white ${className}`}>{t('afReversedLabel')}</span>
+}
+
+// FineNote says how much of a due's balance is a late fine.
+export function FineNote({ due }: { due: Pick<FeeDue, 'fine_amount'> }) {
+  const { t } = useTranslation()
+  const money = useMoney()
+  if (!due.fine_amount) return null
+  return <span className="block text-xs font-normal text-rose-800">{t('afFineIncluded', { amount: money(due.fine_amount) })}</span>
+}
+
 export function useFeeError() {
   const { t } = useTranslation()
   return (cause: unknown) => t(cause instanceof ApiError && errorKeys[cause.code] ? errorKeys[cause.code] : 'feeErrGeneric')
@@ -93,7 +107,7 @@ export function Pager({ page, total, size, onPage }: { page: number; total: numb
 
 export function StatusBadge({ due }: { due: Pick<FeeDue, 'status' | 'overdue'> }) {
   const { t } = useTranslation()
-  const tone = due.overdue ? 'bg-rose-100 text-rose-800' : due.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : due.status === 'waived' ? 'bg-slate-200 text-slate-700' : due.status === 'partial' ? 'bg-amber-100 text-amber-900' : 'bg-sky-100 text-sky-900'
+  const tone = due.overdue ? 'bg-rose-100 text-rose-800' : due.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : due.status === 'waived' || due.status === 'cancelled' ? 'bg-slate-200 text-slate-700' : due.status === 'partial' ? 'bg-amber-100 text-amber-900' : 'bg-sky-100 text-sky-900'
   return <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{t(`feeStatus_${due.status}`)}{due.overdue ? ` · ${t('feeOverdue')}` : ''}</span>
 }
 
@@ -136,6 +150,7 @@ export function ReceiptView({ receipt, onClose, actions = true }: { receipt: Fee
     </header>
     {p.simulated && <div role="alert" className="mt-4 rounded-xl border-2 border-rose-700 bg-rose-50 p-3 text-rose-900"><p className="text-base font-extrabold uppercase tracking-wide">{t('feeSimulatedLabel')}</p><p className="mt-1 text-sm">{t('feeSimulatedReceiptHint')}</p></div>}
     {p.voided_at && <div role="note" className="mt-3 rounded-xl border-2 border-slate-800 bg-slate-50 p-3 text-slate-900"><VoidLabel /><p className="mt-1 text-sm">{t('feeVoidedOn', { date: p.voided_at, reason: p.void_reason })}</p></div>}
+    {p.reversed_at && <div role="note" className="mt-3 rounded-xl border-2 border-amber-700 bg-amber-50 p-3 text-amber-900"><ReversedLabel /><p className="mt-1 text-sm">{t('afReversedOn', { date: p.reversed_at, name: p.reversed_by_name, kind: t(`afReverseKind_${p.reversal_kind}`), reason: p.reversal_reason })}</p></div>}
     {receipt.replayed && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-900 print:hidden">{t('feeReplayed')}</p>}
     <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
       <div><dt className="text-slate-500">{t('feeStudent')}</dt><dd className="font-semibold">{p.student_name}{p.student_name_bn && <span lang="bn" className="block">{p.student_name_bn}</span>}<span className="block font-normal text-slate-600">{p.admission_no}</span></dd></div>
@@ -157,8 +172,8 @@ export function ReceiptView({ receipt, onClose, actions = true }: { receipt: Fee
 export function Totals({ totals }: { totals: FeeStatement['totals'] }) {
   const { t } = useTranslation()
   const money = useMoney()
-  const items: [string, number, string][] = [['feeCharged', totals.charged, ''], ['feeDiscount', totals.discount, ''], ['feePaid', totals.paid, 'text-emerald-800'], ['feeBalance', totals.balance, 'text-slate-900'], ['feeArrears', totals.overdue, totals.overdue > 0 ? 'text-rose-700' : '']]
-  return <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-5 sm:gap-3">{items.map(([key, value, tone]) => <div key={key} className={`min-w-0 px-3.5 py-3 ${key === 'feeBalance' ? 'ds-tint' : 'ds-stat'}`}><dt className="text-xs font-semibold text-slate-600">{t(key)}</dt><dd className={`mt-1 truncate text-lg font-extrabold tabular-nums tracking-tight sm:text-xl ${tone}`}>{money(value)}</dd></div>)}</dl>
+  const items: [string, number, string][] = [['feeCharged', totals.charged, ''], ...(totals.fines > 0 ? [['afFines', totals.fines, 'text-rose-800'] as [string, number, string]] : []), ['feeDiscount', totals.discount, ''], ['feePaid', totals.paid, 'text-emerald-800'], ['feeBalance', totals.balance, 'text-slate-900'], ['feeArrears', totals.overdue, totals.overdue > 0 ? 'text-rose-700' : '']]
+  return <dl className={`grid grid-cols-2 gap-2.5 sm:gap-3 ${items.length > 5 ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-5'}`}>{items.map(([key, value, tone]) => <div key={key} className={`min-w-0 px-3.5 py-3 ${key === 'feeBalance' ? 'ds-tint' : 'ds-stat'}`}><dt className="text-xs font-semibold text-slate-600">{t(key)}</dt><dd className={`mt-1 truncate text-lg font-extrabold tabular-nums tracking-tight sm:text-xl ${tone}`}>{money(value)}</dd></div>)}</dl>
 }
 
 export function DuesTable({ dues, selectable, selected, onToggle, actions }: { dues: FeeDue[]; selectable?: boolean; selected?: string[]; onToggle?: (id: string) => void; actions?: (due: FeeDue) => ReactNode }) {
@@ -171,7 +186,7 @@ export function DuesTable({ dues, selectable, selected, onToggle, actions }: { d
     <tbody>{dues.map(d => <tr key={d.id} className="border-b align-top">
       {selectable && <td className="px-3 py-2.5">{d.balance > 0 && <input type="checkbox" aria-label={`${t('feeSelect')} ${name(d.category_name_en, d.category_name_bn)} ${d.due_date}`} checked={selected?.includes(d.id) ?? false} onChange={() => onToggle?.(d.id)} />}</td>}
       <td className="px-3 py-2.5">{name(d.category_name_en, d.category_name_bn)}</td><td className="px-3 py-2.5">{month(d.period)}</td><td className="p-2 whitespace-nowrap">{d.due_date}</td>
-      <td className="px-3 py-2.5 text-right tabular-nums">{money(d.amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.discount_amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}</td>
+      <td className="px-3 py-2.5 text-right tabular-nums">{money(d.amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.discount_amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}<FineNote due={d} /></td>
       <td className="px-3 py-2.5"><StatusBadge due={d} /></td>{actions && <td className="px-3 py-2.5 print:hidden">{actions(d)}</td>}</tr>)}</tbody>
   </TableWrap>
 }
@@ -181,7 +196,7 @@ export function PaymentsList({ payments, onOpen }: { payments: FeeStatement['pay
   const money = useMoney()
   if (payments.length === 0) return <div className="mt-3"><EmptyState icon="receipt" title={t('feeNoPayments')} /></div>
   return <TableWrap><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeReceiptNo')}</th><th className="px-3 py-2.5">{t('feePaidOn')}</th><th className="px-3 py-2.5">{t('feeMethod')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 print:hidden"><span className="sr-only">{t('feeActions')}</span></th></tr></thead>
-    <tbody>{payments.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}{p.simulated && <SimulatedLabel className="mt-1 block font-sans" />}{p.voided_at && <VoidLabel className="mt-1 block font-sans" />}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
+    <tbody>{payments.map(p => <tr key={p.id} className="border-b border-slate-100"><td className="p-2 font-mono">{p.receipt_no}{p.simulated && <SimulatedLabel className="mt-1 block font-sans" />}{p.voided_at && <VoidLabel className="mt-1 block font-sans" />}{p.reversed_at && <ReversedLabel className="mt-1 block font-sans" />}</td><td className="px-3 py-2.5">{p.paid_on}</td><td className="px-3 py-2.5">{t(`feeMethod_${p.method}`)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(p.amount)}</td>
       <td className="px-3 py-2.5 print:hidden"><button type="button" className={ui.link} onClick={() => onOpen(p.id)}>{t('feeViewReceipt')}</button></td></tr>)}</tbody>
   </TableWrap>
 }

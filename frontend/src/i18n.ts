@@ -29,6 +29,7 @@ import { promotionTranslations } from './promotionTranslations'
 import { premiumUi4Translations } from './premiumUi4Translations'
 import { premiumUi5Translations } from './premiumUi5Translations'
 import { e7Translations } from './e7Translations'
+import { auditFixesTranslations } from './auditFixesTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -202,5 +203,7 @@ i18n.addResourceBundle('en', 'translation', premiumUi5Translations.en, true, tru
 i18n.addResourceBundle('bn', 'translation', premiumUi5Translations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', e7Translations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', e7Translations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', auditFixesTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', auditFixesTranslations.bn, true, true)
 
 export default i18n

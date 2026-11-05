@@ -41,7 +41,14 @@ func (h *attendanceHandler) available(c *gin.Context) bool {
 }
 func attendanceError(c *gin.Context, err error) {
 	var stale *attendance.StaleError
+	var off *attendance.DayOffError
 	switch {
+	case errors.As(err, &off):
+		message := "no attendance on " + off.Day.Date + ": it is a weekly off day"
+		if off.Day.Reason == "holiday" {
+			message = "no attendance on " + off.Day.Date + ": it is a holiday (" + off.Day.HolidayEN + ")"
+		}
+		c.JSON(409, gin.H{"error": gin.H{"code": "attendance_day_off", "message": message, "day": off.Day}})
 	case errors.As(err, &stale):
 		c.JSON(409, gin.H{"error": gin.H{"code": "attendance_changed", "message": "attendance changed since it was loaded; reload and review", "student_ids": stale.StudentIDs}})
 	case errors.Is(err, attendance.ErrInvalid):
@@ -177,4 +184,20 @@ func (h *attendanceHandler) ownTeacherMonthly(c *gin.Context) {
 		return
 	}
 	success(c, 200, v)
+}
+
+// attendanceDay godoc
+// @Summary Whether a date takes attendance (weekly off days and published holidays)
+// @Tags attendance
+// @Router /attendance/day [get]
+func (h *attendanceHandler) attendanceDay(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	v, err := h.service.Day(c.Request.Context(), c.Query("date"))
+	if err != nil {
+		attendanceError(c, err)
+		return
+	}
+	success(c, http.StatusOK, v)
 }

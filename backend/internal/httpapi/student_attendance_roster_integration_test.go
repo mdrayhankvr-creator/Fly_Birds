@@ -36,6 +36,7 @@ func TestPostgresStudentAttendanceRosterSave(t *testing.T) {
 	if err = database.Migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
+	withoutWeeklyOffDays(t, db)
 	var random [7]byte
 	if _, err = rand.Read(random[:]); err != nil {
 		t.Fatal(err)
@@ -231,6 +232,22 @@ func TestPostgresStudentAttendanceRosterSave(t *testing.T) {
 		t.Fatalf("stale body %s", stale)
 	}
 	call("PUT", "/attendance/students/roster", payload(day, entry{StudentID: second, Status: "late"}), teacherH, 409)
+
+	// Lifecycle audit QA-12: with Friday a weekly off day again, a roster on
+	// a Friday still corrects what was recorded, but records nothing new.
+	if err = db.Exec("INSERT INTO school_weekly_off_days (day_of_week) VALUES (5)").Error; err != nil {
+		t.Fatal(err)
+	}
+	items = roster(day)
+	if r := result(call("PUT", "/attendance/students/roster", payload(day, entry{StudentID: first, Status: "present", Note: "Corrected on an off day", RecordID: items[0].RecordID, Version: *items[0].Version}), teacherH, 200)); r.Updated != 1 {
+		t.Fatalf("correction on an off day %+v", r)
+	}
+	if off := call("PUT", "/attendance/students/roster", payload("2026-04-17", entry{StudentID: first, Status: "present"}), teacherH, 409); !strings.Contains(string(off), "attendance_day_off") {
+		t.Fatalf("new attendance on an off day: %s", off)
+	}
+	if err = db.Exec("DELETE FROM school_weekly_off_days").Error; err != nil {
+		t.Fatal(err)
+	}
 
 	// QR keeps working, and a roster that did not know about the scan cannot overwrite it.
 	const qrDay = "2026-04-11"

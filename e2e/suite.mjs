@@ -9,6 +9,24 @@ const pw = process.env.DEMO_PASSWORD
 const r = reporter(), check = r.check
 const b = await launch({ base: process.env.E2E_BASE_URL || 'http://127.0.0.1:5173', shots: join(here, 'shots', 'suite'), port: 9345 })
 const email = who => `demo.${who}@demo.flybirds.test`
+// The attendance workflow takes today's attendance. On a weekly off day
+// (Friday by default, lifecycle audit QA-12) the administrator of this
+// disposable school opens the day for the run; the days are restored at the
+// end. The calls go through the browser, which accepts the CI edge's
+// self-signed certificate.
+let restoreOffDays = null
+async function openTodayForAttendance() {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date())
+  const day = (await b.api(`/attendance/day?date=${today}`)).body.data
+  if (day.open) return
+  if (day.reason !== 'weekly_off') throw new Error(`today is a holiday (${day.holiday_title_en}) in this school: run the suite on another day`)
+  await b.login(email('admin'), pw)
+  const { updated_at: _updated, ...settings } = (await b.api('/school/settings')).body.data
+  const put = days => b.api('/school/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...settings, weekly_off_days: days }) })
+  await put([])
+  restoreOffDays = async () => { await b.login(email('admin'), pw); await put(day.weekly_off_days) }
+  await b.login(email('teacher'), pw)
+}
 const sidebarLabels = () => b.evaluate(`[...document.querySelectorAll('aside nav a')].map(a => a.innerText.trim())`)
 const waitDash = () => b.waitFor(`/Good (morning|afternoon|evening)|শুভ/.test(document.body.innerText) && !document.querySelector('main .animate-pulse')`, 15000)
 
@@ -162,6 +180,7 @@ try {
 
   // ---------- attendance workflow (teacher) ----------
   await b.login(email('teacher'), pw)
+  await openTodayForAttendance()
   await b.go('/admin/attendance/students')
   await b.waitFor(`[...document.querySelectorAll('button')].some(x => x.innerText.trim() === 'Mark all present')`)
   const rolls = await b.evaluate(`[...document.querySelectorAll('main li, main [data-roll]')].map(e => e.innerText.match(/^\\s*(\\d+)\\n/)?.[1]).filter(Boolean).map(Number)`)
@@ -240,6 +259,7 @@ try {
     }
   }
 } catch (e) { check('script error', false, e.stack) } finally {
+  if (restoreOffDays) await restoreOffDays()
   check('no JavaScript exceptions', b.errors.length === 0, b.errors.slice(0, 3).join(' | '))
   const csp = b.consoleErrors.filter(e => /Content Security Policy|Refused to/i.test(e))
   check('no Content-Security-Policy violations', csp.length === 0, csp.slice(0, 3).join(' | '))
