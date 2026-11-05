@@ -108,9 +108,19 @@ type Repository interface {
 	SaveExamSlot(context.Context, string, string, string, ExamSlotInput, int, int) (Exam, error)
 	DeleteExamSlot(context.Context, string, string, string) error
 }
-type Service struct{ repo Repository }
+type Service struct {
+	repo Repository
+	// Term is the term exam routine planner (E8); nil without a database.
+	Term *TermService
+}
 
-func NewService(repo Repository) *Service { return &Service{repo: repo} }
+func NewService(repo Repository) *Service {
+	s := &Service{repo: repo}
+	if g, ok := repo.(*GormRepository); ok {
+		s.Term = NewTermService(NewTermRepository(g.db))
+	}
+	return s
+}
 
 func minute(v string) (int, bool) {
 	t, err := time.Parse("15:04", v)
