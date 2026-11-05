@@ -1973,6 +1973,252 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: slotId, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Slot deleted }, '409': { description: Published routine }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/rooms:
+    get:
+      operationId: listExamRooms
+      summary: List exam rooms
+      description: "Requires routine:read and the routine module. all=true includes rooms no longer in use."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: all, in: query, schema: { type: boolean } }]
+      responses: { '200': { description: Rooms }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createExamRoom
+      summary: Add an exam room
+      description: "Requires routine:manage, the administrator role and the routine module. Kind is classroom, lab or hall; the capacity (optional) is checked against the students seated."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamRoomInput' } } } }
+      responses: { '201': { description: Room created }, '400': { description: Invalid input }, '409': { description: A room with this name exists }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/rooms/{id}:
+    patch:
+      operationId: updateExamRoom
+      summary: Change an exam room
+      description: "Requires routine:manage, the administrator role and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamRoomInput' } } } }
+      responses: { '200': { description: Room changed }, '400': { description: Invalid input }, '404': { description: Not found }, '409': { description: Duplicate name }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/terms:
+    get:
+      operationId: listRoutineTerms
+      summary: List exam terms with their routine versions
+      description: "Requires routine:read and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Terms and versions }, '400': { description: Invalid session }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/terms/me:
+    get:
+      operationId: getMyTermRoutines
+      summary: The signed-in student's published term exam routines
+      description: "Requires routine:read_self, the student role and the routine module. Lists the papers the student sits (their optional subject included, an alternative they did not choose left out) with their own section's room. An amendment published in the last 7 days marks the papers it changed and gives amended_on and its reason."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Routines }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/terms/me/{versionId}/pdf:
+    get:
+      operationId: getMyTermRoutinePdf
+      summary: The signed-in student's routine as a PDF
+      description: "Requires routine:read_self, the student role and the routine module. A published version of the student's session; only their section's papers and rooms. lang is en or bn."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: versionId, in: path, required: true, schema: { type: string, format: uuid } }, { name: lang, in: query, schema: { type: string, enum: [en, bn] } }]
+      responses: { '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }, '404': { description: Not a published routine of the student }, '503': { description: documents_unavailable }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/duties/me:
+    get:
+      operationId: getMyInvigilationDuties
+      summary: The signed-in teacher's invigilation duties
+      description: "Requires routine:read_self, the teacher role and the routine module. Duties in published routines, with the room, the sitting and the papers sat there."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Duties }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions:
+    post:
+      operationId: createRoutineVersion
+      summary: Start a term's exam routine
+      description: "Requires routine:manage, the administrator role and the routine module. Creates version 1 as a draft with two sittings (Morning 10:00 to 13:00, Afternoon 14:00 to 17:00) and one theory paper for each subject of each class that has an exam in the term (or of every active class with sections). The dates default to the term's and must lie within the term and session (at most 120 days)."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TermRoutineVersionInput' } } } }
+      responses: { '201': { description: Version created }, '400': { description: Invalid input or dates }, '404': { description: Term not found }, '409': { description: The term already has a routine; amend it instead }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}:
+    get:
+      operationId: getRoutineVersion
+      summary: Read a routine version
+      description: "Requires routine:read and the routine module. Includes sittings, papers with rooms, duties, classes and sections with student counts, rooms, teachers, weekly off days, holidays, open exam days, the rule check (issues: hard ones block submission, approval and publication; soft ones warn) and, for an amendment, its changes from the version it amends."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version, content: { application/json: { schema: { type: object, properties: { data: { $ref: '#/components/schemas/TermRoutineVersion' } } } } } }, '400': { description: Invalid id }, '404': { description: Not found }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    patch:
+      operationId: updateRoutineVersion
+      summary: Change a draft routine's dates and instructions
+      description: "Requires routine:manage, the administrator role and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TermRoutineVersionInput' } } } }
+      responses: { '200': { description: Version }, '400': { description: Invalid dates }, '409': { description: 'routine_state: the version is not a draft' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteRoutineVersion
+      summary: Delete a draft routine version
+      description: "Requires routine:manage, the administrator role and the routine module. Only drafts can be deleted."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '409': { description: 'routine_state: the version is not a draft' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/sittings:
+    post:
+      operationId: createRoutineSitting
+      summary: Add a sitting
+      description: "Requires routine:manage, the administrator role and the routine module. Sittings of a version may not overlap."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, start_time, end_time], properties: { name: { type: string, maxLength: 60 }, name_bn: { type: string }, start_time: { type: string, example: '10:00' }, end_time: { type: string, example: '13:00' } } } } } }
+      responses: { '200': { description: Version }, '400': { description: Invalid input }, '409': { description: 'Overlapping sitting, duplicate name or routine_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/sittings/{sittingId}:
+    patch:
+      operationId: updateRoutineSitting
+      summary: Change a sitting
+      description: "Requires routine:manage, the administrator role and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sittingId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, start_time, end_time], properties: { name: { type: string, maxLength: 60 }, name_bn: { type: string }, start_time: { type: string, example: '10:00' }, end_time: { type: string, example: '13:00' } } } } } }
+      responses: { '200': { description: Version }, '400': { description: Invalid input }, '409': { description: 'Overlapping sitting, duplicate name or routine_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteRoutineSitting
+      summary: Delete an unused sitting
+      description: "Requires routine:manage, the administrator role and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: sittingId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version }, '409': { description: 'The sitting is in use, or routine_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/papers:
+    post:
+      operationId: createRoutinePaper
+      summary: Add a paper
+      description: "Requires routine:manage, the administrator role and the routine module. For example a practical (needs_lab), a viva, or a second paper (paper_no 2)."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [class_id, subject_id, duration_minutes], properties: { class_id: { type: string, format: uuid }, subject_id: { type: string, format: uuid }, kind: { type: string, enum: [theory, practical, viva, oral] }, paper_no: { type: integer, minimum: 1, maximum: 3 }, duration_minutes: { type: integer, minimum: 15, maximum: 360 }, needs_lab: { type: boolean } } } } } }
+      responses: { '200': { description: Version }, '400': { description: Invalid input }, '409': { description: 'The paper exists, or routine_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/papers/{paperId}:
+    patch:
+      operationId: placeRoutinePaper
+      summary: Place a paper by hand
+      description: "Requires routine:manage, the administrator role and the routine module. Sets the duration, lab need, date, sitting and each section's room. A placed paper is pinned (the generator keeps it) unless pinned is false. The placement is refused when it breaks a hard rule: a weekly off day, a holiday or a date outside the routine; a sitting shorter than the paper; a class or its students in two papers at once; a room over capacity, or shared by classes without being a hall; a practical outside a lab."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: paperId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RoutinePlacement' } } } }
+      responses: { '200': { description: Version }, '400': { description: Invalid input }, '404': { description: Not found }, '409': { description: 'routine_conflict (the change breaks a hard rule; error.issues lists them), routine_state (the version is not a draft) or a duplicate' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteRoutinePaper
+      summary: Remove a paper
+      description: "Requires routine:manage, the administrator role and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: paperId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version }, '404': { description: Not found }, '409': { description: 'routine_state: the version is not a draft' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/duties:
+    post:
+      operationId: createRoutineDuty
+      summary: Add an invigilation duty
+      description: "Requires routine:manage, the administrator role and the routine module. Nobody is in two rooms in the same sitting."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [exam_date, sitting_id, room_id, employee_id], properties: { exam_date: { type: string, format: date }, sitting_id: { type: string, format: uuid }, room_id: { type: string, format: uuid }, employee_id: { type: string, format: uuid } } } } } }
+      responses: { '200': { description: Version }, '400': { description: Invalid input }, '409': { description: 'routine_conflict (the change breaks a hard rule; error.issues lists them), routine_state (the version is not a draft) or a duplicate' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/duties/{dutyId}:
+    delete:
+      operationId: deleteRoutineDuty
+      summary: Remove an invigilation duty
+      description: "Requires routine:manage, the administrator role and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: dutyId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version }, '404': { description: Not found }, '409': { description: 'routine_state: the version is not a draft' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/generate:
+    post:
+      operationId: generateRoutine
+      summary: Draft the routine with the generator
+      description: "Requires routine:manage, the administrator role and the routine module. Deterministic and greedy: the same input gives the same routine. Pinned papers stay; the others go to the first open sitting with no hard conflict (preferring days without another paper of the class), rooms are allocated per section, and each room in use gets one invigilator. It never breaks a hard rule; papers it cannot place are reported with the rule that blocked them. Audited as routine.generated."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: 'Report (placed, kept, unplaced with reasons, duties) and the version' }, '409': { description: 'routine_state: the version is not a draft' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/submit:
+    post:
+      operationId: submitRoutine
+      summary: Submit a draft for approval
+      description: "Requires routine:manage, the administrator role and the routine module. Every hard rule must pass (every paper placed, with a room for each section)."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version }, '409': { description: 'routine_not_ready (error.issues) or routine_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/withdraw:
+    post:
+      operationId: withdrawRoutine
+      summary: Take a submitted or approved routine back to draft
+      description: "Requires routine:manage, the administrator role and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '200': { description: Version }, '400': { description: A reason is required }, '409': { description: routine_state }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/approve:
+    post:
+      operationId: approveRoutine
+      summary: Approve a submitted routine
+      description: "Requires routine:approve (head teachers) and the routine module. Every hard rule must pass."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version }, '409': { description: 'routine_not_ready (error.issues) or routine_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/return:
+    post:
+      operationId: returnRoutine
+      summary: Return a submitted or approved routine to draft with a reason
+      description: "Requires routine:approve and the routine module."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '200': { description: Version }, '400': { description: A reason is required }, '409': { description: routine_state }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/publish:
+    post:
+      operationId: publishRoutine
+      summary: Publish an approved routine
+      description: "Requires routine:manage, the administrator role and the routine module. Every hard rule must pass. The published version becomes visible to students and teachers, its content hash is recorded, and the version it amends is superseded (kept for staff)."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version }, '409': { description: 'routine_not_ready (error.issues) or routine_state' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/amend:
+    post:
+      operationId: amendRoutine
+      summary: Amend a published routine
+      description: "Requires routine:manage, the administrator role and the routine module. Starts the next version as a draft copy, with the reason; the published version stays in force until the amendment is published. Audited as routine.version_amended."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 1000 } } } } } }
+      responses: { '201': { description: Amendment created }, '400': { description: A reason is required }, '409': { description: 'Not published, or an amendment is already open' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/versions/{id}/pdf:
+    get:
+      operationId: getRoutinePdf
+      summary: A routine document as a PDF
+      description: "Requires routine:read and the routine module. kind=class (one page per class, or class_id), room (one page per room in use, or room_id) or invigilation (the duty roster); lang en or bn. Rendered by the document renderer with the school's header; a version that is not published carries a draft watermark."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: kind, in: query, schema: { type: string, enum: [class, room, invigilation] } }, { name: lang, in: query, schema: { type: string, enum: [en, bn] } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: room_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }, '400': { description: Invalid input }, '404': { description: Not found }, '503': { description: documents_unavailable }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams:
     get:
       operationId: listExams
@@ -3805,6 +4051,47 @@ components:
         session_id: { type: string, format: uuid }
         class_id: { type: string, format: uuid }
         section_id: { type: string, format: uuid }
+    ExamRoomInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 80 }
+        name_bn: { type: string }
+        kind: { type: string, enum: [classroom, lab, hall], default: classroom }
+        capacity: { type: integer, minimum: 1, maximum: 5000, nullable: true }
+        is_active: { type: boolean }
+    TermRoutineVersionInput:
+      type: object
+      properties:
+        term_id: { type: string, format: uuid, description: Required when starting a routine }
+        starts_on: { type: string, format: date }
+        ends_on: { type: string, format: date }
+        instructions: { type: string, maxLength: 4000, description: Printed on the routine PDFs }
+        duration_minutes: { type: integer, minimum: 15, maximum: 360, description: Length of the first papers (default 180) }
+    RoutinePlacement:
+      type: object
+      required: [duration_minutes]
+      properties:
+        duration_minutes: { type: integer, minimum: 15, maximum: 360 }
+        needs_lab: { type: boolean }
+        exam_date: { type: string, format: date, description: Empty leaves the paper unplaced }
+        sitting_id: { type: string, format: uuid }
+        pinned: { type: boolean }
+        rooms: { type: array, items: { type: object, required: [section_id, room_id], properties: { section_id: { type: string, format: uuid }, room_id: { type: string, format: uuid } } } }
+    TermRoutineVersion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        term_id: { type: string, format: uuid }
+        version: { type: integer }
+        status: { type: string, enum: [draft, submitted, approved, published, superseded] }
+        reason: { type: string, nullable: true }
+        content_sha256: { type: string, nullable: true }
+        sittings: { type: array, items: { type: object } }
+        papers: { type: array, items: { type: object } }
+        duties: { type: array, items: { type: object } }
+        issues: { type: array, items: { type: object, properties: { code: { type: string }, hard: { type: boolean }, message: { type: string } } } }
+        changes: { type: array, items: { type: object, properties: { change: { type: string, enum: [added, removed, moved, rooms, duration] } } } }
     ExamRoutineSlotInput:
       type: object
       required: [subject_id, exam_date, start_time, end_time, room]
