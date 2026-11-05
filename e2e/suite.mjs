@@ -9,6 +9,23 @@ const pw = process.env.DEMO_PASSWORD
 const r = reporter(), check = r.check
 const b = await launch({ base: process.env.E2E_BASE_URL || 'http://127.0.0.1:5173', shots: join(here, 'shots', 'suite'), port: 9345 })
 const email = who => `demo.${who}@demo.flybirds.test`
+// The attendance workflow takes today's attendance. On a weekly off day
+// (Friday by default, lifecycle audit QA-12) the administrator of this
+// disposable school opens the day for the run; the days are restored at the end.
+const base = process.env.E2E_BASE_URL || 'http://127.0.0.1:5173'
+let restoreOffDays = null
+async function openTodayForAttendance() {
+  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email('admin'), password: pw }) })
+  const token = (await login.json()).data.access_token
+  const call = async (method, path, body) => (await (await fetch(`${base}/api${path}`, { method, headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined })).json()).data
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date())
+  const day = await call('GET', `/attendance/day?date=${today}`)
+  if (day.open) return
+  if (day.reason !== 'weekly_off') throw new Error(`today is a holiday (${day.holiday_title_en}) in this school: run the suite on another day`)
+  const { updated_at: _updated, ...settings } = await call('GET', '/school/settings')
+  await call('PUT', '/school/settings', { ...settings, weekly_off_days: [] })
+  restoreOffDays = () => call('PUT', '/school/settings', { ...settings, weekly_off_days: day.weekly_off_days })
+}
 const sidebarLabels = () => b.evaluate(`[...document.querySelectorAll('aside nav a')].map(a => a.innerText.trim())`)
 const waitDash = () => b.waitFor(`/Good (morning|afternoon|evening)|শুভ/.test(document.body.innerText) && !document.querySelector('main .animate-pulse')`, 15000)
 
@@ -161,6 +178,7 @@ try {
   check('Escape cancels without changing data', !(await b.evaluate(`!!document.querySelector('[role=alertdialog]')`)) && before === after)
 
   // ---------- attendance workflow (teacher) ----------
+  await openTodayForAttendance()
   await b.login(email('teacher'), pw)
   await b.go('/admin/attendance/students')
   await b.waitFor(`[...document.querySelectorAll('button')].some(x => x.innerText.trim() === 'Mark all present')`)
@@ -240,6 +258,7 @@ try {
     }
   }
 } catch (e) { check('script error', false, e.stack) } finally {
+  if (restoreOffDays) await restoreOffDays()
   check('no JavaScript exceptions', b.errors.length === 0, b.errors.slice(0, 3).join(' | '))
   const csp = b.consoleErrors.filter(e => /Content Security Policy|Refused to/i.test(e))
   check('no Content-Security-Policy violations', csp.length === 0, csp.slice(0, 3).join(' | '))
