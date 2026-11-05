@@ -10,6 +10,21 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Lifecycle Audit Fixes: Leaving Dues, Refunds and Late Fines, Off Days (2026-11-05)
+
+On `feature/audit-fixes`, from `main` `c62435b9` (E7 merged, PR #42). Pushed for review; not merged. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migrations 1801 (leaving cancellations), 1802 (payment reversals, late fines) and 1803 (weekly off days); the full list is 1701, 1702, 1750–1759, 1800–1803, no duplicates. Details: [LIFECYCLE_AUDIT_FIXES.md](LIFECYCLE_AUDIT_FIXES.md).
+
+**Implementation:**
+- **QA-08:** withdrawing or transferring a student cancels their unpaid monthly dues after the month they left (a database trigger, so every path); paid and part-paid months stay; nothing is deleted; a year-end promotion batch leaves the year's dues alone. The Dues tab lists the cancellations; an administrator reverts one with a reason. Audited.
+- **QA-09:** an administrator reverses a counter payment from its receipt (recorded by mistake or refund, with a reason): dues owed again, receipt marked Reversed, a negative fee income line keeps the ledger balanced, collection reports leave it out. An optional late fine per fee structure (off by default) is copied onto dues created afterwards and charged once when they are overdue (background pass, and before a statement or payment).
+- **QA-12:** weekly off days (Friday by default) in School settings and published holidays refuse new attendance (teacher, student, roster, QR) with `attendance_day_off` and the reason; recorded attendance stays and can be corrected, also through the roster. The attendance screens explain the day.
+- **Flaky test:** `TestPostgresCounterSearch` drew its guardian phone from the fixture's stamp, which also forms the admission numbers; the phone is now random and never occurs in them.
+
+**Verification (disposable resources only):**
+- **Go:** fresh PostgreSQL 17, `go test ./... -p 1 -count=1`: 29 of 29 packages passed; `go vet` clean; gofmt clean (257 files). The first full run found three older attendance tests recording on Fridays (they now clear the off days while they run), promotion batch leavers losing dues (now excluded) and an adjustment history ordered by a minute-formatted column (now by its timestamp); the second run passed.
+- **Frontend:** typecheck and build (no large-chunk warning), i18n 3,473 English and 3,471 Bangla keys (the two-key difference predates this branch), unit tests 18 of 18.
+- **Browser** on `m15b1` rebuilt with fresh volumes (migrations 1801–1803 applied in about 4 s, no restarts): `suite.mjs` 117 of 117, `daily-tasks.mjs` 55 of 55, `profiles-safety.mjs` 47 of 47, `payment-safety.mjs` (off) 13 of 13, new `lifecycle-audit.mjs` 23 of 23, including four screens at 1440px and 375px in both languages and themes with overflow, contrast and axe. On a stack reset again with Thursday made the off day, `suite.mjs` opened the day for its attendance flow, passed 117 of 117 and restored the setting.
+
 ## Current Status — E7: Result Documents and PDFs (2026-11-01)
 
 On `feature/e7-result-pdfs`, rebased onto `main` `0487aaa3` (premium UI checkpoint 5). Pushed for review; not merged. Migrations: 1701, 1702, 1750–1759, 1800, no duplicates. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [exams/E7_RESULT_DOCUMENTS.md](exams/E7_RESULT_DOCUMENTS.md).
