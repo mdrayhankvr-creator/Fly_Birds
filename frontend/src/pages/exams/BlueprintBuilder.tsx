@@ -14,6 +14,7 @@ import {
   addAssessment, applyToAll, componentPresets, defaultPresetOptions, issueSubject, presetOf, presetRule, removeAssessment, setTermRule, sheetFull, sumMarks, twoDecimals,
   type Preset, type PresetOptions,
 } from './blueprintModel'
+import { QuickSetup } from './blueprintQuickSetup'
 import { VersionChip, useExplain, useSubjectName } from './setupShared'
 
 type Pane = 'structure' | 'rules' | 'check'
@@ -143,6 +144,7 @@ export function BlueprintBuilder({ canManage }: { canManage: boolean }) {
     {editable && issues.length > 0 && <p id="bp-activate-why" className="-mt-3 text-sm text-slate-600">{t('bpActivateBlocked')}</p>}
     {v.legacy && <Notice tone="info">{t('bpLegacyNote')}</Notice>}
     {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+    {editable && <QuickSetup v={v} def={def} termId={activeTerm} termName={v.terms.find(term => term.id === activeTerm)?.name ?? ''} change={change} onDone={(text, tone) => setNotice({ tone, text })} />}
 
     <div className="lg:hidden"><Tabs label={t('bpBuilder')} value={pane} onChange={setPane} items={[{ value: 'structure', label: t('bpPaneStructure') }, { value: 'rules', label: t('bpPaneRules') }, { value: 'check', label: t('bpPaneCheck'), badge: issues.length ? <span className="rounded-full bg-rose-600 px-1.5 text-xs text-white">{issues.length}</span> : undefined }]} /></div>
     <div className="grid gap-5 lg:grid-cols-[19rem_minmax(0,1fr)_21rem] lg:items-start">

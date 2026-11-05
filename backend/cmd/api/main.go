@@ -22,6 +22,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/diary"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/documents"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/exams"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/fees"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/files"
@@ -71,10 +72,15 @@ func run(logger *slog.Logger) error {
 	var adminServices *httpapi.AdminServices
 	var analyticsService *analytics.Service
 	var promotionService *promotion.Service
+	var documentService *documents.Service
 	if cfg.DatabaseURL != "" {
-		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		db, err := database.Open(connectCtx, cfg.DatabaseURL)
+		// Wait up to a minute for PostgreSQL: when Docker starts, both start
+		// together and the database may still be starting up.
+		openCtx, cancelOpen := context.WithTimeout(context.Background(), time.Minute)
+		defer cancelOpen()
+		db, err := database.OpenWhenReady(openCtx, cfg.DatabaseURL, func(err error) {
+			logger.Warn("waiting for the database", "error", err.Error())
+		})
 		if err != nil {
 			return err
 		}
@@ -84,9 +90,19 @@ func run(logger *slog.Logger) error {
 		}
 		defer sqlDB.Close()
 		httpapi.SetReadiness(sqlDB.PingContext)
-		if err := database.Migrate(connectCtx, db); err != nil {
+		// Migrations get their own, longer deadline: a new school's first
+		// start applies every migration, which on a slow or busy server can
+		// take longer than connecting does.
+		migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), cfg.MigrationTimeout)
+		started := time.Now()
+		err = database.Migrate(migrateCtx, db)
+		cancelMigrate()
+		if err != nil {
 			return err
 		}
+		logger.Info("migrations applied", "duration", time.Since(started).Round(time.Millisecond).String())
+		connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		authService, err = auth.NewService(auth.NewRepository(db), cfg.JWTSigningKey)
 		if err != nil {
 			return err
@@ -133,6 +149,19 @@ func run(logger *slog.Logger) error {
 		adminServices = &httpapi.AdminServices{Exporter: admin.NewExporter(db), Backups: backups, Overview: admin.NewOverviewReader(db, backups)}
 		analyticsService = analytics.NewService(analytics.NewRepository(db))
 		promotionService = promotion.NewService(db)
+		// Result documents need the Typst renderer and its fonts; without
+		// them the document routes answer 503 and everything else works.
+		var renderer documents.Renderer
+		if typst, err := documents.NewTypst(cfg.TypstBin, cfg.DocumentFontsDir, 20*time.Second, 2); err == nil {
+			renderer = typst
+		} else {
+			logger.Warn("result documents are off", "reason", err)
+		}
+		if results := examService.Results(); results != nil {
+			documentService = documents.NewService(db, results, store, renderer, logger)
+			documentService.BaseURL = cfg.PublicBaseURL
+			documentService.Logo = documents.NewLogoFetcher().Fetch
+		}
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -140,7 +169,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithPromotion(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService, promotionService),
+		Handler:           httpapi.NewRouterWithDocuments(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService, promotionService, documentService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
@@ -150,6 +179,9 @@ func run(logger *slog.Logger) error {
 
 	if adminServices != nil && cfg.BackupInterval > 0 {
 		go scheduledBackups(ctx, logger, adminServices.Backups, cfg.BackupInterval)
+	}
+	if documentService.Available() {
+		go documentService.Run(ctx, 2*time.Second)
 	}
 	if comm != nil && cfg.NotifyInterval > 0 {
 		go backgroundWork(ctx, logger, comm, cfg.NotifyInterval)

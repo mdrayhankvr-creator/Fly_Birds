@@ -6,6 +6,7 @@ import { getMyExamSheets, type ExamSheetQueueItem } from '../../api/client'
 import { EmptyState, Notice, PageHeader, Skeleton, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 import { Progress, SheetChip } from './examUi'
+import { TeacherDocuments } from '../exams/resultDocuments'
 
 type Filter = 'todo' | 'submitted' | 'approved' | 'all'
 const inFilter: Record<Filter, (s: ExamSheetQueueItem) => boolean> = {
@@ -54,5 +55,6 @@ export function MarksQueue() {
           </li>
         })}
       </ul>}
+    <TeacherDocuments />
   </div>
 }

@@ -10,6 +10,24 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E7: Result Documents and PDFs (2026-11-01)
+
+On `feature/e7-result-pdfs`, rebased onto `main` `0487aaa3` (premium UI checkpoint 5). Pushed for review; not merged. Migrations: 1701, 1702, 1750–1759, 1800, no duplicates. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Details: [exams/E7_RESULT_DOCUMENTS.md](exams/E7_RESULT_DOCUMENTS.md).
+
+**Implementation:**
+- **Renderer:** Typst 0.15.1 in the backend image (spike: correct Bangla shaping; one marksheet 0.5 s and 13 MB, 60 in one PDF 3.3 s and 98 MB; image +59.8 MB). No network, bundled Noto fonts.
+- **Documents:** student marksheets (term and annual) from published versions only, with a verification QR; tabulation sheet, merit list, failed subjects, summary and class bundles for staff; staff-only provisional previews; cached by the published versions, so a correction makes new ones (migration 1800, `exams:documents`).
+- **Screens:** downloads on student results, the results review and the teacher's marks page; the public result check; blueprint presets and copying another class's blueprint. Shared files: one commit (one route, the translations bundle).
+- **School details (2026-11-05):** document headers print "EIIN: …" from `school_settings.eiin` (Bangla digits on Bangla documents; no line when empty), the Bangla address on Bangla documents, then the phone and email.
+- **Startup:** the API waits up to a minute for PostgreSQL (one "waiting for the database" log line) instead of exiting, so a Docker restart no longer makes it restart-loop. `compose.prod.yaml` already orders the start with `depends_on: condition: service_healthy`; health checks unchanged.
+
+**Verification (disposable resources only):**
+- **Go:** fresh database, `go test ./... -p 1 -count=1` 29 of 29 packages; `go vet` and gofmt clean (240 files).
+- **Frontend:** typecheck and build (no large-chunk warning), i18n passed, unit tests 18 of 18.
+- **Browser** on `m15b1` rebuilt fresh: `suite.mjs` 117 of 117, `result-documents.mjs` 31 of 31; sample PDFs and page images in `Fly_Birds_QA_env\pdf-e7`.
+- **Rerun before pushing (2026-11-05):** Go suite on a new database 29 of 29 packages, vet clean; frontend typecheck, build, i18n and unit tests 18 of 18; `m15b1` rebuilt with fresh volumes, `suite.mjs` 117 of 117 and `result-documents.mjs` 31 of 31. Migrations: fresh database 4.0–4.9 s, upgrade from `main` 0.19–0.24 s, fresh `m15b1` 2.9–3.7 s with no restarts (E7 document §6).
+- **After the rebase onto checkpoint 5 (2026-11-05):** Go suite `-p 1` on a new database: 28 of 29 packages passed; `internal/fees` failed once in `TestPostgresCounterSearch` (a flaky test already on main: its guardian phone, `019` plus the last 8 digits of a nanosecond stamp, is a substring of the fixture's admission numbers `M8-<stamp>-n` when the stamp holds `019` just before those digits, about 1 run in 1000), then passed 3 of 3 on a new database. gofmt (253 files) and vet clean. Frontend typecheck, build, i18n (3,416 English and 3,414 Bangla keys) and unit tests 18 of 18. `m15b1` rebuilt with fresh volumes (migrations 3.7 s, `up --wait` 22 s, no restarts): `suite.mjs` 117 of 117, `result-documents.mjs` 31 of 31. With the database stopped and started 8 s after the API, the API logged "waiting for the database" once, then migrated and became healthy with no restarts. Marksheets with and without the EIIN, and a Bangla tabulation sheet with it, rendered to `Fly_Birds_QA_env\pdf-e7\eiin-*` (images in `images\`).
+
 ## Current Status — Premium UI Checkpoint 5: Student ID Sign-in, Logins, Bulk Admission, Public Page (2026-11-01)
 
 On `feature/premium-ui-checkpoint-5`, from `main` `d35b1da` (checkpoint 4, PR #40, and M15 stage B2, PR #39). Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migrations 1755 (`users.login_id`), 1756 (`bulk_admissions`), 1757 (`school_public_page`, `school_gallery`, `notices.show_public`), 1758 (`users.temporary_password_expires_at`) and 1759 (school details moved to `school_settings`); the full list is 1701, 1702, 1750–1759. `origin/main` was still `d35b1da` before pushing, so no rebase was needed.

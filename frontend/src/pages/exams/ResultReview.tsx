@@ -6,6 +6,7 @@ import { approveResults, getResultReview, publishResults, type ResultReview as R
 import { confirmAction } from '../../components/ConfirmDialog'
 import { CardTitle, EmptyState, Notice, PageHeader, Skeleton, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
+import { ClassDocuments } from './resultDocuments'
 import { DiffTable, ProvisionalFrame, ResultMatrix, StateChip, VersionHistory, useOutputChanges, useResultError, useWhen, type MatrixRow } from './resultUi'
 
 // Result Review & Approval and publication (UX spec §9 and §10) for one
@@ -80,6 +81,8 @@ export function ResultReview({ canApprove, canPublish }: { canApprove: boolean; 
             if (ok) void act(() => authorized(token => publishResults(token, ref, v.approval!.id)), t('rvPublishedMessage'))
           }} />
       </section>
+
+      {ref.scope !== 'assessment' && ref.class_id && <ClassDocuments scope={ref.scope} scopeId={ref.scope_id} classId={ref.class_id} published={!!v.published} provisionalAllowed />}
 
       {history && <VersionHistory scope={ref.scope} scopeId={ref.scope_id} studentId={history.id} studentName={history.name} onClose={() => setHistory(null)} />}
 

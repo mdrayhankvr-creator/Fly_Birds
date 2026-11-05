@@ -36,6 +36,7 @@ const StaffProfilePage = lazy(() => import('./pages/StaffProfilePage').then(m =>
 const ForcedPasswordPage = lazy(() => import('./pages/ForcedPasswordPage').then(m => ({ default: m.ForcedPasswordPage })))
 const IdCardPrintPage = lazy(() => import('./pages/IdCardPrintPage').then(m => ({ default: m.IdCardPrintPage })))
 const VerifyCardPage = lazy(() => import('./pages/VerifyCardPage').then(m => ({ default: m.VerifyCardPage })))
+const VerifyResultPage = lazy(() => import('./pages/VerifyResultPage').then(m => ({ default: m.VerifyResultPage })))
 const RoutinePage = lazy(() => import('./pages/RoutinePage').then(m => ({ default: m.RoutinePage })))
 const ExamsPage = lazy(() => import('./pages/ExamsPage').then(m => ({ default: m.ExamsPage })))
 const MarksQueue = lazy(() => import('./pages/marks/MarksQueue').then(m => ({ default: m.MarksQueue })))
@@ -445,6 +446,7 @@ export default function App() {
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage branding={branding.data} />} />
         <Route path="/login" element={<LandingPage branding={branding.data} />} />
         <Route path="/verify/:token" element={<VerifyCardPage />} />
+        <Route path="/verify/result/:token" element={<VerifyResultPage />} />
         <Route path="/account" element={<ProtectedRoute><AccountPage permissions={myPermissions.data} /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/:role" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

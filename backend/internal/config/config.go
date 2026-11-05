@@ -3,8 +3,10 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -32,6 +34,17 @@ type Config struct {
 	// (DEMO_QUICK_LOGIN). Only for the owner's local testing; off by default
 	// and never set by the production Compose file or school provisioning.
 	DemoQuickLogin bool
+	// PublicBaseURL is the school's public address (PUBLIC_BASE_URL), used in
+	// the verification QR codes printed on marksheets; empty prints the
+	// document code only.
+	PublicBaseURL string
+	// TypstBin and DocumentFontsDir locate the document renderer
+	// (TYPST_BIN, DOCUMENT_FONTS_DIR); without them documents are off.
+	TypstBin         string
+	DocumentFontsDir string
+	// MigrationTimeout bounds applying the schema at startup
+	// (MIGRATION_TIMEOUT, default 5m).
+	MigrationTimeout time.Duration
 }
 
 func Load() (Config, error) {
@@ -111,7 +124,30 @@ func Load() (Config, error) {
 		}
 		demoQuickLogin = parsed
 	}
+	publicBaseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_BASE_URL")), "/")
+	if publicBaseURL != "" {
+		u, err := url.Parse(publicBaseURL)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+			return Config{}, fmt.Errorf("PUBLIC_BASE_URL must be an http(s) address such as https://school.example.edu.bd")
+		}
+	}
+	migrationTimeout := 5 * time.Minute
+	if raw := os.Getenv("MIGRATION_TIMEOUT"); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil || parsed < 10*time.Second {
+			return Config{}, fmt.Errorf("MIGRATION_TIMEOUT must be a duration of at least 10s, such as 5m")
+		}
+		migrationTimeout = parsed
+	}
+	fontsDir := os.Getenv("DOCUMENT_FONTS_DIR")
+	if fontsDir == "" {
+		fontsDir = "/app/fonts"
+	}
 	return Config{
+		PublicBaseURL:    publicBaseURL,
+		MigrationTimeout: migrationTimeout,
+		TypstBin:         os.Getenv("TYPST_BIN"),
+		DocumentFontsDir: fontsDir,
 		Port:             port,
 		DatabaseURL:      databaseURL,
 		JWTSigningKey:    signingKey,
