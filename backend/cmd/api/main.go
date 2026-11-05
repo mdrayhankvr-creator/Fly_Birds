@@ -162,6 +162,10 @@ func run(logger *slog.Logger) error {
 			documentService.BaseURL = cfg.PublicBaseURL
 			documentService.Logo = documents.NewLogoFetcher().Fetch
 		}
+		// Routine PDFs (E8) use the same renderer.
+		if routineService.Term != nil && documentService.RoutineAvailable() {
+			routineService.Term.Documents = documentService
+		}
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
