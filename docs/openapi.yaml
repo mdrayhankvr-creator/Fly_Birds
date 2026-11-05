@@ -1068,6 +1068,35 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
       responses: { '200': { description: Academic session page }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /attendance/day:
+    get:
+      operationId: getAttendanceDay
+      tags: [attendance]
+      summary: Whether a date takes attendance
+      description: Requires sign-in and the attendance module. A date is closed when a published holiday (school events of kind holiday) covers it, or when it falls on a weekly off day (school settings weekly_off_days, Friday by default). Recording attendance on a closed date is refused with 409 attendance_day_off and the same day object; attendance already recorded is untouched and can be corrected.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: date, in: query, required: true, schema: { type: string, format: date } }]
+      responses:
+        '200':
+          description: The day
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      date: { type: string, format: date }
+                      open: { type: boolean }
+                      reason: { type: string, enum: [weekly_off, holiday] }
+                      weekday: { type: integer, minimum: 0, maximum: 6, description: 0 Sunday … 6 Saturday }
+                      holiday_title_en: { type: string }
+                      holiday_title_bn: { type: string }
+                      weekly_off_days: { type: array, items: { type: integer, minimum: 0, maximum: 6 } }
+        '400': { description: Invalid date }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /attendance/teachers/roster:
     get:
       operationId: getTeacherRoster
@@ -2787,6 +2816,35 @@ paths:
       parameters: [{ $ref: '#/components/parameters/FeeId' }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 240 } } } } } }
       responses: { '200': { description: The voided payment }, '403': { description: Not a simulated payment, or not an administrator }, '409': { description: Already voided }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /fees/payments/{id}/reverse:
+    post:
+      operationId: reverseFeePayment
+      summary: Reverse a counter payment (recorded by mistake or refunded)
+      description: Requires fees:manage and the admin role; audited. Only counter payments that are not simulated can be reversed, once. The dues the payment paid are owed again; the payment, its allocations and its ledger income stay, the receipt is marked reversed, and a negative fee income line dated today (reverses_payment_id) keeps the ledger balanced. Collection reports leave reversed payments out. A kind (error or refund) and a reason are required.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FeeId' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [kind, reason], properties: { kind: { type: string, enum: [error, refund] }, reason: { type: string, maxLength: 240 } } } } } }
+      responses: { '200': { description: The reversed payment }, '400': { description: Missing reason or unknown kind }, '403': { description: Simulated or online payment, or not an administrator }, '409': { description: Already reversed }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /fees/cancellations:
+    get:
+      operationId: listFeeDueCancellations
+      summary: List the dues cancelled when students left
+      description: Requires fees:read and the fees module. When a student is withdrawn or transferred, the unpaid monthly dues of the months after the month they left are cancelled (never deleted); months with any payment stay. Each item is one leaving with its months (periods), amount and whether it was reverted. Filters status (open, reverted), student_id, session_id and search.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [open, reverted] } }, { name: student_id, in: query, schema: { type: string, format: uuid } }, { name: session_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Paginated cancellations }, '400': { description: Invalid filter }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /fees/cancellations/{id}/revert:
+    post:
+      operationId: revertFeeDueCancellation
+      summary: Make the dues cancelled at a leaving owed again
+      description: Requires fees:manage and the admin role; audited. The cancellation and its adjustments stay on record; each due gets a cancellation_reverted adjustment. A reason is required; a cancellation is reverted once.
+      tags: [fees]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 240 } } } } } }
+      responses: { '200': { description: The reverted cancellation }, '400': { description: Missing reason }, '403': { description: Not an administrator }, '409': { description: Already reverted }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /accounts/entries:
     get:
       operationId: listLedgerEntries
@@ -3597,6 +3655,7 @@ components:
         amount: { type: number, minimum: 0.01, maximum: 10000000, description: Taka with at most two decimals }
         due_day: { type: integer, minimum: 1, maximum: 28, default: 10 }
         is_active: { type: boolean, default: true }
+        late_fine: { type: number, minimum: 0, maximum: 100000, default: 0, description: Flat fine charged once on a due still owing money after its due date; 0 is off. Dues keep the fine their structure had when they were created, so a change applies only to dues created afterwards. }
     FeeConcessionInput:
       type: object
       required: [student_id, category_id, percent, reason]
@@ -4366,6 +4425,7 @@ components:
         phone: { type: string }
         email: { type: string, format: email }
         grading_scheme_id: { type: string, example: bd_default }
+        weekly_off_days: { type: array, maxItems: 6, uniqueItems: true, items: { type: integer, minimum: 0, maximum: 6 }, description: Days without attendance, 0 Sunday … 6 Saturday (Friday by default). Optional on save; omitted keeps the days. }
     SchoolSettings:
       allOf: [{ $ref: '#/components/schemas/SchoolSettingsInput' }]
       type: object
