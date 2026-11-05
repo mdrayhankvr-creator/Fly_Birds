@@ -6,7 +6,7 @@ Every command here was run against this release. Replace `greenvalley` and `scho
 
 ## 1. Server size
 
-The application itself is light. Measured on a demo school (40 students, all modules on), the three running containers used about 70 MB of memory at rest, and the database was 16 MB. What needs room is building the images on the server, the backups you keep, and photos.
+The application itself is light. Measured on a demo school (40 students, all modules on), the three running containers used about 70 MB of memory at rest, and the database was 16 MB. Making result PDFs takes more for a moment: the largest, one PDF with the marksheets of 60 students, peaked under 100 MB, and at most two PDFs are made at a time. What needs room is building the images on the server, the backups you keep, and photos.
 
 | School | CPU | Memory | Disk (SSD) |
 |---|---|---|---|
@@ -16,10 +16,11 @@ The application itself is light. Measured on a demo school (40 students, all mod
 
 Where the disk goes:
 
-- **Images:** about 800 MB for the backend, web, PostgreSQL and Caddy images. Each update keeps the previous release's images for rollback.
+- **Images:** about 900 MB for the backend, web, PostgreSQL and Caddy images. The backend image includes the PDF renderer and its fonts. Each update keeps the previous release's images for rollback.
 - **Build cache:** building the images on the server leaves about 2 GB of Docker build cache each time. Section 10 clears it monthly.
 - **Backups:** every archive holds the whole database and every uploaded file. With `BACKUP_RETENTION=14`, plan for 14 times the size of one archive. After the first week, check the actual size under **Admin → Backups** and adjust.
 - **Photos** make up most of the growth: student and staff photos, the landing slideshow (up to 8) and the public page gallery (up to 48). The server resizes each one.
+- **Result PDFs** are kept with the uploads (so they are in the backups) and reused until the results change. A correction makes new ones and deletes the old files.
 
 Keep the disk below 80% full. Use Ubuntu 24.04 LTS (or similar) with Docker Engine 24 or later and the Compose plugin (`docker compose version`).
 
@@ -64,6 +65,7 @@ To write it by hand instead, copy `deploy/school.env.example` to `deploy/greenva
 COMPOSE_PROJECT_NAME=greenvalley          # school code; never change it after the first start
 COMPOSE_PROFILES=edge                     # run Caddy for HTTPS
 SCHOOL_DOMAIN=school.greenvalley.edu.bd
+PUBLIC_BASE_URL=https://school.greenvalley.edu.bd   # printed in the QR code on every marksheet
 ACME_EMAIL=it@greenvalley.edu.bd            # receives certificate notices
 POSTGRES_USER=flybirds
 POSTGRES_PASSWORD=<output of: openssl rand -hex 24>
@@ -79,7 +81,11 @@ RELEASE_TAG=v1.0.0
 
 - **Keep the file private.** Git ignores `deploy/*.env`; never commit it, send it in chat or share it between schools. On Linux, `chmod 600 deploy/greenvalley.env`.
 - **Keep a copy off the server**, in the school's password manager. It is the only copy of the database password and signing key, and backup archives do not contain it.
-- **`PUBLIC_BASE_URL`:** this release has no such setting. The school's public address is `SCHOOL_DOMAIN`.
+- **`PUBLIC_BASE_URL`** is the address printed in the verification QR code on every result marksheet. Scanning it opens `<PUBLIC_BASE_URL>/verify/result/<code>`, which anyone can open without signing in.
+  - When the line is missing, it is `https://` plus `SCHOOL_DOMAIN`, which is right for a school on its own domain. `school-provision` does not write the line.
+  - Set it only when the school is reached at another address or port, for example behind a shared proxy. Use `https://`, with no path, query or trailing slash; the backend refuses to start with anything that isn't an `http(s)://` address.
+  - **Get it right before the first results are published.** Marksheets already printed keep the address they were made with, so a wrong value means QR codes that lead nowhere. An `http://localhost:…` value is for local trials only.
+  - After changing it, restart the backend: `fb up -d backend`.
 - **No live payment or SMS.** Online bKash and Nagad payment is off, and SMS goes to a mock provider that never reaches a phone. Tell the school before go-live.
 
 The rest of this guide uses an alias so that every command goes to the right school:
@@ -258,5 +264,6 @@ To run the first two automatically, add this to root's crontab (first day of the
 - [ ] `PAYMENT_SIMULATION_ALLOWED=false`.
 - [ ] `BACKUP_INTERVAL=24h`, the off-server script runs daily, and its copy can be decrypted.
 - [ ] A restore drill has passed.
+- [ ] `PUBLIC_BASE_URL` (or `SCHOOL_DOMAIN`) is the school's real address: after the first results are published, download one marksheet and scan its QR code with a phone on mobile data. It should open the **Result check** page.
 - [ ] The monthly cleanup is scheduled.
 - [ ] The school knows SMS is simulated and online payment is off.
