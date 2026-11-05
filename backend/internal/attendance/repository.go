@@ -144,6 +144,9 @@ func (r *GormRepository) Record(ctx context.Context, actor string, value Record)
 		if err := validateDate(tx, value.SessionID, value.AttendanceDate); err != nil {
 			return err
 		}
+		if err := requireOpenDay(tx, value.AttendanceDate); err != nil {
+			return err
+		}
 		if err := validateEmployee(tx, value.EmployeeID, value.AttendanceDate, value.Status, true); err != nil {
 			return err
 		}

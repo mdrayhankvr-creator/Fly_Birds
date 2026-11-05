@@ -96,6 +96,7 @@ type Repository interface {
 	OwnHistory(context.Context, string, Query) (Page[Record], error)
 	Monthly(context.Context, Query) (Page[Summary], error)
 	OwnMonthly(context.Context, string, Query) (Summary, error)
+	Day(context.Context, string) (DayStatus, error)
 }
 type Service struct{ repo Repository }
 

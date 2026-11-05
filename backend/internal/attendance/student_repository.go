@@ -144,6 +144,9 @@ func (r *StudentGormRepository) RecordStudent(ctx context.Context, actor string,
 		if err = validateDate(tx, v.SessionID, in.AttendanceDate); err != nil {
 			return err
 		}
+		if err = requireOpenDay(tx, in.AttendanceDate); err != nil {
+			return err
+		}
 		if err = lockSectionDay(tx, v.SectionID, in.AttendanceDate); err != nil {
 			return err
 		}
@@ -393,6 +396,9 @@ func (r *StudentGormRepository) SaveRoster(ctx context.Context, actor string, in
 			current[strings.ToLower(row.StudentID)] = i
 		}
 		stale := []string{}
+		// Corrections are allowed on any day; new attendance only on a day
+		// that is neither a weekly off day nor a published holiday.
+		dayChecked := false
 		for _, e := range in.Entries {
 			i, found := current[strings.ToLower(e.StudentID)]
 			switch {
@@ -417,6 +423,12 @@ func (r *StudentGormRepository) SaveRoster(ctx context.Context, actor string, in
 			default:
 				if studentStatus[strings.ToLower(e.StudentID)] != "active" {
 					return ErrConflict
+				}
+				if !dayChecked {
+					if err = requireOpenDay(tx, in.AttendanceDate); err != nil {
+						return err
+					}
+					dayChecked = true
 				}
 				var id string
 				if err = tx.Raw("INSERT INTO student_attendance(student_id,session_id,class_id,section_id,attendance_date,status,source,note,recorded_by,updated_by) VALUES (?,?,?,?,?,?,'manual',?,?,?) RETURNING id", e.StudentID, in.SessionID, section.ClassID, in.SectionID, in.AttendanceDate, e.Status, e.Note, actor, actor).Scan(&id).Error; err != nil {

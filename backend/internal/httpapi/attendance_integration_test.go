@@ -34,6 +34,7 @@ func TestPostgresTeacherAttendance(t *testing.T) {
 	if err := database.Migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
+	withoutWeeklyOffDays(t, db)
 	var count int64
 	if err := db.Table("schema_migrations").Where("version=?", 501).Count(&count).Error; err != nil || count != 1 {
 		t.Fatalf("attendance migration missing: %d %v", count, err)

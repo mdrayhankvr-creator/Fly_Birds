@@ -211,6 +211,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.POST("/staff/employees/:id/salaries", RequirePermission(service, "staff_salary:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.addSalary)
 	attendanceHandler := &attendanceHandler{service: attendanceService}
 	management.GET("/attendance/sessions", RequirePermission(service, "attendance:teachers_read_self"), moduleGuard("attendance"), attendanceHandler.attendanceSessions)
+	management.GET("/attendance/day", RequirePermission(service, "auth:read_self"), moduleGuard("attendance"), attendanceHandler.attendanceDay)
 	management.GET("/attendance/teachers/roster", RequirePermission(service, "attendance:teachers_read"), moduleGuard("attendance"), attendanceHandler.teacherRoster)
 	management.POST("/attendance/teachers", RequirePermission(service, "attendance:teachers_manage"), moduleGuard("attendance"), attendanceHandler.recordTeacher)
 	management.PATCH("/attendance/teachers/:id", RequirePermission(service, "attendance:teachers_manage"), moduleGuard("attendance"), attendanceHandler.correctTeacher)
@@ -350,6 +351,9 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/fees/online/status", RequirePermission(service, "auth:read_self"), moduleGuard("fees"), fh.onlineStatus)
 	management.PUT("/fees/online/settings", RequirePermission(service, "fees:manage"), moduleGuard("fees"), RequireAdministrator(), fh.saveOnlineSettings)
 	management.POST("/fees/payments/:id/void", RequirePermission(service, "fees:manage"), moduleGuard("fees"), RequireAdministrator(), fh.voidSimulatedPayment)
+	management.POST("/fees/payments/:id/reverse", RequirePermission(service, "fees:manage"), moduleGuard("fees"), RequireAdministrator(), fh.reversePayment)
+	management.GET("/fees/cancellations", RequirePermission(service, "fees:read"), moduleGuard("fees"), fh.cancellations)
+	management.POST("/fees/cancellations/:id/revert", RequirePermission(service, "fees:manage"), moduleGuard("fees"), RequireAdministrator(), fh.revertCancellation)
 	management.POST("/fees/online/intents", RequirePermission(service, "fees:pay_online"), moduleGuard("fees"), fh.startOnline)
 	management.POST("/fees/online/intents/:id/confirm", RequirePermission(service, "fees:pay_online"), moduleGuard("fees"), fh.confirmOnline)
 	management.GET("/accounts/entries", RequirePermission(service, "accounts:read"), moduleGuard("fees"), fh.entries)

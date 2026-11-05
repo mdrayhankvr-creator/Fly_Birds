@@ -37,6 +37,7 @@ func TestPostgresStudentAttendance(t *testing.T) {
 	if err = database.Migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
+	withoutWeeklyOffDays(t, db)
 	if err = db.Exec("INSERT INTO role_permissions(role_id,permission_id) VALUES ('admin','attendance:students_read'),('admin','attendance:students_manage'),('admin','attendance:alerts_read'),('teacher','attendance:students_read'),('teacher','attendance:students_manage'),('student','attendance:students_read_self'),('guardian','attendance:guardians_read_children') ON CONFLICT DO NOTHING").Error; err != nil {
 		t.Fatal(err)
 	}

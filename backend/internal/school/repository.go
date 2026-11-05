@@ -29,7 +29,17 @@ func (r *GormRepository) Settings(ctx context.Context) (SchoolSettings, error) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return SchoolSettings{}, ErrNotFound
 	}
+	if err != nil {
+		return settings, err
+	}
+	settings.WeeklyOffDays, err = offDays(r.db.WithContext(ctx))
 	return settings, err
+}
+
+func offDays(db *gorm.DB) ([]int, error) {
+	days := []int{}
+	err := db.Raw("SELECT day_of_week FROM school_weekly_off_days ORDER BY day_of_week").Scan(&days).Error
+	return days, err
 }
 func schoolLock(tx *gorm.DB) error { return tx.Exec("SELECT pg_advisory_xact_lock(?)", 517003).Error }
 func schoolGuard(tx *gorm.DB, actor, permission string) error {
@@ -84,6 +94,17 @@ func (r *GormRepository) UpdateSettings(ctx context.Context, actor string, input
 			}
 			fields = append(fields, "founded_year")
 		}
+		if input.WeeklyOffDays != nil {
+			if err := tx.Exec("DELETE FROM school_weekly_off_days").Error; err != nil {
+				return err
+			}
+			for _, d := range *input.WeeklyOffDays {
+				if err := tx.Exec("INSERT INTO school_weekly_off_days (day_of_week, created_by) VALUES (?, ?)", d, actor).Error; err != nil {
+					return err
+				}
+			}
+			fields = append(fields, "weekly_off_days")
+		}
 		sort.Strings(fields[11:])
 		result := tx.Model(&SchoolSettings{}).Where("id = ?", SingleSchoolID).Updates(updates)
 		if result.Error != nil {
@@ -95,7 +116,15 @@ func (r *GormRepository) UpdateSettings(ctx context.Context, actor string, input
 		if err := tx.First(&settings, "id = ?", SingleSchoolID).Error; err != nil {
 			return err
 		}
-		return audit.Record(tx, &actor, "school.settings_updated", "school", "1", map[string]any{"fields": fields})
+		var err error
+		if settings.WeeklyOffDays, err = offDays(tx); err != nil {
+			return err
+		}
+		metadata := map[string]any{"fields": fields}
+		if input.WeeklyOffDays != nil {
+			metadata["weekly_off_days"] = settings.WeeklyOffDays
+		}
+		return audit.Record(tx, &actor, "school.settings_updated", "school", "1", metadata)
 	})
 	return settings, err
 }

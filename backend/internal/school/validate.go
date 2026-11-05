@@ -123,6 +123,13 @@ func ValidateSettings(input SettingsInput) (SettingsInput, error) {
 	if !validSchoolDetails(input.EIIN, input.FoundedYear, input.AddressBN, input.MapURL, input.HeadTeacherNameEN, input.HeadTeacherNameBN) {
 		return SettingsInput{}, ErrInvalid
 	}
+	if input.WeeklyOffDays != nil {
+		days, ok := validOffDays(*input.WeeklyOffDays)
+		if !ok {
+			return SettingsInput{}, ErrInvalid
+		}
+		input.WeeklyOffDays = &days
+	}
 	for _, tagline := range []*string{input.TaglineEN, input.TaglineBN} {
 		if tagline == nil {
 			continue
@@ -213,3 +220,25 @@ func ValidateBands(input []GradeBand) ([]GradeBand, error) {
 	return bands, nil
 }
 func ValidModuleKey(key string) bool { return moduleKey.MatchString(key) }
+
+// validOffDays checks weekly off days (0 Sunday … 6 Saturday): no repeats and
+// at least one working day. It returns them sorted.
+func validOffDays(days []int) ([]int, bool) {
+	seen := map[int]bool{}
+	for _, d := range days {
+		if d < 0 || d > 6 || seen[d] {
+			return nil, false
+		}
+		seen[d] = true
+	}
+	if len(seen) > 6 {
+		return nil, false
+	}
+	out := make([]int, 0, len(seen))
+	for d := 0; d <= 6; d++ {
+		if seen[d] {
+			out = append(out, d)
+		}
+	}
+	return out, true
+}
