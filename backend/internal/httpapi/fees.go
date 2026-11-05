@@ -349,3 +349,29 @@ func (h *feeHandler) voidSimulatedPayment(c *gin.Context) {
 		respond(c, 200, v, err)
 	}
 }
+
+// reversePayment reverses a counter payment (administrator only).
+func (h *feeHandler) reversePayment(c *gin.Context) {
+	var in fees.ReverseInput
+	if h.ready(c) && decodeSchoolJSON(c, 1024, &in) {
+		v, err := h.service.ReversePayment(c.Request.Context(), feeUser(c).ID, c.Param("id"), in)
+		respond(c, 200, v, err)
+	}
+}
+
+func (h *feeHandler) cancellations(c *gin.Context) {
+	if q, ok := feeQuery(c); ok && h.ready(c) {
+		v, err := h.service.ListCancellations(c.Request.Context(), q)
+		respond(c, 200, v, err)
+	}
+}
+
+// revertCancellation makes the dues cancelled at a leaving owed again
+// (administrator only).
+func (h *feeHandler) revertCancellation(c *gin.Context) {
+	var in fees.RevertInput
+	if h.ready(c) && decodeSchoolJSON(c, 1024, &in) {
+		v, err := h.service.RevertCancellation(c.Request.Context(), feeUser(c).ID, c.Param("id"), in)
+		respond(c, 200, v, err)
+	}
+}

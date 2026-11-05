@@ -73,6 +73,7 @@ func newFeeFixture(t *testing.T, ctx context.Context, sessionName string) feeFix
 			"DELETE FROM fee_payment_allocations WHERE payment_id IN (SELECT id FROM fee_payments WHERE student_id IN ?)",
 			"DELETE FROM fee_payments WHERE student_id IN ?",
 			"DELETE FROM student_fees WHERE student_id IN ?",
+			"DELETE FROM fee_due_cancellations WHERE student_id IN ?",
 			"DELETE FROM fee_concessions WHERE student_id IN ?",
 			"DELETE FROM student_guardians WHERE student_id IN ?",
 			"DELETE FROM students WHERE id IN ?",

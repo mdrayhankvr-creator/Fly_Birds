@@ -31,7 +31,7 @@ type Repository interface {
 	ListCategories(context.Context, Query) (Page[Category], error)
 	SaveCategory(context.Context, string, string, CategoryInput) (Category, error)
 	ListStructures(context.Context, Query) (Page[Structure], error)
-	SaveStructure(context.Context, string, string, StructureInput, int64) (Structure, error)
+	SaveStructure(context.Context, string, string, StructureInput, int64, int64) (Structure, error)
 	ListConcessions(context.Context, Query) (Page[Concession], error)
 	SaveConcession(context.Context, string, ConcessionInput) (Concession, error)
 	DeleteConcession(context.Context, string, string) error
@@ -60,6 +60,10 @@ type Repository interface {
 	Summary(context.Context, string, string, string) (Summary, error)
 	Collections(context.Context, Query) (CollectionReport, error)
 	DueReport(context.Context, Query) (DueReport, error)
+	ApplyLateFines(context.Context, string, string) (FineResult, error)
+	ReversePayment(context.Context, string, string, string, string, string) (Payment, error)
+	ListCancellations(context.Context, Query) (Page[Cancellation], error)
+	RevertCancellation(context.Context, string, string, string) (Cancellation, error)
 }
 
 type Service struct {
@@ -116,7 +120,7 @@ func (s *Service) validQuery(q *Query) bool {
 		optionalID(q.SessionID) && optionalID(q.ClassID) && optionalID(q.SectionID) && optionalID(q.StudentID) && optionalID(q.CategoryID) &&
 		(q.Period == "" || periodFormat.MatchString(q.Period)) && (q.From == "" || validDate(q.From)) && (q.To == "" || validDate(q.To))
 	switch q.Status {
-	case "", "unpaid", "partial", "paid", "waived", "overdue", "outstanding":
+	case "", "unpaid", "partial", "paid", "waived", "overdue", "outstanding", "cancelled", "reversed", "kept", "open", "reverted":
 	default:
 		return false
 	}
@@ -203,13 +207,15 @@ func (s *Service) ListStructures(ctx context.Context, q Query) (Page[Structure],
 }
 func (s *Service) SaveStructure(ctx context.Context, actor, id string, in StructureInput) (Structure, error) {
 	cents, ok := ToCents(in.Amount)
+	fine, fineOK := ToCents(in.LateFine)
 	if in.DueDay == 0 {
 		in.DueDay = 10
 	}
-	if !uuid.MatchString(actor) || !optionalID(id) || !uuid.MatchString(in.SessionID) || !uuid.MatchString(in.ClassID) || !uuid.MatchString(in.CategoryID) || !ok || cents <= 0 || cents > 1_000_000_000 || in.DueDay < 1 || in.DueDay > 28 {
+	if !uuid.MatchString(actor) || !optionalID(id) || !uuid.MatchString(in.SessionID) || !uuid.MatchString(in.ClassID) || !uuid.MatchString(in.CategoryID) || !ok || cents <= 0 || cents > 1_000_000_000 || in.DueDay < 1 || in.DueDay > 28 ||
+		!fineOK || fine < 0 || fine > 10_000_000 {
 		return Structure{}, ErrInvalid
 	}
-	return s.repo.SaveStructure(ctx, actor, id, in, cents)
+	return s.repo.SaveStructure(ctx, actor, id, in, cents, fine)
 }
 func (s *Service) ListConcessions(ctx context.Context, q Query) (Page[Concession], error) {
 	if !s.validQuery(&q) {
@@ -360,6 +366,10 @@ func (s *Service) Statement(ctx context.Context, scope, actor, studentID string)
 	} else if id == "" {
 		return Statement{}, ErrInvalid
 	}
+	// The statement shows fines already due today.
+	if _, err := s.repo.ApplyLateFines(ctx, s.today(), id); err != nil && !errors.Is(err, ErrNotFound) {
+		return Statement{}, err
+	}
 	return s.repo.Statement(ctx, id, s.today())
 }
 
@@ -475,6 +485,37 @@ func (s *Service) VoidSimulatedPayment(ctx context.Context, actor, id string, in
 		return Payment{}, ErrInvalid
 	}
 	return s.repo.VoidSimulatedPayment(ctx, actor, id, reason)
+}
+
+// ApplyLateFines charges every late fine due by today (the background pass).
+func (s *Service) ApplyLateFines(ctx context.Context) (FineResult, error) {
+	return s.repo.ApplyLateFines(ctx, s.today(), "")
+}
+
+// ReversePayment is the administrator's reversal of a counter payment:
+// "error" for a payment recorded by mistake, "refund" for money paid back.
+func (s *Service) ReversePayment(ctx context.Context, actor, id string, in ReverseInput) (Payment, error) {
+	reason, ok := text(in.Reason, 240, true)
+	if !uuid.MatchString(actor) || !uuid.MatchString(id) || !ok || (in.Kind != "error" && in.Kind != "refund") {
+		return Payment{}, ErrInvalid
+	}
+	return s.repo.ReversePayment(ctx, actor, id, in.Kind, reason, s.today())
+}
+
+func (s *Service) ListCancellations(ctx context.Context, q Query) (Page[Cancellation], error) {
+	if !s.validQuery(&q) || (q.Status != "" && q.Status != "open" && q.Status != "reverted") {
+		return Page[Cancellation]{}, ErrInvalid
+	}
+	return s.repo.ListCancellations(ctx, q)
+}
+
+// RevertCancellation makes the dues cancelled at a leaving owed again.
+func (s *Service) RevertCancellation(ctx context.Context, actor, id string, in RevertInput) (Cancellation, error) {
+	reason, ok := text(in.Reason, 240, true)
+	if !uuid.MatchString(actor) || !uuid.MatchString(id) || !ok {
+		return Cancellation{}, ErrInvalid
+	}
+	return s.repo.RevertCancellation(ctx, actor, id, reason)
 }
 
 func (s *Service) ListEntries(ctx context.Context, q Query) (Page[Entry], error) {

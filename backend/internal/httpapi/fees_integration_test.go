@@ -67,6 +67,7 @@ func TestPostgresFeeRoutesEnforceAccessAndMoneyRules(t *testing.T) {
 				"DELETE FROM fee_payment_allocations WHERE payment_id IN (SELECT id FROM fee_payments WHERE student_id IN ?)",
 				"DELETE FROM fee_payments WHERE student_id IN ?",
 				"DELETE FROM student_fees WHERE student_id IN ?",
+				"DELETE FROM fee_due_cancellations WHERE student_id IN ?",
 				"DELETE FROM student_guardians WHERE student_id IN ?",
 				"DELETE FROM students WHERE id IN ?",
 			} {
@@ -380,4 +381,52 @@ VALUES (?,300,'bkash','online',?,(now() AT TIME ZONE 'Asia/Dhaka')::date,gen_ran
 	call("GET", "/fees/reports/collections?from=2026-10-05&to=2026-10-01", "", accountant, 400)
 	call("GET", "/fees/payments?search="+suffix, "", headTeacher, 403)
 	call("GET", "/fees/payments/"+paymentID, "", admin, 200)
+
+	// Lifecycle audit QA-09: only an administrator reverses a counter
+	// payment, with a kind and a reason; simulated payments keep their void.
+	reverse := "/fees/payments/" + paymentID + "/reverse"
+	call("POST", reverse, `{"kind":"refund","reason":"Paid twice"}`, accountant, 403)
+	call("POST", reverse, `{"kind":"refund","reason":""}`, admin, 400)
+	call("POST", reverse, `{"kind":"later","reason":"x"}`, admin, 400)
+	call("POST", "/fees/payments/"+legacy+"/reverse", `{"kind":"error","reason":"x"}`, admin, 403)
+	reversed := data(call("POST", reverse, `{"kind":"refund","reason":"Paid twice"}`, admin, 200))
+	if reversed["reversed_at"] == nil || reversed["reversal_kind"] != "refund" || reversed["reversal_reason"] != "Paid twice" {
+		t.Fatalf("reversal %+v", reversed)
+	}
+	call("POST", reverse, `{"kind":"error","reason":"Again"}`, admin, 409)
+	if receipt := data(call("GET", "/fees/me/payments/"+paymentID, "", studentAuth, 200)); receipt["payment"].(map[string]any)["reversed_at"] == nil {
+		t.Fatalf("the student's receipt is not marked reversed: %+v", receipt["payment"])
+	}
+	if c := data(call("GET", "/fees/reports/collections?class_id="+class, "", accountant, 200)); c["total"].(float64) != 100 {
+		t.Fatalf("collections after the reversal %+v", c)
+	}
+	if listed := data(call("GET", "/fees/payments?status=reversed&student_id="+student, "", accountant, 200)); listed["total"].(float64) != 1 {
+		t.Fatalf("reversed payments %+v", listed)
+	}
+
+	// QA-08: a student who leaves has later months cancelled; the office sees
+	// them, and only an administrator reverts them.
+	call("POST", "/fees/dues/generate", fmt.Sprintf(`{"session_id":%q,"class_id":%q,"period":"2199-01"}`, session, class), accountant, 200)
+	tx := db.Begin()
+	tx.Exec("SELECT set_config('flybirds.actor_id', ?, true)", users[0].ID)
+	if err := tx.Exec("UPDATE students SET status='inactive' WHERE id=?", other).Error; err != nil {
+		tx.Rollback()
+		t.Fatal(err)
+	}
+	if err := tx.Commit().Error; err != nil {
+		t.Fatal(err)
+	}
+	listed := data(call("GET", "/fees/cancellations?student_id="+other, "", accountant, 200))["items"].([]any)
+	if len(listed) != 1 || listed[0].(map[string]any)["reason"] != "withdrawn" {
+		t.Fatalf("cancellations %+v", listed)
+	}
+	cancellation := listed[0].(map[string]any)["id"].(string)
+	call("GET", "/fees/cancellations", "", headTeacher, 403)
+	call("GET", "/fees/cancellations?status=maybe", "", accountant, 400)
+	call("POST", "/fees/cancellations/"+cancellation+"/revert", `{"reason":"Mistake"}`, accountant, 403)
+	call("POST", "/fees/cancellations/"+cancellation+"/revert", `{"reason":""}`, admin, 400)
+	if r := data(call("POST", "/fees/cancellations/"+cancellation+"/revert", `{"reason":"Mistake"}`, admin, 200)); r["reverted_at"] == nil {
+		t.Fatalf("revert %+v", r)
+	}
+	call("POST", "/fees/cancellations/"+cancellation+"/revert", `{"reason":"Again"}`, admin, 409)
 }

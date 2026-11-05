@@ -184,7 +184,7 @@ func (r *GormRepository) SaveCategory(ctx context.Context, actor, id string, in 
 	return out, dbErr(err)
 }
 
-const structureSelect = "fs.id,fs.session_id,fs.class_id,fs.category_id,fs.amount,fs.due_day,fs.is_active,se.name AS session_name,ac.name AS class_name,c.code AS category_code,c.name_en AS category_name_en,c.name_bn AS category_name_bn,c.frequency"
+const structureSelect = "fs.id,fs.session_id,fs.class_id,fs.category_id,fs.amount,fs.due_day,fs.is_active,fs.late_fine,se.name AS session_name,ac.name AS class_name,c.code AS category_code,c.name_en AS category_name_en,c.name_bn AS category_name_bn,c.frequency"
 
 func structureBase(db *gorm.DB) *gorm.DB {
 	return db.Table("fee_structures fs").Joins("JOIN academic_sessions se ON se.id=fs.session_id").Joins("JOIN academic_classes ac ON ac.id=fs.class_id").Joins("JOIN fee_categories c ON c.id=fs.category_id")
@@ -212,7 +212,7 @@ func (r *GormRepository) ListStructures(ctx context.Context, q Query) (Page[Stru
 
 // SaveStructure keeps the session, class and category fixed after creation;
 // amount changes affect only dues created afterwards.
-func (r *GormRepository) SaveStructure(ctx context.Context, actor, id string, in StructureInput, cents int64) (Structure, error) {
+func (r *GormRepository) SaveStructure(ctx context.Context, actor, id string, in StructureInput, cents, fineCents int64) (Structure, error) {
 	var out Structure
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockSetup(tx); err != nil {
@@ -230,7 +230,7 @@ func (r *GormRepository) SaveStructure(ctx context.Context, actor, id string, in
 			if ok == 0 {
 				return ErrInvalid
 			}
-			if err := tx.Raw("INSERT INTO fee_structures(session_id,class_id,category_id,amount,due_day,is_active,created_by,updated_by) VALUES (?,?,?,?::numeric,?,?,?,?) RETURNING id", in.SessionID, in.ClassID, in.CategoryID, Decimal(cents), in.DueDay, active, actor, actor).Row().Scan(&id); err != nil {
+			if err := tx.Raw("INSERT INTO fee_structures(session_id,class_id,category_id,amount,due_day,is_active,late_fine,created_by,updated_by) VALUES (?,?,?,?::numeric,?,?,?::numeric,?,?) RETURNING id", in.SessionID, in.ClassID, in.CategoryID, Decimal(cents), in.DueDay, active, Decimal(fineCents), actor, actor).Row().Scan(&id); err != nil {
 				return dbErr(err)
 			}
 		} else {
@@ -241,7 +241,7 @@ func (r *GormRepository) SaveStructure(ctx context.Context, actor, id string, in
 			if old.SessionID != in.SessionID || old.ClassID != in.ClassID || old.CategoryID != in.CategoryID {
 				return ErrConflict
 			}
-			if err := tx.Exec("UPDATE fee_structures SET amount=?::numeric,due_day=?,is_active=?,updated_by=?,updated_at=now() WHERE id=?", Decimal(cents), in.DueDay, active, actor, id).Error; err != nil {
+			if err := tx.Exec("UPDATE fee_structures SET amount=?::numeric,due_day=?,is_active=?,late_fine=?::numeric,updated_by=?,updated_at=now() WHERE id=?", Decimal(cents), in.DueDay, active, Decimal(fineCents), actor, id).Error; err != nil {
 				return dbErr(err)
 			}
 		}
@@ -249,7 +249,7 @@ func (r *GormRepository) SaveStructure(ctx context.Context, actor, id string, in
 		if out, err = structureByID(tx, id); err != nil {
 			return err
 		}
-		return audit.Record(tx, &actor, "fee.structure_saved", "fee_structure", id, map[string]any{"amount": Decimal(cents), "due_day": in.DueDay})
+		return audit.Record(tx, &actor, "fee.structure_saved", "fee_structure", id, map[string]any{"amount": Decimal(cents), "due_day": in.DueDay, "late_fine": Decimal(fineCents)})
 	})
 	return out, dbErr(err)
 }
@@ -330,7 +330,8 @@ func (r *GormRepository) DeleteConcession(ctx context.Context, actor, id string)
 }
 
 const dueSelect = `sf.id,sf.student_id,sf.structure_id,sf.session_id,sf.class_id,to_char(sf.period,'YYYY-MM') AS period,to_char(sf.due_date,'YYYY-MM-DD') AS due_date,sf.amount,sf.discount_amount,sf.paid_amount,sf.balance,
-CASE WHEN sf.balance=0 AND sf.paid_amount=0 THEN 'waived' WHEN sf.balance=0 THEN 'paid' WHEN sf.paid_amount>0 THEN 'partial' ELSE 'unpaid' END AS status,
+sf.late_fine,sf.fine_amount,to_char(sf.fine_charged_on,'YYYY-MM-DD') AS fine_charged_on,sf.cancellation_id,
+CASE WHEN sf.cancellation_id IS NOT NULL THEN 'cancelled' WHEN sf.balance=0 AND sf.paid_amount=0 THEN 'waived' WHEN sf.balance=0 THEN 'paid' WHEN sf.paid_amount>0 THEN 'partial' ELSE 'unpaid' END AS status,
 (sf.balance>0 AND sf.due_date < ?::date) AS overdue,c.id AS category_id,c.code AS category_code,c.name_en AS category_name_en,c.name_bn AS category_name_bn,
 s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,se.name AS session_name,ac.name AS class_name`
 
@@ -374,7 +375,9 @@ func (r *GormRepository) ListDues(ctx context.Context, q Query) (Page[Due], erro
 	case "paid":
 		base = base.Where("sf.balance=0 AND sf.paid_amount>0")
 	case "waived":
-		base = base.Where("sf.balance=0 AND sf.paid_amount=0")
+		base = base.Where("sf.balance=0 AND sf.paid_amount=0 AND sf.cancellation_id IS NULL")
+	case "cancelled":
+		base = base.Where("sf.cancellation_id IS NOT NULL")
 	case "outstanding":
 		base = base.Where("sf.balance>0")
 	case "overdue":
@@ -397,6 +400,7 @@ type structureContext struct {
 	DueDay    int
 	IsActive  bool
 	CatActive bool
+	LateFine  float64
 }
 
 // periodWithinSession reports whether the month overlaps the session dates.
@@ -414,7 +418,7 @@ func (r *GormRepository) AssignDue(ctx context.Context, actor string, in DueInpu
 			return err
 		}
 		var st structureContext
-		if err := tx.Table("fee_structures fs").Joins("JOIN fee_categories c ON c.id=fs.category_id").Select("fs.id,fs.session_id,fs.class_id,c.id AS category,c.frequency,fs.amount,fs.due_day,fs.is_active,c.is_active AS cat_active").Where("fs.id=?", in.StructureID).Take(&st).Error; err != nil {
+		if err := tx.Table("fee_structures fs").Joins("JOIN fee_categories c ON c.id=fs.category_id").Select("fs.id,fs.session_id,fs.class_id,c.id AS category,c.frequency,fs.amount,fs.due_day,fs.is_active,c.is_active AS cat_active,fs.late_fine").Where("fs.id=?", in.StructureID).Take(&st).Error; err != nil {
 			return dbErr(err)
 		}
 		var student struct{ SessionID, ClassID string }
@@ -453,7 +457,7 @@ func (r *GormRepository) AssignDue(ctx context.Context, actor string, in DueInpu
 		}
 		discount := PercentOf(amount, percent)
 		var id string
-		if err := tx.Raw("INSERT INTO student_fees(student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,created_by) VALUES (?,?,?,?,?::date,?::date,?::numeric,?::numeric,?) RETURNING id", in.StudentID, st.ID, st.SessionID, st.ClassID, period, dueDate, Decimal(amount), Decimal(discount), actor).Row().Scan(&id); err != nil {
+		if err := tx.Raw("INSERT INTO student_fees(student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,late_fine,created_by) VALUES (?,?,?,?,?::date,?::date,?::numeric,?::numeric,?::numeric,?) RETURNING id", in.StudentID, st.ID, st.SessionID, st.ClassID, period, dueDate, Decimal(amount), Decimal(discount), Decimal(mustCents(st.LateFine)), actor).Row().Scan(&id); err != nil {
 			return dbErr(err)
 		}
 		if discount > 0 {
@@ -489,7 +493,7 @@ func (r *GormRepository) GenerateDues(ctx context.Context, actor string, in Gene
 		row := tx.Raw(`WITH candidates AS (
   SELECT s.student_id, fs.id AS structure_id, fs.session_id, fs.class_id,
          CASE WHEN c.frequency='monthly' THEN ?::date END AS period,
-         ?::date + (fs.due_day - 1) AS due_date, fs.amount,
+         ?::date + (fs.due_day - 1) AS due_date, fs.amount, fs.late_fine,
          COALESCE(round(fs.amount * fc.percent / 100, 2), 0) AS discount_amount
   FROM fee_structures fs
   JOIN fee_categories c ON c.id=fs.category_id AND c.is_active
@@ -497,8 +501,8 @@ func (r *GormRepository) GenerateDues(ctx context.Context, actor string, in Gene
   LEFT JOIN fee_concessions fc ON fc.student_id=s.student_id AND fc.category_id=c.id AND fc.session_id=fs.session_id
   WHERE fs.session_id=? AND fs.is_active AND (?='' OR fs.class_id::text=?) AND (c.frequency='monthly' OR ?)
 ), inserted AS (
-  INSERT INTO student_fees(student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,created_by)
-  SELECT student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,? FROM candidates
+  INSERT INTO student_fees(student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,late_fine,created_by)
+  SELECT student_id,structure_id,session_id,class_id,period,due_date,amount,discount_amount,late_fine,? FROM candidates
   ON CONFLICT ON CONSTRAINT student_fees_period_key DO NOTHING
   RETURNING id, discount_amount
 ), concessions AS (
@@ -527,8 +531,13 @@ func (r *GormRepository) DeleteDue(ctx context.Context, actor, id string) error 
 			return err
 		}
 		var paid float64
-		if err := tx.Raw("SELECT paid_amount FROM student_fees WHERE id=? FOR UPDATE", id).Row().Scan(&paid); err != nil {
+		var cancelled bool
+		if err := tx.Raw("SELECT paid_amount,cancellation_id IS NOT NULL FROM student_fees WHERE id=? FOR UPDATE", id).Row().Scan(&paid, &cancelled); err != nil {
 			return ErrNotFound
+		}
+		// A due cancelled because the student left stays on record.
+		if cancelled {
+			return ErrConflict
 		}
 		var allocations int64
 		if err := tx.Table("fee_payment_allocations").Where("student_fee_id=?", id).Count(&allocations).Error; err != nil {
@@ -586,7 +595,7 @@ func (r *GormRepository) Adjust(ctx context.Context, actor, kind, dueID string, 
 
 func (r *GormRepository) Adjustments(ctx context.Context, dueID string) ([]Adjustment, error) {
 	out := []Adjustment{}
-	err := r.db.WithContext(ctx).Table("fee_adjustments").Select("id,student_fee_id,kind,amount,reason,to_char(created_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS created_at").Where("student_fee_id=?", dueID).Order("created_at,id").Find(&out).Error
+	err := r.db.WithContext(ctx).Table("fee_adjustments").Select("id,student_fee_id,kind,amount,reason,to_char(created_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS created_at").Where("student_fee_id=?", dueID).Order("fee_adjustments.created_at,fee_adjustments.id").Find(&out).Error
 	return out, err
 }
 
@@ -627,6 +636,10 @@ func recordPayment(tx *gorm.DB, actor string, rec PaymentRecord) (string, bool, 
 	}
 	if known == 0 {
 		return "", false, ErrNotFound
+	}
+	// Fines due by today are charged first, so the amount owed is current.
+	if _, err := applyLateFines(tx, todayDhaka(), rec.StudentID); err != nil {
+		return "", false, err
 	}
 	query := tx.Table("student_fees").Select("id,balance").Where("student_id=? AND balance>0", rec.StudentID)
 	if len(rec.FeeIDs) > 0 {
@@ -676,12 +689,13 @@ func recordPayment(tx *gorm.DB, actor string, rec PaymentRecord) (string, bool, 
 	return id, false, nil
 }
 
-const paymentSelect = `p.id,p.receipt_no,p.student_id,p.amount,p.method,p.source,p.simulated,to_char(p.voided_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS voided_at,p.void_reason,p.reference,to_char(p.paid_on,'YYYY-MM-DD') AS paid_on,p.note,
+const paymentSelect = `p.id,p.receipt_no,p.student_id,p.amount,p.method,p.source,p.simulated,to_char(p.voided_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS voided_at,p.void_reason,
+to_char(p.reversed_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS reversed_at,p.reversal_kind,p.reversal_reason,COALESCE(NULLIF(ru.display_name,''),ru.email,'') AS reversed_by_name,p.reference,to_char(p.paid_on,'YYYY-MM-DD') AS paid_on,p.note,
 CASE WHEN p.source='online' THEN '' ELSE COALESCE(NULLIF(u.display_name,''),u.email) END AS received_by_name,
 to_char(p.created_at AT TIME ZONE 'Asia/Dhaka','YYYY-MM-DD HH24:MI') AS created_at,s.name_en AS student_name,s.name_bn AS student_name_bn,s.admission_no,ac.name AS class_name,sec.name AS section_name`
 
 func paymentBase(db *gorm.DB) *gorm.DB {
-	return db.Table("fee_payments p").Joins("JOIN students s ON s.id=p.student_id").Joins("JOIN academic_classes ac ON ac.id=s.class_id").Joins("JOIN academic_sections sec ON sec.id=s.section_id").Joins("JOIN users u ON u.id=p.received_by")
+	return db.Table("fee_payments p").Joins("JOIN students s ON s.id=p.student_id").Joins("JOIN academic_classes ac ON ac.id=s.class_id").Joins("JOIN academic_sections sec ON sec.id=s.section_id").Joins("JOIN users u ON u.id=p.received_by").Joins("LEFT JOIN users ru ON ru.id=p.reversed_by")
 }
 
 func (r *GormRepository) ListPayments(ctx context.Context, q Query) (Page[Payment], error) {
@@ -699,6 +713,12 @@ func (r *GormRepository) ListPayments(ctx context.Context, q Query) (Page[Paymen
 		base = base.Where("NOT p.simulated")
 	case "unreviewed":
 		base = base.Where("p.simulated AND p.voided_at IS NULL")
+	}
+	switch q.Status {
+	case "reversed":
+		base = base.Where("p.reversed_at IS NOT NULL")
+	case "kept":
+		base = base.Where("p.reversed_at IS NULL")
 	}
 	if q.From != "" {
 		base = base.Where("p.paid_on>=?::date", q.From)
@@ -776,8 +796,9 @@ func (r *GormRepository) Statement(ctx context.Context, studentID, today string)
 	if err := paymentBase(db).Select(paymentSelect).Where("p.student_id=?", studentID).Order("p.paid_on DESC,p.created_at DESC").Limit(200).Find(&out.Payments).Error; err != nil {
 		return Statement{}, err
 	}
-	var charged, discount, paid, balance, overdue int64
+	var charged, discount, paid, balance, overdue, fines int64
 	for _, d := range out.Dues {
+		fines += mustCents(d.FineAmount)
 		a, _ := ToCents(d.Amount)
 		ds, _ := ToCents(d.DiscountAmount)
 		p, _ := ToCents(d.PaidAmount)
@@ -787,7 +808,7 @@ func (r *GormRepository) Statement(ctx context.Context, studentID, today string)
 			overdue += b
 		}
 	}
-	out.Totals = Totals{Charged: float64(charged) / 100, Discount: float64(discount) / 100, Paid: float64(paid) / 100, Balance: float64(balance) / 100, Overdue: float64(overdue) / 100}
+	out.Totals = Totals{Charged: float64(charged) / 100, Discount: float64(discount) / 100, Paid: float64(paid) / 100, Balance: float64(balance) / 100, Overdue: float64(overdue) / 100, Fines: float64(fines) / 100}
 	err := db.Raw("SELECT COALESCE(sum(amount),0) FROM fee_payments WHERE student_id=? AND simulated AND voided_at IS NULL", studentID).Row().Scan(&out.Totals.SimulatedUnreviewed)
 	return out, err
 }
@@ -928,7 +949,7 @@ func mustCents(v float64) int64 {
 	return c
 }
 
-const entrySelect = "le.id,le.entry_type,le.category,le.amount,COALESCE(fp.simulated,false) AS simulated,to_char(le.entry_date,'YYYY-MM-DD') AS entry_date,le.description,le.reference,le.payment_id,COALESCE(NULLIF(u.display_name,''),u.email) AS created_by_name"
+const entrySelect = "le.id,le.entry_type,le.category,le.amount,COALESCE(fp.simulated,false) AS simulated,to_char(le.entry_date,'YYYY-MM-DD') AS entry_date,le.description,le.reference,le.payment_id,le.reverses_payment_id,COALESCE(NULLIF(u.display_name,''),u.email) AS created_by_name"
 
 func entryBase(db *gorm.DB) *gorm.DB {
 	return db.Table("ledger_entries le").Joins("JOIN users u ON u.id=le.created_by").Joins("LEFT JOIN fee_payments fp ON fp.id=le.payment_id")
@@ -974,14 +995,15 @@ func (r *GormRepository) SaveEntry(ctx context.Context, actor string, in EntryIn
 func (r *GormRepository) DeleteEntry(ctx context.Context, actor, id string) error {
 	return dbErr(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var entry struct {
-			PaymentID *string
-			Amount    float64
-			EntryType string
+			PaymentID         *string
+			ReversesPaymentID *string
+			Amount            float64
+			EntryType         string
 		}
-		if err := tx.Table("ledger_entries").Select("payment_id,amount,entry_type").Where("id=?", id).Clauses(clause.Locking{Strength: "UPDATE"}).Take(&entry).Error; err != nil {
+		if err := tx.Table("ledger_entries").Select("payment_id,reverses_payment_id,amount,entry_type").Where("id=?", id).Clauses(clause.Locking{Strength: "UPDATE"}).Take(&entry).Error; err != nil {
 			return dbErr(err)
 		}
-		if entry.PaymentID != nil {
+		if entry.PaymentID != nil || entry.ReversesPaymentID != nil {
 			return ErrConflict
 		}
 		if err := tx.Exec("DELETE FROM ledger_entries WHERE id=?", id).Error; err != nil {
@@ -1026,7 +1048,7 @@ func (r *GormRepository) Collections(ctx context.Context, q Query) (CollectionRe
 		b := db.Table("fee_payment_allocations a").Joins("JOIN fee_payments p ON p.id=a.payment_id").Joins("JOIN student_fees sf ON sf.id=a.student_fee_id").Joins("JOIN fee_structures fs ON fs.id=sf.structure_id").Joins("JOIN fee_categories c ON c.id=fs.category_id").Joins("JOIN academic_classes ac ON ac.id=sf.class_id").
 			Where("p.paid_on BETWEEN ?::date AND ?::date", q.From, q.To)
 		if !includeSimulated {
-			b = b.Where("NOT p.simulated")
+			b = b.Where("NOT p.simulated AND p.reversed_at IS NULL")
 		} else {
 			b = b.Where("p.simulated")
 		}
@@ -1092,7 +1114,7 @@ func (r *GormRepository) DueReport(ctx context.Context, q Query) (DueReport, err
 		having = "sum(sf.balance) FILTER (WHERE sf.due_date < ?::date) > 0"
 	}
 	grouped := fmt.Sprintf(`SELECT s.id AS student_id,s.admission_no,s.name_en,s.name_bn,ac.name AS class_name,sec.name AS section_name,
- sum(sf.amount) AS charged,sum(sf.discount_amount) AS discount,sum(sf.paid_amount) AS paid,sum(sf.balance) AS balance,
+ sum(sf.amount) AS charged,sum(sf.discount_amount) AS discount,sum(sf.paid_amount) AS paid,sum(sf.fine_amount) AS fines,sum(sf.balance) AS balance,
  COALESCE(sum(sf.balance) FILTER (WHERE sf.due_date < ?::date),0) AS overdue,
  to_char(min(sf.due_date) FILTER (WHERE sf.balance > 0),'YYYY-MM-DD') AS oldest_due
 FROM student_fees sf JOIN students s ON s.id=sf.student_id JOIN academic_classes ac ON ac.id=s.class_id JOIN academic_sections sec ON sec.id=s.section_id
