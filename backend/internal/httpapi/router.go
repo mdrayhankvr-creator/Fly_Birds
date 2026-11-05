@@ -249,6 +249,45 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.POST("/routines/exams/:id/slots", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.createExamSlot)
 	management.PATCH("/routines/exams/:id/slots/:slotId", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.updateExamSlot)
 	management.DELETE("/routines/exams/:id/slots/:slotId", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.deleteExamSlot)
+	// Term exam routine planner (E8).
+	var termService *routine.TermService
+	if routineService != nil {
+		termService = routineService.Term
+	}
+	tp := &termRoutineHandler{service: termService}
+	manage := func(h gin.HandlerFunc) []gin.HandlerFunc {
+		return []gin.HandlerFunc{RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), h}
+	}
+	read := func(h gin.HandlerFunc) []gin.HandlerFunc {
+		return []gin.HandlerFunc{RequirePermission(service, "routine:read"), moduleGuard("routine"), h}
+	}
+	management.GET("/routines/rooms", read(tp.rooms)...)
+	management.POST("/routines/rooms", manage(tp.saveRoom)...)
+	management.PATCH("/routines/rooms/:id", manage(tp.saveRoom)...)
+	management.GET("/routines/terms", read(tp.terms)...)
+	management.GET("/routines/terms/me", RequirePermission(service, "routine:read_self"), moduleGuard("routine"), tp.mine)
+	management.GET("/routines/terms/me/:versionId/pdf", RequirePermission(service, "routine:read_self"), moduleGuard("routine"), tp.minePDF)
+	management.GET("/routines/duties/me", RequirePermission(service, "routine:read_self"), moduleGuard("routine"), tp.duties)
+	management.POST("/routines/versions", manage(tp.createVersion)...)
+	management.GET("/routines/versions/:id", read(tp.version)...)
+	management.GET("/routines/versions/:id/pdf", read(tp.pdf)...)
+	management.PATCH("/routines/versions/:id", manage(tp.updateVersion)...)
+	management.DELETE("/routines/versions/:id", manage(tp.deleteVersion)...)
+	management.POST("/routines/versions/:id/sittings", manage(tp.saveSitting)...)
+	management.PATCH("/routines/versions/:id/sittings/:sittingId", manage(tp.saveSitting)...)
+	management.DELETE("/routines/versions/:id/sittings/:sittingId", manage(tp.deleteSitting)...)
+	management.POST("/routines/versions/:id/papers", manage(tp.addPaper)...)
+	management.PATCH("/routines/versions/:id/papers/:paperId", manage(tp.placePaper)...)
+	management.DELETE("/routines/versions/:id/papers/:paperId", manage(tp.deletePaper)...)
+	management.POST("/routines/versions/:id/duties", manage(tp.addDuty)...)
+	management.DELETE("/routines/versions/:id/duties/:dutyId", manage(tp.deleteDuty)...)
+	management.POST("/routines/versions/:id/generate", manage(tp.generate)...)
+	management.POST("/routines/versions/:id/submit", manage(tp.move("submitted"))...)
+	management.POST("/routines/versions/:id/withdraw", manage(tp.move("draft"))...)
+	management.POST("/routines/versions/:id/approve", RequirePermission(service, "routine:approve"), moduleGuard("routine"), tp.move("approved"))
+	management.POST("/routines/versions/:id/return", RequirePermission(service, "routine:approve"), moduleGuard("routine"), tp.move("draft"))
+	management.POST("/routines/versions/:id/publish", manage(tp.move("published"))...)
+	management.POST("/routines/versions/:id/amend", manage(tp.amend)...)
 	eh := &examHandler{service: examService}
 	bh := &blueprintHandler{}
 	if examService != nil {
