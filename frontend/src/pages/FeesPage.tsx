@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { StudentName } from '../components/StudentLink'
 import { adjustFeeDue, deleteFeeDue, generateFeeDues, getFeeAdjustments, getFeeDues, getFeeOptions, type FeeDue, type FeeOptions } from '../api/fees'
 import { usePeopleApi } from './peopleShared'
-import { Notice, useFeeAction, type FeeAccess, Pager, feeButton, feeCard, feeField, feeSecondary, todayInDhaka, useLocalName, useMoney } from './feeShared'
+import { FineNote, Notice, useFeeAction, type FeeAccess, Pager, feeButton, feeCard, feeField, feeSecondary, todayInDhaka, useLocalName, useMoney } from './feeShared'
+import { CancellationsPanel } from './FeeLifecyclePanels'
 import { FeeReportsPanel, FeeSetupPanel, LedgerPanel } from './FeeAdminPanels'
 import { CounterPanel } from './FeeCounter'
 import { CardTitle, ui, PageHeader, Tabs } from './attendanceUi'
@@ -76,7 +77,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className={ui.label}>{t('feeSession')}<select className={feeField} value={filters.session_id} onChange={e => setFilter('session_id', e.target.value)}><option value="">{t('feeAll')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={filters.class_id} onChange={e => setFilter('class_id', e.target.value)}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        <label className={ui.label}>{t('feeStatus')}<select className={feeField} value={filters.status} onChange={e => setFilter('status', e.target.value)}><option value="">{t('feeAll')}</option>{['outstanding', 'overdue', 'unpaid', 'partial', 'paid', 'waived'].map(s => <option key={s} value={s}>{t(`feeStatus_${s}`)}</option>)}</select></label>
+        <label className={ui.label}>{t('feeStatus')}<select className={feeField} value={filters.status} onChange={e => setFilter('status', e.target.value)}><option value="">{t('feeAll')}</option>{['outstanding', 'overdue', 'unpaid', 'partial', 'paid', 'waived', 'cancelled'].map(s => <option key={s} value={s}>{t(`feeStatus_${s}`)}</option>)}</select></label>
         <label className={ui.label}>{t('feeMonth')}<input type="month" className={feeField} value={filters.period} onChange={e => setFilter('period', e.target.value)} /></label>
         <label className={ui.label}>{t('feeSearch')}<input className={feeField} value={filters.search} onChange={e => setFilter('search', e.target.value)} /></label>
       </div>
@@ -84,16 +85,17 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
         <div className="mt-3 overflow-x-auto"><table className="ds-cards w-full min-w-[48rem] border-collapse text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-2.5">{t('feeStudent')}</th><th className="px-3 py-2.5">{t('feeCategory')}</th><th className="px-3 py-2.5">{t('feeDueDate')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeAmount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeDiscount')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feePaid')}</th><th className="px-3 py-2.5 text-right tabular-nums">{t('feeBalance')}</th><th className="px-3 py-2.5">{t('feeStatus')}</th>{access.canManage && <th className="px-3 py-2.5">{t('feeActions')}</th>}</tr></thead>
           <tbody>{dues.data.items.map(d => <tr key={d.id} className="border-b align-top"><td className="px-3 py-2.5"><strong><StudentName id={d.student_id}>{name(d.student_name, d.student_name_bn)}</StudentName></strong><span className="block text-xs text-slate-600">{d.admission_no} · {d.class_name}</span></td>
             <td className="px-3 py-2.5">{name(d.category_name_en, d.category_name_bn)}{d.period && <span className="block text-xs text-slate-600">{d.period}</span>}</td><td className="whitespace-nowrap p-2">{d.due_date}</td>
-            <td className="px-3 py-2.5 text-right tabular-nums">{money(d.amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.discount_amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}</td>
+            <td className="px-3 py-2.5 text-right tabular-nums">{money(d.amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.discount_amount)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money(d.paid_amount)}</td><td className="p-2 text-right font-semibold">{money(d.balance)}<FineNote due={d} /></td>
             <td className="px-3 py-2.5"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${d.overdue ? 'bg-rose-100 text-rose-800' : 'bg-slate-100'}`}>{t(`feeStatus_${d.status}`)}{d.overdue ? ` · ${t('feeOverdue')}` : ''}</span></td>
             {access.canManage && <td className="px-3 py-2.5"><div className="flex flex-wrap gap-1">
               {d.balance > 0 && <button type="button" className={feeSecondary} onClick={() => setAdjusting({ due: d, kind: 'discount', amount: '', reason: '' })}>{t('feeDiscountAction')}</button>}
               {d.balance > 0 && access.role === 'admin' && <button type="button" className={feeSecondary} onClick={() => setAdjusting({ due: d, kind: 'waiver', amount: '', reason: '' })}>{t('feeWaive')}</button>}
-              {d.paid_amount === 0 && <button type="button" className={`${feeSecondary} text-rose-700`} onClick={() => void remove(d)}>{t('feeDelete')}</button>}
+              {d.paid_amount === 0 && d.status !== 'cancelled' && <button type="button" className={`${feeSecondary} text-rose-700`} onClick={() => void remove(d)}>{t('feeDelete')}</button>}
             </div></td>}</tr>)}</tbody></table></div>
         <Pager page={page} total={dues.data.total} size={20} onPage={setPage} />
       </>}
     </section>
+    <CancellationsPanel access={access} />
     {adjusting && <section className={feeCard} aria-live="polite"><h2 className={ui.sectionTitle}>{t(adjusting.kind === 'waiver' ? 'feeWaiveTitle' : 'feeDiscountTitle')}</h2>
       <p className="mt-1 text-sm">{name(adjusting.due.student_name, adjusting.due.student_name_bn)} · {name(adjusting.due.category_name_en, adjusting.due.category_name_bn)} · {t('feeBalance')} {money(adjusting.due.balance)}</p>
       <form onSubmit={saveAdjustment} className="mt-3 grid gap-3 sm:grid-cols-3">

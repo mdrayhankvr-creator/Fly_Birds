@@ -6,6 +6,7 @@ import { ApiError, getAttendanceSections, getAttendanceSessions, getStudentAtten
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
 import { EmptyState, Notice, PageHeader, Skeleton, tones, ui, useNumber } from './attendanceUi'
+import { DayOffNotice, dayOffFromError, useAttendanceDay, useDayOffText } from './attendanceDay'
 
 // Quick attendance (checkpoint 3), phone first: the section's roster with
 // everyone present unless marked otherwise. A tap moves a student from
@@ -36,6 +37,9 @@ export function QuickAttendancePage() {
   useEffect(() => { if (sections.data && !sections.data.some(s => s.id === sectionId)) setSectionId(sections.data[0]?.id ?? '') }, [sections.data, sectionId])
   const section = sections.data?.find(s => s.id === sectionId)
   const open = !!session && date >= session.start_date && date <= session.end_date
+  // On a weekly off day or a published holiday only saved marks can be corrected.
+  const { day, closed } = useAttendanceDay(date, open, authorized)
+  const dayOffText = useDayOffText()
   const roster = useQuery({
     queryKey: ['attendance', 'student-roster', session?.id, sectionId, date], enabled: !!section && open, retry: false,
     queryFn: () => authorized(async token => {
@@ -51,7 +55,7 @@ export function QuickAttendancePage() {
   const items = useMemo(() => roster.data ?? [], [roster.data])
   // Unmarked students count as present until saved.
   const effective = (item: StudentAttendanceRosterItem): Status => marks[item.student_id] ?? item.status ?? 'present'
-  const pending = items.filter(item => effective(item) !== item.status)
+  const pending = items.filter(item => effective(item) !== item.status && (!closed || !!item.record_id))
   const dirty = pending.length > 0
   const counts = { present: 0, absent: 0, late: 0 }
   for (const item of items) counts[effective(item)]++
@@ -93,7 +97,8 @@ export function QuickAttendancePage() {
         const ids = Array.isArray(cause.details?.student_ids) ? (cause.details.student_ids as string[]).map(id => id.toLowerCase()) : []
         setStale(ids)
         setMessage({ tone: 'warning', text: t('attnStale', { count: ids.length }), reload: true })
-      } else setMessage({ tone: 'error', text: t(cause instanceof ApiError && cause.code === 'forbidden' ? 'attnForbidden' : 'attendanceSaveError') })
+      } else if (dayOffFromError(cause)) setMessage({ tone: 'warning', text: dayOffText(dayOffFromError(cause)!) })
+      else setMessage({ tone: 'error', text: t(cause instanceof ApiError && cause.code === 'forbidden' ? 'attnForbidden' : 'attendanceSaveError') })
     } finally { savingRef.current = false; setSaving(false) }
   }
   async function reload() {
@@ -115,6 +120,7 @@ export function QuickAttendancePage() {
       {sections.data?.length === 0 && <p className="mt-3 text-sm text-slate-600">{t('attnNoSections')}</p>}
       {session && !open && <p className="mt-3 text-sm text-amber-800">{t('attnInvalidDay')}</p>}
     </section>
+    {open && closed && day && <DayOffNotice day={day} />}
 
     {message && <Notice tone={message.tone} action={message.reload ? <button type="button" className={ui.secondary} onClick={() => void reload()}>{t('attnReload')}</button> : undefined}>{message.text}</Notice>}
 
@@ -133,7 +139,7 @@ export function QuickAttendancePage() {
           const isStale = stale.includes(item.student_id.toLowerCase())
           const display = i18n.language === 'bn' && item.name_bn ? item.name_bn : item.name_en
           return <li key={item.student_id}>
-            <button type="button" disabled={saving} onClick={() => tap(item)} data-roll={item.roll_no ?? ''}
+            <button type="button" disabled={saving || (closed && !item.record_id)} onClick={() => tap(item)} data-roll={item.roll_no ?? ''}
               aria-label={t('c3TapLabel', { roll: item.roll_no ?? '—', name: display, status: t(`c3Status_${status}`) })}
               className={`flex min-h-16 w-full items-center gap-3 px-4 py-2.5 text-left transition active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--brand-primary)] border-l-4 ${isStale ? 'border-l-amber-600 bg-amber-50' : status === 'absent' ? 'border-l-rose-500' : status === 'late' ? 'border-l-amber-400' : 'border-l-transparent'}`}>
               <span className="w-8 shrink-0 text-center font-mono text-lg font-bold tabular-nums text-slate-500">{item.roll_no == null ? '—' : num(item.roll_no)}</span>

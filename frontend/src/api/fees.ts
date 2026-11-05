@@ -2,19 +2,19 @@ import { bearerRequest, json, type Page } from './client'
 
 export type FeeCategory = { id: string; code: string; name_en: string; name_bn: string; frequency: 'monthly' | 'one_time'; is_active: boolean }
 export type FeeCategoryInput = Omit<FeeCategory, 'id'>
-export type FeeStructure = { id: string; session_id: string; class_id: string; category_id: string; amount: number; due_day: number; is_active: boolean; session_name: string; class_name: string; category_code: string; category_name_en: string; category_name_bn: string; frequency: FeeCategory['frequency'] }
-export type FeeStructureInput = { session_id: string; class_id: string; category_id: string; amount: number; due_day: number; is_active: boolean }
+export type FeeStructure = { id: string; session_id: string; class_id: string; category_id: string; amount: number; due_day: number; is_active: boolean; late_fine: number; session_name: string; class_name: string; category_code: string; category_name_en: string; category_name_bn: string; frequency: FeeCategory['frequency'] }
+export type FeeStructureInput = { session_id: string; class_id: string; category_id: string; amount: number; due_day: number; is_active: boolean; late_fine: number }
 export type FeeConcession = { id: string; student_id: string; category_id: string; percent: number; reason: string; student_name: string; admission_no: string; category_name_en: string; category_name_bn: string }
-export type FeeDueStatus = 'unpaid' | 'partial' | 'paid' | 'waived'
-export type FeeDue = { id: string; student_id: string; structure_id: string; session_id: string; class_id: string; period: string | null; due_date: string; amount: number; discount_amount: number; paid_amount: number; balance: number; status: FeeDueStatus; overdue: boolean; category_id: string; category_code: string; category_name_en: string; category_name_bn: string; student_name: string; student_name_bn: string; admission_no: string; session_name: string; class_name: string }
-export type FeeAdjustment = { id: string; student_fee_id: string; kind: 'discount' | 'waiver'; amount: number; reason: string; created_at: string }
+export type FeeDueStatus = 'unpaid' | 'partial' | 'paid' | 'waived' | 'cancelled'
+export type FeeDue = { id: string; student_id: string; structure_id: string; session_id: string; class_id: string; period: string | null; due_date: string; amount: number; discount_amount: number; paid_amount: number; late_fine: number; fine_amount: number; fine_charged_on: string | null; cancellation_id: string | null; balance: number; status: FeeDueStatus; overdue: boolean; category_id: string; category_code: string; category_name_en: string; category_name_bn: string; student_name: string; student_name_bn: string; admission_no: string; session_name: string; class_name: string }
+export type FeeAdjustment = { id: string; student_fee_id: string; kind: 'discount' | 'waiver' | 'leaving_cancellation' | 'cancellation_reverted' | 'late_fine'; amount: number; reason: string; created_at: string }
 export type FeeMethod = 'cash' | 'bank' | 'bkash' | 'nagad'
-export type FeePayment = { id: string; receipt_no: string; student_id: string; amount: number; method: FeeMethod; source: 'counter' | 'online'; simulated: boolean; voided_at: string | null; void_reason: string; reference: string; paid_on: string; note: string; received_by_name: string; created_at: string; student_name: string; student_name_bn: string; admission_no: string; class_name: string; section_name: string }
+export type FeePayment = { id: string; receipt_no: string; student_id: string; amount: number; method: FeeMethod; source: 'counter' | 'online'; simulated: boolean; voided_at: string | null; void_reason: string; reversed_at: string | null; reversal_kind: 'error' | 'refund' | null; reversal_reason: string; reversed_by_name: string; reference: string; paid_on: string; note: string; received_by_name: string; created_at: string; student_name: string; student_name_bn: string; admission_no: string; class_name: string; section_name: string }
 export type FeePaymentInput = { student_id: string; amount: number; method: FeeMethod; reference: string; paid_on: string; note: string; idempotency_key: string; fee_ids: string[] }
 export type FeeAllocation = { student_fee_id: string; amount: number; category_name_en: string; category_name_bn: string; period: string | null; due_date: string }
 export type FeeReceipt = { payment: FeePayment; allocations: FeeAllocation[]; balance_after: number; school_name_en: string; school_name_bn: string; logo_url: string; address: string; phone: string; replayed: boolean }
 export type FeeStudent = { id: string; admission_no: string; name_en: string; name_bn: string; roll_no: number | null; status: string; session_id: string; class_id: string; section_id: string; session_name: string; class_name: string; section_name: string }
-export type FeeTotals = { charged: number; discount: number; paid: number; balance: number; overdue: number; simulated_unreviewed: number }
+export type FeeTotals = { charged: number; discount: number; paid: number; balance: number; overdue: number; fines: number; simulated_unreviewed: number }
 export type FeeStatement = { student: FeeStudent; dues: FeeDue[]; payments: FeePayment[]; totals: FeeTotals }
 export type FeeOptions = { sessions: { id: string; name: string; is_active: boolean }[]; classes: { id: string; name: string; is_active: boolean }[]; sections: { id: string; name: string; session_id: string; class_id: string }[]; categories: FeeCategory[] }
 export type FeeIntent = { id: string; provider: 'bkash' | 'nagad'; provider_ref: string; student_id: string; amount: number; status: 'pending' | 'completed' | 'failed' | 'simulated'; expires_at: string; expired: boolean; payment_id: string | null }
@@ -22,8 +22,8 @@ export type FeeBucket = { key: string; name_en: string; name_bn: string; total: 
 export type FeeCollectionReport = { from: string; to: string; total: number; count: number; simulated_total: number; simulated_count: number; by_method: FeeBucket[]; by_class: FeeBucket[]; by_category: FeeBucket[]; by_day: FeeBucket[] }
 export type FeeDueReportRow = { student_id: string; admission_no: string; name_en: string; name_bn: string; class_name: string; section_name: string; charged: number; discount: number; paid: number; balance: number; overdue: number; oldest_due: string | null }
 export type FeeDueReport = Page<FeeDueReportRow> & { total_balance: number; total_overdue: number }
-export type LedgerEntry = { id: string; entry_type: 'income' | 'expense'; category: string; amount: number; entry_date: string; description: string; reference: string; payment_id: string | null; created_by_name: string; simulated: boolean }
-export type LedgerEntryInput = Omit<LedgerEntry, 'id' | 'payment_id' | 'created_by_name' | 'simulated'>
+export type LedgerEntry = { id: string; entry_type: 'income' | 'expense'; category: string; amount: number; entry_date: string; description: string; reference: string; payment_id: string | null; reverses_payment_id: string | null; created_by_name: string; simulated: boolean }
+export type LedgerEntryInput = Omit<LedgerEntry, 'id' | 'payment_id' | 'reverses_payment_id' | 'created_by_name' | 'simulated'>
 export type AccountingSummary = { from: string; to: string; income: number; expense: number; net: number; income_by_category: FeeBucket[]; expense_by_category: FeeBucket[]; outstanding: number; arrears: number }
 
 export const ledgerCategories = {
@@ -62,6 +62,12 @@ export const getOnlinePaymentStatus = (token: string) => bearerRequest<FeeOnline
 export const saveOnlinePaymentSettings = (token: string, simulationEnabled: boolean) => bearerRequest<FeeOnlineStatus>('/fees/online/settings', token, json('PUT', { simulation_enabled: simulationEnabled }))
 export const voidSimulatedPayment = (token: string, paymentId: string, reason: string) => bearerRequest<FeePayment>(`/fees/payments/${id(paymentId)}/void`, token, json('POST', { reason }))
 export const confirmFeeIntent = (token: string, intentId: string, otp: string) => bearerRequest<FeeSimulation>(`/fees/online/intents/${id(intentId)}/confirm`, token, json('POST', { otp }))
+// Lifecycle audit: reversing a counter payment, and the dues cancelled when a student left.
+export type FeeReversalKind = 'error' | 'refund'
+export const reverseFeePayment = (token: string, paymentId: string, input: { kind: FeeReversalKind; reason: string }) => bearerRequest<FeePayment>(`/fees/payments/${id(paymentId)}/reverse`, token, json('POST', input))
+export type FeeCancellation = { id: string; student_id: string; student_name: string; student_name_bn: string; admission_no: string; student_status: string; class_name: string; session_name: string; reason: 'withdrawn' | 'transferred'; left_on: string; dues: number; amount: number; created_at: string; created_by_name: string; reverted_at: string | null; revert_reason: string; reverted_by_name: string; periods: string[] }
+export const getFeeCancellations = (token: string, params: URLSearchParams) => bearerRequest<Page<FeeCancellation>>(`/fees/cancellations?${params}`, token)
+export const revertFeeCancellation = (token: string, cancellationId: string, reason: string) => bearerRequest<FeeCancellation>(`/fees/cancellations/${id(cancellationId)}/revert`, token, json('POST', { reason }))
 export const getFeeCollections = (token: string, params: URLSearchParams) => bearerRequest<FeeCollectionReport>(`/fees/reports/collections?${params}`, token)
 export const getFeeDueReport = (token: string, params: URLSearchParams) => bearerRequest<FeeDueReport>(`/fees/reports/dues?${params}`, token)
 export const getLedgerEntries = (token: string, params: URLSearchParams) => bearerRequest<Page<LedgerEntry>>(`/accounts/entries?${params}`, token)

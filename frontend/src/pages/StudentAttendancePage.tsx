@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError, getAttendanceSessions, getAttendanceSections, getStudentAttendanceRoster, getStudentAttendanceMonthly, getOwnStudentAttendanceReport, getGuardianStudentAttendanceReport, saveStudentAttendanceRoster, scanStudentAttendance, getAbsenceEvents, type StudentAttendanceRosterItem, type StudentAttendanceRecord } from '../api/client'
 import { Icon } from '../components/icons'
+import { DayOffNotice, dayOffFromError, useAttendanceDay, useDayOffText } from './attendanceDay'
 import { Avatar, CalendarRows, CardTitle, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, Tabs, tones, ui, type SegmentOption } from './attendanceUi'
 
 const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
@@ -78,6 +79,9 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
   const section = sections.data?.find(item => item.id === sectionId)
   const maxDate = session && session.end_date < today ? session.end_date : today
   const dateValid = !!session && date >= session.start_date && date <= maxDate
+  // A weekly off day or a published holiday takes no new marks; saved ones can be corrected.
+  const { day, closed } = useAttendanceDay(date, dateValid, authorized)
+  const dayOffText = useDayOffText()
 
   // Load the whole section so the class can be saved in one action.
   const roster = useQuery({
@@ -154,6 +158,8 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
         const ids = Array.isArray(cause.details?.student_ids) ? (cause.details.student_ids as string[]) : []
         setStale(ids.map(id => id.toLowerCase()))
         setMessage({ tone: 'warning', text: t('attnStale', { count: ids.length }), reload: true })
+      } else if (dayOffFromError(cause)) {
+        setMessage({ tone: 'warning', text: dayOffText(dayOffFromError(cause)!) })
       } else setMessage({ tone: 'error', text: t(cause instanceof ApiError ? ({ forbidden: 'attnForbidden', attendance_conflict: 'attnConflict', duplicate_attendance: 'attnDuplicate', invalid_request: 'attnInvalid' } as Record<string, string>)[cause.code] ?? 'attendanceSaveError' : 'attendanceSaveError'), reload: cause instanceof ApiError && cause.code === 'duplicate_attendance' })
     } finally { savingRef.current = false; setSaving(false) }
   }
@@ -210,8 +216,9 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
       {message && <Notice tone={message.tone} action={message.reload ? <button type="button" className={ui.secondary} onClick={() => void reloadRoster()}>{t('attnReload')}</button> : undefined}>{message.text}</Notice>}
       {correcting && dateValid && canManage && <Notice tone="info">{t('attnCorrectionMode', { date })}</Notice>}
       {!dateValid && session && <Notice tone="warning">{t('attnInvalidDay')}</Notice>}
+      {dateValid && closed && day && <DayOffNotice day={day} />}
 
-      {canManage && <QrPanel open={qrOpen} onToggle={() => setQrOpen(v => !v)} date={date} disabled={!dateValid} onScanned={(studentId, ok, text) => {
+      {canManage && <QrPanel open={qrOpen} onToggle={() => setQrOpen(v => !v)} date={date} disabled={!dateValid || closed} onScanned={(studentId, ok, text) => {
         if (ok) setDrafts(previous => { const copy = { ...previous }; for (const key of Object.keys(copy)) if (key.toLowerCase() === studentId.toLowerCase()) delete copy[key]; return copy })
         setMessage({ tone: ok ? 'success' : 'error', text })
         if (ok) void cache.invalidateQueries({ queryKey: ['attendance'] })
@@ -223,7 +230,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
             <div><CardTitle id="roster-heading" icon="check">{section ? `${section.class_name} · ${section.name}` : t('attendanceDaily')}</CardTitle>
               <p className="text-sm text-slate-600">{new Intl.DateTimeFormat(i18n.language === 'bn' ? 'bn-BD' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`))}</p></div>
             {canManage && items.length > 0 && <div className="flex flex-wrap gap-2">
-              <button type="button" className={ui.secondary} disabled={counts.unmarked === 0} onClick={markAllPresent}><span aria-hidden="true" className={`h-2 w-2 rounded-full ${tones.present.dot}`} />{t('attnMarkAllPresent')}</button>
+              <button type="button" className={ui.secondary} disabled={counts.unmarked === 0 || closed} onClick={markAllPresent}><span aria-hidden="true" className={`h-2 w-2 rounded-full ${tones.present.dot}`} />{t('attnMarkAllPresent')}</button>
               {dirty && <button type="button" className={ui.secondary} onClick={() => { setDrafts({}); setStale([]) }}>{t('attnDiscard')}</button>}
             </div>}
           </div>
@@ -266,7 +273,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
                         {isStale && <StatusBadge tone="late">{t('attnChangedElsewhere')}</StatusBadge>}</p></div>
                   </div>
                   <div className="flex items-center gap-2 md:shrink-0">
-                    <SegmentedStatus name={t('attnStatusFor', { name: display })} value={status} options={options} disabled={!canManage || saving} compact onChange={value => setDraft(item, { status: value })} />
+                    <SegmentedStatus name={t('attnStatusFor', { name: display })} value={status} options={options} disabled={!canManage || saving || (closed && !item.record_id)} compact onChange={value => setDraft(item, { status: value })} />
                     {canManage && <button type="button" className={`${ui.ghost} shrink-0`} aria-expanded={!!notesOpen[item.student_id] || !!noteValue} aria-label={t('attnNoteFor', { name: display })} onClick={() => setNotesOpen(v => ({ ...v, [item.student_id]: !v[item.student_id] }))}>
                       <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 fill-current"><path d="M4 3h9l3 3v11H4zm2 5v1.5h8V8zm0 3v1.5h8V11zm0 3v1.5h5V14z" /></svg><span className="hidden lg:inline">{t('attendanceNote')}</span></button>}
                   </div>
@@ -297,6 +304,7 @@ function QrPanel({ open, onToggle, date, disabled, onScanned, authorized }: { op
   const [cameraOn, setCameraOn] = useState(false)
   const [cameraError, setCameraError] = useState('')
   const video = useRef<HTMLVideoElement>(null)
+  const dayOffText = useDayOffText()
   async function scan(payload: string) {
     const value = payload.trim()
     if (!value) return
@@ -304,7 +312,7 @@ function QrPanel({ open, onToggle, date, disabled, onScanned, authorized }: { op
       // Card QR codes are verification links; the server reports which student they belong to.
       const record = await authorized(token => scanStudentAttendance(token, { payload: value, attendance_date: date }))
       setQr(''); onScanned(record.student_id, true, t('studentAttendanceScanned'))
-    } catch (cause) { onScanned('', false, t(cause instanceof ApiError && cause.code === 'duplicate_attendance' ? 'studentAttendanceDuplicate' : 'studentAttendanceScanError')) }
+    } catch (cause) { onScanned('', false, dayOffFromError(cause) ? dayOffText(dayOffFromError(cause)!) : t(cause instanceof ApiError && cause.code === 'duplicate_attendance' ? 'studentAttendanceDuplicate' : 'studentAttendanceScanError')) }
   }
   useEffect(() => {
     if (!cameraOn) return

@@ -5,6 +5,7 @@ import { ApiError, correctTeacherAttendance, getAttendanceSessions, getOwnTeache
 import { useAuth } from '../auth/AuthProvider'
 import { Avatar, CardTitle, EmptyState, Notice, PageHeader, Pager, SegmentedStatus, Skeleton, StatTile, StatusBadge, tones, ui, type SegmentOption } from './attendanceUi'
 import { useDhakaFormat } from './commShared'
+import { DayOffNotice, dayOffFromError, useAttendanceDay, useDayOffText } from './attendanceDay'
 
 const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 type Status = 'present' | 'absent' | 'leave'
@@ -50,6 +51,10 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
   }, [date, sessionId, sessions.data])
   const currentSession: AttendanceSession | undefined = sessions.data?.items.find(item => item.id === sessionId)
   const validDay = !!currentSession && date >= currentSession.start_date && date <= currentSession.end_date
+  // A weekly off day or a published holiday takes no new attendance; saved records can be corrected.
+  const { day, closed } = useAttendanceDay(date, !own && validDay, authorized)
+  const dayOffText = useDayOffText()
+  const [dayOffError, setDayOffError] = useState('')
   const validMonth = !!currentSession && `${month}-31` >= currentSession.start_date && `${month}-01` <= currentSession.end_date
   const rosterParams = new URLSearchParams({ session_id: sessionId, date, search, page: String(page), page_size: '10' })
   const roster = useQuery({ queryKey: ['attendance', 'roster', rosterParams.toString()], queryFn: () => authorized(token => getTeacherRoster(token, rosterParams)), enabled: !own && !!sessionId && validDay, retry: false })
@@ -65,7 +70,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
   async function save(item: TeacherRosterItem) {
     const draft = drafts[item.employee_id] || { status: item.status || '', note: item.note || '' }
     if (!draft.status) return
-    setBusyId(item.employee_id); setError(''); setMessage('')
+    setBusyId(item.employee_id); setError(''); setDayOffError(''); setMessage('')
     try {
       if (item.record_id) await authorized(token => correctTeacherAttendance(token, item.record_id!, { status: draft.status as Status, note: draft.note }))
       else await authorized(token => recordTeacherAttendance(token, { session_id: sessionId, employee_id: item.employee_id, attendance_date: date, status: draft.status as Status, note: draft.note }))
@@ -73,6 +78,8 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
       setDrafts(previous => { const next = { ...previous }; delete next[item.employee_id]; return next })
       await cache.invalidateQueries({ queryKey: ['attendance'] })
     } catch (cause) {
+      const off = dayOffFromError(cause)
+      if (off) { setDayOffError(dayOffText(off)); return }
       setError(cause instanceof ApiError && cause.code === 'duplicate_attendance' ? 'attendanceDuplicate' : cause instanceof ApiError && cause.code === 'attendance_conflict' ? 'attendanceConflict' : 'attendanceSaveError')
     } finally { setBusyId('') }
   }
@@ -87,7 +94,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
   </div>
   return <div className="space-y-5">
     <PageHeader eyebrow={t('attnEyebrow')} title={t(own ? 'attendanceMyHeading' : 'attendanceHeading')} description={t(own ? 'attendanceMyDescription' : 'attendanceDescription')} />
-    {message && <Notice tone="success">{t(message)}</Notice>}{error && <Notice tone="error">{t(error)}</Notice>}
+    {message && <Notice tone="success">{t(message)}</Notice>}{error && <Notice tone="error">{t(error)}</Notice>}{dayOffError && <Notice tone="warning">{dayOffError}</Notice>}
     <section className={`${ui.card} p-4 sm:p-5`}>
       <div className={`grid gap-4 ${own ? 'sm:max-w-sm' : 'sm:grid-cols-3'}`}>
         <label className={ui.label}>{t('attendanceSession')}<select className={ui.field} value={sessionId} onChange={event => { setSessionId(event.target.value); setPage(1); setHistoryPage(1); setReportPage(1) }}><option value="">—</option>{sessions.data?.items.map(item => <option key={item.id} value={item.id}>{item.name}{item.is_active ? ` · ${t('attnActive')}` : ''}</option>)}</select></label>
@@ -99,6 +106,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
 
     {!own && sessionId && <section className={`${ui.card} p-2 sm:p-3`} aria-labelledby="teacher-roster-heading">
       <CardTitle id="teacher-roster-heading" icon="clipboard" className="px-2 pt-2 sm:px-3">{t('attendanceDaily')}</CardTitle>
+      {validDay && closed && day && <div className="px-2 pt-2 sm:px-3"><DayOffNotice day={day} /></div>}
       {!validDay ? <div className="p-3"><Notice tone="warning">{t('attendanceInvalidDate')}</Notice></div> : roster.isPending ? <div className="px-3 py-2.5"><Skeleton /></div> : roster.isError ? <p role="alert" className="p-3 text-rose-700">{t('attendanceLoadError')}</p> : !roster.data?.items.length ? <div className="p-3"><EmptyState title={t('attendanceNoTeachers')} /></div> : <>
         <ul className="mt-2 divide-y divide-slate-100">{roster.data.items.map(item => {
           const draft = drafts[item.employee_id]
@@ -110,7 +118,7 @@ export function TeacherAttendancePage({ permissions, own = false }: { permission
               <div className="flex min-w-0 flex-1 items-center gap-3"><Avatar name={item.name_en} /><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{display}</p>
                 <p className="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span>{item.employee_code}</span>{item.status ? <StatusBadge tone={item.status}>{t('attnSaved')} · {statusLabel(item.status)}</StatusBadge> : <StatusBadge tone="unmarked">{t('attendanceUnmarked')}</StatusBadge>}</p></div></div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <SegmentedStatus name={t('attnStatusFor', { name: display })} value={status} options={options} compact disabled={!canManage || busyId === item.employee_id} onChange={value => updateDraft(item, { status: value })} />
+                <SegmentedStatus name={t('attnStatusFor', { name: display })} value={status} options={options} compact disabled={!canManage || busyId === item.employee_id || (closed && !item.record_id)} onChange={value => updateDraft(item, { status: value })} />
                 <label className="sm:w-48"><span className="sr-only">{t('attnNoteFor', { name: display })}</span><input className={`${ui.field} mt-0`} placeholder={t('attendanceNote')} disabled={!canManage} maxLength={500} value={draft?.note ?? item.note ?? ''} onChange={event => updateDraft(item, { note: event.target.value })} /></label>
                 {canManage && <button type="button" className={ui.primary} disabled={!dirty || !status || busyId === item.employee_id} onClick={() => void save(item)}>{busyId === item.employee_id ? t('attnSaving') : t('attendanceSave')}</button>}
               </div>
