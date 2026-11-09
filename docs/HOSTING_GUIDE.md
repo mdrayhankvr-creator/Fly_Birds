@@ -234,6 +234,14 @@ Updates only move forward: a new release may add database changes, which the bac
 
 If something is wrong, roll back as in [DEPLOYMENT.md §8](DEPLOYMENT.md#8-rolling-back).
 
+**Updating to the release with the lifecycle audit fixes** (migrations 1801–1803) needs no new setting, but it changes daily work, so tell the school before you update:
+
+- **Attendance on Fridays stops.** Every school starts with Friday as its weekly off day. New attendance is also refused on published holidays. If the school works on Fridays or is also closed on Saturdays, the administrator changes this under **Admin → School settings → Weekly off days** straight after the update.
+- **Late fines are off.** Existing fee structures get a late fine of 0. The backend checks for late fines when it starts and every 30 minutes, and logs `late fines charged` when it adds any.
+- **Leaving cancels later dues.** From now on, withdrawing or transferring a student cancels their unpaid monthly dues after the month they leave. Students who left before the update keep their dues as they were.
+
+The Bangla user guide covers these screens ([USER_GUIDE_BN.md](USER_GUIDE_BN.md), sections ১.৭, ৪.৪ and ৪.৫).
+
 ## 10. Monthly Docker disk cleanup
 
 Builds and updates leave unused cache and old images behind. Once a month, after checking that backups are current:
@@ -265,5 +273,6 @@ To run the first two automatically, add this to root's crontab (first day of the
 - [ ] `BACKUP_INTERVAL=24h`, the off-server script runs daily, and its copy can be decrypted.
 - [ ] A restore drill has passed.
 - [ ] `PUBLIC_BASE_URL` (or `SCHOOL_DOMAIN`) is the school's real address: after the first results are published, download one marksheet and scan its QR code with a phone on mobile data. It should open the **Result check** page.
+- [ ] The weekly off days in **Admin → School settings** match the school (Friday by default), and the year's holidays are published in the **Events calendar**, before teachers take attendance.
 - [ ] The monthly cleanup is scheduled.
 - [ ] The school knows SMS is simulated and online payment is off.

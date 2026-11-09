@@ -10,16 +10,17 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
-## Current Status — Bangla User Guide and Hosting Guide (2026-11-05)
+## Current Status — Bangla User Guide and Hosting Guide (2026-11-09)
 
-On `feature/user-guide`, rebased onto `main` `c62435b` (E7 merged, PR #42). Documentation only: no code, migration or test changes, so the completion figures above do not change.
+On `feature/user-guide`, rebased onto `main` `994d1f9` (lifecycle audit fixes merged, PR #43). Documentation only: no code, migration or test changes, so the completion figures above do not change.
 
 - **[USER_GUIDE_BN.md](USER_GUIDE_BN.md)** (Bangla, with English terms in brackets): a part for everyone (sign-in with email or Student ID, language, own password, the 14-day temporary password), then one chapter per role:
   - **Administrator:** first-time setup, school details and the public page, admission (single and bulk), logins and slips, users and password reset, attendance, exams and results, year-end promotion, backups.
   - **Head teacher, teacher, accountant, and student and family:** each role's own tasks.
   - E7 (2026-11-05): result PDFs for the student, the teacher's classes and the administrator and head teacher (with the provisional preview), what a marksheet shows including the EIIN, the public QR result check, and blueprint quick setup.
-  - 25 screenshots in Bangla in `docs/user-guide/img/`: 19 from `fbqa-cp1b`, and 6 of the E7 screens and a Bangla marksheet from `fbpreview`.
-- **[HOSTING_GUIDE.md](HOSTING_GUIDE.md):** server sizes based on measurements, domain and HTTPS, the environment file with placeholders only (including `PUBLIC_BASE_URL` for the marksheet QR code), first start, the first administrator, daily backups with an encrypted off-server copy (script), a restore drill, updates, and monthly Docker disk cleanup.
+  - Lifecycle audit fixes (2026-11-09): weekly off days in School settings and published holidays that stop new attendance (admin 1.2 and 1.7, teacher, head teacher); late fines per fee structure and at the counter (4.1, 4.2); the administrator's payment reversal from the receipt (4.4); dues cancelled when a student is withdrawn or transferred, and the administrator's revert (4.5, with a pointer in 1.12); what students and families see.
+  - 32 screenshots in Bangla in `docs/user-guide/img/`: 19 from `fbqa-cp1b`, 6 of the E7 screens and a Bangla marksheet from `fbpreview`, and 7 of the audit screens from `fbpreview` on `994d1f9`.
+- **[HOSTING_GUIDE.md](HOSTING_GUIDE.md):** server sizes based on measurements, domain and HTTPS, the environment file with placeholders only (including `PUBLIC_BASE_URL` for the marksheet QR code), first start, the first administrator, daily backups with an encrypted off-server copy (script), a restore drill, updates (with what the lifecycle audit release changes for a running school), monthly Docker disk cleanup, and a go-live item for weekly off days and holidays.
 - **Checked against the code:**
   - Every Bangla button and menu name in bold matches a Bangla string in the app.
   - Every relative link and anchor resolves.
@@ -30,6 +31,7 @@ On `feature/user-guide`, rebased onto `main` `c62435b` (E7 merged, PR #42). Docu
   - They also named a "Create backup" button that is really "Back up now".
   - OPERATIONS.md said to compare the backup checksum "shown in Admin → Backups", which that page doesn't show. It now computes the checksum in the container.
 - **E7 screens checked on `fbpreview`** (main `c62435b`): every new Bangla label matches `e7Translations.ts`; who sees what was taken from `App.tsx`, the screens and migration 1800.
+- **Audit screens checked on `fbpreview`** (main `994d1f9`, rebuilt with `refresh.ps1`): every new bold Bangla label matches a string in the app (`auditFixesTranslations.ts` and the fee, student and event strings); the rules (which months are cancelled, admin-only revert and reversal, one fine per due, holidays only when published) were taken from migrations 1801–1803, `FeeLifecyclePanels.tsx`, `dayoff.go` and `LIFECYCLE_AUDIT_FIXES.md`. The screenshots were set up on demo data; the withdrawn student was readmitted and the late fine turned off afterwards.
 
 ## Current Status — Lifecycle Audit Fixes: Leaving Dues, Refunds and Late Fines, Off Days (2026-11-05)
 
