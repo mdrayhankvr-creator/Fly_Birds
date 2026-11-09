@@ -137,7 +137,7 @@ export function TeacherDutyList() {
   return <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="my-duties">
     <CardTitle id="my-duties" icon="clock">{t('e8MyDuties')}</CardTitle>
     {q.isPending ? <div className="mt-4"><Lines rows={3} /></div> : q.isError ? <div className="mt-4"><Unavailable error={q.error} /></div> : q.data.length === 0 ? <div className="mt-4"><EmptyState title={t('e8NoMyDuties')} icon="calendar" /></div> :
-      <ul className="mt-4 grid gap-2 sm:grid-cols-2">{q.data.map((d, i) => <li key={`${d.version_id}-${d.exam_date}-${d.start_time}-${i}`} className={`rounded-xl border px-3.5 py-2.5 ${d.exam_date < today ? 'border-slate-200 opacity-70' : 'border-slate-200 border-l-[3px] border-l-[var(--s)]'}`}>
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2">{q.data.map((d, i) => <li key={`${d.version_id}-${d.exam_date}-${d.start_time}-${i}`} className={`rounded-xl border px-3.5 py-2.5 ${d.exam_date < today ? 'border-slate-200' : 'border-slate-200 border-l-[3px] border-l-[var(--s)]'}`}>
         <p className="text-xs font-semibold text-slate-500">{d.term_name}{d.exam_date < today ? ` · ${t('e8Done')}` : ''}</p><DutyLine d={d} /></li>)}</ul>}
   </section>
 }
