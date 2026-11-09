@@ -85,8 +85,16 @@ type school struct {
 	sheet                                  map[string]string // EX1S1 …
 }
 
-func newSchool(t *testing.T, ctx context.Context, tx *gorm.DB) *school {
+// fixtureOptions add to the school: combined adds a required subject taken
+// as two papers, B1 and B2, graded together (combined key BAN).
+type fixtureOptions struct{ combined bool }
+
+func newSchool(t *testing.T, ctx context.Context, tx *gorm.DB, opts ...fixtureOptions) *school {
 	t.Helper()
+	var opt fixtureOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 	insert := func(q string, args ...any) string {
 		t.Helper()
 		var id string
@@ -111,9 +119,13 @@ func newSchool(t *testing.T, ctx context.Context, tx *gorm.DB) *school {
 	s.session = insert("INSERT INTO academic_sessions(name,start_date,end_date) VALUES ('2401','2401-01-01','2401-12-31') RETURNING id")
 	s.classID = insert("INSERT INTO academic_classes(name) VALUES (?) RETURNING id", "Class E7 "+s.stamp)
 	s.section = insert("INSERT INTO academic_sections(session_id,class_id,name,code) VALUES (?,?,'A','A') RETURNING id", s.session, s.classID)
-	for i, code := range []string{"S1", "S2", "S3"} {
+	codes := []string{"S1", "S2", "S3"}
+	if opt.combined {
+		codes = append(codes, "B1", "B2")
+	}
+	for i, code := range codes {
 		s.subjects[code] = insert("INSERT INTO academic_subjects(name_en,name_bn,code) VALUES (?,?,?) RETURNING id", code+" "+s.stamp, "বিজ্ঞান "+code, "E7"+code+s.stamp[len(s.stamp)-8:])
-		exec("INSERT INTO academic_class_subjects(class_id,subject_id,is_required,is_fourth_subject) VALUES (?,?,?,?)", s.classID, s.subjects[code], i < 2, i == 2)
+		exec("INSERT INTO academic_class_subjects(class_id,subject_id,is_required,is_fourth_subject) VALUES (?,?,?,?)", s.classID, s.subjects[code], i != 2, i == 2)
 	}
 	emp := insert("INSERT INTO employees(employee_code,user_id,kind,name_en,designation,joined_on) VALUES (?,?,'teacher','T','Teacher','2020-01-01') RETURNING id", "E7A"+s.stamp, s.teacher)
 	insert("INSERT INTO employees(employee_code,user_id,kind,name_en,designation,joined_on) VALUES (?,?,'teacher','O','Teacher','2020-01-01') RETURNING id", "E7B"+s.stamp, s.outsider)
@@ -149,6 +161,9 @@ func newSchool(t *testing.T, ctx context.Context, tx *gorm.DB) *school {
 			pq, pm := 20.0, 13.0
 			sub.Sheets[0].Components = []blueprints.Component{{Key: "CQ", Full: 60, Pass: &pq}, {Key: "MCQ", Full: 40, Pass: &pm}}
 		}
+		if opt.combined && (sub.SubjectID == s.subjects["B1"] || sub.SubjectID == s.subjects["B2"]) {
+			sub.CombinedKey = "BAN"
+		}
 	}
 	if v, err := s.bp.SaveDraft(ctx, s.admin, draft.ID, d); err != nil || len(v.Issues) != 0 {
 		t.Fatalf("draft: %+v %v", v.Issues, err)
@@ -166,7 +181,10 @@ func newSchool(t *testing.T, ctx context.Context, tx *gorm.DB) *school {
 	if err := tx.Raw(`SELECT e.id AS exam_id, e.assessment_key AS key, es.id AS sheet_id, es.subject_id FROM exams e JOIN exam_subjects es ON es.exam_id = e.id WHERE e.term_id = ?`, term.ID).Scan(&rows).Error; err != nil {
 		t.Fatal(err)
 	}
-	code := map[string]string{s.subjects["S1"]: "S1", s.subjects["S2"]: "S2", s.subjects["S3"]: "S3"}
+	code := map[string]string{}
+	for k, id := range s.subjects {
+		code[id] = k
+	}
 	for _, r := range rows {
 		s.exam[r.Key] = r.ExamID
 		s.sheet[r.Key+code[r.SubjectID]] = r.SheetID
@@ -182,9 +200,16 @@ func newSchool(t *testing.T, ctx context.Context, tx *gorm.DB) *school {
 	}
 	s.save(t, ctx, "EX1", comps(s.students[0], 50, 30), comps(s.students[1], 15, 40), comps(s.students[2], 40, 20),
 		present("EX1S2", s.students[0], 70), present("EX1S2", s.students[1], 60), present("EX1S2", s.students[2], 40), present("EX1S3", s.students[0], 90))
+	if opt.combined {
+		s.save(t, ctx, "EX1", present("EX1B1", s.students[0], 70), present("EX1B2", s.students[0], 62), present("EX1B1", s.students[1], 50), present("EX1B2", s.students[1], 45),
+			present("EX1B1", s.students[2], 40), present("EX1B2", s.students[2], 44))
+	}
 	ct := []exams.MarkEntry{}
 	for _, st := range s.students {
 		ct = append(ct, present("CT1S1", st, 16), present("CT1S2", st, 16))
+		if opt.combined {
+			ct = append(ct, present("CT1B1", st, 15), present("CT1B2", st, 14))
+		}
 	}
 	ct = append(ct, present("CT1S3", s.students[0], 18))
 	s.save(t, ctx, "CT1", ct...)
@@ -301,15 +326,16 @@ func TestPostgresResultDocuments(t *testing.T) {
 	first := data.Students[0] // roll 1: student 0, with the fourth subject
 	var s1, s3 *sheetRow
 	for i := range first.Rows {
-		switch {
-		case strings.HasPrefix(first.Rows[i].Subject, "S1 "):
+		if strings.HasPrefix(first.Rows[i].Subject, "S1 ") {
 			s1 = &first.Rows[i]
-		case strings.HasPrefix(first.Rows[i].Subject, "S3 "):
-			s3 = &first.Rows[i]
 		}
 	}
-	if s1 == nil || s3 == nil || s1.Parts[0] != "—" || s1.Parts[1] != "50" || s1.Parts[2] != "30" || s1.CT != "16" || !s3.Optional || s3.Highest != s3.Total {
-		t.Fatalf("rows: %+v", first.Rows)
+	// The optional subject has its own rows after the required ones.
+	if len(first.Optional) == 1 && strings.HasPrefix(first.Optional[0].Subject, "S3 ") {
+		s3 = &first.Optional[0]
+	}
+	if s1 == nil || s3 == nil || len(first.Rows) != 2 || s1.Parts[0].Obt != "—" || s1.Parts[1] != (sheetCell{"50", "60"}) || s1.Parts[2] != (sheetCell{"30", "40"}) || s1.CT != "16" || !s3.Optional || s3.Highest != s3.Total {
+		t.Fatalf("rows: %+v optional %+v", first.Rows, first.Optional)
 	}
 	if first.Name != "Student 0" || first.NameAlt != "শিক্ষার্থী 0" || first.Result != "Passed" || first.QR == "" || first.GPA == "—" || first.GPAWithout == "—" || !strings.Contains(first.Footer, "Document code") {
 		t.Fatalf("student 0: %+v", first)
