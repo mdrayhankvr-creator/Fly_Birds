@@ -204,7 +204,7 @@ func (s *Service) classData(l lang, kind string, set exams.DocSet, results []exa
 				if section != "" {
 					pos = r.Outputs.SectionPosition
 				}
-				row.Position = posText(l, pos)
+				row.Position = posText(l, pos, 0)
 			}
 			d.Tabulation.Rows = append(d.Tabulation.Rows, row)
 		}

@@ -25,7 +25,7 @@ import (
 
 // templateVersion changes whenever a template's output changes, so cached
 // documents are rebuilt.
-const templateVersion = "e7-2"
+const templateVersion = "ms2-1"
 
 var (
 	ErrInvalid      = errors.New("invalid document request")
@@ -105,6 +105,9 @@ type Service struct {
 	// Chunk is how many marksheets are rendered per part of a large
 	// document; progress is reported after each part.
 	Chunk int
+	// Now is the clock (nil: the system clock); attendance counts no day
+	// after today.
+	Now func() time.Time
 	// InlineLimit: marksheet bundles of at most this many students are
 	// rendered during the request (about a second); larger ones by the
 	// background worker. Class documents are always rendered at once.
@@ -242,7 +245,11 @@ func (s *Service) request(ctx context.Context, a Actor, in Request, sessionID st
 	if err != nil {
 		return Document{}, err
 	}
-	key, err := s.sourceKey(ctx, in, set, results, brand.key)
+	ex, err := s.extrasFor(ctx, in, set, results)
+	if err != nil {
+		return Document{}, err
+	}
+	key, err := s.sourceKey(ctx, in, set, results, brand.key+ex.key())
 	if err != nil {
 		return Document{}, err
 	}
@@ -282,6 +289,15 @@ RETURNING id`, in.Kind, in.Scope, in.ScopeID, sessionID, in.ClassID, section, st
 		}
 	}
 	return doc, nil
+}
+
+// extrasFor reads what a marksheet prints besides the results (nothing for
+// class documents).
+func (s *Service) extrasFor(ctx context.Context, in Request, set exams.DocSet, results []exams.DocResult) (extras, error) {
+	if in.Kind != "marksheet" && in.Kind != "marksheets" {
+		return extras{}, nil
+	}
+	return s.loadExtras(ctx, set, results)
 }
 
 func progressTotal(kind string, students int) int {
@@ -563,7 +579,11 @@ func (s *Service) render(ctx context.Context, doc Document) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	key, err := s.sourceKey(ctx, in, set, results, brand.key)
+	ex, err := s.extrasFor(ctx, in, set, results)
+	if err != nil {
+		return nil, err
+	}
+	key, err := s.sourceKey(ctx, in, set, results, brand.key+ex.key())
 	if err != nil {
 		return nil, err
 	}
@@ -590,7 +610,7 @@ func (s *Service) render(ctx context.Context, doc Document) ([]byte, error) {
 		chunk = 20
 	}
 	if len(ordered) <= chunk {
-		data, err := s.sheetData(ctx, l, set, ordered, brand, assets)
+		data, err := s.sheetData(ctx, l, set, ordered, brand, assets, ex)
 		if err != nil {
 			return nil, err
 		}
@@ -607,7 +627,7 @@ func (s *Service) render(ctx context.Context, doc Document) ([]byte, error) {
 		end := min(start+chunk, len(ordered))
 		partAssets := map[string][]byte{}
 		brand.assets(partAssets)
-		data, err := s.sheetData(ctx, l, set, ordered[start:end], brand, partAssets)
+		data, err := s.sheetData(ctx, l, set, ordered[start:end], brand, partAssets, ex)
 		if err != nil {
 			return nil, err
 		}
@@ -626,14 +646,22 @@ func (s *Service) render(ctx context.Context, doc Document) ([]byte, error) {
 
 // sheetData builds marksheet data for some of a set's results; images go
 // into assets.
-func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, results []exams.DocResult, brand branding, assets map[string][]byte) (sheetData, error) {
+func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, results []exams.DocResult, brand branding, assets map[string][]byte, ex extras) (sheetData, error) {
 	lo := layoutOf(set)
 	top := highest(set)
 	d := sheetData{Lang: string(l), Provisional: set.Provisional, Labels: labelsFor(l), School: brand.school, Columns: lo.columns(l), ShowCT: lo.showCT && set.Scope == exams.ScopeTerm, Grading: lo.grading(l)}
-	d.Heading, d.ExamName = l.t("marksheet"), examName(l, set)
+	d.Heading, d.HeadingAlt, d.ExamName, d.SessionName = l.t("marksheet"), l.other(labelsEN["marksheet"], labelsBN["marksheet"]), examName(l, set), l.num(set.SessionName)
+	if l == "bn" {
+		d.HeadingAlt = labelsEN["marksheet"]
+	}
 	d.Title = d.Heading + " — " + set.ClassName
 	if d.Columns == nil {
 		d.Columns = []string{}
+	}
+	// Positions are out of the class (and the section) as published.
+	classN, sectionN := len(set.Results), map[string]int{}
+	for _, r := range set.Results {
+		sectionN[r.Student.SectionID]++
 	}
 	ids := make([]string, 0, len(results))
 	for _, r := range results {
@@ -646,23 +674,62 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 	for i, r := range results {
 		st := r.Student
 		o := r.Outputs
+		x := ex.students[st.ID]
+		if x == nil {
+			x = &studentExtra{}
+		}
 		row := sheetStudent{Name: l.pick(st.NameEN, st.NameBN), NameAlt: l.other(st.NameEN, st.NameBN), StudentID: l.num(st.AdmissionNo), Class: st.ClassName, Section: st.SectionName,
-			Roll: rollText(l, st.RollNo), Session: l.num(st.SessionName), Exam: examName(l, set), Withheld: r.Outcome == "withheld", Rows: []sheetRow{},
-			Total: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", ClassPos: posText(l, o.ClassPosition), SectionPos: posText(l, o.SectionPosition), Published: "—"}
+			Roll: rollText(l, st.RollNo), Session: l.num(st.SessionName), Exam: examName(l, set), Withheld: r.Outcome == "withheld", Rows: []sheetRow{}, Optional: []sheetRow{},
+			Total: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", FailedCount: "—",
+			ClassPos: posText(l, o.ClassPosition, classN), SectionPos: posText(l, o.SectionPosition, sectionN[st.SectionID]), Attendance: "—", Published: "—"}
+		row.Father, row.Mother = orDash(l.pick(x.FatherEN, x.FatherBN)), orDash(l.pick(x.MotherEN, x.MotherBN))
+		row.DOB = "—"
+		if x.DOB != nil {
+			row.DOB, _ = l.day(*x.DOB)
+		}
+		if x.Working > 0 && x.HasAttendance {
+			row.Attendance = fmt.Sprintf(l.t("attendance_value"), l.int(x.Present), l.int(x.Working), l.int(x.Present*100/x.Working))
+		}
+		switch {
+		case x.Custom != "":
+			row.Comment = x.Custom
+		case x.PresetEN != "":
+			row.Comment = l.pick(x.PresetEN, x.PresetBN)
+		}
 		if p, ok := photos[st.ID]; ok {
 			name := fmt.Sprintf("photo-%d.%s", i, p.ext)
 			assets[name] = p.data
 			row.Photo = name
 		}
 		if !row.Withheld {
-			row.Rows = lo.rows(l, r, top)
+			row.Rows, row.Optional = lo.rows(l, r, top, ex.subjects)
 			if o.Total != nil && o.Full != nil {
 				row.Total = l.marks(o.Total) + " / " + l.marks(o.Full)
 			}
 			row.GPA = l.points(o.GPA)
 			row.GPAWithout = l.points(lo.requiredGPA(o))
 			row.Letter = lo.letter(o)
+			failed := 0
+			for _, line := range o.Subjects {
+				if !line.Optional && line.Passed != nil && !*line.Passed {
+					failed++
+				}
+			}
+			row.FailedCount = l.int(failed)
 		}
+		// Signatures, placed automatically: the class teacher's, the head
+		// teacher's (ID-card settings) and a blank one for the guardian.
+		teacher := signature{Title: l.t("sig_class_teacher"), Name: l.pick(x.TeacherEN, x.TeacherBN)}
+		if len(x.Signature) > 0 {
+			name := "ctsig-" + x.SignatureVersion + ".png"
+			assets[name] = x.Signature
+			teacher.Image = name
+		}
+		head := signature{Title: l.t("sig_head"), Name: l.pick(ex.headEN, ex.headBN), Image: brand.school.Signature}
+		if brand.school.Signatory != "" {
+			head.Title = brand.school.Signatory
+		}
+		row.Signatures = []signature{teacher, head, {Title: l.t("sig_guardian"), Date: true}}
 		if set.Provisional {
 			row.Footer = l.t("footer_provisional")
 		} else {
@@ -689,6 +756,13 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		d.Students = append(d.Students, row)
 	}
 	return d, nil
+}
+
+func orDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "—"
+	}
+	return s
 }
 
 type photo struct {

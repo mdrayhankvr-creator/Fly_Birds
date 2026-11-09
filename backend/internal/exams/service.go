@@ -119,6 +119,9 @@ type Card struct {
 	SchoolNameEN string    `json:"school_name_en"`
 	SchoolNameBN string    `json:"school_name_bn"`
 	LogoURL      string    `json:"logo_url"`
+	// The printable marksheet: the student's current published result of
+	// the exam's term (marksheet v2), when there is one.
+	MarksheetVersionID *string `json:"marksheet_version_id"`
 }
 type Query struct {
 	SessionID string
