@@ -192,7 +192,7 @@ function RoutineGate({ mode, permissions, role, enabled, loading, error }: { mod
   const required = mode === 'admin' ? 'routine:read' : mode === 'guardian' ? 'routine:read_children' : 'routine:read_self'
   if (!permissions?.includes(required) || (mode === 'student' && role !== 'student') || (mode === 'teacher' && role !== 'teacher') || (mode === 'guardian' && role !== 'guardian')) return <StateScreen kind="denied" message={t('permissionDenied')} />
   if (!enabled) return <StateScreen kind="disabled" />
-  return <RoutinePage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('routine:manage')} />
+  return <RoutinePage mode={mode} canManage={mode === 'admin' && role === 'admin' && permissions.includes('routine:manage')} canApprove={mode === 'admin' && permissions.includes('routine:approve')} />
 }
 
 // SheetGate opens one mark sheet: teachers through their own routes,
