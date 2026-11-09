@@ -9,6 +9,8 @@ import { SheetChip } from './marks/examUi'
 import { ExamCorrections } from './exams/ExamCorrections'
 import { PublishedResults } from './exams/PublishedResults'
 import { RevisedChip, useWhen } from './exams/resultUi'
+import { MyMarksheet, useDocuments } from './exams/resultDocuments'
+import { Icon } from '../components/icons'
 
 type Mode = 'admin'|'teacher'|'student'|'guardian'
 const field = ui.field
@@ -19,7 +21,7 @@ const writable = (status?: ExamSheet['status']) => !status || status === 'not_st
 const carriesMarks = (status: ExamMarkStatus) => status === 'present' || status === 'withheld'
 const needsReason = (status: ExamMarkStatus) => status === 'exempt' || status === 'withheld'
 
-function ReportCardView({card}:{card:ReportCard}) {
+function ReportCardView({card,mode}:{card:ReportCard;mode:Mode}) {
  const {t,i18n}=useTranslation()
  const when=useWhen()
  const school=i18n.language==='bn'&&card.school_name_bn?card.school_name_bn:card.school_name_en
@@ -33,8 +35,20 @@ function ReportCardView({card}:{card:ReportCard}) {
    return <tr key={s.exam_subject_id} className="border-b border-slate-100"><td className="px-3 py-2.5">{i18n.language==='bn'&&s.subject_name_bn?s.subject_name_bn:s.subject_name}</td><td className="px-3 py-2.5 tabular-nums">{labelled?<span className="font-semibold text-slate-700">{t(`e3Status_${s.status}`)}</span>:s.marks}</td><td className="px-3 py-2.5">{s.grade??'—'}</td><td className="px-3 py-2.5 tabular-nums">{s.grade_point==null?'—':s.grade_point.toFixed(2)}</td><td className="px-3 py-2.5">{s.passed==null?'—':t(s.passed?'examPassed':'examFailed')}</td></tr>})}</tbody></table></div>
   </>}
   {card.version?<p className="mt-5 text-xs text-slate-600">{t('rvPublishedFooter',{when:when(card.published_at),version:card.version})}{card.revised?` · ${t('rvRevised')}`:''}</p>:null}
- <button type="button" onClick={()=>window.print()} className={`${ui.secondary} mt-5 print:hidden`}>{t('examPrint')}</button>
+ {mode!=='guardian'&&<ReportCardPdf card={card} mode={mode} />}
  </article>
+}
+
+// ReportCardPdf: the report card prints as the marksheet PDF (marksheet v2)
+// of the exam's term result, once that result is published.
+function ReportCardPdf({card,mode}:{card:ReportCard;mode:Mode}) {
+ const {t}=useTranslation()
+ const {run,start,busy}=useDocuments()
+ const versionId=card.marksheet_version_id
+ if(!versionId||!card.exam.term_id)return <p className="mt-5 text-sm text-slate-600 print:hidden">{t('msMarksheetLater')}</p>
+ if(mode==='student')return <div className="mt-5"><p className="mb-2 text-sm font-semibold text-slate-800">{t('msMarksheetPdf')}</p><MyMarksheet versionId={versionId} /></div>
+ const termId=card.exam.term_id
+ return <div className="mt-5 space-y-2 print:hidden"><p className="text-sm font-semibold text-slate-800">{t('msMarksheetPdf')}</p><div className="flex flex-wrap gap-2">{(['en','bn'] as const).map(l=><button key={l} type="button" className={ui.secondary} disabled={busy} onClick={()=>void start(`marksheet:${l}`,{kind:'marksheet',scope:'term',scope_id:termId,class_id:card.exam.class_id,student_id:card.result.student_id,language:l})}><Icon name="download" className="h-4 w-4" />{t(l==='en'?'e7DownloadEnglish':'e7DownloadBangla')}</button>)}</div>{run?.error&&<Notice tone="error">{run.error}</Notice>}{run&&!run.error&&<p role="status" className="text-sm text-slate-600">{t('e7Preparing')}</p>}</div>
 }
 
 // SheetsPanel: one row per subject sheet with its progress and review
@@ -149,6 +163,6 @@ export function ExamsPage({mode,canManage,canReview=false}:{mode:Mode;canManage:
   </>}
   {(mode==='student'||mode==='guardian')&&(mode==='student'||!!childId)&&<PublishedResults childId={mode==='guardian'?childId:undefined} />}
   {(mode==='student'||mode==='guardian')&&<section className="print:hidden" aria-label={t(heading)}>{cards.isPending?<Skeleton rows={2} />:cards.isError?<Notice tone="error">{t('examError')}</Notice>:cards.data.length===0?<EmptyState icon="grade" title={t('examNoResults')}>{t('uxResultsLater')}</EmptyState>:<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{cards.data.map(item=><li key={item.exam.id}><button type="button" aria-pressed={selected===item.exam.id} className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-slate-300 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${selected===item.exam.id?'border-[var(--brand-primary)] ring-2 ring-[color-mix(in_srgb,var(--brand-primary)_20%,transparent)]':'border-slate-200'}`} onClick={()=>setSelected(item.exam.id)}><span className="flex items-start justify-between gap-2"><span className="font-semibold text-slate-900">{item.exam.name}</span>{item.withheld?<span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-600/30">{t('e3Status_withheld')}</span>:<StatusBadge tone={item.result.passed?'present':'absent'}>{t(item.result.passed?'examPassed':'examFailed')}</StatusBadge>}</span><span className="mt-1 block text-sm text-slate-600">{item.exam.session_name}</span>{item.revised&&<span className="mt-2 block"><RevisedChip when={when(item.published_at)} /></span>}<span className="mt-4 flex items-end justify-between gap-2">{item.withheld?<span className="text-sm text-amber-900">{t('e3ResultWithheld')}</span>:<span><span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">{t('examGpa')}</span><span className="text-3xl font-bold tabular-nums text-slate-900">{item.result.gpa.toFixed(2)}</span></span>}<span className="text-sm font-semibold text-[var(--brand-ink)]">{t('uxViewReportCard')}</span></span></button></li>)}</ul>}</section>}
-  {selected&&card.data&&<ReportCardView card={card.data} />}
+  {selected&&card.data&&<ReportCardView card={card.data} mode={mode} />}
  </div>
 }

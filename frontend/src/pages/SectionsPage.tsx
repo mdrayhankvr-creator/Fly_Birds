@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, getAcademicClasses, getAcademicSections, getAcademicSessions, saveAcademicSection, type AcademicSection, type AcademicSectionInput } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { ui, CardTitle, PageHeader, LinkTabs } from './attendanceUi'
+import { ClassTeachersCard } from './ClassTeachersCard'
 
 const field = ui.field
 const emptyForm: AcademicSectionInput = { session_id: '', class_id: '', name: '', code: '', display_order: 0, is_active: true }
@@ -92,5 +93,6 @@ export function SectionsPage({ canManage }: { canManage: boolean }) {
         {(sessions.data && sessions.data.total > 100 || classes.data && classes.data.total > 100) && <p className="mt-3 text-sm text-amber-700">{t('sectionOptionsLimit')}</p>}
       </section>}
     </div>
+    <ClassTeachersCard canManage={canManage} />
   </div>
 }

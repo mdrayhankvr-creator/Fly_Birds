@@ -13,7 +13,10 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: 'vendor', test: /node_modules\/(react|react-dom|react-router|scheduler|@tanstack|i18next|react-i18next)\// },
-            { name: 'translations', test: /src\/(i18n|\w+Translations)\.ts$/ },
+            // Exam and routine texts are about a third of all translations;
+            // their own file keeps each chunk under the 500 kB warning.
+            { name: 'translations-exams', test: /src\/(exam\w*|marks|result|e7|routine\w*|marksheetAdmit)Translations\.ts$/, priority: 2 },
+            { name: 'translations', test: /src\/(i18n|\w+Translations)\.ts$/, priority: 1 },
           ],
         },
       },

@@ -37,6 +37,9 @@ const ForcedPasswordPage = lazy(() => import('./pages/ForcedPasswordPage').then(
 const IdCardPrintPage = lazy(() => import('./pages/IdCardPrintPage').then(m => ({ default: m.IdCardPrintPage })))
 const VerifyCardPage = lazy(() => import('./pages/VerifyCardPage').then(m => ({ default: m.VerifyCardPage })))
 const VerifyResultPage = lazy(() => import('./pages/VerifyResultPage').then(m => ({ default: m.VerifyResultPage })))
+const VerifyAdmitPage = lazy(() => import('./pages/VerifyAdmitPage').then(m => ({ default: m.VerifyAdmitPage })))
+const ClassTeacherComments = lazy(() => import('./pages/exams/ClassTeacherComments').then(m => ({ default: m.ClassTeacherComments })))
+const AdmitCardsPage = lazy(() => import('./pages/routine/AdmitCards').then(m => ({ default: m.AdmitCardsPage })))
 const RoutinePage = lazy(() => import('./pages/RoutinePage').then(m => ({ default: m.RoutinePage })))
 const ExamsPage = lazy(() => import('./pages/ExamsPage').then(m => ({ default: m.ExamsPage })))
 const MarksQueue = lazy(() => import('./pages/marks/MarksQueue').then(m => ({ default: m.MarksQueue })))
@@ -225,6 +228,30 @@ function SetupGate({ page, permissions, role, enabled, loading, error }: { page:
     case 'review': return <ResultReview canApprove={(role === 'admin' || role === 'head_teacher') && permissions.includes('exams:review')} canPublish={canManage} />
     default: return <TermResults />
   }
+}
+
+// CommentsGate: class-teacher comments for teachers (their sections), and
+// review for the head teacher and the administrator.
+function CommentsGate({ permissions, role, enabled, loading, error }: { permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <StateScreen kind="loading" message={t('msLoading')} />
+  if (error) return <StateScreen kind="error" message={t('msLoadError')} />
+  if (!permissions?.includes('exams:comment') || !(role === 'teacher' || role === 'head_teacher' || role === 'admin')) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" />
+  return <ClassTeacherComments reviewer={role === 'admin' || role === 'head_teacher'} />
+}
+
+// AdmitGate: admit cards for staff who print them and the office that
+// releases students held for dues.
+function AdmitGate({ permissions, role, enabled, loading, error }: { permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <StateScreen kind="loading" message={t('msLoading')} />
+  if (error) return <StateScreen kind="error" message={t('msLoadError')} />
+  const canPrint = !!permissions?.includes('routine:admit_cards') && (role === 'admin' || role === 'head_teacher' || role === 'teacher')
+  const canRelease = !!permissions?.includes('routine:admit_release') && (role === 'admin' || role === 'accountant')
+  if (!canPrint && !canRelease) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" />
+  return <AdmitCardsPage canPrint={canPrint} canRelease={canRelease} canSettings={role === 'admin' && !!permissions?.includes('routine:admit_settings')} />
 }
 
 function ExamsGate({ mode, permissions, role, enabled, loading, error }: { mode: 'admin' | 'student' | 'teacher' | 'guardian'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
@@ -447,6 +474,9 @@ export default function App() {
         <Route path="/login" element={<LandingPage branding={branding.data} />} />
         <Route path="/verify/:token" element={<VerifyCardPage />} />
         <Route path="/verify/result/:token" element={<VerifyResultPage />} />
+        <Route path="/verify/admit/:token" element={<VerifyAdmitPage />} />
+        <Route path="/exams/comments" element={<ProtectedRoute><CommentsGate permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
+        <Route path="/admit-cards" element={<ProtectedRoute><AdmitGate permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
         <Route path="/account" element={<ProtectedRoute><AccountPage permissions={myPermissions.data} /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/:role" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

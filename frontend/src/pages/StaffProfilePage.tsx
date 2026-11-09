@@ -7,6 +7,7 @@ import { deleteStaffPhoto, getStaffPhoto, getStaffProfile, removeStaffNID, revea
 import { confirmAction } from '../components/ConfirmDialog'
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
+import { SignatureCard } from './SignatureCard'
 import { CardTitle, EmptyState, Notice, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 import { Chip, Fact, ProfilePhoto, clock } from './profileUi'
 
@@ -108,6 +109,7 @@ export function StaffProfilePage() {
       </section>}
     </div>
 
+    {p.self && <SignatureCard />}
     {p.self && p.visibility && <OwnSettings key={JSON.stringify([p.qualifications, p.visibility])} qualifications={p.qualifications ?? []} visibility={p.visibility} busy={busy} onSave={input => run(() => authorized(token => saveOwnStaffProfile(token, input)), t('c4OwnSaved'))} />}
   </div>
 }
