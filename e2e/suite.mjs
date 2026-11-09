@@ -58,7 +58,9 @@ try {
   check('landing shows no invented figures', !/৳|\d+\.\d%/.test(await b.text()))
   check('landing shows the school identity once (not again in the header)', await b.evaluate(`!document.querySelector('header').innerText.includes('Green Valley') && !document.querySelector('header img')`))
   check('no Sign in link in the header on the sign-in page', await b.evaluate(`!document.querySelector('header a[href="/login"]')`))
-  check('landing has no vendor marketing or role grid', !/Run your whole school|For schools across Bangladesh|Built for every role|Everything a school day needs|Powered by/i.test(await b.text()))
+  // The footer may carry one small "Powered by Fly_Birds"; nothing else markets the product.
+  check('landing has no vendor marketing or role grid', await b.evaluate(`(() => { const page = document.body.cloneNode(true); page.querySelector('[data-public-footer]')?.remove(); return !/Run your whole school|For schools across Bangladesh|Built for every role|Everything a school day needs|Powered by/i.test(page.textContent) })()`))
+  check('the footer credits Fly_Birds once, in small print', await b.waitFor(`(() => { const f = document.querySelector('[data-public-footer]'); if (!f) return false; const credit = [...f.querySelectorAll('p')].filter(p => /Powered by/.test(p.textContent)); return credit.length === 1 && credit[0].textContent.trim() === 'Powered by Fly_Birds' && parseFloat(getComputedStyle(credit[0]).fontSize) <= 12 && !/Run your whole school|Built for every role/i.test(f.textContent) })()`, 15000))
   const quickOn = await b.evaluate(`fetch('/api/auth/demo-login').then(r => r.status === 200)`)
   check('demo quick sign-in shown only when the server offers it', await b.waitFor(`${quickOn} === !!document.querySelector('#demo-quick-login')`), `server ${quickOn ? 'on' : 'off'}`)
   check('landing a11y basics', (await a11y()).length === 0, (await a11y()).slice(0, 3).join(' | '))
