@@ -376,7 +376,7 @@ the backend applies when it starts.
 
 1. **Read the release notes** and check for new environment variables in
    `deploy/school.env.example`.
-2. **Back up** in the app (Admin → Backups → Create backup, then Verify) and
+2. **Back up** in the app (Admin → Backups → Back up now, then Verify) and
    copy the archive off the server (see
    [OPERATIONS.md](OPERATIONS.md#5-backups)). Also keep a database dump:
 

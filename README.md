@@ -64,6 +64,8 @@ flowchart LR
 
 | Document | Contents |
 |---|---|
+| [Bangla user guide](docs/USER_GUIDE_BN.md) | For school staff, one chapter per role: setup, school details and public page, admission, logins and slips, attendance, fees, exams, promotion, password reset, backups |
+| [Hosting guide](docs/HOSTING_GUIDE.md) | The short path to host one school: server size, domain and HTTPS, environment file, first start, first administrator, daily encrypted off-server backups, restore drill, updates, monthly disk cleanup |
 | [Deployment guide](docs/DEPLOYMENT.md) | Installing a school on a server, HTTPS, environment variables, upgrades and rollback |
 | [Operations guide](docs/OPERATIONS.md) | First administrator, school setup, password resets, backups and recovery, troubleshooting, release validation |
 | [API reference (OpenAPI 3)](docs/openapi.yaml) | Every endpoint, with permissions, request and response schemas |
@@ -199,9 +201,10 @@ compose.yaml    Development stack
   payments and their receipts are real records.
 - **SMS:** messages use a **mock** provider. They are recorded and marked sent
   but never reach a phone.
-- **Passwords:** there is no self-service password reset or in-app password
-  change yet. The school office asks the server operator to run
-  `reset-password` (see the [operations guide](docs/OPERATIONS.md)).
+- **Passwords:** there is no self-service password reset. An administrator
+  resets a password in **Admin → Users** and hands over a printed slip; the
+  temporary password works for 14 days. Everyone can change their own
+  password under **Account** (see the [operations guide](docs/OPERATIONS.md)).
 - One installation serves one school. Several schools on one server need one
   Compose project each.
 
