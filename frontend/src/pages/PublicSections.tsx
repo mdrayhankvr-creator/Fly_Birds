@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router'
 import { galleryImageUrl, getPublicPage, headPhotoUrl, type GalleryPhoto } from '../api/publicPage'
 import { Icon } from '../components/icons'
 
@@ -63,6 +64,12 @@ export function PublicSections() {
   const page = useQuery({ queryKey: ['school', 'public-page'], queryFn: ({ signal }) => getPublicPage(signal), staleTime: 60_000, retry: 1 })
   const [open, setOpen] = useState<number | null>(null)
   const v = page.data
+  // A link such as /#public-notices (from the footer) scrolls once the sections are in.
+  const { hash } = useLocation()
+  useEffect(() => {
+    if (!v || !hash.startsWith('#public-')) return
+    document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' })
+  }, [v, hash])
   if (!v) return null
   const number = (n: number) => new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US').format(n)
   const date = (iso: string) => new Intl.DateTimeFormat(bn ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dhaka' }).format(new Date(iso))
