@@ -10,6 +10,24 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — E8: Term Exam Routine Planner (2026-11-06)
+
+On `feature/e8-exam-routine`, stacked on `feature/audit-fixes` (`df22578e`, PR #43, not yet merged; E8 shares its weekly off days). Pushed for review; not merged. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migration 1804; the full list is 1701, 1702, 1750–1759, 1800–1804, no duplicates. Details: [exams/E8_EXAM_ROUTINE_PLANNER.md](exams/E8_EXAM_ROUTINE_PLANNER.md).
+
+**Implementation:**
+- **Planning:** exam rooms (classroom, lab, hall, optional seats); one routine per exam term, kept as versions, with sittings, papers (theory, practical, viva, oral; numbered papers) and invigilation duties.
+- **Rules:** one check (`routine/planner`) runs on every manual placement, the draft, submission, approval and publication. Weekly off days and published holidays (shared with attendance), the term's dates, class and student clashes (from optional subject choices), seats and halls, labs, sitting length and invigilators in two rooms are hard rules; two papers a day, own-subject invigilation, unstaffed rooms and empty-room duties are warnings.
+- **Draft:** deterministic and greedy; it keeps hand-placed (pinned) papers, gives each section a room and each room one invigilator, never breaks a hard rule, and reports what it could not place with the reason.
+- **Workflow:** draft → submitted → approved by the head teacher (new `routine:approve`) → published by the administrator, with returns and withdrawals carrying a reason. Published content is frozen by triggers and hashed. An amendment is a new version with a reason; the planner shows its difference paper by paper, and students see "Amended on" and the changed papers marked for 7 days. Every step is audited.
+- **Views:** the student's next exam card and their routine with their own room; the teacher's duty card and list.
+- **PDFs:** class routines, room schedules and invigilation duties in English and Bangla through the E7 Typst renderer, plus the student's own routine.
+- **Unchanged:** the per-section exam routines (migration 0601) and their endpoints.
+
+**Verification (disposable resources only):**
+- **Go:** fresh PostgreSQL 17, `go test ./... -p 1 -count=1`: 30 of 30 packages passed, including the new `routine/planner` unit tests (the spec's 10-class, 63-paper, 15-day school placed fully; same input, same output; infeasible cases with their reasons; every rule), `TestPostgresTermRoutinePlanner` (the whole workflow on PostgreSQL) and `TestPostgresTermRoutineRoutes` (permissions and error codes). `go vet` clean; gofmt clean (267 tracked files).
+- **Frontend:** typecheck and build, i18n 3,666 English and 3,664 Bangla keys (the two-key difference predates this branch), unit tests 18 of 18.
+- **Browser** on `m15b1` rebuilt with fresh volumes (migrations applied in 3.3 s, no restarts) and demo-seeded: `suite.mjs` 117 of 117, new `exam-routine.mjs` 37 of 37, including five screens at 1440px and 375px in both languages and themes with overflow, contrast and axe. Sample PDFs: `Fly_Birds_QA_env/pdf-e8/`.
+
 ## Current Status — Lifecycle Audit Fixes: Leaving Dues, Refunds and Late Fines, Off Days (2026-11-05)
 
 On `feature/audit-fixes`, from `main` `c62435b9` (E7 merged, PR #42). Pushed for review; not merged. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migrations 1801 (leaving cancellations), 1802 (payment reversals, late fines) and 1803 (weekly off days); the full list is 1701, 1702, 1750–1759, 1800–1803, no duplicates. Details: [LIFECYCLE_AUDIT_FIXES.md](LIFECYCLE_AUDIT_FIXES.md).

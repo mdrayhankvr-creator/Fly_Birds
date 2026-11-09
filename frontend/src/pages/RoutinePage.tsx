@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError, deleteClassRoutineSlot, deleteExamRoutine, deleteExamRoutineSlot, getAcademicClasses, getAcademicSections, getAcademicSessions, getAcademicSubjects, getClassRoutine, getEmployees, getExamRoutine, getExamRoutines, publishExamRoutine, saveClassRoutineSlot, saveExamRoutine, saveExamRoutineSlot, type ClassRoutineInput, type ClassRoutineSlot, type ExamRoutine, type ExamRoutineInput, type ExamRoutineSlotInput } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { CardTitle, ui, PageHeader, Tabs, Notice } from './attendanceUi'
+import { TermRoutinePlanner } from './routine/TermRoutinePlanner'
+import { StudentExamRoutine, TeacherDutyList } from './routine/ExamRoutineViews'
 
 type Mode = 'admin' | 'teacher' | 'student' | 'guardian'
 const field = ui.field
@@ -14,12 +16,17 @@ const blankExam: ExamRoutineInput = { name: '', session_id: '', class_id: '', se
 const blankSlot: ExamRoutineSlotInput = { subject_id: '', exam_date: '', start_time: '10:00', end_time: '12:00', room: '' }
 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-export function RoutinePage({ mode, canManage }: { mode: Mode; canManage: boolean }) {
+type RoutineTab = 'class' | 'exam' | 'planner' | 'duties'
+
+export function RoutinePage({ mode, canManage, canApprove = false }: { mode: Mode; canManage: boolean; canApprove?: boolean }) {
   const { t, i18n } = useTranslation()
   const { id: childId } = useParams()
   const { accessToken, renew, expire } = useAuth()
   const client = useQueryClient()
-  const [tab, setTab] = useState<'class' | 'exam'>('class')
+  const [searchParams] = useSearchParams()
+  const tabs: RoutineTab[] = mode === 'admin' ? ['class', 'exam', 'planner'] : mode === 'teacher' ? ['class', 'duties'] : ['class', 'exam']
+  const wanted = searchParams.get('tab') as RoutineTab | null
+  const [tab, setTab] = useState<RoutineTab>(wanted && tabs.includes(wanted) ? wanted : 'class')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [sessionId, setSessionId] = useState('')
@@ -87,14 +94,16 @@ export function RoutinePage({ mode, canManage }: { mode: Mode; canManage: boolea
 
   return <div className="space-y-5">
     <PageHeader eyebrow={t('m12Group_academics')} title={t(mode === 'admin' ? 'routineHeading' : mode === 'teacher' ? 'm12Nav_myRoutine' : mode === 'student' ? 'm12Nav_classRoutine' : 'uxChildRoutine')} description={t(mode === 'admin' ? 'routineDescription' : 'uxRoutineIntroSelf')} />
-    {mode !== 'teacher' && <Tabs label={t('weeklyTimetable')} value={tab} onChange={(v: 'class' | 'exam') => { setTab(v); setPage(1) }} items={[{ value: 'class' as const, label: t('classRoutine') }, { value: 'exam' as const, label: t('uxExamSchedule') }]} />}
+    <Tabs label={t('weeklyTimetable')} value={tab} onChange={(v: RoutineTab) => { setTab(v); setPage(1) }} items={tabs.map(value => ({ value, label: t(value === 'class' ? 'classRoutine' : value === 'exam' ? 'uxExamSchedule' : value === 'planner' ? 'e8Tab' : 'e8MyDuties') }))} />
     {msg && <Notice tone={error ? 'error' : 'success'}>{msg}</Notice>}
-    {(mode === 'admin' || mode === 'teacher') && <section className={`${ui.card} p-4 sm:p-6 print:hidden`}>
+    {tab === 'planner' && <TermRoutinePlanner canManage={canManage} canApprove={canApprove} />}
+    {tab === 'duties' && <TeacherDutyList />}
+    {(tab === 'class' || tab === 'exam') && (mode === 'admin' || mode === 'teacher') && <section className={`${ui.card} p-4 sm:p-6 print:hidden`}>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className={ui.label}>{t('search')}<input className={field} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></label>
       {mode === 'admin' && <><label className={ui.label}>{t('academicSessions')}<select className={field} value={sessionId} onChange={e => { setSessionId(e.target.value); setClassId(''); setSectionId(''); setPage(1) }}><option value="">{t('allSessions')}</option>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className={ui.label}>{t('classesHeading')}<select className={field} value={classId} onChange={e => { setClassId(e.target.value); setSectionId(''); setPage(1) }}><option value="">{t('allClasses')}</option>{academicClasses.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className={ui.label}>{t('sectionsHeading')}<select className={field} value={sectionId} onChange={e => { setSectionId(e.target.value); setPage(1) }}><option value="">{t('allSections')}</option>{sections.data?.items.filter(s => (!sessionId || s.session_id === sessionId) && (!classId || s.class_id === classId)).map(s => <option key={s.id} value={s.id}>{s.class_name} {s.name}</option>)}</select></label></>}
       </div>
     </section>}
-    {tab === 'class' ? <>
+    {tab === 'planner' || tab === 'duties' ? null : tab === 'class' ? <>
       <section className={`${ui.card} p-4 sm:p-6`}><div className="flex flex-wrap items-center justify-between gap-3"><CardTitle icon="clock">{t('weeklyTimetable')}</CardTitle><button type="button" onClick={() => window.print()} className={`${ui.secondary} print:hidden`}>{t('printRoutine')}</button></div>
         {classes.isPending ? <p role="status" className="mt-4">{t('routineLoading')}</p> : classes.isError ? <p role="alert" className="mt-4 text-rose-700">{t('routineLoadError')}</p> : mode === 'admin' && !sectionId ? <p className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600">{t('m12ChooseSectionForRoutine')}</p> : classItems.length === 0 ? <p className="mt-4 text-slate-600">{t('routineEmpty')}</p> : <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-7">{days.map((day, index) => {
           const slots = classItems.filter(item => item.day_of_week === index)
@@ -121,6 +130,7 @@ export function RoutinePage({ mode, canManage }: { mode: Mode; canManage: boolea
         <div className="flex gap-2 sm:col-span-2 lg:col-span-3"><button className={button} disabled={busy}>{t('saveChanges')}</button>{classEdit && <button type="button" className={ui.secondary} onClick={() => { setClassEdit(''); setClassForm(blankClass) }}>{t('cancel')}</button>}</div>
       </form></section>}
     </> : <>
+      {mode === 'student' && <StudentExamRoutine />}
       <section className={`${ui.card} p-4 sm:p-6 print:hidden`}><CardTitle icon="grade">{t('uxExamSchedule')}</CardTitle>{exams.isPending ? <p role="status" className="mt-4">{t('routineLoading')}</p> : exams.isError ? <p role="alert" className="mt-4 text-rose-700">{t('routineLoadError')}</p> : examItems.length === 0 ? <p className="mt-4 text-slate-600">{t('routineEmpty')}</p> : <ul className="mt-4 grid gap-2 sm:grid-cols-2">{examItems.map(item => <li key={item.id}><button className={`w-full rounded-xl border p-4 text-left hover:border-[var(--s)] ${selectedExam === item.id ? 'border-[var(--s)] ds-softer' : 'border-slate-200'}`} onClick={() => selectExam(item)}><span className="font-bold">{item.name}</span><span className="block text-sm text-slate-600">{item.class_name} · {item.section_name} · {t(item.is_published ? 'routinePublished' : 'routineDraft')}</span></button></li>)}</ul>}</section>
       {canManage && <section className={`${ui.card} p-4 sm:p-6 print:hidden`}><CardTitle icon="grade">{t(examEdit ? 'editExamRoutine' : 'addExamRoutine')}</CardTitle><form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={saveExam}><label className={ui.label}>{t('routineExamName')}<input required maxLength={120} className={field} value={examForm.name} onChange={e => setExamForm({ ...examForm, name: e.target.value })} /></label><label className={ui.label}>{t('academicSessions')}<select required className={field} value={examForm.session_id} onChange={e => setExamForm({ ...examForm, session_id: e.target.value, section_id: '' })}><option value="">{t('selectOption')}</option>{sessions.data?.items.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label className={ui.label}>{t('classesHeading')}<select required className={field} value={examForm.class_id} onChange={e => setExamForm({ ...examForm, class_id: e.target.value, section_id: '' })}><option value="">{t('selectOption')}</option>{academicClasses.data?.items.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label className={ui.label}>{t('sectionsHeading')}<select required className={field} value={examForm.section_id} onChange={e => setExamForm({ ...examForm, section_id: e.target.value })}><option value="">{t('selectOption')}</option>{sessionSections(examForm).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><div className="flex gap-2 sm:col-span-2"><button disabled={busy || !!activeExam?.is_published} className={button}>{t('saveChanges')}</button><button type="button" className={ui.secondary} onClick={() => { setExamEdit(''); setExamForm(blankExam); setSelectedExam('') }}>{t('newRoutine')}</button></div></form></section>}
       {selectedExam && <section className={`${ui.card} p-4 sm:p-6 print:border-0 print:shadow-none`}>{detail.isPending ? <p role="status">{t('routineLoading')}</p> : detail.isError ? <p role="alert" className="text-rose-700">{t('routineLoadError')}</p> : activeExam && <><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle icon="grade">{activeExam.name}</CardTitle><p className="text-slate-600">{activeExam.class_name} · {activeExam.section_name} · {t(activeExam.is_published ? 'routinePublished' : 'routineDraft')}</p></div><div className="flex flex-wrap gap-2 print:hidden"><button className={ui.secondary} onClick={() => window.print()}>{t('printRoutine')}</button>{canManage && <><button disabled={busy} className={button} onClick={() => void run(() => authorized(token => publishExamRoutine(token, activeExam.id, !activeExam.is_published)))}>{t(activeExam.is_published ? 'unpublishRoutine' : 'publishRoutine')}</button>{!activeExam.is_published && <button disabled={busy} className={ui.danger} onClick={() => void run(async () => { await authorized(token => deleteExamRoutine(token, activeExam.id)); setSelectedExam(''); setExamEdit(''); setExamForm(blankExam) })}>{t('delete')}</button>}</>}</div></div>
@@ -128,6 +138,6 @@ export function RoutinePage({ mode, canManage }: { mode: Mode; canManage: boolea
         {canManage && !activeExam.is_published && <form className="mt-6 grid gap-3 border-t pt-5 sm:grid-cols-2 lg:grid-cols-5 print:hidden" onSubmit={saveSlot}><label className={ui.label}>{t('subjectsHeading')}<select required className={field} value={slotForm.subject_id} onChange={e => setSlotForm({ ...slotForm, subject_id: e.target.value })}><option value="">{t('selectOption')}</option>{subjects.data?.items.map(v => <option key={v.id} value={v.id}>{name(v.name_en, v.name_bn)}</option>)}</select></label><label className={ui.label}>{t('routineDate')}<input required type="date" className={field} value={slotForm.exam_date} onChange={e => setSlotForm({ ...slotForm, exam_date: e.target.value })} /></label><label className={ui.label}>{t('routineStart')}<input required type="time" className={field} value={slotForm.start_time} onChange={e => setSlotForm({ ...slotForm, start_time: e.target.value })} /></label><label className={ui.label}>{t('routineEnd')}<input required type="time" min={slotForm.start_time} className={field} value={slotForm.end_time} onChange={e => setSlotForm({ ...slotForm, end_time: e.target.value })} /></label><label className={ui.label}>{t('routineRoom')}<input required maxLength={80} className={field} value={slotForm.room} onChange={e => setSlotForm({ ...slotForm, room: e.target.value })} /></label><div className="flex gap-2 sm:col-span-2 lg:col-span-5"><button disabled={busy} className={button}>{t(slotEdit ? 'saveChanges' : 'addExamSlot')}</button>{slotEdit && <button type="button" className={ui.secondary} onClick={() => { setSlotEdit(''); setSlotForm(blankSlot) }}>{t('cancel')}</button>}</div></form>}
       </>}</section>}
     </>}
-    {pages > 1 && <div className="flex items-center justify-between gap-3 text-sm print:hidden"><button className={ui.secondary} disabled={page <= 1} onClick={() => setPage(page-1)}>{t('previous')}</button><span>{t('pageOf', { page, total: pages })}</span><button className={ui.secondary} disabled={page >= pages} onClick={() => setPage(page+1)}>{t('next')}</button></div>}
+    {(tab === 'class' || tab === 'exam') && pages > 1 && <div className="flex items-center justify-between gap-3 text-sm print:hidden"><button className={ui.secondary} disabled={page <= 1} onClick={() => setPage(page-1)}>{t('previous')}</button><span>{t('pageOf', { page, total: pages })}</span><button className={ui.secondary} disabled={page >= pages} onClick={() => setPage(page+1)}>{t('next')}</button></div>}
   </div>
 }
