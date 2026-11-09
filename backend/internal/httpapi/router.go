@@ -11,6 +11,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/classteacher"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/exams"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/fees"
@@ -121,8 +122,9 @@ func NewRouterWithPromotion(service *auth.Service, secureCookies bool, grants *r
 }
 
 // NewRouterWithDocuments adds the E7 result document routes; a nil
-// documents service answers them with 503.
-func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices, analyticsService *analytics.Service, promotionService *promotion.Service, documentService *documents.Service) *gin.Engine {
+// documents service answers them with 503. The class-teacher service
+// (marksheet v2) is optional: without it those routes answer 503.
+func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *rbac.Service, schoolService *school.Service, userService *users.Service, auditService *audit.Service, dashboardService *dashboard.Service, sessionService *academicsessions.Service, academicService *academic.Service, sectionService *academic.SectionService, peopleService *people.Service, staffService *staff.Service, attendanceService *attendance.Service, studentAttendanceService *attendance.StudentService, routineService *routine.Service, examService *exams.Service, feeService *fees.Service, comm *Communication, adminServices *AdminServices, analyticsService *analytics.Service, promotionService *promotion.Service, documentService *documents.Service, classTeachers ...*classteacher.Service) *gin.Engine {
 	router := gin.New()
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -453,6 +455,15 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	academicRoutes.PATCH("/sections/:id", RequirePermission(service, "academics:manage"), RequireModule(schoolService, "academics"), RequireAdministrator(), sectionHandler.save)
 	registerPromotions(router, service, &promotionHandler{service: promotionService}, moduleGuard("students"))
 	registerDocuments(router, service, schoolService, &documentHandler{service: documentService}, moduleGuard("examinations"))
+	var ct *classteacher.Service
+	if len(classTeachers) > 0 {
+		ct = classTeachers[0]
+	}
+	var admitService *routine.AdmitService
+	if routineService != nil {
+		admitService = routineService.Admit
+	}
+	registerMarksheetAdmit(router, management, service, schoolService, moduleGuard, ct, staffHandler, admitService)
 	peopleHandler := &peopleHandler{service: peopleService}
 	studentRoutes := router.Group("/students")
 	studentRoutes.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), RequireModule(schoolService, "students"))
