@@ -112,12 +112,16 @@ type Service struct {
 	repo Repository
 	// Term is the term exam routine planner (E8); nil without a database.
 	Term *TermService
+	// Admit makes admit cards from published term routines; nil without a
+	// database.
+	Admit *AdmitService
 }
 
 func NewService(repo Repository) *Service {
 	s := &Service{repo: repo}
 	if g, ok := repo.(*GormRepository); ok {
 		s.Term = NewTermService(NewTermRepository(g.db))
+		s.Admit = NewAdmitService(g.db)
 	}
 	return s
 }
