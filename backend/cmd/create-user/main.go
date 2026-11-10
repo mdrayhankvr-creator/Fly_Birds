@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
@@ -16,6 +18,7 @@ import (
 func main() {
 	email := flag.String("email", "", "email address for the new user")
 	role := flag.String("role", "admin", "one of the six Fly_Birds roles")
+	name := flag.String("name", "", "display name, for example the person's full name (optional)")
 	flag.Parse()
 	if os.Getenv("DATABASE_URL") == "" || *email == "" || !auth.ValidRole(*role) {
 		fmt.Fprintln(os.Stderr, "set DATABASE_URL and supply -email and a valid -role")
@@ -73,7 +76,11 @@ func main() {
 	if err := database.Migrate(ctx, db); err != nil {
 		fail(err)
 	}
-	user := &auth.User{Email: normalized, PasswordHash: hash, Role: *role, IsActive: true}
+	displayName := strings.TrimSpace(*name)
+	if !utf8.ValidString(displayName) || len(displayName) > 160 {
+		fail(fmt.Errorf("the name must be at most 160 characters"))
+	}
+	user := &auth.User{Email: normalized, PasswordHash: hash, Role: *role, IsActive: true, DisplayName: displayName}
 	if err := auth.NewRepository(db).CreateUser(ctx, user); err != nil {
 		fail(err)
 	}

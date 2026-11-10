@@ -68,7 +68,7 @@ Right after the first start, create the school's administrator. The command
 asks for the password twice without echoing it (12 to 72 characters):
 
 ```sh
-fb exec backend /app/create-user -email head.office@school.example.edu.bd -role admin
+fb exec backend /app/create-user -email head.office@school.example.edu.bd -role admin -name "Office Administrator"
 ```
 
 A school prepared with `school-provision` prints this command with its own
