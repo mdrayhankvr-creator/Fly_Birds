@@ -83,7 +83,8 @@ if (to > session.end_date) { to = session.end_date; from = addDays(to, -30) < se
 
 // The demo student's parents, birth date and photo.
 const full = await must(admin('GET', `/students/${me.id}`), 'student')
-await must(admin('PATCH', `/students/${me.id}`, { ...full, date_of_birth: full.date_of_birth || '2012-03-05', father_name_en: 'Abdul Karim', father_name_bn: 'আবদুল করিম', mother_name_en: 'Rahima Begum', mother_name_bn: 'রহিমা বেগম' }), 'parents')
+const keep = ['admission_no', 'name_en', 'name_bn', 'status', 'session_id', 'class_id', 'section_id', 'roll_no']
+await must(admin('PATCH', `/students/${me.id}`, { ...Object.fromEntries(keep.map(k => [k, full[k]])), user_id: full.user_id ?? '', date_of_birth: full.date_of_birth || '2012-03-05', father_name_en: 'Abdul Karim', father_name_bn: 'আবদুল করিম', mother_name_en: 'Rahima Begum', mother_name_bn: 'রহিমা বেগম' }), 'parents')
 const photoSaved = await admin('PUT', `/students/${me.id}/photo`, photo, 'image/png')
 check('the demo student has a photo and their parents’ names', photoSaved.status === 200, `${photoSaved.status} ${photoSaved.code ?? ''}`)
 
@@ -103,6 +104,12 @@ const draft = mine.active ? await must(admin('POST', `/exams/blueprints/${mine.b
 const d = draft.definition
 const EX = `H${stamp}`
 d.assessments = d.assessments.filter(a => a.term_id !== term.id).concat([{ key: EX, name: 'Half-yearly exam', term_id: term.id, kind: 'term_exam', visibility: 'after_term_publication' }])
+for (const id of paperIds) if (!d.subjects.some(s => s.subject_id === id)) d.subjects.push({ subject_id: id, role: 'required', sheets: [], terms: [] })
+// Subjects another run added to the class are not graded here.
+const mapping = await must(admin('GET', `/academic/classes/${cls}/subjects`), 'mapping')
+for (const m of Array.isArray(mapping) ? mapping : mapping.items) {
+  if (!d.subjects.some(s => s.subject_id === m.subject_id)) d.subjects.push({ subject_id: m.subject_id, role: 'non_graded', sheets: [], terms: [] })
+}
 let cqSubject = ''
 for (const s of d.subjects) {
   if (s.role === 'non_graded') continue
@@ -386,7 +393,7 @@ check('only the administrator changes the admit card settings', teacherSettings.
 await matrix(b, 'admit-cards-admin', 'admin', '/admit-cards', `!!document.querySelector('[data-testid=admit-settings]') && !!document.querySelector('[data-testid=admit-print]')`)
 await matrix(b, 'comments-teacher', 'teacher', '/exams/comments', `!!document.querySelector('[data-testid=comment-rows]')`)
 await matrix(b, 'staff-signature', 'teacher', '/staff/me', `!!document.querySelector('[data-testid=signature-card] img')`)
-await matrix(b, 'class-teachers', 'admin', '/admin/academic/sections', `!!document.querySelector('[data-testid=class-teachers] select[aria-label^="Class teacher of"]')`)
+await matrix(b, 'class-teachers', 'admin', '/admin/academic/sections', `!!document.querySelector('[data-testid=class-teachers] li select')`)
 await matrix(b, 'student-admit', 'student', '/student/routine?tab=exam', `!!document.querySelector('[data-testid=my-admit-cards]')`)
 
 // ---- Leave the school as it was: the hold off, the rules empty --------------------
