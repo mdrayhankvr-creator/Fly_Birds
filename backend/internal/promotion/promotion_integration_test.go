@@ -336,6 +336,60 @@ func TestPostgresPromotionConcurrentApply(t *testing.T) {
 	}
 }
 
+// Two sections that become one: every student is placed in next year's only
+// section, with rolls that do not collide once the policy numbers them.
+func TestPostgresPromotionIntoOneSection(t *testing.T) {
+	ctx, db := openDB(t)
+	s := newSchool(t, db, 2412)
+	t.Cleanup(func() {
+		for _, q := range []string{
+			"DELETE FROM promotion_batches WHERE class_id IN (?, ?)",
+			"DELETE FROM students WHERE class_id IN (?, ?)",
+			"DELETE FROM academic_sections WHERE class_id IN (?, ?)",
+			"DELETE FROM academic_classes WHERE id IN (?, ?)",
+		} {
+			if err := db.Exec(q, s.ten, s.eleven).Error; err != nil {
+				t.Errorf("cleanup %s: %v", q, err)
+			}
+		}
+		if err := db.Exec("DELETE FROM users WHERE email LIKE ?", "m15b-%-"+s.stamp+"@example.test").Error; err != nil {
+			t.Errorf("cleanup users: %v", err)
+		}
+		if err := db.Exec("DELETE FROM academic_sessions WHERE id IN (?, ?)", s.from, s.to).Error; err != nil {
+			t.Errorf("cleanup sessions: %v", err)
+		}
+	})
+	s.exec("UPDATE academic_classes SET next_class_id = ? WHERE id = ?", s.eleven, s.ten)
+	sectionB := s.id("INSERT INTO academic_sections(session_id,class_id,name,code) VALUES (?,?,'B','B') RETURNING id", s.from, s.ten)
+	only := s.id("INSERT INTO academic_sections(session_id,class_id,name,code) VALUES (?,?,'Day','D') RETURNING id", s.to, s.eleven)
+	a, _ := s.student(1)
+	b1, _ := s.student(2)
+	s.exec("UPDATE students SET section_id = ?, roll_no = 1 WHERE id = ?", sectionB, b1)
+	ps := NewService(db)
+	admin := Actor{s.admin, "admin"}
+	batch, err := ps.Create(ctx, admin, CreateInput{FromSessionID: s.from, ToSessionID: s.to, ClassID: s.ten})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range []string{a, b1} {
+		d, r := Promote, "Annual result kept on paper"
+		if batch, err = ps.UpdateItem(ctx, admin, batch.ID, st, ItemInput{Decision: &d, Reason: &r}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if batch, err = ps.Arrange(ctx, admin, batch.ID, ArrangeInput{RollPolicy: "name"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(batch.Blockers) != 0 {
+		t.Fatalf("blockers: %+v", batch.Blockers)
+	}
+	for _, it := range batch.Items {
+		if it.TargetSectionID == nil || *it.TargetSectionID != only || it.TargetRollNo == nil {
+			t.Fatalf("placement: %+v", it)
+		}
+	}
+}
+
 // A mid-year withdrawal or transfer leaves the year not completed (off the
 // roll); one after the class's annual result is published counts as
 // completed, then left. Readmission clears it.
