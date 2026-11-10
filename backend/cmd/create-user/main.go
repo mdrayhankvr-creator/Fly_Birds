@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"flag"
 	"fmt"
 	"os"
@@ -35,6 +36,21 @@ func main() {
 			passwordBytes[i] = 0
 		}
 	}()
+	// Asked twice: a typing mistake here would leave the school without a
+	// usable administrator.
+	fmt.Fprint(os.Stderr, "Password again: ")
+	again, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr)
+	if err != nil {
+		fail(err)
+	}
+	same := subtle.ConstantTimeCompare(passwordBytes, again) == 1
+	for i := range again {
+		again[i] = 0
+	}
+	if !same {
+		fail(fmt.Errorf("the two passwords differ; nothing was created"))
+	}
 	hash, err := auth.HashPassword(string(passwordBytes))
 	if err != nil {
 		fail(err)
