@@ -107,7 +107,7 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
                 : <span />}
               <span className="text-xs font-semibold tabular-nums text-slate-600">{time(s)}</span>
             </div>
-            <div className={`mt-3 ${done ? 'opacity-75' : ''}`}>
+            <div className="mt-3">
               <p className="ds-ink truncate text-lg font-extrabold leading-tight">{label(s)}</p>
               <p className="truncate text-xs text-slate-600">{line(s)}</p>
             </div>
