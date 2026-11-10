@@ -5,6 +5,7 @@ import { getAttendanceDay, getClassRoutine, type ClassRoutineSlot } from '../../
 import { useFmt } from '../../pages/AnalyticsPages'
 import { useApi, useLocal } from '../../pages/commShared'
 import { Icon } from '../icons'
+import { roomText } from '../roomLabel'
 import { Empty, Lines, Panel, Unavailable, ViewAll, tone } from './kit'
 
 // Today's classes from the published routine as a swipeable strip. It opens
@@ -100,7 +101,7 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
               <p className="mt-3 truncate text-lg font-extrabold leading-tight">{label(s)}</p>
               <p className="truncate text-xs text-white/90">{line(s)}</p>
               <div className="mt-auto pt-3">
-                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/90"><span>{s.room && t('p1Room', { room: s.room })}</span><span>{t('p1MinLeft', { n: f.num(total - gone) })}</span></div>
+                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/90"><span>{s.room && roomText(s.room, room => t('p1Room', { room }))}</span><span>{t('p1MinLeft', { n: f.num(total - gone) })}</span></div>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/25"><span className="block h-full rounded-full bg-white" style={{ width: `${Math.round((gone / total) * 100)}%` }} /></div>
               </div>
             </li>
@@ -117,7 +118,7 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
               <p className={`truncate text-lg font-extrabold leading-tight ${done ? 'text-slate-800' : 'ds-ink'}`}>{label(s)}</p>
               <p className="truncate text-xs text-slate-600">{line(s)}</p>
             </div>
-            {s.room && <p className="mt-auto pt-3 text-xs font-semibold text-slate-600">{t('p1Room', { room: s.room })}</p>}
+            {s.room && <p className="mt-auto pt-3 text-xs font-semibold text-slate-600">{roomText(s.room, room => t('p1Room', { room }))}</p>}
           </li>
         })}
       </ol>

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { saveBlob } from '../../api/admin'
 import { downloadMyRoutinePdf, getMyDuties, getMyTermRoutines, type StudentExamPaper, type StudentRoutine, type TeacherDuty } from '../../api/routinePlanner'
 import { Icon } from '../../components/icons'
+import { roomText } from '../../components/roomLabel'
 import { Empty, Lines, Panel, Unavailable, ViewAll } from '../../components/dashboard/kit'
 import { usePeopleApi } from '../peopleShared'
 import { CardTitle, EmptyState, Notice, ui } from '../attendanceUi'
@@ -43,7 +44,7 @@ export function NextExamCard() {
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-ink)]">{when(next.exam_date)} · {next.term}</p>
         <p className="mt-1 text-lg font-bold text-slate-900">{paperName(next)}{next.changed && <span className="ml-2 align-middle rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-600/25">{t('e8ChangedBadge')}</span>}</p>
         <p className="mt-1 text-sm text-slate-700">{day(next.exam_date, true)} · <span className="tabular-nums">{num(next.start_time)}–{num(next.end_time)}</span> · {name(next.sitting_name, next.sitting_name_bn)}</p>
-        {next.room_name && <p className="mt-0.5 text-sm font-semibold text-slate-800">{t('e8RoomLabel', { room: name(next.room_name, next.room_name_bn) })}</p>}
+        {next.room_name && <p className="mt-0.5 text-sm font-semibold text-slate-800">{roomText(name(next.room_name, next.room_name_bn), room => t('e8RoomLabel', { room }))}</p>}
       </div>}
   </Panel>
 }
