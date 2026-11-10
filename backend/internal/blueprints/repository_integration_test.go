@@ -361,4 +361,18 @@ func TestPostgresTermSetupWizard(t *testing.T) {
 	if err != nil || again.ExamsCreated != 0 || again.SheetsCreated != 0 {
 		t.Fatalf("second create: %+v %v", again, err)
 	}
+	// A deadline moved in the wizard after creation reaches the existing exams.
+	setup.Due["EX1"] = "2200-05-15"
+	if _, err := svc.SaveSetup(ctx, f.admin, term.ID, setup); err != nil {
+		t.Fatal(err)
+	}
+	if moved, err := svc.CreateTerm(ctx, f.admin, term.ID); err != nil || moved.ExamsCreated != 0 {
+		t.Fatalf("create after moving a deadline: %+v %v", moved, err)
+	}
+	var due struct{ Moved, Kept int }
+	f.tx.Raw(`SELECT (SELECT count(*) FROM exams WHERE term_id = ? AND assessment_key = 'EX1' AND marks_due_on = '2200-05-15') AS moved,
+       (SELECT count(*) FROM exams WHERE term_id = ? AND assessment_key = 'CT1' AND marks_due_on = '2200-02-01') AS kept`, term.ID, term.ID).Scan(&due)
+	if due.Moved != 2 || due.Kept != 2 {
+		t.Fatalf("moved deadline: %+v", due)
+	}
 }
