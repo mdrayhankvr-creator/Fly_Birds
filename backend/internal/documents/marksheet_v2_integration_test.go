@@ -269,4 +269,21 @@ func TestPostgresMarksheetV2(t *testing.T) {
 	if _, st3 := request(0, "en"); st3.Signatures[0].Name != "" || st3.Signatures[0].Image != "" || st3.Comment != "A new comment." {
 		t.Fatalf("no class teacher: %+v %q", st3.Signatures[0], st3.Comment)
 	}
+
+	// A school that starts recording attendance later in the term: the days
+	// before the section's first record are not counted as absent.
+	exec("DELETE FROM student_attendance WHERE section_id = ? AND attendance_date < '2401-01-08'", s.section)
+	var first string
+	var present int
+	tx.Raw("SELECT to_char(min(attendance_date), 'YYYY-MM-DD') FROM student_attendance WHERE section_id = ?", s.section).Row().Scan(&first)
+	tx.Raw("SELECT count(*) FROM student_attendance WHERE student_id = ? AND status IN ('present', 'late')", s.students[0]).Row().Scan(&present)
+	later := 0
+	for d, _ := time.Parse(time.DateOnly, first); d.Month() == time.January; d = d.AddDate(0, 0, 1) {
+		if !offFriday[d.Format(time.DateOnly)] && d.Day() != 10 && d.Day() != 11 {
+			later++
+		}
+	}
+	if _, st4 := request(0, "en"); later >= working || st4.Attendance != fmt.Sprintf("%d / %d days (%d%%)", present, later, present*100/later) {
+		t.Fatalf("attendance from the first record (%s): %q, want %d of %d", first, st4.Attendance, present, later)
+	}
 }

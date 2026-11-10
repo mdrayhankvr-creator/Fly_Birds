@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -165,7 +166,11 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 	}
 
 	// Attendance over the result's period.
-	if err := s.attendance(ctx, set, ids, &x); err != nil {
+	sectionOf := map[string]string{}
+	for _, r := range results {
+		sectionOf[r.Student.ID] = r.Student.SectionID
+	}
+	if err := s.attendance(ctx, set, ids, sectionOf, &x); err != nil {
 		return x, err
 	}
 	return x, nil
@@ -174,11 +179,14 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 // attendance counts each student's days present (present or late) and the
 // working days of the period: every day from its start to its end (or
 // today, if earlier), except the weekly off days and published holidays.
+// Days before the section's attendance was first recorded in the period are
+// not counted: a school that starts using Fly_Birds in the middle of a term
+// has no record of them, which is not the same as absence.
 //
 // The period is the term's dates; a term without dates starts the day after
 // the previous term's end (or on the session's first day) and ends on the
 // day the results were published. The annual result covers the session.
-func (s *Service) attendance(ctx context.Context, set exams.DocSet, ids []string, x *extras) error {
+func (s *Service) attendance(ctx context.Context, set exams.DocSet, ids []string, sectionOf map[string]string, x *extras) error {
 	db := s.db.WithContext(ctx)
 	var w struct{ From, To *string }
 	if set.Scope == exams.ScopeAnnual {
@@ -212,11 +220,40 @@ func (s *Service) attendance(ctx context.Context, set exams.DocSet, ids []string
 		return nil
 	}
 	x.window = [2]string{*w.From, to}
-	var working int
-	if err := db.Raw(`SELECT count(*) FROM generate_series(?::date, ?::date, interval '1 day') AS d(day)
+	workingFrom := func(from string) (int, error) {
+		var n int
+		err := db.Raw(`SELECT count(*) FROM generate_series(?::date, ?::date, interval '1 day') AS d(day)
  WHERE NOT EXISTS (SELECT 1 FROM school_weekly_off_days o WHERE o.day_of_week = EXTRACT(DOW FROM d.day))
-   AND NOT EXISTS (SELECT 1 FROM school_events e WHERE e.kind = 'holiday' AND e.status = 'published' AND d.day::date BETWEEN e.starts_on AND e.ends_on)`, *w.From, to).Scan(&working).Error; err != nil {
+   AND NOT EXISTS (SELECT 1 FROM school_events e WHERE e.kind = 'holiday' AND e.status = 'published' AND d.day::date BETWEEN e.starts_on AND e.ends_on)`, from, to).Scan(&n).Error
+		return n, err
+	}
+	working, err := workingFrom(*w.From)
+	if err != nil {
 		return err
+	}
+	sections := []string{}
+	for _, sec := range sectionOf {
+		if !slices.Contains(sections, sec) {
+			sections = append(sections, sec)
+		}
+	}
+	var firsts []struct{ SectionID, First string }
+	if len(sections) > 0 {
+		if err := db.Raw(`SELECT section_id, to_char(min(attendance_date), 'YYYY-MM-DD') AS first FROM student_attendance
+ WHERE section_id IN ? AND attendance_date BETWEEN ?::date AND ?::date GROUP BY section_id`, sections, *w.From, to).Scan(&firsts).Error; err != nil {
+			return err
+		}
+	}
+	sectionWorking := map[string]int{}
+	for _, f := range firsts {
+		if f.First <= *w.From {
+			continue
+		}
+		n, err := workingFrom(f.First)
+		if err != nil {
+			return err
+		}
+		sectionWorking[f.SectionID] = n
 	}
 	var rows []struct {
 		StudentID string
@@ -233,6 +270,9 @@ func (s *Service) attendance(ctx context.Context, set exams.DocSet, ids []string
 	}
 	for _, id := range ids {
 		x.students[id].Working = working
+		if n, ok := sectionWorking[sectionOf[id]]; ok {
+			x.students[id].Working = n
+		}
 	}
 	for _, r := range rows {
 		e := x.students[r.StudentID]
