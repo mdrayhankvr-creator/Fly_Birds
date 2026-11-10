@@ -43,6 +43,28 @@ On `feature/e8-exam-routine`, stacked on `feature/audit-fixes` (`df22578e`, PR #
 - **Go:** fresh PostgreSQL 17, `go test ./... -p 1 -count=1`: 30 of 30 packages passed, including the new `routine/planner` unit tests (the spec's 10-class, 63-paper, 15-day school placed fully; same input, same output; infeasible cases with their reasons; every rule), `TestPostgresTermRoutinePlanner` (the whole workflow on PostgreSQL) and `TestPostgresTermRoutineRoutes` (permissions and error codes). `go vet` clean; gofmt clean (267 tracked files).
 - **Frontend:** typecheck and build, i18n 3,666 English and 3,664 Bangla keys (the two-key difference predates this branch), unit tests 18 of 18.
 - **Browser** on `m15b1` rebuilt with fresh volumes (migrations applied in 3.3 s, no restarts) and demo-seeded: `suite.mjs` 117 of 117, new `exam-routine.mjs` 37 of 37, including five screens at 1440px and 375px in both languages and themes with overflow, contrast and axe. Sample PDFs: `Fly_Birds_QA_env/pdf-e8/`.
+## Current Status — Bangla User Guide and Hosting Guide (2026-11-09)
+
+On `feature/user-guide`, rebased onto `main` `994d1f9` (lifecycle audit fixes merged, PR #43). Documentation only: no code, migration or test changes, so the completion figures above do not change.
+
+- **[USER_GUIDE_BN.md](USER_GUIDE_BN.md)** (Bangla, with English terms in brackets): a part for everyone (sign-in with email or Student ID, language, own password, the 14-day temporary password), then one chapter per role:
+  - **Administrator:** first-time setup, school details and the public page, admission (single and bulk), logins and slips, users and password reset, attendance, exams and results, year-end promotion, backups.
+  - **Head teacher, teacher, accountant, and student and family:** each role's own tasks.
+  - E7 (2026-11-05): result PDFs for the student, the teacher's classes and the administrator and head teacher (with the provisional preview), what a marksheet shows including the EIIN, the public QR result check, and blueprint quick setup.
+  - Lifecycle audit fixes (2026-11-09): weekly off days in School settings and published holidays that stop new attendance (admin 1.2 and 1.7, teacher, head teacher); late fines per fee structure and at the counter (4.1, 4.2); the administrator's payment reversal from the receipt (4.4); dues cancelled when a student is withdrawn or transferred, and the administrator's revert (4.5, with a pointer in 1.12); what students and families see.
+  - 32 screenshots in Bangla in `docs/user-guide/img/`: 19 from `fbqa-cp1b`, 6 of the E7 screens and a Bangla marksheet from `fbpreview`, and 7 of the audit screens from `fbpreview` on `994d1f9`.
+- **[HOSTING_GUIDE.md](HOSTING_GUIDE.md):** server sizes based on measurements, domain and HTTPS, the environment file with placeholders only (including `PUBLIC_BASE_URL` for the marksheet QR code), first start, the first administrator, daily backups with an encrypted off-server copy (script), a restore drill, updates (with what the lifecycle audit release changes for a running school), monthly Docker disk cleanup, and a go-live item for weekly off days and holidays.
+- **Checked against the code:**
+  - Every Bangla button and menu name in bold matches a Bangla string in the app.
+  - Every relative link and anchor resolves.
+  - On `fbqa-cp1b`: the off-server backup steps (newest archive, checksum, copy, encrypt, decrypt to the same checksum) and the restore drill (restore into a temporary database, matching counts, cleanup).
+  - A `school-provision` dry run with the guide's example values.
+- **Corrected while checking:**
+  - OPERATIONS.md, DEPLOYMENT.md and README still said there was no in-app password reset or change; checkpoint 4 added both.
+  - They also named a "Create backup" button that is really "Back up now".
+  - OPERATIONS.md said to compare the backup checksum "shown in Admin → Backups", which that page doesn't show. It now computes the checksum in the container.
+- **E7 screens checked on `fbpreview`** (main `c62435b`): every new Bangla label matches `e7Translations.ts`; who sees what was taken from `App.tsx`, the screens and migration 1800.
+- **Audit screens checked on `fbpreview`** (main `994d1f9`, rebuilt with `refresh.ps1`): every new bold Bangla label matches a string in the app (`auditFixesTranslations.ts` and the fee, student and event strings); the rules (which months are cancelled, admin-only revert and reversal, one fine per due, holidays only when published) were taken from migrations 1801–1803, `FeeLifecyclePanels.tsx`, `dayoff.go` and `LIFECYCLE_AUDIT_FIXES.md`. The screenshots were set up on demo data; the withdrawn student was readmitted and the late fine turned off afterwards.
 
 ## Current Status — Lifecycle Audit Fixes: Leaving Dues, Refunds and Late Fines, Off Days (2026-11-05)
 
