@@ -104,7 +104,7 @@ func (r *GormTermRepository) ListTerms(ctx context.Context, sessionID string) ([
 	terms := []TermSummary{}
 	q := db.Table("exam_terms t").Joins("JOIN academic_sessions s ON s.id=t.session_id").
 		Select("t.id AS term_id,t.name AS term_name,t.session_id,s.name AS session_name,to_char(t.starts_on,'YYYY-MM-DD') AS starts_on,to_char(t.ends_on,'YYYY-MM-DD') AS ends_on").
-		Where("t.kind='term'")
+		Where("t.kind IN ('term','annual')")
 	if sessionID != "" {
 		q = q.Where("t.session_id=?", sessionID)
 	}
@@ -555,7 +555,7 @@ func (r *GormTermRepository) CreateVersion(ctx context.Context, actor string, in
 		var term termRow
 		if err := tx.Raw(`SELECT t.session_id, to_char(t.starts_on,'YYYY-MM-DD') AS term_starts_on, to_char(t.ends_on,'YYYY-MM-DD') AS term_ends_on,
  to_char(s.start_date,'YYYY-MM-DD') AS session_start, to_char(s.end_date,'YYYY-MM-DD') AS session_end
- FROM exam_terms t JOIN academic_sessions s ON s.id = t.session_id WHERE t.id = ? AND t.kind = 'term' FOR UPDATE OF t`, in.TermID).Scan(&term).Error; err != nil {
+ FROM exam_terms t JOIN academic_sessions s ON s.id = t.session_id WHERE t.id = ? AND t.kind IN ('term','annual') FOR UPDATE OF t`, in.TermID).Scan(&term).Error; err != nil {
 			return err
 		}
 		if term.SessionID == "" {
