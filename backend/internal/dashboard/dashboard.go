@@ -153,6 +153,10 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 			if allowed["routine:read_children"] {
 				result.Navigation = append(result.Navigation, NavigationItem{Key: "routine_guardian", Name: "Children routines", Path: "/guardian/children"})
 			}
+			// The office releases admit cards held for dues (marksheet v2).
+			if allowed["routine:admit_release"] && !allowed["routine:read"] {
+				result.Navigation = append(result.Navigation, NavigationItem{Key: "routine_admit_cards", Name: "Admit cards", Path: "/admit-cards"})
+			}
 		}
 		if enabled["examinations"] {
 			if allowed["exams:read"] {
