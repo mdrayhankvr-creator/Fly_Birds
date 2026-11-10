@@ -10,6 +10,22 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Marksheet v2 and Automatic Admit Cards (2026-11-10)
+
+On `feature/marksheet-admit`, from `main` `ec7b94d7` (E8 merged, PR #44). Pushed for review; not merged. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migrations 1805 (class teachers, comments, signatures) and 1806 (admit cards). Details: [exams/MARKSHEET_V2_ADMIT_CARDS.md](exams/MARKSHEET_V2_ADMIT_CARDS.md).
+
+**Implementation:**
+- **Marksheet v2** (ফলাফল পত্র / Academic Transcript), one A4 page: photo, parents, date of birth; components with full marks, class-test share, highest, grade and point; combined papers per paper with one total; the fourth subject in its own labelled rows; positions "out of N", failed subjects, term attendance (off days and holidays left out); grading scale; the class teacher's comment; the class teacher's and head teacher's signatures and a guardian line. The old report card page opens this PDF.
+- **Class teachers and comments:** one class teacher per section (administrator, on the Sections page); comments from editable presets (EN/BN) or own words; head-teacher review; a changed comment makes a new document, never a new result.
+- **Signatures:** each member of staff uploads their own (PNG or a scan; trimmed, the paper made transparent).
+- **Admit cards** from the published routine: two per A4 with a cut line, room and seat (numbered per room and sitting), the student's timetable, rules (editable EN/BN), the head teacher's signature, a QR check; by section or class (class teachers their sections), students their own; an optional fee hold (off by default) with the office's release and held list.
+- **Also:** alphanumeric codes keep their digits in Bangla documents; the dashboard class strip's contrast and keyboard focus; translations split into two chunks.
+
+**Verification (disposable resources only):**
+- **Go:** fresh PostgreSQL 17, `go test ./... -p 1 -count=1`: 30 of 30 packages passed; vet and gofmt (276 files) clean. New: `TestPostgresMarksheetV2`, `TestPostgresAdmitCards`, `TestPostgresAdmitCardData`, `TestProcessSignature`.
+- **Frontend:** typecheck and build (no chunk warning), i18n 3,793 English and 3,791 Bangla keys, unit tests 18 of 18.
+- **Browser** on `m15b1` rebuilt with fresh volumes (migrations 2.2 s, no restarts) and demo-seeded: `suite.mjs` 117 of 117, `result-documents.mjs` 31 of 31, `exam-routine.mjs` 37 of 37, new `marksheet-admit.mjs` 35 of 35. Samples and page images: `Fly_Birds_QA_env\pdf-marksheet-admit\`.
+
 ## Current Status — E8: Term Exam Routine Planner (2026-11-06)
 
 On `feature/e8-exam-routine`, stacked on `feature/audit-fixes` (`df22578e`, PR #43, not yet merged; E8 shares its weekly off days). Pushed for review; not merged. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migration 1804; the full list is 1701, 1702, 1750–1759, 1800–1804, no duplicates. Details: [exams/E8_EXAM_ROUTINE_PLANNER.md](exams/E8_EXAM_ROUTINE_PLANNER.md).
