@@ -207,7 +207,8 @@ try {
   await b.go('/verify/not-a-real-token')
   check('the footer is on the other public pages too', await b.waitFor(`/Green Valley Demo School/.test(document.querySelector('[data-public-footer]')?.innerText ?? '') && !!document.querySelector('[data-public-footer] a[href^="mailto:"]')`, 15000))
   await b.evaluate(`[...document.querySelectorAll('[data-public-footer] a')].find(a => a.innerText.trim() === 'Contact').click()`)
-  check('"Contact" from another page opens the landing page at the contact section', await b.waitFor(`location.pathname === '/' && !!document.querySelector('#public-contact') && Math.abs(document.querySelector('#public-contact').getBoundingClientRect().top) < 120`, 15000))
+  check('"Contact" from another page opens the landing page at the contact section', await b.waitFor(`location.pathname === '/' && (() => { const t = document.querySelector('#public-contact')?.getBoundingClientRect().top; return t != null && t >= -5 && (t < 120 || (t < innerHeight - 60 && scrollY >= document.documentElement.scrollHeight - innerHeight - 2)) })()`, 15000))
+  // (The contact section is the last one, so it may only scroll into view, not to the top.)
   // Empty details are left out of the footer.
   await b.login(email('admin'), pw)
   const bare = { ...page, eiin: '', contact_address_en: '', contact_address_bn: '', contact_phone: '', contact_email: '', map_url: '' }
