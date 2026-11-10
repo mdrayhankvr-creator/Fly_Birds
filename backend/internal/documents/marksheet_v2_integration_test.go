@@ -68,7 +68,7 @@ func TestPostgresMarksheetV2(t *testing.T) {
 
 	// The student's details, the head teacher's name and the term's dates.
 	exec(`UPDATE students SET father_name_en = 'Abdul Karim', father_name_bn = 'আবদুল করিম', mother_name_en = 'Rahima Begum', mother_name_bn = 'রহিমা বেগম',
- date_of_birth = '2389-03-05' WHERE id = ?`, s.students[0])
+ date_of_birth = '2389-03-05', student_code = 'RMS-0001' WHERE id = ?`, s.students[0])
 	exec("UPDATE school_settings SET head_teacher_name_en = 'Head Master', head_teacher_name_bn = 'প্রধান শিক্ষক মহোদয়' WHERE id = 1")
 	exec("UPDATE exam_terms SET starts_on = '2401-01-01', ends_on = '2401-01-31' WHERE id = ?", s.term)
 	exec("UPDATE employees SET name_en = 'Nasrin Sultana', name_bn = 'নাসরিন সুলতানা' WHERE user_id = ?", s.teacher)
@@ -181,6 +181,11 @@ func TestPostgresMarksheetV2(t *testing.T) {
 	}
 	if st.Father != "Abdul Karim" || st.Mother != "Rahima Begum" || st.DOB != "5 March 2389" {
 		t.Fatalf("details: %q %q %q", st.Father, st.Mother, st.DOB)
+	}
+	// The student ID is the school's student ID (as on the ID card and the
+	// login slip), not the admission number.
+	if st.StudentID != "RMS-0001" {
+		t.Fatalf("student ID: %q", st.StudentID)
 	}
 	// 9 of the 12 marked days were present, 1 late (counts as present), 2
 	// absent: 10 days present.

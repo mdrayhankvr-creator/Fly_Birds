@@ -26,6 +26,9 @@ type AdmitDoc struct {
 // AdmitCard is one student's card.
 type AdmitCard struct {
 	AdmissionNo string
+	// StudentCode is the school's student ID; the card shows it, or the
+	// admission number when there is none.
+	StudentCode string
 	Name        Name
 	Class       string
 	Section     string
@@ -172,7 +175,7 @@ func (s *Service) admitData(ctx context.Context, in AdmitDoc, brand branding, as
 		published = l.date(in.PublishedAt)
 	}
 	for i, c := range in.Cards {
-		card := admitCardData{Name: l.pick(c.Name.EN, c.Name.BN), NameAlt: l.other(c.Name.EN, c.Name.BN), StudentID: l.code(c.AdmissionNo), Class: c.Class, Section: c.Section, Roll: "—", Rows: []admitRow{}}
+		card := admitCardData{Name: l.pick(c.Name.EN, c.Name.BN), NameAlt: l.other(c.Name.EN, c.Name.BN), StudentID: l.code(studentCode(c.StudentCode, c.AdmissionNo)), Class: c.Class, Section: c.Section, Roll: "—", Rows: []admitRow{}}
 		if c.Roll != nil {
 			card.Roll = l.int(*c.Roll)
 		}

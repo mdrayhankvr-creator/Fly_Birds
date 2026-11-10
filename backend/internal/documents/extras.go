@@ -20,6 +20,9 @@ import (
 // changes a published result.
 
 type studentExtra struct {
+	// Code is the school's student ID (also the sign-in ID and on the ID
+	// card); empty when the school gave none.
+	Code                                   string
 	FatherEN, FatherBN, MotherEN, MotherBN string
 	DOB                                    *string
 	Present, Working                       int
@@ -85,17 +88,17 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 
 	// Parents and date of birth.
 	var people []struct {
-		ID                                     string
+		ID, Code                               string
 		FatherEN, FatherBN, MotherEN, MotherBN string
 		DOB                                    *string
 	}
-	if err := db.Raw(`SELECT id, father_name_en AS father_en, father_name_bn AS father_bn, mother_name_en AS mother_en, mother_name_bn AS mother_bn,
+	if err := db.Raw(`SELECT id, coalesce(student_code, '') AS code, father_name_en AS father_en, father_name_bn AS father_bn, mother_name_en AS mother_en, mother_name_bn AS mother_bn,
  to_char(date_of_birth, 'YYYY-MM-DD') AS dob FROM students WHERE id IN ?`, ids).Scan(&people).Error; err != nil {
 		return x, err
 	}
 	for _, p := range people {
 		e := x.students[p.ID]
-		e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, e.DOB = p.FatherEN, p.FatherBN, p.MotherEN, p.MotherBN, p.DOB
+		e.Code, e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, e.DOB = strings.TrimSpace(p.Code), p.FatherEN, p.FatherBN, p.MotherEN, p.MotherBN, p.DOB
 	}
 
 	// The class teacher of each student's section (the section the result

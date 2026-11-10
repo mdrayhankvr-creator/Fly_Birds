@@ -487,11 +487,11 @@ func (s *AdmitService) cards(ctx context.Context, termID string, ids []string, l
 	doc := documents.AdmitDoc{Language: language, Term: p.TermName, Session: p.SessionName, Version: p.Version, PublishedAt: p.PublishedAt,
 		Rules: documents.Name{EN: settings.RulesEN, BN: settings.RulesBN}}
 	var people []struct {
-		ID, NameEN, NameBN, AdmissionNo, ClassName, SectionName string
+		ID, NameEN, NameBN, AdmissionNo, StudentCode, ClassName, SectionName string
 		RollNo                                                  *int
 		Photo                                                   []byte
 	}
-	if err := db.Raw(`SELECT st.id, st.name_en, st.name_bn, st.admission_no, st.roll_no, c.name AS class_name, sec.name AS section_name, ph.content AS photo
+	if err := db.Raw(`SELECT st.id, st.name_en, st.name_bn, st.admission_no, coalesce(st.student_code, '') AS student_code, st.roll_no, c.name AS class_name, sec.name AS section_name, ph.content AS photo
  FROM students st JOIN academic_classes c ON c.id = st.class_id JOIN academic_sections sec ON sec.id = st.section_id
  LEFT JOIN student_photos ph ON ph.student_id = st.id
  WHERE st.id IN ? ORDER BY c.display_order, c.name, sec.display_order, sec.name, st.roll_no NULLS LAST, st.admission_no`, ids).Scan(&people).Error; err != nil {
@@ -534,7 +534,7 @@ ORDER BY p.exam_date, si.start_minute, sub.code, p.paper_no`, p.VersionID, p.Ver
 		if err != nil {
 			return doc, err
 		}
-		doc.Cards = append(doc.Cards, documents.AdmitCard{AdmissionNo: person.AdmissionNo, Name: documents.Name{EN: person.NameEN, BN: person.NameBN},
+		doc.Cards = append(doc.Cards, documents.AdmitCard{AdmissionNo: person.AdmissionNo, StudentCode: person.StudentCode, Name: documents.Name{EN: person.NameEN, BN: person.NameBN},
 			Class: person.ClassName, Section: person.SectionName, Roll: person.RollNo, Photo: person.Photo, Token: token, Papers: byStudent[person.ID]})
 	}
 	return doc, nil
