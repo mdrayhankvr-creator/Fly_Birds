@@ -43,7 +43,7 @@ function LoginSlip({ login, school }: { login: StudentLogin; school: { en: strin
 }
 
 // LoginSlipSheet shows the slips with a print button. On paper they are laid
-// out two across, eight to an A4 page.
+// out two across, four to an A4 page.
 export function LoginSlipSheet({ logins }: { logins: StudentLogin[] }) {
   const { t } = useTranslation()
   const school = useSchoolNames()
