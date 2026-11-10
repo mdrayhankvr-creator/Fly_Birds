@@ -10,6 +10,19 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Public Page Footer, Demo Content and Dashboard Fixes (2026-11-10)
+
+On `feature/public-polish`, from `main` `1b2d8bd` (E8 exam routine, PR #44, and the user guide, PR #45). No migration. Outside the brief's M0–M13 criteria, so the completion figures above do not change.
+
+- **Public footer:** every signed-out page (landing, sign-in, the card and result checks, not found) ends with the school's logo and name, address, EIIN, phone and email, links to sign in, the public notices and contact, "© year school" and a small "Powered by Fly_Birds". Empty details are left out. It reads the public page after the first paint; EN and BN, light and dark, 375px.
+- **Demo content:** `seed-demo` fills the demo school's public page: introduction with totals, founding year 1987, sample EIIN 123456, contacts, the head teacher (Shahana Begum) with a drawn portrait and a message, four drawn gallery photos with captions (no people), and one public notice. Only while the school has the demo name, and only empty fields; a real school (or a renamed demo) gets nothing. `school-provision` is untouched.
+- **Dashboard class strip:**
+  - finished classes no longer dimmed with opacity: neutral text at 4.5:1 or better, and the Done chip readable in dark mode (past invigilation duties likewise);
+  - the hard-coded "Friday is the weekly holiday" is gone: the strip asks the attendance day, so the school's weekly off days and published holidays (by name) decide, and a holiday no longer lists classes;
+  - the strip can be scrolled from the keyboard on phones (axe `scrollable-region-focusable` at 375px).
+- **User guide:** new 1.13, the E8 term exam routine (rooms, starting, planning and the draft, the rule check, approval, publication, amendments, routine PDFs), with pointers for the head teacher (approval), teacher (duties) and student (next exam card, own routine and PDF); 5 Bangla screenshots from `fbpreview` (main `1b2d8bd`), which was refreshed again afterwards.
+- **Checks:** typecheck, build, i18n (3676 EN / 3674 BN keys), unit 18/18; `go vet` and the Go suite serially (30 packages ok, including two new demo seed integration tests and a picture test); on a freshly rebuilt `fbqa-cp1b`: `suite.mjs` 118/118, `whitelabel.mjs` 23/23, `checkpoint5.mjs` 64/64, and a footer and class-strip run 12/12 (seeded page and footer in 8 size/language/theme combinations with axe; the student dashboard after school hours and mid-morning on a simulated clock with axe and contrast; Friday, a published holiday, Saturday added and Friday removed as off days).
+
 ## Current Status — Marksheet v2 and Automatic Admit Cards (2026-11-10)
 
 On `feature/marksheet-admit`, from `main` `ec7b94d7` (E8 merged, PR #44). Pushed for review; not merged. Outside the brief's M0–M13 criteria, so the completion figures above do not change. Migrations 1805 (class teachers, comments, signatures) and 1806 (admit cards). Details: [exams/MARKSHEET_V2_ADMIT_CARDS.md](exams/MARKSHEET_V2_ADMIT_CARDS.md).
