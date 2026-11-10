@@ -172,7 +172,7 @@ func (s *Service) admitData(ctx context.Context, in AdmitDoc, brand branding, as
 		published = l.date(in.PublishedAt)
 	}
 	for i, c := range in.Cards {
-		card := admitCardData{Name: l.pick(c.Name.EN, c.Name.BN), NameAlt: l.other(c.Name.EN, c.Name.BN), StudentID: l.num(c.AdmissionNo), Class: c.Class, Section: c.Section, Roll: "—", Rows: []admitRow{}}
+		card := admitCardData{Name: l.pick(c.Name.EN, c.Name.BN), NameAlt: l.other(c.Name.EN, c.Name.BN), StudentID: l.code(c.AdmissionNo), Class: c.Class, Section: c.Section, Roll: "—", Rows: []admitRow{}}
 		if c.Roll != nil {
 			card.Roll = l.int(*c.Roll)
 		}
@@ -202,7 +202,7 @@ func (s *Service) admitData(ctx context.Context, in AdmitDoc, brand branding, as
 				name += " (" + l.r("optional") + ")"
 			}
 			if p.Code != "" {
-				name = l.num(p.Code) + " · " + name
+				name = l.code(p.Code) + " · " + name
 			}
 			row := admitRow{Date: date, Day: day, Time: l.clock(p.Start) + "–" + l.clock(p.End), Subject: name, Room: l.pick(p.Room.EN, p.Room.BN), Seat: "—"}
 			if row.Room == "" {

@@ -21,6 +21,16 @@ func (l lang) num(s string) string {
 
 func (l lang) int(n int) string { return l.num(strconv.Itoa(n)) }
 
+// code writes an identifier (subject code, student ID): Bangla digits only
+// when it is all digits ("১০১"); a code with letters ("BAN-101", "DEMO-001")
+// stays as written, as it is printed elsewhere.
+func (l lang) code(s string) string {
+	if s == "" || strings.Trim(s, "0123456789") != "" {
+		return s
+	}
+	return l.num(s)
+}
+
 // marks trims a two-decimal mark: "45.00" → "45", "45.50" → "45.5".
 func (l lang) marks(s *string) string {
 	if s == nil || *s == "" {

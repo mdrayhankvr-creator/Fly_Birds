@@ -141,7 +141,7 @@ func subjectsOf(l lang, rs []exams.DocResult) []tabSubject {
 			if line.Optional {
 				name += " *"
 			}
-			out = append(out, tabSubject{Key: line.Key, Code: l.num(line.Code), Name: name})
+			out = append(out, tabSubject{Key: line.Key, Code: l.code(line.Code), Name: name})
 		}
 	}
 	return out

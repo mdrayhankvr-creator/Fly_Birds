@@ -257,7 +257,7 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 	}
 	required, optional = []sheetRow{}, []sheetRow{}
 	for _, line := range r.Outputs.Subjects {
-		row := sheetRow{Code: l.num(line.Code), Subject: l.pick(line.NameEN, line.NameBN), Optional: line.Optional, CT: "—", Full: l.marks(&line.Full), Highest: "—", Grade: "—", GP: "—", Papers: []paperRow{}}
+		row := sheetRow{Code: l.code(line.Code), Subject: l.pick(line.NameEN, line.NameBN), Optional: line.Optional, CT: "—", Full: l.marks(&line.Full), Highest: "—", Grade: "—", GP: "—", Papers: []paperRow{}}
 		switch line.Status {
 		case "graded":
 			row.Total = l.marks(line.Marks)
@@ -286,7 +286,7 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 			if len(line.SubjectIDs) > 1 {
 				for _, sid := range line.SubjectIDs {
 					n := names[sid]
-					paper := paperRow{Code: l.num(n.Code), Subject: l.pick(n.EN, n.BN)}
+					paper := paperRow{Code: l.code(n.Code), Subject: l.pick(n.EN, n.BN)}
 					if paper.Subject == "" {
 						paper.Subject = row.Subject
 					}

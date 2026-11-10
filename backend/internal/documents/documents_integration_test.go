@@ -555,6 +555,9 @@ func TestFormatting(t *testing.T) {
 	if got := bn.date("2026-10-31T18:30:00Z"); got != "১ নভেম্বর ২০২৬" {
 		t.Fatalf("Bangla date in Dhaka time: %s", got)
 	}
+	if bn.code("101") != "১০১" || bn.code("DEMO-001") != "DEMO-001" || bn.code("B1GM9O") != "B1GM9O" || en.code("101") != "101" {
+		t.Fatal("codes: Bangla digits only for all-digit codes")
+	}
 	if documentCode("abc") == documentCode("abd") || len(documentCode("abc")) != 9 {
 		t.Fatal("document code")
 	}
