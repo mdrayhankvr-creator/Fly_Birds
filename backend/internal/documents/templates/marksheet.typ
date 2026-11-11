@@ -1,9 +1,27 @@
-// Marksheet v2 (ফলাফল পত্র / Academic Transcript): A4 portrait, one page per
+// Transcript v3 (ফলাফল পত্র / Academic Transcript): A4 portrait, one page per
 // student, print-friendly (thin rules, light tints that survive grey
-// printing).
+// printing). Optional certificate border and faint logo watermark (school
+// settings). Columns come from the blueprint: full marks, the class-test
+// share, each final component that exists, total, highest, GP and the letter
+// grade; a failed component is marked.
 #import "common.typ": *
 #show: base
-#set page(paper: "a4", margin: (x: 11mm, top: 9mm, bottom: 8mm), foreground: watermark)
+
+// Decorations behind the content: the faint logo watermark (washed out by a
+// nearly-opaque white veil) and the double certificate border.
+#let page-decor = {
+  if doc.school.at("watermark", default: false) and doc.school.logo != "" {
+    place(center + horizon, box(width: 92mm, height: 92mm, {
+      image(doc.school.logo, width: 100%, height: 100%, fit: "contain")
+      place(top + left, rect(width: 100%, height: 100%, fill: white.transparentize(7%)))
+    }))
+  }
+  if doc.school.at("border", default: false) {
+    place(top + left, dx: 4mm, dy: 4mm, rect(width: 100% - 8mm, height: 100% - 8mm, stroke: 1.4pt + accent.lighten(25%), radius: 2.5pt))
+    place(top + left, dx: 5.3mm, dy: 5.3mm, rect(width: 100% - 10.6mm, height: 100% - 10.6mm, stroke: 0.5pt + accent.lighten(60%), radius: 2pt))
+  }
+}
+#set page(paper: "a4", margin: (x: 11mm, top: 9mm, bottom: 8mm), background: page-decor, foreground: watermark)
 #set text(size: 8.4pt)
 
 #let L = doc.labels
@@ -18,7 +36,7 @@
   )
   v(1.8mm)
   provisional-banner()
-  // Title band: both names of the document, then the exam and session.
+  // Title band: the "Academic Transcript" badge, then the exam and session.
   block(width: 100%, fill: tint, stroke: (left: 3pt + accent, rest: 0.5pt + accent.lighten(55%)), inset: (x: 3.5mm, y: 2mm), radius: 2pt,
     grid(columns: (1fr, auto), align: (left + horizon, right + horizon), column-gutter: 3mm,
       {
@@ -30,32 +48,45 @@
 
 #let student-block(st) = {
   let field(k, v) = (text(size: 7pt, fill: muted, k), text(weight: "semibold", v))
+  // Version (medium), shift and group appear only when the student has them.
+  let cells = (
+    text(size: 7pt, fill: muted, L.name),
+    { text(weight: "bold", size: 9.2pt, st.name); if st.name_alt != "" { text(size: 7.6pt, fill: muted, "  " + st.name_alt) } },
+    ..field(L.student_id, st.student_id),
+    ..field(L.father, st.father), ..field(L.class, st.class),
+    ..field(L.mother, st.mother), ..field(L.section, st.section),
+    ..field(L.dob, st.dob), ..field(L.roll, st.roll),
+    ..field(L.session, st.session), ..field(L.exam, st.exam),
+  )
+  let extra = ()
+  if st.at("medium", default: "") != "" { extra.push((L.version_medium, st.medium)) }
+  if st.at("shift", default: "") != "" { extra.push((L.shift, st.shift)) }
+  if st.at("group", default: "") != "" { extra.push((L.group, st.group)) }
+  for pair in extra { cells += field(pair.at(0), pair.at(1)) }
+  if calc.odd(extra.len()) { cells += ([], []) }
   grid(columns: (1fr, 23mm), column-gutter: 3.5mm, align: (left + top, right + top),
     block(width: 100%, stroke: 0.5pt + rule, radius: 2pt, inset: (x: 3mm, y: 2.2mm),
-      grid(columns: (auto, 1.35fr, auto, 1fr), column-gutter: 2.4mm, row-gutter: 1.9mm, align: left + horizon,
-        text(size: 7pt, fill: muted, L.name),
-        { text(weight: "bold", size: 9.2pt, st.name); if st.name_alt != "" { text(size: 7.6pt, fill: muted, "  " + st.name_alt) } },
-        ..field(L.student_id, st.student_id),
-        ..field(L.father, st.father), ..field(L.class, st.class),
-        ..field(L.mother, st.mother), ..field(L.section, st.section),
-        ..field(L.dob, st.dob), ..field(L.roll, st.roll),
-        ..field(L.session, st.session), ..field(L.exam, st.exam),
-      )),
+      grid(columns: (auto, 1.35fr, auto, 1fr), column-gutter: 2.4mm, row-gutter: 1.9mm, align: left + horizon, ..cells)),
     box(width: 23mm, height: 27.5mm, stroke: 0.5pt + rule, radius: 2pt, clip: true, fill: tint,
       if st.photo != "" { image(st.photo, width: 23mm, height: 27.5mm, fit: "cover") }
       else { align(center + horizon, text(size: 7pt, fill: faint, L.photo)) }),
   )
 }
 
-// A mark with the full marks it is out of, small.
-#let mark(c) = { c.obt; if c.full != "" { text(size: 6pt, fill: muted, "/" + c.full) } }
+// A component mark with the full marks it is out of, small; a component
+// below its own pass marks is red.
+#let mark(c) = {
+  let failed = c.at("failed", default: false)
+  text(fill: if failed { fail-red } else { ink }, weight: if failed { "semibold" } else { "regular" }, c.obt)
+  if c.full != "" { text(size: 6pt, fill: muted, "/" + c.full) }
+}
 
 #let subject-table(st) = {
   let cols = doc.columns
-  let ncols = 2 + cols.len() + (if doc.show_ct { 1 } else { 0 }) + 4
-  let head = (L.code, L.subject, ..cols, ..if doc.show_ct { (L.ct,) } else { () }, L.total, L.highest, L.grade, L.gp)
-  let widths = (auto, 1fr, ..cols.map(_ => 15mm), ..if doc.show_ct { (11mm,) } else { () }, 17mm, 12mm, 10mm, 10mm)
-  // One row per paper; a combined subject's last cells span its papers.
+  let ncols = 3 + (if doc.show_ct { 1 } else { 0 }) + cols.len() + 4
+  let head = (L.code, L.subject, L.full, ..if doc.show_ct { (L.ct,) } else { () }, ..cols, L.total, L.highest, L.gp, L.grade)
+  let widths = (auto, 1fr, 11mm, ..if doc.show_ct { (11mm,) } else { () }, ..cols.map(_ => 15mm), 13mm, 12mm, 10mm, 10mm)
+  // One row per paper; a combined subject's shared cells span its papers.
   let emit(r) = {
     let papers = if r.papers.len() > 1 { r.papers } else { ((code: r.code, subject: r.subject, parts: r.parts),) }
     let n = papers.len()
@@ -67,14 +98,17 @@
         if r.optional and i == 0 { h(1mm); pill(L.fourth) }
         if r.note != "" and i == n - 1 { linebreak(); text(size: 6.3pt, fill: muted, r.note) }
       })
+      let span(x) = table.cell(rowspan: n, x)
+      if i == 0 {
+        out.push(span(if r.full != "" { r.full } else { "—" }))
+        if doc.show_ct { out.push(span(r.ct)) }
+      }
       for c in p.parts { out.push(mark(c)) }
       if i == 0 {
-        let span(x) = table.cell(rowspan: n, x)
-        if doc.show_ct { out.push(span(r.ct)) }
-        out.push(span({ text(weight: "bold", r.total); if r.full != "" { text(size: 6pt, fill: muted, "/" + r.full) } }))
+        out.push(span(text(weight: "bold", r.total)))
         out.push(span(text(fill: muted, r.highest)))
-        out.push(span(text(weight: "bold", fill: if r.failed { fail-red } else { ink }, r.grade)))
         out.push(span(r.gp))
+        out.push(span(text(weight: "bold", fill: if r.failed { fail-red } else { ink }, r.grade)))
       }
     }
     out
@@ -98,11 +132,13 @@
   let tile(k, v, strong: false, tone: ink) = block(width: 100%, inset: (x: 2.2mm, y: 1.7mm), radius: 2pt,
     stroke: if strong { 1pt + accent } else { 0.5pt + rule }, fill: if strong { tint } else { none },
     { text(size: 6.5pt, fill: muted, k); linebreak(); text(size: if strong { 11.5pt } else { 9.2pt }, weight: "bold", fill: tone, v) })
-  grid(columns: (1fr,) * 5, column-gutter: 1.8mm, row-gutter: 1.8mm,
+  grid(columns: (1fr,) * 6, column-gutter: 1.8mm, row-gutter: 1.8mm,
     tile(L.total_marks, st.total), tile(L.gpa, st.gpa, strong: true), tile(L.gpa_without, st.gpa_without), tile(L.letter, st.letter),
     tile(L.result, st.result, strong: true, tone: if st.failed { fail-red } else { ink }),
     tile(L.failed_count, st.failed_count, tone: if st.failed_count != "০" and st.failed_count != "0" and st.failed_count != "—" { fail-red } else { ink }),
-    tile(L.class_pos, st.class_pos), tile(L.section_pos, st.section_pos), tile(L.attendance, st.attendance), tile(L.published, st.published),
+    tile(L.class_pos, st.class_pos), tile(L.section_pos, st.section_pos),
+    tile(L.classes_held, st.held), tile(L.days_present, st.present_days), tile(L.days_absent, st.absent_days),
+    tile(L.published, st.published),
   )
 }
 

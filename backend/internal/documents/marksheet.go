@@ -15,15 +15,20 @@ import (
 // The data a marksheet template reads (templates/marksheet.typ).
 
 type schoolData struct {
-	Name      string `json:"name"`
-	NameAlt   string `json:"name_alt"`
-	Contact   string `json:"contact"`
-	EIIN      string `json:"eiin"` // "EIIN: …" or ""
-	Accent    string `json:"accent"`
-	Initials  string `json:"initials"`
-	Logo      string `json:"logo"`      // asset name or ""
-	Signature string `json:"signature"` // asset name or ""
-	Signatory string `json:"signatory"`
+	Name        string `json:"name"`
+	NameAlt     string `json:"name_alt"`
+	Contact     string `json:"contact"`
+	EIIN        string `json:"eiin"`        // "EIIN: …" or ""
+	Established string `json:"established"` // "Established 1985" or ""
+	Accent      string `json:"accent"`
+	Initials    string `json:"initials"`
+	Logo        string `json:"logo"`      // asset name or ""
+	Signature   string `json:"signature"` // asset name or ""
+	Signatory   string `json:"signatory"`
+	// Transcript v3 decorations (school settings, both on by default): the
+	// certificate border and the faint logo watermark.
+	Border    bool `json:"border"`
+	Watermark bool `json:"watermark"`
 }
 
 type gradeRow struct {
@@ -82,6 +87,9 @@ type sheetStudent struct {
 	Roll        string      `json:"roll"`
 	Session     string      `json:"session"`
 	Exam        string      `json:"exam"`
+	Medium      string      `json:"medium"` // version: Bangla/English medium, "" hides the row
+	Shift       string      `json:"shift"`  // "" hides the row
+	Group       string      `json:"group"`  // "" hides the row
 	Photo       string      `json:"photo"`
 	QR          string      `json:"qr"`
 	Withheld    bool        `json:"withheld"`
@@ -96,7 +104,9 @@ type sheetStudent struct {
 	FailedCount string      `json:"failed_count"`
 	ClassPos    string      `json:"class_pos"`
 	SectionPos  string      `json:"section_pos"`
-	Attendance  string      `json:"attendance"`
+	Held        string      `json:"held"`         // classes held in the period
+	PresentDays string      `json:"present_days"` // days present
+	AbsentDays  string      `json:"absent_days"`  // days absent
 	Published   string      `json:"published"`
 	Comment     string      `json:"comment"`
 	Signatures  []signature `json:"signatures"`
@@ -545,15 +555,16 @@ func outcomeText(l lang, outcome string) string {
 	return l.t("incomplete")
 }
 
-// posText is a merit position, "3 of 60" when the count is known.
+// posText is a merit position in ordinal words, "3rd of 60" (in Bangla
+// "৬০ জনের মধ্যে ৩য়") when the count is known.
 func posText(l lang, p *int, of int) string {
 	if p == nil || *p <= 0 {
 		return "—"
 	}
 	if of > 0 {
-		return fmt.Sprintf(l.t("pos_of"), l.int(*p), l.int(of))
+		return fmt.Sprintf(l.t("pos_of"), l.ordinal(*p), l.int(of))
 	}
-	return l.int(*p)
+	return l.ordinal(*p)
 }
 
 func rollText(l lang, roll *int) string {

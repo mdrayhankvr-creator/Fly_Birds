@@ -29,6 +29,10 @@ type SchoolSettings struct {
 	MapURL            string `json:"map_url"`
 	HeadTeacherNameEN string `gorm:"column:head_teacher_name_en" json:"head_teacher_name_en"`
 	HeadTeacherNameBN string `gorm:"column:head_teacher_name_bn" json:"head_teacher_name_bn"`
+	// Transcript v3 decorations (migration 1807): the certificate border and
+	// the faint logo watermark on the marksheet PDF; both default on.
+	TranscriptBorder    bool `json:"transcript_border"`
+	TranscriptWatermark bool `json:"transcript_watermark"`
 	// WeeklyOffDays are the days without attendance, 0 (Sunday) … 6
 	// (Saturday); Friday by default (table school_weekly_off_days).
 	WeeklyOffDays []int     `gorm:"-" json:"weekly_off_days"`
@@ -60,6 +64,9 @@ type SettingsInput struct {
 	MapURL            *string `json:"map_url,omitempty"`
 	HeadTeacherNameEN *string `json:"head_teacher_name_en,omitempty"`
 	HeadTeacherNameBN *string `json:"head_teacher_name_bn,omitempty"`
+	// Transcript decorations; omitted fields keep the saved value.
+	TranscriptBorder    *bool `json:"transcript_border,omitempty"`
+	TranscriptWatermark *bool `json:"transcript_watermark,omitempty"`
 	// WeeklyOffDays replaces the weekly off days when present (at most six
 	// days, so at least one day takes attendance).
 	WeeklyOffDays *[]int `json:"weekly_off_days,omitempty"`

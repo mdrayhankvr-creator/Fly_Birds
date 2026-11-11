@@ -25,7 +25,7 @@ import (
 
 // templateVersion changes whenever a template's output changes, so cached
 // documents are rebuilt.
-const templateVersion = "ms2-1"
+const templateVersion = "ms3-1"
 
 var (
 	ErrInvalid      = errors.New("invalid document request")
@@ -705,14 +705,19 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		row := sheetStudent{Name: l.pick(st.NameEN, st.NameBN), NameAlt: l.other(st.NameEN, st.NameBN), StudentID: l.code(studentCode(x.Code, st.AdmissionNo)), Class: st.ClassName, Section: st.SectionName,
 			Roll: rollText(l, st.RollNo), Session: l.num(st.SessionName), Exam: examName(l, set), Withheld: r.Outcome == "withheld", Rows: []sheetRow{}, Optional: []sheetRow{},
 			Total: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", FailedCount: "—",
-			ClassPos: posText(l, o.ClassPosition, classN), SectionPos: posText(l, o.SectionPosition, sectionN[st.SectionID]), Attendance: "—", Published: "—"}
+			ClassPos: posText(l, o.ClassPosition, classN), SectionPos: posText(l, o.SectionPosition, sectionN[st.SectionID]),
+			Held: "—", PresentDays: "—", AbsentDays: "—", Published: "—"}
 		row.Father, row.Mother = orDash(l.pick(x.FatherEN, x.FatherBN)), orDash(l.pick(x.MotherEN, x.MotherBN))
 		row.DOB = "—"
 		if x.DOB != nil {
 			row.DOB, _ = l.day(*x.DOB)
 		}
+		row.Shift, row.Group = l.pick(x.ShiftEN, x.ShiftBN), l.pick(x.GroupEN, x.GroupBN)
+		if x.Medium != "" {
+			row.Medium = l.t("medium_" + x.Medium)
+		}
 		if x.Working > 0 && x.HasAttendance {
-			row.Attendance = fmt.Sprintf(l.t("attendance_value"), l.int(x.Present), l.int(x.Working), l.int(x.Present*100/x.Working))
+			row.Held, row.PresentDays, row.AbsentDays = l.int(x.Working), l.int(x.Present), l.int(x.Working-x.Present)
 		}
 		switch {
 		case x.Custom != "":

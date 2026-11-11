@@ -21,6 +21,31 @@ func (l lang) num(s string) string {
 
 func (l lang) int(n int) string { return l.num(strconv.Itoa(n)) }
 
+// bnOrdinals are the usual Bangla ordinal words up to tenth; later positions
+// take the numeral plus "তম" (১১তম).
+var bnOrdinals = map[int]string{1: "১ম", 2: "২য়", 3: "৩য়", 4: "৪র্থ", 5: "৫ম", 6: "৬ষ্ঠ", 7: "৭ম", 8: "৮ম", 9: "৯ম", 10: "১০ম"}
+
+// ordinal is a position in words: "3rd", in Bangla "৩য়".
+func (l lang) ordinal(n int) string {
+	if l == "bn" {
+		if s, ok := bnOrdinals[n]; ok {
+			return s
+		}
+		return l.int(n) + "তম"
+	}
+	suffix := "th"
+	switch {
+	case n%100 >= 11 && n%100 <= 13:
+	case n%10 == 1:
+		suffix = "st"
+	case n%10 == 2:
+		suffix = "nd"
+	case n%10 == 3:
+		suffix = "rd"
+	}
+	return strconv.Itoa(n) + suffix
+}
+
 // code writes an identifier (subject code, student ID): Bangla digits only
 // when it is all digits ("১০১"); a code with letters ("BAN-101", "DEMO-001")
 // stays as written, as it is printed elsewhere.
@@ -122,6 +147,8 @@ var labelsEN = map[string]string{
 	"sig_class_teacher": "Class teacher", "sig_head": "Head teacher", "sig_guardian": "Guardian", "sig_date": "Date",
 	"father": "Father", "mother": "Mother", "dob": "Date of birth", "failed_count": "Failed subjects", "attendance": "Attendance",
 	"attendance_value": "%s / %s days (%s%%)", "pos_of": "%s of %s", "comment": "Class teacher's comment", "full": "Full",
+	"established": "Established %s", "version_medium": "Version", "medium_bangla": "Bangla medium", "medium_english": "English medium",
+	"shift": "Shift", "group": "Group", "classes_held": "Classes held", "days_present": "Present", "days_absent": "Absent",
 	"obtained": "Obtained", "optional_heading": "Optional (4th) subject — only the grade point above 2.00 is added to the GPA; it never fails the result",
 	"combined": "Combined", "summary_title": "Summary",
 	"footer":             "Issued from the published result (version %s, %s). Scan the QR code to check that it is genuine. Document code: %s",
@@ -147,6 +174,8 @@ var labelsBN = map[string]string{
 	"sig_class_teacher": "শ্রেণি শিক্ষক", "sig_head": "প্রধান শিক্ষক", "sig_guardian": "অভিভাবক", "sig_date": "তারিখ",
 	"father": "পিতা", "mother": "মাতা", "dob": "জন্ম তারিখ", "failed_count": "অকৃতকার্য বিষয়", "attendance": "উপস্থিতি",
 	"attendance_value": "%s / %s দিন (%s%%)", "pos_of": "%[2]s জনের মধ্যে %[1]s", "comment": "শ্রেণি শিক্ষকের মন্তব্য", "full": "পূর্ণমান",
+	"established": "স্থাপিত %s", "version_medium": "ভার্সন", "medium_bangla": "বাংলা মাধ্যম", "medium_english": "ইংরেজি মাধ্যম",
+	"shift": "শিফট", "group": "বিভাগ", "classes_held": "মোট ক্লাস", "days_present": "উপস্থিত", "days_absent": "অনুপস্থিত",
 	"obtained": "প্রাপ্ত", "optional_heading": "ঐচ্ছিক (৪র্থ) বিষয় — শুধু ২.০০-এর বেশি গ্রেড পয়েন্ট জিপিএ-তে যোগ হয়; এতে অকৃতকার্য হলেও ফলাফল অকৃতকার্য হয় না",
 	"combined": "সমন্বিত", "summary_title": "সারসংক্ষেপ",
 	"footer":             "প্রকাশিত ফলাফল থেকে প্রস্তুত (সংস্করণ %s, %s)। আসল কিনা যাচাই করতে কিউআর কোড স্ক্যান করুন। ডকুমেন্ট কোড: %s",

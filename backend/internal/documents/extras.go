@@ -26,12 +26,15 @@ type studentExtra struct {
 	Code                                   string
 	FatherEN, FatherBN, MotherEN, MotherBN string
 	DOB                                    *string
-	Present, Working                       int
-	HasAttendance                          bool
-	PresetEN, PresetBN, Custom             string
-	TeacherEN, TeacherBN                   string
-	SignatureVersion                       string
-	Signature                              []byte
+	// Shift, medium (version) and the group chosen for the result's session;
+	// empty when not recorded (transcript v3).
+	ShiftEN, ShiftBN, Medium, GroupEN, GroupBN string
+	Present, Working                           int
+	HasAttendance                              bool
+	PresetEN, PresetBN, Custom                 string
+	TeacherEN, TeacherBN                       string
+	SignatureVersion                           string
+	Signature                                  []byte
 }
 
 type extras struct {
@@ -59,8 +62,8 @@ func (x extras) key() string {
 		if e.DOB != nil {
 			dob = *e.DOB
 		}
-		fmt.Fprintf(h, "%s|%s|%s|%s|%s|%s|%d|%d|%v|%s|%s|%s|%s|%s|%s\n", id, e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, dob, e.Present, e.Working, e.HasAttendance,
-			e.PresetEN, e.PresetBN, e.Custom, e.TeacherEN, e.TeacherBN, e.SignatureVersion)
+		fmt.Fprintf(h, "%s|%s|%s|%s|%s|%s|%d|%d|%v|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", id, e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, dob, e.Present, e.Working, e.HasAttendance,
+			e.PresetEN, e.PresetBN, e.Custom, e.TeacherEN, e.TeacherBN, e.SignatureVersion, e.ShiftEN, e.ShiftBN, e.Medium, e.GroupEN, e.GroupBN)
 	}
 	codes := make([]string, 0, len(x.subjects))
 	for id, s := range x.subjects {
@@ -87,19 +90,29 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 		return x, err
 	}
 
-	// Parents and date of birth.
+	// Parents, date of birth, shift, medium and the session's group.
 	var people []struct {
 		ID, Code                               string
 		FatherEN, FatherBN, MotherEN, MotherBN string
 		DOB                                    *string
+		ShiftEN, ShiftBN, Medium               string
+		GroupEN, GroupBN                       string
 	}
-	if err := db.Raw(`SELECT id, coalesce(student_code, '') AS code, father_name_en AS father_en, father_name_bn AS father_bn, mother_name_en AS mother_en, mother_name_bn AS mother_bn,
- to_char(date_of_birth, 'YYYY-MM-DD') AS dob FROM students WHERE id IN ?`, ids).Scan(&people).Error; err != nil {
+	if err := db.Raw(`SELECT s.id, coalesce(s.student_code, '') AS code, s.father_name_en AS father_en, s.father_name_bn AS father_bn, s.mother_name_en AS mother_en, s.mother_name_bn AS mother_bn,
+ to_char(s.date_of_birth, 'YYYY-MM-DD') AS dob,
+ coalesce(sh.name_en, '') AS shift_en, coalesce(sh.name_bn, '') AS shift_bn, s.medium,
+ coalesce(gr.name_en, '') AS group_en, coalesce(gr.name_bn, '') AS group_bn
+ FROM students s
+ LEFT JOIN school_shifts sh ON sh.id = s.shift_id
+ LEFT JOIN student_group_choices gc ON gc.student_id = s.id AND gc.session_id = ?
+ LEFT JOIN academic_groups gr ON gr.id = gc.group_id
+ WHERE s.id IN ?`, set.SessionID, ids).Scan(&people).Error; err != nil {
 		return x, err
 	}
 	for _, p := range people {
 		e := x.students[p.ID]
 		e.Code, e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, e.DOB = strings.TrimSpace(p.Code), p.FatherEN, p.FatherBN, p.MotherEN, p.MotherBN, p.DOB
+		e.ShiftEN, e.ShiftBN, e.Medium, e.GroupEN, e.GroupBN = p.ShiftEN, p.ShiftBN, p.Medium, p.GroupEN, p.GroupBN
 	}
 
 	// The class teacher of each student's section (the section the result
