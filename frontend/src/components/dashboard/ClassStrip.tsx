@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { getClassRoutine, type ClassRoutineSlot } from '../../api/client'
+import { getAttendanceDay, getClassRoutine, type ClassRoutineSlot } from '../../api/client'
 import { useFmt } from '../../pages/AnalyticsPages'
 import { useApi, useLocal } from '../../pages/commShared'
 import { Icon } from '../icons'
+import { roomText } from '../roomLabel'
 import { Empty, Lines, Panel, Unavailable, ViewAll, tone } from './kit'
 
 // Today's classes from the published routine as a swipeable strip. It opens
 // on the class in progress (or the next one), marks Done, Now and Next from
-// the Dhaka clock, and has a period indicator that can be tapped.
+// the Dhaka clock, and has a period indicator that can be tapped. On a weekly
+// off day or a published holiday (the school's own settings, shared with
+// attendance) it says so instead of listing classes.
 
 const DHAKA = 'Asia/Dhaka'
 function dhakaClock() {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: DHAKA, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date())
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: DHAKA, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date())
   const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
-  return { weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(get('weekday')), minute: (Number(get('hour')) % 24) * 60 + Number(get('minute')) }
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(get('weekday')), minute: (Number(get('hour')) % 24) * 60 + Number(get('minute')) }
 }
 const minutes = (time: string) => { const [h, m] = time.split(':').map(Number); return h * 60 + m }
 
@@ -37,7 +40,11 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
   const [clock, setClock] = useState(dhakaClock)
   useEffect(() => { const id = window.setInterval(() => setClock(dhakaClock()), 60_000); return () => window.clearInterval(id) }, [])
   const q = useQuery({ queryKey: ['dash', 'routine', path], queryFn: () => api(token => getClassRoutine(token, path, new URLSearchParams({ page: '1', page_size: '100' }))), retry: false })
-  const slots = (q.data?.items ?? []).filter((s: ClassRoutineSlot) => s.day_of_week === clock.weekday).sort((a, b) => a.start_time.localeCompare(b.start_time))
+  // Whether today has classes at all. Without the attendance module this
+  // cannot be asked; the routine alone then decides.
+  const day = useQuery({ queryKey: ['attendance', 'day', clock.date], queryFn: () => api(token => getAttendanceDay(token, clock.date)), retry: false, staleTime: 60_000 })
+  const closed = day.data && !day.data.open ? day.data : null
+  const slots = closed ? [] : (q.data?.items ?? []).filter((s: ClassRoutineSlot) => s.day_of_week === clock.weekday).sort((a, b) => a.start_time.localeCompare(b.start_time))
   const nowIdx = slots.findIndex(s => clock.minute >= minutes(s.start_time) && clock.minute < minutes(s.end_time))
   const nextIdx = slots.findIndex(s => minutes(s.start_time) > clock.minute)
   const stateOf = (i: number): State => i === nowIdx ? 'now' : i === nextIdx ? 'next' : minutes(slots[i].end_time) <= clock.minute ? 'done' : 'later'
@@ -78,7 +85,7 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
   </span>
 
   return <Panel title={title} icon="clock" module="routine" action={<span className="flex items-center gap-2">{nav}{link && <ViewAll to={link} />}</span>}>
-    {q.isPending ? <Lines /> : q.isError ? <Unavailable error={q.error} /> : slots.length === 0 ? <Empty>{clock.weekday === 5 ? t('m12WeeklyHoliday') : t('m12NoClassesToday')}</Empty> : <>
+    {q.isPending || day.isPending ? <Lines /> : closed ? <Empty>{closed.reason === 'holiday' ? t('ppHoliday', { holiday: local(closed.holiday_title_en ?? '', closed.holiday_title_bn) }) : t('ppWeeklyOff', { weekday: t(`afWeekday_${closed.weekday}`) })}</Empty> : q.isError ? <Unavailable error={q.error} /> : slots.length === 0 ? <Empty>{t('m12NoClassesToday')}</Empty> : <>
       <p className="-mt-2 mb-3 text-xs font-medium text-slate-500">{left > 0 ? t('p1ClassesLeft', { left: f.num(left), total: f.num(slots.length) }) : t('p1AllClassesDone')}</p>
       <ol ref={track} onScroll={onScroll} aria-label={title} tabIndex={0} className="ds-scroll-x ds-snap -mx-4 flex gap-3 px-4 pb-1 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] sm:-mx-5 sm:px-5">
         {slots.map((s, i) => {
@@ -94,7 +101,7 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
               <p className="mt-3 truncate text-lg font-extrabold leading-tight">{label(s)}</p>
               <p className="truncate text-xs text-white/90">{line(s)}</p>
               <div className="mt-auto pt-3">
-                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/90"><span>{s.room && t('p1Room', { room: s.room })}</span><span>{t('p1MinLeft', { n: f.num(total - gone) })}</span></div>
+                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/90"><span>{s.room && roomText(s.room, room => t('p1Room', { room }))}</span><span>{t('p1MinLeft', { n: f.num(total - gone) })}</span></div>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/25"><span className="block h-full rounded-full bg-white" style={{ width: `${Math.round((gone / total) * 100)}%` }} /></div>
               </div>
             </li>
@@ -103,22 +110,22 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
           return <li key={s.id} className={`${size} relative flex min-h-[156px] flex-col rounded-[20px] p-4 ${done ? 'ds-sunken' : 'ds-tint'} ${next ? 'ring-2 ring-[color-mix(in_oklab,var(--s)_50%,transparent)]' : ''}`} style={tone(subjectColour(s.subject_id))}>
             <div className="flex items-center justify-between gap-2">
               {next ? <span className="ds-fill rounded-full px-2 py-0.5 text-[11px] font-bold">{t('p1Next')} · {t('p1InMin', { n: f.num(minutes(s.start_time) - clock.minute) })}</span>
-                : done ? <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-emerald-700"><Icon name="check" className="h-3 w-3" />{t('p1Done')}</span>
+                : done ? <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-800"><Icon name="check" className="h-3 w-3 text-emerald-600" />{t('p1Done')}</span>
                 : <span />}
               <span className="text-xs font-semibold tabular-nums text-slate-600">{time(s)}</span>
             </div>
             <div className="mt-3">
-              <p className="ds-ink truncate text-lg font-extrabold leading-tight">{label(s)}</p>
+              <p className={`truncate text-lg font-extrabold leading-tight ${done ? 'text-slate-800' : 'ds-ink'}`}>{label(s)}</p>
               <p className="truncate text-xs text-slate-600">{line(s)}</p>
             </div>
-            {s.room && <p className="mt-auto pt-3 text-xs font-semibold text-slate-600">{t('p1Room', { room: s.room })}</p>}
+            {s.room && <p className="mt-auto pt-3 text-xs font-semibold text-slate-600">{roomText(s.room, room => t('p1Room', { room }))}</p>}
           </li>
         })}
       </ol>
       {slots.length > 1 && <ol className="mt-3 flex items-center gap-1" aria-label={t('p1Periods')}>
         {slots.map((s, i) => {
           const st = stateOf(i)
-          const bar = st === 'now' ? 'bg-[var(--s)]' : st === 'done' ? 'bg-slate-400 opacity-40' : 'ds-soft'
+          const bar = st === 'now' ? 'bg-[var(--s)]' : st === 'done' ? 'bg-slate-500' : 'ds-soft'
           return <li key={s.id} className="min-w-0 flex-1">
             <button type="button" onClick={() => go(i)} aria-current={active === i ? 'true' : undefined} style={tone(subjectColour(s.subject_id))}
               aria-label={`${label(s)}, ${time(s)}${st === 'now' ? `, ${t('m12Now')}` : st === 'next' ? `, ${t('p1Next')}` : st === 'done' ? `, ${t('p1Done')}` : ''}`}

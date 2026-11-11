@@ -101,8 +101,9 @@ school. For a production installation follow the
 [deployment guide](docs/DEPLOYMENT.md).
 
 To explore with sample data instead, create a fictional demo school (8 role
-accounts, 36 students, three months of activity). It never changes records it
-did not create, but do not run it on a real school's database:
+accounts, 36 students, three months of activity, and a filled-in public page
+with drawn photos). It never changes records it did not create, but do not run
+it on a real school's database:
 
 ```powershell
 $env:DEMO_PASSWORD = '<a password of at least 12 characters>'

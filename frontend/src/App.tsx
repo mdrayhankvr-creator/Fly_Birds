@@ -10,6 +10,7 @@ import { buildNavigation } from './components/navigation'
 import { ConfirmHost } from './components/ConfirmDialog'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { LandingPage } from './pages/LandingPage'
+import { PublicFooter } from './components/PublicFooter'
 import { StateScreen } from './components/StateScreen'
 
 // Each page loads on first visit, so phones download only the screens they open.
@@ -572,6 +573,7 @@ export default function App() {
       </header>
       {/* The landing page runs edge to edge; other public pages keep the reading width. */}
       <main id="main" className={landing ? '' : 'mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14'}>{forcedChange ? <Suspense fallback={<StateScreen kind="loading" />}><ForcedPasswordPage /></Suspense> : routes}</main>
+      {!forcedChange && <PublicFooter branding={branding.data} />}
       <ConfirmHost />
     </div>
   )
