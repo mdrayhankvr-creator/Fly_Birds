@@ -334,7 +334,7 @@ func TestPostgresResultDocuments(t *testing.T) {
 	if len(first.Optional) == 1 && strings.HasPrefix(first.Optional[0].Subject, "S3 ") {
 		s3 = &first.Optional[0]
 	}
-	if s1 == nil || s3 == nil || len(first.Rows) != 2 || s1.Parts[0].Obt != "—" || s1.Parts[1] != (sheetCell{"50", "60"}) || s1.Parts[2] != (sheetCell{"30", "40"}) || s1.CT != "16" || !s3.Optional || s3.Highest != s3.Total {
+	if s1 == nil || s3 == nil || len(first.Rows) != 2 || s1.Parts[0].Obt != "—" || s1.Parts[1] != (sheetCell{Obt: "50", Full: "60"}) || s1.Parts[2] != (sheetCell{Obt: "30", Full: "40"}) || s1.CT != "16" || !s3.Optional || s3.Highest != s3.Total {
 		t.Fatalf("rows: %+v optional %+v", first.Rows, first.Optional)
 	}
 	if first.Name != "Student 0" || first.NameAlt != "শিক্ষার্থী 0" || first.Result != "Passed" || first.QR == "" || first.GPA == "—" || first.GPAWithout == "—" || !strings.Contains(first.Footer, "Document code") {

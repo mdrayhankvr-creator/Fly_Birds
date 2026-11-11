@@ -189,16 +189,42 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 func (s *Service) attendance(ctx context.Context, set exams.DocSet, ids []string, sectionOf map[string]string, x *extras) error {
 	db := s.db.WithContext(ctx)
 	var w struct{ From, To *string }
-	if set.Scope == exams.ScopeAnnual {
+	scopeID := set.ScopeID
+	if set.Scope == exams.ScopeAssessment {
+		// An exam's marksheet counts its term's attendance; an exam outside
+		// any term counts the session up to the result's publication.
+		var termID *string
+		var sessionID string
+		if err := db.Raw("SELECT term_id, session_id FROM exams WHERE id = ?", set.ScopeID).Row().Scan(&termID, &sessionID); err != nil {
+			return err
+		}
+		if termID != nil {
+			scopeID = *termID
+		} else {
+			if err := db.Raw("SELECT to_char(start_date, 'YYYY-MM-DD') FROM academic_sessions WHERE id = ?", sessionID).Row().Scan(&w.From); err != nil {
+				return err
+			}
+			if set.PublishedAt != "" {
+				if t, err := time.Parse(time.RFC3339, set.PublishedAt); err == nil {
+					d := t.In(dhaka).Format("2006-01-02")
+					w.To = &d
+				}
+			}
+		}
+	}
+	switch {
+	case w.From != nil:
+		// Already resolved (an exam outside any term).
+	case set.Scope == exams.ScopeAnnual:
 		if err := db.Raw("SELECT to_char(start_date, 'YYYY-MM-DD') AS \"from\", to_char(end_date, 'YYYY-MM-DD') AS \"to\" FROM academic_sessions WHERE id = ?", set.ScopeID).Scan(&w).Error; err != nil {
 			return err
 		}
-	} else {
+	default:
 		if err := db.Raw(`SELECT to_char(coalesce(t.starts_on,
    (SELECT p.ends_on + 1 FROM exam_terms p WHERE p.session_id = t.session_id AND p.sequence < t.sequence AND p.ends_on IS NOT NULL ORDER BY p.sequence DESC LIMIT 1),
    ses.start_date), 'YYYY-MM-DD') AS "from",
  to_char(t.ends_on, 'YYYY-MM-DD') AS "to"
- FROM exam_terms t JOIN academic_sessions ses ON ses.id = t.session_id WHERE t.id = ?`, set.ScopeID).Scan(&w).Error; err != nil {
+ FROM exam_terms t JOIN academic_sessions ses ON ses.id = t.session_id WHERE t.id = ?`, scopeID).Scan(&w).Error; err != nil {
 			return err
 		}
 		if w.To == nil && set.PublishedAt != "" {

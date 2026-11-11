@@ -2,6 +2,7 @@ package documents
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,9 +33,11 @@ type gradeRow struct {
 }
 
 // sheetCell is a mark and the full marks it is out of ("" when not shown).
+// Failed marks a component below its own pass marks.
 type sheetCell struct {
-	Obt  string `json:"obt"`
-	Full string `json:"full"`
+	Obt    string `json:"obt"`
+	Full   string `json:"full"`
+	Failed bool   `json:"failed"`
 }
 
 // paperRow is one paper of a combined subject (Bangla 1st and 2nd paper …).
@@ -188,6 +191,25 @@ func layoutOf(set exams.DocSet) layout {
 			}
 			lo.termNames = append(lo.termNames, name)
 		}
+	case set.Assessment != nil:
+		// An exam's own result: the component columns come from the
+		// published lines (an exam without components shows totals only).
+		lo.bands = set.Assessment.Bands
+		if set.Assessment.GPARounding == "truncate" {
+			lo.rounding = calc.Truncate
+		}
+		seen := map[string]bool{}
+		for _, r := range set.Results {
+			for _, line := range r.Outputs.Subjects {
+				for _, c := range line.Components {
+					if !seen[c.Key] {
+						seen[c.Key] = true
+						lo.compKeys = append(lo.compKeys, c.Key)
+					}
+				}
+			}
+		}
+		lo.compKeys = orderComponents(lo.compKeys)
 	}
 	return lo
 }
@@ -254,6 +276,10 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 	var inputs exams.TermInputs
 	if lo.scope == exams.ScopeTerm {
 		inputs, _ = exams.TermInputsOf(r.Inputs)
+	}
+	var examInputs exams.AssessmentInputs
+	if lo.scope == exams.ScopeAssessment {
+		examInputs, _ = exams.AssessmentInputsOf(r.Inputs)
 	}
 	required, optional = []sheetRow{}, []sheetRow{}
 	for _, line := range r.Outputs.Subjects {
@@ -333,6 +359,23 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 				}
 				row.Note = strings.Join(parts, " + ")
 			}
+		case exams.ScopeAssessment:
+			row.Parts = lo.componentParts(l, line.Components)
+			if line.Status == "absent" {
+				row.Note = l.t("absent")
+			}
+			if len(line.SubjectIDs) > 1 {
+				for _, in := range examInputs.Lines {
+					if !slices.Contains(line.SubjectIDs, in.SubjectID) {
+						continue
+					}
+					paper := paperRow{Code: l.code(in.Code), Subject: l.pick(in.NameEN, in.NameBN), Parts: lo.componentParts(l, in.Components)}
+					if paper.Subject == "" {
+						paper.Subject = row.Subject
+					}
+					row.Papers = append(row.Papers, paper)
+				}
+			}
 		}
 		if line.Optional {
 			optional = append(optional, row)
@@ -343,12 +386,38 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 	return required, optional
 }
 
+// componentParts lays a published line's components out over the layout's
+// component columns (assessment scope). A component below its own pass marks
+// is marked failed.
+func (lo layout) componentParts(l lang, comps []exams.OutComponent) []sheetCell {
+	parts := make([]sheetCell, len(lo.compKeys))
+	for i, key := range lo.compKeys {
+		parts[i] = sheetCell{Obt: "—"}
+		for _, c := range comps {
+			if !strings.EqualFold(c.Key, key) {
+				continue
+			}
+			parts[i].Obt = l.marks(c.Marks)
+			if c.Full != "" {
+				full := c.Full
+				parts[i].Full = l.marks(&full)
+			}
+			if c.Marks != nil && c.Pass != nil {
+				got, err1 := strconv.ParseFloat(*c.Marks, 64)
+				pass, err2 := strconv.ParseFloat(*c.Pass, 64)
+				parts[i].Failed = err1 == nil && err2 == nil && got < pass
+			}
+		}
+	}
+	return parts
+}
+
 // termParts sums each component's obtained and full marks over the given
 // papers of the term's exams. With row set, an absence is noted on it.
 func (lo layout) termParts(l lang, inputs exams.TermInputs, subjectIDs []string, row *sheetRow) []sheetCell {
 	parts := make([]sheetCell, len(lo.compKeys))
 	for i, key := range lo.compKeys {
-		sum, full, any, anyFull := 0.0, 0.0, false, false
+		sum, full, pass, any, anyFull, anyPass := 0.0, 0.0, 0.0, false, false, false
 		for _, sid := range subjectIDs {
 			for ak := range lo.examKeys {
 				m, ok := inputs.Marks[ak][sid]
@@ -361,6 +430,11 @@ func (lo layout) termParts(l lang, inputs exams.TermInputs, subjectIDs []string,
 					}
 					if v, err := strconv.ParseFloat(c.Full, 64); err == nil {
 						full, anyFull = full+v, true
+					}
+					if c.Pass != nil {
+						if v, err := strconv.ParseFloat(*c.Pass, 64); err == nil {
+							pass, anyPass = pass+v, true
+						}
 					}
 					if c.Marks != nil {
 						if v, err := strconv.ParseFloat(*c.Marks, 64); err == nil {
@@ -388,6 +462,7 @@ func (lo layout) termParts(l lang, inputs exams.TermInputs, subjectIDs []string,
 		if any {
 			s := markText(sum)
 			parts[i].Obt = l.marks(&s)
+			parts[i].Failed = anyPass && sum < pass
 		}
 		if anyFull {
 			s := markText(full)

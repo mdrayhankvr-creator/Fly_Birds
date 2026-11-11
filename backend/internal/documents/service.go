@@ -147,13 +147,17 @@ func (s *Service) canClass(ctx context.Context, a Actor, sessionID, classID stri
 	return n > 0, err
 }
 
-// sessionOf is the session a term or annual scope belongs to.
+// sessionOf is the session a term, annual or assessment scope belongs to.
 func (s *Service) sessionOf(ctx context.Context, scope, scopeID string) (string, error) {
 	if scope == exams.ScopeAnnual {
 		return scopeID, nil
 	}
+	table := "exam_terms"
+	if scope == exams.ScopeAssessment {
+		table = "exams"
+	}
 	var id string
-	err := s.db.WithContext(ctx).Raw("SELECT session_id FROM exam_terms WHERE id = ?", scopeID).Row().Scan(&id)
+	err := s.db.WithContext(ctx).Raw("SELECT session_id FROM "+table+" WHERE id = ?", scopeID).Row().Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
 	}
@@ -165,9 +169,18 @@ func (r *Request) normalize() error {
 	if r.Language == "" {
 		r.Language = "en"
 	}
-	if !kinds[r.Kind] || (r.Scope != exams.ScopeTerm && r.Scope != exams.ScopeAnnual) || (r.Language != "en" && r.Language != "bn") ||
+	if !kinds[r.Kind] || (r.Scope != exams.ScopeTerm && r.Scope != exams.ScopeAnnual && r.Scope != exams.ScopeAssessment) || (r.Language != "en" && r.Language != "bn") ||
 		!uuidPattern.MatchString(r.ScopeID) || !uuidPattern.MatchString(r.ClassID) ||
 		(r.SectionID != "" && !uuidPattern.MatchString(r.SectionID)) || (r.StudentID != "" && !uuidPattern.MatchString(r.StudentID)) {
+		return ErrInvalid
+	}
+	// An exam's own published result prints marksheets only; the class
+	// documents stay with term and annual results.
+	if r.Scope == exams.ScopeAssessment && r.Kind != "marksheet" && r.Kind != "marksheets" {
+		return ErrInvalid
+	}
+	// A provisional preview exists for term and annual results only.
+	if r.Scope == exams.ScopeAssessment && r.Provisional {
 		return ErrInvalid
 	}
 	if (r.Kind == "marksheet") != (r.StudentID != "") {
@@ -228,6 +241,17 @@ func (s *Service) StudentMarksheet(ctx context.Context, a Actor, versionID, lang
 	// Someone else's result, or a superseded or withdrawn one, is not found.
 	if own == 0 || ref.Status != "published" {
 		return Document{}, ErrNotFound
+	}
+	// An exam's own result (a class test …) follows its visibility rule:
+	// while it is hidden from students, so is its marksheet.
+	if ref.Scope == exams.ScopeAssessment {
+		visible, err := s.results.StudentsMaySee(ctx, ref.ScopeID)
+		if err != nil {
+			return Document{}, err
+		}
+		if !visible {
+			return Document{}, ErrNotFound
+		}
 	}
 	in := Request{Kind: "marksheet", Scope: ref.Scope, ScopeID: ref.ScopeID, ClassID: ref.ClassID, StudentID: ref.StudentID, Language: language}
 	if err := in.normalize(); err != nil {
@@ -827,11 +851,12 @@ func (s *Service) Classes(ctx context.Context, a Actor) ([]ClassSet, error) {
 	}
 	rows := []ClassSet{}
 	q := `SELECT * FROM (SELECT DISTINCT ON (p.scope, p.scope_id, p.class_id) p.scope, p.scope_id, p.session_id, s.name AS session_name, p.class_id, c.name AS class_name,
- coalesce(t.name, s.name) AS title, p.revision, to_char(p.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
+ coalesce(t.name, e.name, s.name) AS title, p.revision, to_char(p.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
  (SELECT count(*) FROM result_versions v WHERE v.scope = p.scope AND v.scope_id = p.scope_id AND v.class_id = p.class_id AND v.status = 'published') AS students
  FROM result_publications p JOIN academic_sessions s ON s.id = p.session_id JOIN academic_classes c ON c.id = p.class_id
  LEFT JOIN exam_terms t ON p.scope = 'term' AND t.id = p.scope_id
- WHERE p.status = 'published' AND p.scope IN ('term', 'annual')`
+ LEFT JOIN exams e ON p.scope = 'assessment' AND e.id = p.scope_id
+ WHERE p.status = 'published' AND p.scope IN ('term', 'annual', 'assessment')`
 	args := []any{}
 	if !staffAll(a) {
 		q += ` AND EXISTS (SELECT 1 FROM teacher_assignments ta JOIN employees emp ON emp.id = ta.employee_id WHERE emp.user_id = ? AND emp.is_active AND ta.session_id = p.session_id AND ta.class_id = p.class_id)`
