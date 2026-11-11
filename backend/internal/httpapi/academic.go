@@ -191,3 +191,104 @@ func (h *academicHandler) deleteMapping(c *gin.Context) {
 	}
 	success(c, 200, gin.H{"deleted": true})
 }
+
+// Groups (বিভাগ) and shifts: school-editable lists (migrations 1807–1808).
+func (h *academicHandler) groups(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	query, err := academicQuery(c)
+	if err != nil {
+		academicError(c, academic.ErrInvalid)
+		return
+	}
+	value, err := h.service.ListGroups(c.Request.Context(), query)
+	if err != nil {
+		academicError(c, err)
+		return
+	}
+	success(c, 200, value)
+}
+func (h *academicHandler) saveGroup(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var input academic.GroupInput
+	if !decodeSchoolJSON(c, 8*1024, &input) {
+		return
+	}
+	actor := c.MustGet("auth_user").(auth.User)
+	value, err := h.service.SaveGroup(c.Request.Context(), actor.ID, c.Param("id"), input)
+	if err != nil {
+		academicError(c, err)
+		return
+	}
+	status := http.StatusOK
+	if c.Request.Method == http.MethodPost {
+		status = http.StatusCreated
+	}
+	success(c, status, value)
+}
+func (h *academicHandler) shifts(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	query, err := academicQuery(c)
+	if err != nil {
+		academicError(c, academic.ErrInvalid)
+		return
+	}
+	value, err := h.service.ListShifts(c.Request.Context(), query)
+	if err != nil {
+		academicError(c, err)
+		return
+	}
+	success(c, 200, value)
+}
+func (h *academicHandler) saveShift(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var input academic.ShiftInput
+	if !decodeSchoolJSON(c, 8*1024, &input) {
+		return
+	}
+	actor := c.MustGet("auth_user").(auth.User)
+	value, err := h.service.SaveShift(c.Request.Context(), actor.ID, c.Param("id"), input)
+	if err != nil {
+		academicError(c, err)
+		return
+	}
+	status := http.StatusOK
+	if c.Request.Method == http.MethodPost {
+		status = http.StatusCreated
+	}
+	success(c, status, value)
+}
+func (h *academicHandler) classGroups(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	value, err := h.service.ClassGroups(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		academicError(c, err)
+		return
+	}
+	success(c, 200, gin.H{"items": value})
+}
+func (h *academicHandler) saveGroupSubjects(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var input academic.GroupSubjectsInput
+	if !decodeSchoolJSON(c, 16*1024, &input) {
+		return
+	}
+	actor := c.MustGet("auth_user").(auth.User)
+	value, err := h.service.SaveGroupSubjects(c.Request.Context(), actor.ID, c.Param("id"), c.Param("groupId"), input)
+	if err != nil {
+		academicError(c, err)
+		return
+	}
+	success(c, 200, gin.H{"items": value})
+}

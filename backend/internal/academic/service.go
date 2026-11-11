@@ -24,6 +24,8 @@ type Class struct {
 	Name         string `json:"name"`
 	DisplayOrder int    `json:"display_order"`
 	IsActive     bool   `json:"is_active"`
+	// UsesGroups: students of the class choose a group (Science, Humanities …).
+	UsesGroups bool `json:"uses_groups"`
 }
 type Subject struct {
 	ID       string `json:"id"`
@@ -46,6 +48,8 @@ type ClassInput struct {
 	Name         string `json:"name"`
 	DisplayOrder int    `json:"display_order"`
 	IsActive     *bool  `json:"is_active"`
+	// UsesGroups is optional so clients that predate it keep the saved value.
+	UsesGroups *bool `json:"uses_groups,omitempty"`
 }
 type SubjectInput struct {
 	NameEN   string `json:"name_en"`
@@ -73,7 +77,7 @@ type Page[T any] struct {
 type Repository interface {
 	ListClasses(context.Context, Query) (Page[Class], error)
 	GetClass(context.Context, string) (Class, error)
-	SaveClass(context.Context, string, string, Class) (Class, error)
+	SaveClass(ctx context.Context, actor, id string, value Class, setUsesGroups bool) (Class, error)
 	ListSubjects(context.Context, Query) (Page[Subject], error)
 	GetSubject(context.Context, string) (Subject, error)
 	SaveSubject(context.Context, string, string, Subject) (Subject, error)
@@ -81,6 +85,12 @@ type Repository interface {
 	CreateMapping(context.Context, string, Mapping) (Mapping, error)
 	UpdateMapping(context.Context, string, Mapping) (Mapping, error)
 	DeleteMapping(context.Context, string, string, string) error
+	ListGroups(context.Context, Query) (Page[Group], error)
+	SaveGroup(context.Context, string, string, Group) (Group, error)
+	ListShifts(context.Context, Query) (Page[Shift], error)
+	SaveShift(context.Context, string, string, Shift) (Shift, error)
+	ClassGroups(context.Context, string) ([]ClassGroup, error)
+	SaveGroupSubjects(context.Context, string, string, string, []string) ([]ClassGroup, error)
 }
 type Service struct{ repo Repository }
 
@@ -123,7 +133,11 @@ func (s *Service) SaveClass(ctx context.Context, actor, id string, input ClassIn
 	if !uuidPattern.MatchString(actor) || (id != "" && !uuidPattern.MatchString(id)) || !validText(input.Name, 120, true) || input.DisplayOrder < 0 || input.DisplayOrder > 100000 || input.IsActive == nil {
 		return Class{}, ErrInvalid
 	}
-	return s.repo.SaveClass(ctx, actor, id, Class{Name: strings.TrimSpace(input.Name), DisplayOrder: input.DisplayOrder, IsActive: *input.IsActive})
+	value := Class{Name: strings.TrimSpace(input.Name), DisplayOrder: input.DisplayOrder, IsActive: *input.IsActive}
+	if input.UsesGroups != nil {
+		value.UsesGroups = *input.UsesGroups
+	}
+	return s.repo.SaveClass(ctx, actor, id, value, input.UsesGroups != nil)
 }
 func (s *Service) SaveSubject(ctx context.Context, actor, id string, input SubjectInput) (Subject, error) {
 	code := strings.ToUpper(strings.TrimSpace(input.Code))

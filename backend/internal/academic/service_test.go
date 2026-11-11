@@ -19,7 +19,7 @@ type serviceRepo struct {
 	query   Query
 }
 
-func (r *serviceRepo) SaveClass(_ context.Context, _, _ string, v Class) (Class, error) {
+func (r *serviceRepo) SaveClass(_ context.Context, _, _ string, v Class, _ bool) (Class, error) {
 	r.class = v
 	return v, nil
 }
