@@ -115,6 +115,7 @@ func run(logger *slog.Logger) error {
 		}
 		authorization = rbac.NewService(rbac.NewRepository(db))
 		schoolService = school.NewService(school.NewRepository(db))
+		schoolService.Logos = school.NewLogoStore(db)
 		userService = users.NewService(users.NewRepository(db))
 		auditService = audit.NewService(audit.NewRepository(db))
 		dashboardService = dashboard.NewService(dashboard.NewRepository(db))

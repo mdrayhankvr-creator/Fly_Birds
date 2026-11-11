@@ -55,7 +55,7 @@ func validBrandColor(value string) bool {
 }
 
 func validLogoURL(raw string) bool {
-	if raw == "" {
+	if raw == "" || IsUploadedLogo(raw) {
 		return true
 	}
 	if len(raw) > 2048 {

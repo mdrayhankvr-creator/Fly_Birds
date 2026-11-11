@@ -8,7 +8,11 @@ import (
 
 var actorID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
-type Service struct{ repo Repository }
+type Service struct {
+	repo Repository
+	// Logos keeps the uploaded school logo; nil without a database.
+	Logos *LogoStore
+}
 
 func NewService(repo Repository) *Service                               { return &Service{repo: repo} }
 func (s *Service) Settings(ctx context.Context) (SchoolSettings, error) { return s.repo.Settings(ctx) }

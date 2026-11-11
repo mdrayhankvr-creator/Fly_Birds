@@ -411,6 +411,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	// for the public, never student records.
 	router.GET("/school/public-page", schoolHandler.publicPage)
 	router.GET("/school/public-page/head-photo", schoolHandler.headPhoto)
+	router.GET("/school/logo", schoolHandler.logo)
 	router.GET("/school/gallery/:id/image", schoolHandler.galleryImage)
 	// Public card check: unauthenticated by design and reveals no personal data.
 	router.GET("/public/id-cards/:token", verifyCard(&peopleHandler{service: peopleService}, schoolService))
@@ -426,6 +427,8 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	schoolRoutes.PUT("/public-page", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.savePublicPage)
 	schoolRoutes.PUT("/public-page/head-photo", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveHeadPhoto)
 	schoolRoutes.DELETE("/public-page/head-photo", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.deleteHeadPhoto)
+	schoolRoutes.PUT("/logo", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.saveLogo)
+	schoolRoutes.DELETE("/logo", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.deleteLogo)
 	schoolRoutes.POST("/gallery", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.addGalleryPhoto)
 	schoolRoutes.PATCH("/gallery/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.updateGalleryPhoto)
 	schoolRoutes.DELETE("/gallery/:id", RequirePermission(service, "school_settings:update"), RequireModule(schoolService, "school_settings"), RequireAdministrator(), schoolHandler.deleteGalleryPhoto)

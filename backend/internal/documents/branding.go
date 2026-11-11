@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	schoolcfg "github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/school"
 )
 
 // branding is the school identity printed on documents, with its images.
@@ -73,8 +75,16 @@ func (s *Service) branding(ctx context.Context, l lang) (branding, error) {
 			b.signature = nil
 		}
 	}
-	if row.LogoURL != "" && s.Logo != nil {
-		if raw, err := s.Logo(ctx, row.LogoURL); err == nil {
+	// An uploaded logo is read from the database; a web link is downloaded.
+	fetch := s.Logo
+	if schoolcfg.IsUploadedLogo(row.LogoURL) {
+		fetch = func(ctx context.Context, _ string) ([]byte, error) {
+			raw, _, err := schoolcfg.ReadUploadedLogo(ctx, s.db)
+			return raw, err
+		}
+	}
+	if row.LogoURL != "" && fetch != nil {
+		if raw, err := fetch(ctx, row.LogoURL); err == nil {
 			switch http.DetectContentType(raw) {
 			case "image/png":
 				b.logo, b.logoExt = raw, "png"

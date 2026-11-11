@@ -317,6 +317,29 @@ paths:
       description: 'Requires school_settings:update, administrator and the school settings module.'
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: The page }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /school/logo:
+    get:
+      operationId: getSchoolLogo
+      tags: [school]
+      summary: The uploaded school logo
+      description: No sign-in (it is on the sign-in page and documents). PNG when it has transparency, JPEG otherwise; with ?v= matching the current version it may be cached for a year. 404 when no logo was uploaded.
+      security: []
+      responses: { '200': { description: PNG or JPEG image }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      operationId: uploadSchoolLogo
+      tags: [school]
+      summary: Upload the school logo
+      description: 'Requires school_settings:update, administrator and the school settings module. JPEG or PNG up to 6 MB, at least 16 px; stored at most 512 px on its longer side, PNG when it has transparency and JPEG otherwise, re-encoded (which drops metadata). Sets logo_url to /api/school/logo?v=<version>, which pages and documents use.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: 'The new logo_url' }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '413': { description: too_large }, '415': { description: unsupported_media_type } }
+    delete:
+      operationId: deleteSchoolLogo
+      tags: [school]
+      summary: Remove the uploaded school logo
+      description: 'Requires school_settings:update, administrator and the school settings module. Clears logo_url when it pointed at the upload; a web link is kept.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: 'logo_url cleared' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /school/gallery:
     post:
       operationId: addGalleryPhoto
