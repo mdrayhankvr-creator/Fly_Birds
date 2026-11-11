@@ -488,8 +488,8 @@ func (s *AdmitService) cards(ctx context.Context, termID string, ids []string, l
 		Rules: documents.Name{EN: settings.RulesEN, BN: settings.RulesBN}}
 	var people []struct {
 		ID, NameEN, NameBN, AdmissionNo, StudentCode, ClassName, SectionName string
-		RollNo                                                  *int
-		Photo                                                   []byte
+		RollNo                                                               *int
+		Photo                                                                []byte
 	}
 	if err := db.Raw(`SELECT st.id, st.name_en, st.name_bn, st.admission_no, coalesce(st.student_code, '') AS student_code, st.roll_no, c.name AS class_name, sec.name AS section_name, ph.content AS photo
  FROM students st JOIN academic_classes c ON c.id = st.class_id JOIN academic_sections sec ON sec.id = st.section_id
