@@ -9,6 +9,7 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { CardTitle, ui, PageHeader } from './attendanceUi'
 import { LandingPhotos } from './LandingPhotos'
+import { isUploadedLogo, LogoField } from './LogoField'
 import { PublicPageEditor } from './PublicPageEditor'
 
 const colorPattern = /^#[0-9a-fA-F]{6}$/
@@ -124,7 +125,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
     '--brand-primary': colorPattern.test(draft.primary_color) ? draft.primary_color : '#0F766E',
     '--brand-secondary': colorPattern.test(draft.secondary_color) ? draft.secondary_color : '#334155',
   } as CSSProperties : undefined
-  const previewLogo = draft?.logo_url && /^https:\/\/[^\s]+\.(png|jpe?g|webp)$/i.test(draft.logo_url)
+  const previewLogo = draft?.logo_url && (/^https:\/\/[^\s]+\.(png|jpe?g|webp)$/i.test(draft.logo_url) || isUploadedLogo(draft.logo_url))
   const loading = settings.isPending || (canReadGrading && grading.isPending) || (canReadModules && modules.isPending)
   const loadError = settings.isError || grading.isError || modules.isError
 
@@ -143,7 +144,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
           <FormField label={t('schoolNameBN')}><input className={inputClass} required maxLength={120} value={draft.name_bn} disabled={!canEditSettings} onChange={(event) => setField('name_bn', event.target.value)} /></FormField>
           <FormField label={t('p3TaglineEN')}><input className={inputClass} maxLength={160} value={draft.tagline_en ?? ''} disabled={!canEditSettings} onChange={(event) => setField('tagline_en', event.target.value)} /></FormField>
           <FormField label={t('p3TaglineBN')}><input className={inputClass} maxLength={160} lang="bn" value={draft.tagline_bn ?? ''} disabled={!canEditSettings} onChange={(event) => setField('tagline_bn', event.target.value)} /></FormField>
-          <FormField label={t('schoolLogo')}><input className={inputClass} type="url" maxLength={500} value={draft.logo_url} disabled={!canEditSettings} onChange={(event) => setField('logo_url', event.target.value)} /></FormField>
+          <LogoField value={draft.logo_url} disabled={!canEditSettings} inputClass={inputClass} authorized={authorized} onChange={url => setField('logo_url', url)} />
           <FormField label={t('schoolAddress')}><input className={inputClass} maxLength={500} value={draft.address} disabled={!canEditSettings} onChange={(event) => setField('address', event.target.value)} /></FormField>
           <FormField label={t('schoolPhone')}><input className={inputClass} type="tel" maxLength={32} value={draft.phone} disabled={!canEditSettings} onChange={(event) => setField('phone', event.target.value)} /></FormField>
           <FormField label={t('schoolEmail')}><input className={inputClass} type="email" maxLength={254} value={draft.email} disabled={!canEditSettings} onChange={(event) => setField('email', event.target.value)} /></FormField>
@@ -162,6 +163,13 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
                 onChange={() => setField('weekly_off_days', checked ? (draft.weekly_off_days ?? []).filter(d => d !== day) : [...(draft.weekly_off_days ?? []), day].sort((a, b) => a - b))} />{t(`afWeekday_${day}`)}</label>
           })}</div>
           {(draft.weekly_off_days ?? []).length > 6 && <p role="alert" className="mt-2 text-sm text-rose-700">{t('afOffDaysTooMany')}</p>}
+        </fieldset>
+        <fieldset className="mt-6 rounded-xl border border-slate-200 p-4 sm:p-5">
+          <legend className="px-1 text-base font-semibold text-slate-900">{t('uxPhotoSettingTitle')}</legend>
+          <label className="flex items-start gap-3 text-sm text-slate-800">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]" checked={draft.student_photo_uploads ?? true} disabled={!canEditSettings} onChange={e => setField('student_photo_uploads', e.target.checked)} data-photo-setting />
+            <span><span className="font-semibold">{t('uxPhotoSetting')}</span><span className="mt-0.5 block text-slate-600">{t('uxPhotoSettingHint')}</span></span>
+          </label>
         </fieldset>
         <div className="mt-6 rounded-xl border border-slate-200 p-5" data-theme-preview={draft.dashboard_theme} style={previewStyle}>
           <h3 className="text-lg font-semibold">{t('preview')}</h3>
