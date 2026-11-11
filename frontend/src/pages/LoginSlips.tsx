@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -17,13 +18,25 @@ function useSchoolNames() {
   return { en: branding.data?.name_en ?? '', bn: branding.data?.name_bn ?? '' }
 }
 
-function LoginSlip({ login, school }: { login: StudentLogin; school: { en: string; bn: string } }) {
+function LoginSlip({ login, school, compact = false }: { login: StudentLogin; school: { en: string; bn: string }; compact?: boolean }) {
   const { i18n } = useTranslation()
   const en = i18n.getFixedT('en'), bn = i18n.getFixedT('bn')
   const both = (key: string, options?: Record<string, unknown>) => <>{en(key, options)} <span lang="bn" className="font-normal">· {bn(key, options)}</span></>
   const site = window.location.host
-  const label = 'text-[11px] font-semibold uppercase tracking-wide text-slate-500'
+  const label = compact ? 'text-[7.5pt] font-semibold uppercase tracking-wide text-slate-500' : 'text-[11px] font-semibold uppercase tracking-wide text-slate-500'
   const place = [login.class_name, login.section_name, login.roll_no == null ? '' : `${en('rollNo')} ${login.roll_no}`].filter(Boolean).join(' · ')
+  if (compact) return <article className="login-slip login-slip-compact min-w-0 overflow-hidden rounded-lg border-2 border-dashed border-slate-400 bg-white text-slate-900" aria-label={en('c5SlipFor', { name: login.student_name })}>
+    <p className="truncate text-[8.5pt] font-bold">{school.en}{school.bn && <span lang="bn" className="font-semibold"> · {school.bn}</span>}</p>
+    <p className="text-[7.5pt] font-semibold text-slate-600">{both('c5SlipTitle')}</p>
+    <p className="mt-1 truncate text-[10pt] font-bold leading-tight">{login.student_name}{login.name_bn && <span lang="bn" className="font-semibold text-slate-700"> · {login.name_bn}</span>}</p>
+    <p className="truncate text-[7.5pt] text-slate-600">{place}</p>
+    <dl className="mt-1.5 grid grid-cols-2 gap-2">
+      <div className="min-w-0"><dt className={label}>{both('c5SignInId')}</dt><dd className="font-mono text-[10.5pt] font-bold" style={{ overflowWrap: 'anywhere' }} data-login-id>{login.login_id}</dd></div>
+      <div className="min-w-0"><dt className={label}>{both('c4TemporaryPassword')}</dt><dd className="font-mono text-[10.5pt] font-bold tracking-wider" data-temporary-password>{login.initial_password}</dd></div>
+    </dl>
+    {login.password_expires_at && <p className="mt-1 text-[7.5pt] font-semibold" data-password-expires>{both('c5PasswordUseBy')}: {slipDate(login.password_expires_at, 'en')} <span lang="bn" className="font-normal">· {slipDate(login.password_expires_at, 'bn')}</span></p>}
+    <p className="mt-1 text-[7pt] leading-snug text-slate-700">{en('c5SlipSteps', { site })} <span lang="bn">{bn('c5SlipSteps', { site })}</span></p>
+  </article>
   return <article className="login-slip min-w-0 rounded-xl border-2 border-dashed border-slate-400 bg-white p-4 text-slate-900" aria-label={en('c5SlipFor', { name: login.student_name })}>
     <header className="border-b border-slate-200 pb-2">
       <p className="text-sm font-bold" style={{ overflowWrap: 'anywhere' }}>{school.en}{school.bn && <span lang="bn" className="font-semibold"> · {school.bn}</span>}</p>
@@ -43,18 +56,38 @@ function LoginSlip({ login, school }: { login: StudentLogin; school: { en: strin
 }
 
 // LoginSlipSheet shows the slips with a print button. On paper they are laid
-// out two across, eight to an A4 page.
+// out two across; the compact layout fits exactly eight to an A4 page.
+type SlipLayout = 'standard' | 'eight'
+const layoutKey = 'flybirds.loginSlipLayout'
+function savedLayout(): SlipLayout {
+  try { return localStorage.getItem(layoutKey) === 'eight' ? 'eight' : 'standard' } catch { return 'standard' }
+}
+
 export function LoginSlipSheet({ logins }: { logins: StudentLogin[] }) {
   const { t } = useTranslation()
   const school = useSchoolNames()
+  const [layout, setLayout] = useState<SlipLayout>(savedLayout)
   if (!logins.length) return null
+  const choose = (value: SlipLayout) => { setLayout(value); try { localStorage.setItem(layoutKey, value) } catch { /* the choice is just not remembered */ } }
+  const pages: StudentLogin[][] = []
+  for (let i = 0; i < logins.length; i += 8) pages.push(logins.slice(i, i + 8))
   return <section aria-labelledby="login-slips-title" className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h3 id="login-slips-title" className="text-base font-bold text-slate-900">{t('c5SlipsReady', { count: logins.length })}</h3>
-      <button type="button" className={ui.primary} onClick={() => window.print()}><Icon name="print" className="h-4 w-4" />{t(logins.length === 1 ? 'c5PrintSlip' : 'c5PrintSlips')}</button>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">{t('uxSlipLayout')}
+          <select className={ui.field} value={layout} onChange={e => choose(e.target.value as SlipLayout)} data-slip-layout>
+            <option value="standard">{t('uxSlipLayoutStandard')}</option>
+            <option value="eight">{t('uxSlipLayoutEight')}</option>
+          </select>
+        </label>
+        <button type="button" className={ui.primary} onClick={() => window.print()}><Icon name="print" className="h-4 w-4" />{t(logins.length === 1 ? 'c5PrintSlip' : 'c5PrintSlips')}</button>
+      </div>
     </div>
     <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{t('c5PasswordsOnce')}</p>
-    <div className="grid gap-3 md:grid-cols-2">{logins.map(l => <LoginSlip key={l.user_id} login={l} school={school} />)}</div>
-    {createPortal(<div className="login-slips-print" aria-hidden="true">{logins.map(l => <LoginSlip key={l.user_id} login={l} school={school} />)}</div>, document.body)}
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{logins.map(l => <LoginSlip key={l.user_id} login={l} school={school} />)}</div>
+    {createPortal(layout === 'eight'
+      ? <div className="login-slips-print login-slips-eight" aria-hidden="true">{pages.map((page, i) => <div key={i} className="login-slips-page">{page.map(l => <LoginSlip key={l.user_id} login={l} school={school} compact />)}</div>)}</div>
+      : <div className="login-slips-print" aria-hidden="true">{logins.map(l => <LoginSlip key={l.user_id} login={l} school={school} />)}</div>, document.body)}
   </section>
 }
