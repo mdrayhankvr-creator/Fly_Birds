@@ -94,6 +94,10 @@ func (r *GormRepository) UpdateSettings(ctx context.Context, actor string, input
 			}
 			fields = append(fields, "founded_year")
 		}
+		if input.StudentPhotoUploads != nil {
+			updates["student_photo_uploads"] = *input.StudentPhotoUploads
+			fields = append(fields, "student_photo_uploads")
+		}
 		if input.WeeklyOffDays != nil {
 			if err := tx.Exec("DELETE FROM school_weekly_off_days").Error; err != nil {
 				return err

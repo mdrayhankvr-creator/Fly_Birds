@@ -126,6 +126,7 @@ func run(logger *slog.Logger) error {
 			academicService = academic.NewService(academic.NewRepository(db))
 			sectionService = academic.NewSectionService(academic.NewSectionRepository(db))
 			peopleService = people.NewService(people.NewRepository(db))
+			peopleService.Photos = people.NewPhotoSubmissions(db)
 		}
 		sessionService = academicsessions.NewService(academicsessions.NewRepository(db))
 		staffService = staff.NewService(staff.NewRepository(db))

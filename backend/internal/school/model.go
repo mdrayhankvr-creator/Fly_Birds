@@ -31,8 +31,11 @@ type SchoolSettings struct {
 	HeadTeacherNameBN string `gorm:"column:head_teacher_name_bn" json:"head_teacher_name_bn"`
 	// WeeklyOffDays are the days without attendance, 0 (Sunday) … 6
 	// (Saturday); Friday by default (table school_weekly_off_days).
-	WeeklyOffDays []int     `gorm:"-" json:"weekly_off_days"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	WeeklyOffDays []int `gorm:"-" json:"weekly_off_days"`
+	// StudentPhotoUploads lets students upload their own photo for approval
+	// (migration 1760); on by default.
+	StudentPhotoUploads bool      `gorm:"column:student_photo_uploads" json:"student_photo_uploads"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 func (SchoolSettings) TableName() string { return "school_settings" }
@@ -63,6 +66,9 @@ type SettingsInput struct {
 	// WeeklyOffDays replaces the weekly off days when present (at most six
 	// days, so at least one day takes attendance).
 	WeeklyOffDays *[]int `json:"weekly_off_days,omitempty"`
+	// StudentPhotoUploads turns students' own photo uploads on or off when
+	// present.
+	StudentPhotoUploads *bool `json:"student_photo_uploads,omitempty"`
 }
 
 type Branding struct {

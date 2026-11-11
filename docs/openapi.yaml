@@ -1562,6 +1562,66 @@ paths:
       description: Requires students:manage and the administrator role. Audited.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Signature removed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/me/photo-submission:
+    get:
+      operationId: getMyPhotoSubmission
+      tags: [students]
+      summary: The signed-in student's own photo upload
+      description: 'Requires students:photo_submit and the students module. enabled, status (empty, pending, approved or rejected), reason (when rejected), submitted_at, reviewed_at, has_photo (an approved photo is in use) and student_id.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: The upload state }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { description: no_student } }
+    put:
+      operationId: submitMyPhoto
+      tags: [students]
+      summary: Upload your own photo for approval
+      description: 'Requires students:photo_submit and the students module, and the school setting student_photo_uploads (403 photo_uploads_off). JPEG or PNG up to 6 MB, at least 64 px; cropped to a centred square, resized to 480 px and re-encoded as JPEG (which drops metadata). It waits for the class teacher or the administrator and replaces any pending or rejected upload; the photo in use changes only on approval.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: The upload state }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: forbidden or photo_uploads_off }, '404': { description: no_student }, '413': { description: too_large }, '415': { description: unsupported_media_type } }
+  /students/me/photo-submission/image:
+    get:
+      operationId: getMyPhotoSubmissionImage
+      tags: [students]
+      summary: Your own pending or rejected photo
+      description: Requires students:photo_submit and the students module. JPEG; 404 when there is none (an approved photo is served by /students/{id}/photo).
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: JPEG image }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /students/photo-reviews:
+    get:
+      operationId: listPhotoReviews
+      tags: [students]
+      summary: Student photos waiting for review
+      description: 'Requires students:photo_review and the students module. The administrator sees every active student''s pending photo; others only those of the sections they are class teacher of. items (student_id, name_en, name_bn, class_name, section_name, roll_no, submitted_at, has_photo) and total, oldest first, at most 200.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Pending photos }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /students/{id}/photo-submission/image:
+    get:
+      operationId: getPhotoSubmissionImage
+      tags: [students]
+      summary: A student's submitted photo, for review
+      description: Requires students:photo_review and the students module; the student must be in the reviewer's scope (404 otherwise). JPEG.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: JPEG image }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /students/{id}/photo-submission/approve:
+    post:
+      operationId: approvePhotoSubmission
+      tags: [students]
+      summary: Approve a student's photo
+      description: Requires students:photo_review and the students module, within the reviewer's scope. The photo becomes the student's photo (profile, ID card, marksheet, admit card); no other copy is kept. 409 not_pending when nothing waits.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Approved }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: not_pending } }
+  /students/{id}/photo-submission/reject:
+    post:
+      operationId: rejectPhotoSubmission
+      tags: [students]
+      summary: Reject a student's photo with a reason
+      description: 'Requires students:photo_review and the students module, within the reviewer''s scope. Body reason, 1 to 300 characters, shown to the student. 409 not_pending when nothing waits.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 1, maxLength: 300 } } } } } }
+      responses: { '200': { description: Rejected }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: not_pending } }
   /students/{id}/photo:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:
@@ -4911,6 +4971,7 @@ components:
         email: { type: string, format: email }
         grading_scheme_id: { type: string, example: bd_default }
         weekly_off_days: { type: array, maxItems: 6, uniqueItems: true, items: { type: integer, minimum: 0, maximum: 6 }, description: Days without attendance, 0 Sunday … 6 Saturday (Friday by default). Optional on save; omitted keeps the days. }
+        student_photo_uploads: { type: boolean, description: Students may upload their own photo for approval (on by default). Optional on save; omitted keeps the setting. }
     SchoolSettings:
       allOf: [{ $ref: '#/components/schemas/SchoolSettingsInput' }]
       type: object

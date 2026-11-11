@@ -52,6 +52,12 @@ func peopleError(c *gin.Context, err error) {
 		failure(c, 409, "idempotency_key_reused", "this request key already admitted a different student")
 	case errors.Is(err, people.ErrRollTaken):
 		failure(c, 409, "roll_taken", "this roll number is already used in the section")
+	case errors.Is(err, people.ErrPhotoUploadsOff):
+		failure(c, 403, "photo_uploads_off", "the school has turned student photo uploads off")
+	case errors.Is(err, people.ErrNoStudent):
+		failure(c, 404, "no_student", "this account is not linked to a student")
+	case errors.Is(err, people.ErrNotPending):
+		failure(c, 409, "not_pending", "no photo is waiting for review")
 	case errors.Is(err, people.ErrInvalid):
 		failure(c, 400, "invalid_request", "invalid student or guardian input")
 	case errors.Is(err, people.ErrNotFound):

@@ -478,6 +478,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	studentRoutes.POST("/logins", RequirePermission(service, "students:manage"), RequirePermission(service, "users:create"), RequireAdministrator(), peopleHandler.createSectionLogins)
 	studentRoutes.GET("/me", RequirePermission(service, "students:read_self"), peopleHandler.myStudent)
 	studentRoutes.GET("/me/guardians", RequirePermission(service, "students:read_self"), peopleHandler.myGuardians)
+	registerStudentPhotos(studentRoutes, service, peopleHandler)
 	studentRoutes.GET("/cards", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.sectionCards)
 	studentRoutes.GET("/card-settings", RequirePermission(service, "students:read"), peopleHandler.cardSettings)
 	studentRoutes.PUT("/card-settings", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.saveCardSettings)
