@@ -3,7 +3,8 @@
 // a stable reference, so running it again adds nothing twice. It never updates
 // or deletes rows it did not create; the only shared settings it touches are
 // module switches (turned on) and, while the school still has the default
-// "School" name, the school name and colours.
+// "School" name, the school name and colours. While the school is the demo
+// school, it also fills the empty parts of the public page (public.go).
 package demo
 
 import (
@@ -50,6 +51,7 @@ var tables = map[string]string{
 	"employee": "employees", "student": "students", "guardian": "guardians", "exam": "exams", "fee_category": "fee_categories",
 	"fee_structure": "fee_structures", "student_fee": "student_fees", "payment": "fee_payments", "notice": "notices", "event": "school_events",
 	"routine": "class_routines", "diary": "class_diaries", "ledger": "ledger_entries", "assignment": "teacher_assignments",
+	"gallery": "school_gallery",
 }
 
 // ensure returns the recorded row for (kind, ref), creating it when the record
@@ -523,6 +525,10 @@ VALUES (?, ?, ?, ?, ?, 'School campus', '{head_teacher,teacher,student,guardian,
 		}); err != nil {
 			return err
 		}
+	}
+
+	if err := s.publicPage(); err != nil {
+		return fmt.Errorf("public page: %w", err)
 	}
 
 	// Class diary: the mathematics teacher's last five school days.
