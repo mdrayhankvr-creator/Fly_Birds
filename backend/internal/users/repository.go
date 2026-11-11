@@ -39,7 +39,12 @@ func (r *GormRepository) Create(ctx context.Context, actor string, user User, ha
 		if err := require(tx, actor, "permissions:manage"); err != nil {
 			return err
 		}
-		if err := tx.Table("users").Create(map[string]any{"email": user.Email, "display_name": user.DisplayName, "role": user.Role, "is_active": true, "password_hash": hash}).Error; err != nil {
+		// The administrator chose this password, so it is temporary, as at
+		// admission and after a reset: the account picks its own at the
+		// first sign-in, within the temporary password's lifetime.
+		expires := time.Now().UTC().Add(auth.TemporaryPasswordLifetime)
+		if err := tx.Table("users").Create(map[string]any{"email": user.Email, "display_name": user.DisplayName, "role": user.Role, "is_active": true, "password_hash": hash,
+			"must_change_password": true, "temporary_password_expires_at": expires}).Error; err != nil {
 			return err
 		}
 		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("email=?", user.Email).Take(&user).Error; err != nil {
