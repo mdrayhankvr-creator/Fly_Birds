@@ -13,6 +13,7 @@ import { StudentInsights, type InsightAccess } from './StudentInsights'
 import { Fact, ProfilePhoto } from './profileUi'
 import { createStudentLogin, type StudentLogin } from '../api/studentLogins'
 import { LoginSlipSheet } from './LoginSlips'
+import { MyPhotoCard } from './MyPhotoCard'
 import { Avatar, EmptyState, Notice as Banner, PageHeader, SectionCard, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 
 function formatDate(value: string, lang: string) {
@@ -170,6 +171,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         <label className={`${ui.label} flex-1`}>{t('selectPhoto')}<input type="file" required accept="image/jpeg,image/png" className={ui.field} onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} /></label>
         <button disabled={busy || !photoFile} className={ui.primary}>{t('uploadPhoto')}</button></form>}
     </section>
+    {mode === 'self' && <MyPhotoCard />}
 
     <nav aria-label={t('c4ProfileSections')} className="ds-sunken sticky top-16 z-10 -mx-1 flex gap-1.5 overflow-x-auto px-2 py-2 print:hidden lg:top-20">
       {sections.map(([target, label]) => <a key={target} href={`#${target}`} className="btn btn-quiet btn-sm shrink-0" onClick={event => { event.preventDefault(); document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{t(label)}</a>)}

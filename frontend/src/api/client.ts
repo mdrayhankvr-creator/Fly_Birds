@@ -144,6 +144,8 @@ export type SchoolSettings = SchoolBranding & SchoolDetails & {
   address: string; phone: string; email: string; grading_scheme_id: string; updated_at: string
   // Days without attendance, 0 Sunday … 6 Saturday (Friday by default).
   weekly_off_days: number[]
+  // Students may upload their own photo for approval (on by default).
+  student_photo_uploads: boolean
 }
 export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at' | keyof SchoolDetails>
 export type GradeBand = { grade: string; min_marks: number; max_marks: number; gpa: number }

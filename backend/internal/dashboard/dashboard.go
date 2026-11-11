@@ -127,6 +127,11 @@ func (r *Repository) Get(ctx context.Context, user auth.User) (Data, error) {
 				if allowed["guardians:read_children"] {
 					result.Navigation = append(result.Navigation, NavigationItem{Key: "guardian_children", Name: "My children", Path: "/guardian/children"})
 				}
+				// Class teachers, the head teacher and the administrator review
+				// students' own photos (migration 1760).
+				if allowed["students:photo_review"] && (user.Role == "admin" || user.Role == "head_teacher" || user.Role == "teacher") {
+					result.Navigation = append(result.Navigation, NavigationItem{Key: "photo_reviews", Name: "Photo approvals", Path: "/photo-reviews"})
+				}
 			}
 		}
 		if enabled["attendance"] {
