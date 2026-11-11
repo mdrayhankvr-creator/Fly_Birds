@@ -68,7 +68,7 @@ func TestPostgresMarksheetV2(t *testing.T) {
 
 	// The student's details, the head teacher's name and the term's dates.
 	exec(`UPDATE students SET father_name_en = 'Abdul Karim', father_name_bn = 'আবদুল করিম', mother_name_en = 'Rahima Begum', mother_name_bn = 'রহিমা বেগম',
- date_of_birth = '2389-03-05' WHERE id = ?`, s.students[0])
+ date_of_birth = '2389-03-05', student_code = 'RMS-0001' WHERE id = ?`, s.students[0])
 	exec("UPDATE school_settings SET head_teacher_name_en = 'Head Master', head_teacher_name_bn = 'প্রধান শিক্ষক মহোদয়' WHERE id = 1")
 	exec("UPDATE exam_terms SET starts_on = '2401-01-01', ends_on = '2401-01-31' WHERE id = ?", s.term)
 	exec("UPDATE employees SET name_en = 'Nasrin Sultana', name_bn = 'নাসরিন সুলতানা' WHERE user_id = ?", s.teacher)
@@ -182,6 +182,11 @@ func TestPostgresMarksheetV2(t *testing.T) {
 	if st.Father != "Abdul Karim" || st.Mother != "Rahima Begum" || st.DOB != "5 March 2389" {
 		t.Fatalf("details: %q %q %q", st.Father, st.Mother, st.DOB)
 	}
+	// The student ID is the school's student ID (as on the ID card and the
+	// login slip), not the admission number.
+	if st.StudentID != "RMS-0001" {
+		t.Fatalf("student ID: %q", st.StudentID)
+	}
 	// 9 of the 12 marked days were present, 1 late (counts as present), 2
 	// absent: 10 days present.
 	wantAttendance := fmt.Sprintf("10 / %d days (%d%%)", working, 10*100/working)
@@ -263,5 +268,22 @@ func TestPostgresMarksheetV2(t *testing.T) {
 	}
 	if _, st3 := request(0, "en"); st3.Signatures[0].Name != "" || st3.Signatures[0].Image != "" || st3.Comment != "A new comment." {
 		t.Fatalf("no class teacher: %+v %q", st3.Signatures[0], st3.Comment)
+	}
+
+	// A school that starts recording attendance later in the term: the days
+	// before the section's first record are not counted as absent.
+	exec("DELETE FROM student_attendance WHERE section_id = ? AND attendance_date < '2401-01-08'", s.section)
+	var first string
+	var present int
+	tx.Raw("SELECT to_char(min(attendance_date), 'YYYY-MM-DD') FROM student_attendance WHERE section_id = ?", s.section).Row().Scan(&first)
+	tx.Raw("SELECT count(*) FROM student_attendance WHERE student_id = ? AND status IN ('present', 'late')", s.students[0]).Row().Scan(&present)
+	later := 0
+	for d, _ := time.Parse(time.DateOnly, first); d.Month() == time.January; d = d.AddDate(0, 0, 1) {
+		if !offFriday[d.Format(time.DateOnly)] && d.Day() != 10 && d.Day() != 11 {
+			later++
+		}
+	}
+	if _, st4 := request(0, "en"); later >= working || st4.Attendance != fmt.Sprintf("%d / %d days (%d%%)", present, later, present*100/later) {
+		t.Fatalf("attendance from the first record (%s): %q, want %d of %d", first, st4.Attendance, present, later)
 	}
 }

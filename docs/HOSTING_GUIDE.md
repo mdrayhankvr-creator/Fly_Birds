@@ -116,10 +116,10 @@ If the HTTPS check fails, `fb logs caddy` usually shows why: DNS not pointing at
 There is no default account or password. Someone at the server creates the first administrator. The command asks for the password twice without showing it (12 to 72 characters):
 
 ```sh
-fb exec backend /app/create-user -email head.office@greenvalley.edu.bd -role admin
+fb exec backend /app/create-user -email head.office@greenvalley.edu.bd -role admin -name "Office Administrator"
 ```
 
-It needs an interactive terminal, so run it over SSH, not from a script. Then sign in at `https://school.greenvalley.edu.bd/`, where the sign-in form is on the school's home page. Create every other account in the app (**Admin → Users**, student logins from **Students**), and follow the administrator chapter of the [Bangla user guide](USER_GUIDE_BN.md) for the school's setup.
+`-name` is the name shown in the app (optional; without it the account shows only its email). It needs an interactive terminal, so run it over SSH, not from a script. Then sign in at `https://school.greenvalley.edu.bd/`, where the sign-in form is on the school's home page. Create every other account in the app (**Admin → Users**, student logins from **Students**), and follow the administrator chapter of the [Bangla user guide](USER_GUIDE_BN.md) for the school's setup.
 
 **Never run `seed-demo` on a real school:** it adds demo accounts with a shared, known password.
 

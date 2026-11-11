@@ -497,7 +497,7 @@ function Policies({ def, terms, editable, change }: { def: BlueprintDefinition; 
       {select(t('bpAnnualMethod'), def.annual.method, ['final_only', 'equal', 'weighted'], v => change({ ...def, annual: { ...def.annual, method: v as BlueprintDefinition['annual']['method'], weights: v === 'weighted' ? Object.fromEntries(usedTerms.map(term => [term.id, def.annual.weights?.[term.id] ?? 0])) : undefined } }), 'bpAnnual_')}
       {def.annual.method === 'weighted' && <div className="grid grid-cols-2 gap-2">{usedTerms.map(term => <NumberField key={term.id} step="1" label={`${term.name} %`} disabled={!editable} value={def.annual.weights?.[term.id] ?? 0}
         onChange={n => change({ ...def, annual: { ...def.annual, weights: { ...def.annual.weights, [term.id]: Math.round(n) } } })} />)}</div>}
-      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" disabled={!editable} checked={def.annual.final_must_pass} onChange={e => change({ ...def, annual: { ...def.annual, final_must_pass: e.target.checked } })} /><span>{t('bpFinalMustPass')}</span></label>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" disabled={!editable} checked={def.annual.final_must_pass} onChange={e => change({ ...def, annual: { ...def.annual, final_must_pass: e.target.checked } })} /><span>{t('bpFinalMustPass')}<span className="mt-0.5 block text-xs text-slate-600">{t('bpFinalMustPassHint')}</span></span></label>
     </div>
   </section>
 }

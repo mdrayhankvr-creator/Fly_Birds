@@ -678,7 +678,7 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		if x == nil {
 			x = &studentExtra{}
 		}
-		row := sheetStudent{Name: l.pick(st.NameEN, st.NameBN), NameAlt: l.other(st.NameEN, st.NameBN), StudentID: l.code(st.AdmissionNo), Class: st.ClassName, Section: st.SectionName,
+		row := sheetStudent{Name: l.pick(st.NameEN, st.NameBN), NameAlt: l.other(st.NameEN, st.NameBN), StudentID: l.code(studentCode(x.Code, st.AdmissionNo)), Class: st.ClassName, Section: st.SectionName,
 			Roll: rollText(l, st.RollNo), Session: l.num(st.SessionName), Exam: examName(l, set), Withheld: r.Outcome == "withheld", Rows: []sheetRow{}, Optional: []sheetRow{},
 			Total: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", FailedCount: "—",
 			ClassPos: posText(l, o.ClassPosition, classN), SectionPos: posText(l, o.SectionPosition, sectionN[st.SectionID]), Attendance: "—", Published: "—"}

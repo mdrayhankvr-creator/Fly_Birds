@@ -366,7 +366,7 @@ main table tbody tr:hover { background-color: #f8fafc; }
 /* ID cards print from a separate root under <body>; on screen it is hidden. */
 .login-slips-print { display: none; }
 @media print {
-  /* Student login slips: two across, eight to an A4 page, always light. */
+  /* Student login slips: two across, four to an A4 page, always light. */
   body:has(> .login-slips-print) > :not(.login-slips-print) { display: none !important; }
   body:has(> .login-slips-print) { margin: 0; background: #ffffff !important; }
   .login-slips-print { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; padding: 6mm; }

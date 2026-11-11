@@ -107,7 +107,7 @@ Computed per subject first (recommended `level: subject_percent`):
 | weighted | Σ (weight × term percentage) / 100 |
 
 - **Annual mark:** the result is expressed on the subject's annual full marks (normally 100) and rounded by R5, then graded with section 3.4.
-- **Extra pass rule:** optionally, the subject must also pass in the final term (`final_must_pass`).
+- **Extra pass rule:** the subject must also pass in the final term (`final_must_pass`), on that term's own pass rules (components included). New blueprints and the builder's presets turn it on; a school may turn it off, and blueprints made before keep their setting.
 - **Annual GPA and outcome:** these follow section 3.5.
 
 *Why not average GPAs?* Averaging GPAs hides failure: a GPA of 5.00 and a failed term (0.00) average to 2.50, which looks like a pass. The `gpa` level is available for schools that require it, and it is labelled as such on the report card.

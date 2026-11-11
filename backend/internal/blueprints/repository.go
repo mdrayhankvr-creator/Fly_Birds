@@ -413,7 +413,9 @@ func (r *Repository) view(tx *gorm.DB, id string) (VersionView, error) {
 // seed is the starting design for a class without a blueprint: one term
 // exam per term of the session (not the terms the upgrade made from existing
 // exams, which belong to the legacy blueprint), every class subject out of
-// 100 (pass 33), final only — today's model.
+// 100 (pass 33), final only, and the final term must be passed: a failed
+// annual exam means a failed year. Copied and existing blueprints keep
+// their own setting.
 func seed(terms []TermRef, subjects []SubjectRef) Definition {
 	d := Definition{}
 	for _, t := range terms {
@@ -433,6 +435,7 @@ func seed(terms []TermRef, subjects []SubjectRef) Definition {
 		}
 		d.Subjects = append(d.Subjects, rule)
 	}
+	d.Annual.FinalMustPass = true
 	d.Defaults()
 	return d
 }

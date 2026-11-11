@@ -175,6 +175,7 @@ func TestPostgresAdmitCards(t *testing.T) {
 
 	// The class's cards: each student's own papers, room and seat. In the
 	// hall, seats run Six A (class order 6), then Nine A by roll, then Nine B.
+	exec("UPDATE students SET student_code = 'N2-CODE' WHERE name_en = 'Student n2' AND session_id = ?", session)
 	pdf, held, err := as.Print(ctx, headA, term, AdmitPrint{ClassID: nine, Language: "bn"})
 	if err != nil || len(pdf) == 0 || held != 0 {
 		t.Fatalf("print: %v held %d", err, held)
@@ -182,6 +183,9 @@ func TestPostgresAdmitCards(t *testing.T) {
 	doc := capture.docs[len(capture.docs)-1]
 	if doc.Language != "bn" || doc.Term != "Annual" || doc.Version != 1 || len(doc.Cards) != 3 {
 		t.Fatalf("document: %+v", doc)
+	}
+	if doc.Cards[0].StudentCode != "N2-CODE" || doc.Cards[1].StudentCode != "" {
+		t.Fatalf("student IDs: %q %q", doc.Cards[0].StudentCode, doc.Cards[1].StudentCode)
 	}
 	order := []string{doc.Cards[0].Name.EN, doc.Cards[1].Name.EN, doc.Cards[2].Name.EN}
 	if order[0] != "Student n2" || order[1] != "Student n1" || order[2] != "Student n3" {
