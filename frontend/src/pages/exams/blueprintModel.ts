@@ -163,6 +163,8 @@ export function applyBlueprintPreset(def: BlueprintDefinition, termId: string, p
   const components = componentPresets[preset]
   return {
     ...next,
+    // With a preset a failed annual exam fails the year (the usual rule).
+    annual: { ...next.annual, final_must_pass: true },
     subjects: next.subjects.map(s => {
       if (s.role === 'non_graded') return s
       const withRule = setTermRule(s, structuredClone(rule), next)
