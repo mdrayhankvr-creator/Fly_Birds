@@ -138,7 +138,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
       {!canEditSettings && <p className="rounded-lg border border-slate-200 p-3 text-sm text-slate-600">{t('settingsReadOnly')}</p>}
       <form onSubmit={submitSettings} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         <CardTitle icon="school">{t('schoolProfile')}</CardTitle>
-        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
           <FormField label={t('schoolNameEN')}><input className={inputClass} required maxLength={120} value={draft.name_en} disabled={!canEditSettings} onChange={(event) => setField('name_en', event.target.value)} /></FormField>
           <FormField label={t('schoolNameBN')}><input className={inputClass} required maxLength={120} value={draft.name_bn} disabled={!canEditSettings} onChange={(event) => setField('name_bn', event.target.value)} /></FormField>
           <FormField label={t('p3TaglineEN')}><input className={inputClass} maxLength={160} value={draft.tagline_en ?? ''} disabled={!canEditSettings} onChange={(event) => setField('tagline_en', event.target.value)} /></FormField>

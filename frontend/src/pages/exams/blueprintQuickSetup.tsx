@@ -56,7 +56,7 @@ export function QuickSetup({ v, def, termId, termName, change, onDone }: { v: Bl
       <CardTitle id={`${uid}-title`} icon="layers">{t('e7QuickTitle')}</CardTitle>
       <p className="mt-1 text-sm text-slate-600">{t('e7QuickIntro', { term: termName })}</p>
     </div>
-    {termId && <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label={t('e7PresetsLabel')}>{PRESETS.map(p => <li key={`${p.preset}-${p.classTest}`}>
+    {termId && <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label={t('e7PresetsLabel')}>{PRESETS.map(p => <li key={`${p.preset}-${p.classTest}`}>
       <button type="button" className="flex h-full w-full flex-col items-start rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]"
         onClick={() => void preset(p.preset, p.classTest)}>
         <span className="font-semibold text-slate-900">{t(`e7Preset_${p.preset}`)}</span>

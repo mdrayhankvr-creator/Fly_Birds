@@ -163,7 +163,7 @@ function OverviewTab({ session, onOpen }: { session: string; onOpen: (tab: TabKe
       {d.fees && <><Kpi label={t('m11Outstanding')} value={f.money(d.fees.outstanding)} hint={t('m11OverdueAmount', { amount: f.money(d.fees.overdue) })} />
         <Kpi label={t('m11CollectionRate')} value={f.pct(d.fees.collection_rate)} meter={d.fees.collection_rate} hint={t('m11Last12Months')} /></>}
     </div>
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <Card title={t('m11Insights')}>
         {insights.length === 0 ? <p className="text-sm text-slate-600">{t('m11NoInsights')}</p> :
           <ul className="space-y-2">{insights.map((i, n) => <li key={n}><Notice tone={i.tone} action={<button type="button" className={ui.ghost} onClick={() => onOpen(i.tab)}>{t('m11Review')}</button>}>{i.text}</Notice></li>)}</ul>}
@@ -195,7 +195,7 @@ function AttendanceTab({ filter }: { filter: Filter }) {
       <Kpi label={t('m11PresentLate')} value={`${f.num(s.present)} · ${f.num(s.late)}`} />
       <Kpi label={t('m11Absences')} value={f.num(s.absent)} tone={s.absent ? 'alert' : undefined} />
     </div>
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <Card title={t(`m11Trend_${group ?? 'day'}`)}>
         <LineChart title={t('m11AttendanceTrend')} empty={t('m11NoAttendance')} format={v => f.pct(v)}
           points={d.trend.map(p => ({ label: periodLabel(f, group, p.period), value: p.rate, detail: t('m11TrendDetail', { present: f.num(p.present), late: f.num(p.late), absent: f.num(p.absent) }) }))} />
@@ -206,7 +206,7 @@ function AttendanceTab({ filter }: { filter: Filter }) {
       </Card>
     </div>
     {d.teachers && <Card title={t('m11TeacherAttendance')}>
-      <div className="grid gap-5 md:grid-cols-[14rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-[14rem_minmax(0,1fr)]">
         <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-1">
           <div><dt className="text-slate-500">{t('m11AttendanceRate')}</dt><dd className="text-xl font-bold tabular-nums text-slate-900">{f.pct(d.teachers.rate)}</dd></div>
           <div><dt className="text-slate-500">{t('m11TeacherCounts')}</dt><dd className="tabular-nums text-slate-800">{t('m11TeacherCountsValue', { present: f.num(d.teachers.present), absent: f.num(d.teachers.absent), leave: f.num(d.teachers.leave) })}</dd></div>
@@ -236,7 +236,7 @@ function ResultsTab({ filter }: { filter: Filter }) {
       <Kpi label={t('m11Gpa5')} value={f.num(s.gpa5)} />
       <Kpi label={t('m11Failed')} value={f.num(s.failed)} tone={s.failed ? 'alert' : undefined} />
     </div>
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <Card title={t('m11GpaDistribution')}>
         <ColumnChart title={t('m11GpaDistribution')} empty={t('m11NoResults')} format={v => f.num(v)} labels={d.distribution.map(g => g.grade)}
           series={[{ key: 'count', label: t('m11Students'), values: d.distribution.map(g => g.count) }]} />
@@ -275,7 +275,7 @@ function FeesTab({ filter }: { filter: Filter }) {
       <Kpi label={t('m11Expense')} value={f.money(s.expense)} hint={t('m11SchoolWide')} />
       <Kpi label={t('m11Net')} value={f.money(s.net)} tone={s.net < 0 ? 'alert' : undefined} />
     </div>
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <Card title={t('m11BilledVsCollected')}>
         <ColumnChart title={t('m11BilledVsCollected')} empty={t('m11NoFees')} format={v => f.money(v)} labels={d.months.map(m => f.month(m.month))}
           series={[{ key: 'billed', label: t('m11Billed'), values: d.months.map(m => m.billed) }, { key: 'collected', label: t('m11Collected'), values: d.months.map(m => m.collected) }]} />
@@ -362,7 +362,7 @@ function RulesCard({ settings, canManage, modules }: { settings: AlertSettings; 
   const s = settings
   return <Card title={t('m11Rules')} actions={canManage && !editing ? <button type="button" className={ui.secondary} onClick={() => setEditing(true)}>{t('m11EditThresholds')}</button> : undefined}>
     <p className="text-sm text-slate-600">{t('m11RulesIntro')}</p>
-    <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+    <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
       <div><p className="font-semibold text-slate-900">{t('m11Level_dropout')}</p><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">
         <li>{t('m11RuleRun', { n: f.num(s.consecutive_absences) })}</li><li>{t('m11RuleNoPresence', { days: f.num(s.inactivity_days), min: f.num(s.min_marked_days) })}</li></ul></div>
       <div><p className="font-semibold text-slate-900">{t('m11Level_at_risk')}</p><ul className="mt-1 list-disc space-y-1 pl-5 text-slate-700">
@@ -387,7 +387,7 @@ function SettingsForm({ settings, onDone }: { settings: AlertSettings; onDone: (
   const fields: [keyof AlertSettings, number, number, number][] = [['attendance_threshold', 1, 100, 1], ['attendance_window_days', 7, 120, 1], ['min_marked_days', 1, 60, 1], ['gpa_threshold', 0, 5, 0.25], ['consecutive_absences', 2, 60, 1], ['inactivity_days', 7, 120, 1]]
   function submit(e: FormEvent) { e.preventDefault(); save.mutate() }
   return <form onSubmit={submit} className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {fields.map(([key, min, max, step]) => <label key={key}><span className={ui.label}>{t(`m11Setting_${key}`)}</span>
         <input type="number" required className={ui.field} min={min} max={max} step={step} value={form[key] as number} onChange={e => setForm({ ...form, [key]: e.target.value })} /></label>)}
     </div>
@@ -407,7 +407,7 @@ function SessionsTab() {
   const finance = rows.some(r => r.net_billed !== undefined)
   if (!rows.length) return <EmptyState title={t('m11NoSession')} />
   return <div className="space-y-5">
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <Card title={t('m11AttendanceBySession')}><BarList title={t('m11AttendanceBySession')} max={100} empty={t('m11NoData')} items={rows.map(r => ({ key: r.id, label: r.name, value: r.attendance_rate, display: f.pct(r.attendance_rate) }))} /></Card>
       <Card title={t('m11PassRateBySession')}><BarList title={t('m11PassRateBySession')} max={100} empty={t('m11NoData')} items={rows.map(r => ({ key: r.id, label: r.name, value: r.pass_rate, display: f.pct(r.pass_rate), hint: t('m11AvgGpa', { gpa: f.gpa(r.avg_gpa) }) }))} /></Card>
     </div>
@@ -458,7 +458,7 @@ export function ReportsPage({ access }: { access: AnalyticsAccess }) {
       actions={def && <><button type="button" className={ui.secondary} onClick={() => window.print()} disabled={!report.data}>{t('m11Print')}</button>
         <button type="button" className={ui.primary} onClick={() => void download()} disabled={downloading || !report.data}>{t(downloading ? 'm11Preparing' : 'm11DownloadCsv')}</button></>} />
     {defs.isPending || options.isPending ? <Skeleton rows={3} /> : defs.isError ? <Failure error={defs.error} /> : options.isError ? <Failure error={options.error} /> : allowed.length === 0 ? <Notice tone="info">{t('m11NoReports')}</Notice> : <>
-      <div role="radiogroup" aria-label={t('m11ChooseReport')} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 print:hidden">
+      <div role="radiogroup" aria-label={t('m11ChooseReport')} className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5 print:hidden">
         {allowed.map(r => <button key={r.key} type="button" role="radio" aria-checked={r.key === key} onClick={() => { setChosen(r.key); setPage(1); setMessage(null) }}
           className={`rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${r.key === key ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
           <span className="block text-sm font-semibold text-slate-900">{t(`m11Report_${r.key}`)}</span><span className="mt-0.5 block text-xs text-slate-600">{t(`m11Report_${r.key}_desc`)}</span></button>)}
@@ -525,7 +525,7 @@ export function StudentSummaryView({ data }: { data: StudentSummary }) {
       {data.fees ? <Kpi label={t('m11FeesDue')} value={f.money(data.fees.outstanding)} tone={data.fees.overdue > 0 ? 'alert' : undefined} hint={data.fees.overdue > 0 ? t('m11OverdueAmount', { amount: f.money(data.fees.overdue) }) : data.fees.next_due ? t('m11NextDue', { date: f.fullDay(data.fees.next_due) }) : t('m11NothingDue')} />
         : latest ? <Kpi label={t('m11Position')} value={f.num(latest.section_position)} hint={t('m11ClassPosition', { n: f.num(latest.class_position) })} /> : null}
     </div>
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       {a && <Card title={t('m11MonthlyAttendance')}>
         <LineChart title={t('m11MonthlyAttendance')} empty={t('m11NoAttendance')} format={v => f.pct(v)} height={180} points={a.months.map(m => ({ label: f.month(m.period), value: m.rate }))} />
         {a.recent.length > 0 && <><h3 className="mt-4 text-sm font-semibold text-slate-800">{t('m11RecentDays')}</h3>
@@ -567,7 +567,7 @@ export function ChildrenProgressPage() {
   return <section className="space-y-5">
     <PageHeader eyebrow={t('m11Eyebrow')} title={t('m11ChildrenProgress')} description={t('m11ChildrenProgressIntro')} />
     {q.isPending ? <Skeleton rows={4} /> : q.isError ? <Failure error={q.error} retry={() => void q.refetch()} /> : items.length === 0 ? <EmptyState title={t('m11NoChildren')}>{t('m11NoChildrenHint')}</EmptyState> : <>
-      {items.length > 1 && <div role="radiogroup" aria-label={t('m11ChooseChild')} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {items.length > 1 && <div role="radiogroup" aria-label={t('m11ChooseChild')} className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {items.map(c => <button key={c.student.id} type="button" role="radio" aria-checked={c.student.id === current?.student.id} onClick={() => setSelected(c.student.id)}
           className={`rounded-xl border p-3 text-left ${c.student.id === current?.student.id ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200 bg-white'}`}>
           <span className="block font-semibold text-slate-900">{local(c.student.name_en, c.student.name_bn)}</span>

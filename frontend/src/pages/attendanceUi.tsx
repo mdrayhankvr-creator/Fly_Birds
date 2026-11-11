@@ -167,7 +167,7 @@ export function CalendarRows({ header, cells }: { header: ReactNode[]; cells: Re
 }
 
 export function InfoRow({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return <div className="grid gap-0.5 py-2.5 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] sm:gap-4"><dt className="text-sm text-slate-500">{label}</dt><dd className="min-w-0 break-words text-sm font-medium text-slate-900">{children}</dd></div>
+  return <div className="grid grid-cols-1 gap-0.5 py-2.5 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] sm:gap-4"><dt className="text-sm text-slate-500">{label}</dt><dd className="min-w-0 break-words text-sm font-medium text-slate-900">{children}</dd></div>
 }
 
 export function Skeleton({ rows = 5 }: { rows?: number }) {

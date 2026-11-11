@@ -65,7 +65,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
   return <div className="space-y-5">
     <Notice error={action.error} message={action.message} />
     {access.canManage && <section className={feeCard}><CardTitle icon="layers">{t('feeGenerateTitle')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeGenerateHint')}</p>
-      <form onSubmit={runGenerate} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <form onSubmit={runGenerate} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className={ui.label}>{t('feeSession')}<select required className={feeField} value={generate.session_id} onChange={e => setGenerate({ ...generate, session_id: e.target.value })}><option value="">{t('feeChoose')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={generate.class_id} onChange={e => setGenerate({ ...generate, class_id: e.target.value })}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeMonth')}<input required type="month" className={feeField} value={generate.period} onChange={e => setGenerate({ ...generate, period: e.target.value })} /></label>
@@ -74,7 +74,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
       </form>
     </section>}
     <section className={feeCard}><CardTitle icon="clipboard">{t('feeDuesTitle')}</CardTitle>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className={ui.label}>{t('feeSession')}<select className={feeField} value={filters.session_id} onChange={e => setFilter('session_id', e.target.value)}><option value="">{t('feeAll')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={filters.class_id} onChange={e => setFilter('class_id', e.target.value)}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeStatus')}<select className={feeField} value={filters.status} onChange={e => setFilter('status', e.target.value)}><option value="">{t('feeAll')}</option>{['outstanding', 'overdue', 'unpaid', 'partial', 'paid', 'waived', 'cancelled'].map(s => <option key={s} value={s}>{t(`feeStatus_${s}`)}</option>)}</select></label>
@@ -98,7 +98,7 @@ function DuesPanel({ access, options }: { access: FeeAccess; options: FeeOptions
     <CancellationsPanel access={access} />
     {adjusting && <section className={feeCard} aria-live="polite"><h2 className={ui.sectionTitle}>{t(adjusting.kind === 'waiver' ? 'feeWaiveTitle' : 'feeDiscountTitle')}</h2>
       <p className="mt-1 text-sm">{name(adjusting.due.student_name, adjusting.due.student_name_bn)} · {name(adjusting.due.category_name_en, adjusting.due.category_name_bn)} · {t('feeBalance')} {money(adjusting.due.balance)}</p>
-      <form onSubmit={saveAdjustment} className="mt-3 grid gap-3 sm:grid-cols-3">
+      <form onSubmit={saveAdjustment} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {adjusting.kind === 'discount' ? <label className={ui.label}>{t('feeAmount')}<input required type="number" min="0.01" step="0.01" max={adjusting.due.balance} className={feeField} value={adjusting.amount} onChange={e => setAdjusting({ ...adjusting, amount: e.target.value })} /></label> : <p className="text-sm text-amber-900 sm:col-span-1">{t('feeWaiveHint', { amount: money(adjusting.due.balance) })}</p>}
         <label className={ui.label}>{t('feeReason')}<input required maxLength={240} className={feeField} value={adjusting.reason} onChange={e => setAdjusting({ ...adjusting, reason: e.target.value })} /></label>
         <div className="flex items-end gap-2"><button disabled={action.busy} className={feeButton}>{t('feeSave')}</button><button type="button" className={feeSecondary} onClick={() => setAdjusting(null)}>{t('feeCancel')}</button></div>

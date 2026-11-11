@@ -60,13 +60,13 @@ function PhotoRow({ slide, index, total, busy, authorized, onChanged, onMove, on
     finally { setSaving(false) }
   }
   const label = t('p3PhotoAlt', { n: index + 1 })
-  return <li className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:p-4">
+  return <li className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:p-4">
     <div className="relative">
       <img src={slideImageUrl(slide)} alt={label} loading="lazy" decoding="async" className="aspect-[16/10] w-full rounded-lg bg-slate-100 object-cover" />
       <span className="absolute left-1.5 top-1.5 rounded-md bg-slate-950/70 px-1.5 py-0.5 text-xs font-bold text-white">{index + 1}</span>
     </div>
     <div className="min-w-0 space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={ui.label}>{t('p3PhotoCaptionEN')}<input className={ui.field} maxLength={140} value={en} onChange={e => setEn(e.target.value)} disabled={busy || saving} /></label>
         <label className={ui.label}>{t('p3PhotoCaptionBN')}<input className={ui.field} maxLength={140} lang="bn" value={bnCaption} onChange={e => setBn(e.target.value)} disabled={busy || saving} /></label>
       </div>

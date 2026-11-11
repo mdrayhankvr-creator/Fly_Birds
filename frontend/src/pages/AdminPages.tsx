@@ -52,7 +52,7 @@ export function AdminOverviewPage() {
     {overview.isPending && <Skeleton rows={4} />}
     {overview.isError && <Notice tone="error" action={<button type="button" className={ui.ghost} onClick={() => void overview.refetch()}>{t('m10Retry')}</button>}>{errorText(overview.error)}</Notice>}
     {o && <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label={t('m10ActiveStudents')} value={f.number(o.active_students)} hint={`${t('m10Guardians')}: ${f.number(o.guardians)}`} to="/admin/students" />
         <Tile label={t('m10ActiveStaff')} value={f.number(o.active_staff)} to="/admin/staff" />
         <Tile label={t('m10FeesOutstanding')} value={money(o.fees_outstanding)} hint={`${t('m10FeesOverdue')}: ${money(o.fees_overdue)}`} alert={o.fees_overdue > 0} to="/accounts/fees" />
@@ -62,7 +62,7 @@ export function AdminOverviewPage() {
         <Tile label={t('m10Storage')} value={formatBytes(o.attachment_bytes, locale)} hint={t('m10Attachments', { count: o.attachments, n: f.number(o.attachments) })} />
         <Tile label={t('m10Database')} value={formatBytes(o.database_bytes, locale)} hint={t('m10Schema', { version: o.schema_version })} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className={`${ui.card} p-5`}>
           <CardTitle icon="users">{t('m10UsersByRole')}</CardTitle>
           <ul className="mt-3 divide-y divide-slate-100">{o.users.map(r => <li key={r.role} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -114,7 +114,7 @@ export function AuditLogPage() {
   function submit(event: FormEvent) { event.preventDefault(); update({ search: search.trim() }) }
   const exportLink = filters.from && filters.to && !invalid ? `/admin/exports?from=${filters.from}&to=${filters.to}` : '/admin/exports'
   return <Shell title={t('m10AuditTitle')} description={t('m10AuditIntro')} actions={<Link to={exportLink} className={ui.secondary}>{t('m10ExportRange')}</Link>}>
-    <form onSubmit={submit} className={`${ui.card} grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6`} role="search">
+    <form onSubmit={submit} className={`${ui.card} grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6`} role="search">
       <label className="sm:col-span-2"><span className={ui.label}>{t('m10Search')}</span>
         <input className={ui.field} type="search" value={search} maxLength={100} placeholder={t('m10SearchHint')} onChange={e => setSearch(e.target.value)} onBlur={() => search.trim() !== filters.search && update({ search: search.trim() })} /></label>
       <label><span className={ui.label}>{t('m10Action')}</span>
@@ -147,7 +147,7 @@ function AuditRow({ event }: { event: AuditItem }) {
   const { t } = useTranslation()
   const f = useDhakaFormat()
   const metadata = event.metadata && typeof event.metadata === 'object' && Object.keys(event.metadata as object).length > 0 ? JSON.stringify(event.metadata, null, 2) : ''
-  return <li className="grid gap-1 px-4 py-3 sm:grid-cols-[11rem_minmax(0,1fr)_auto] sm:items-start sm:gap-4">
+  return <li className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[11rem_minmax(0,1fr)_auto] sm:items-start sm:gap-4">
     <time dateTime={event.created_at} className="text-xs tabular-nums text-slate-500 sm:pt-0.5">{f.dateTime(event.created_at)}</time>
     <div className="min-w-0">
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1"><code className="break-all font-mono text-sm font-semibold text-slate-900">{event.action}</code>
@@ -198,7 +198,7 @@ export function DataExportPage() {
     {result && <Notice tone={result.tone}>{result.text}</Notice>}
     {datasets.isError && <Notice tone="error" action={<button type="button" className={ui.ghost} onClick={() => void datasets.refetch()}>{t('m10Retry')}</button>}>{errorText(datasets.error)}</Notice>}
     {datasets.isPending && <Skeleton rows={4} />}
-    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{items.map(d => <li key={d.key} className={`${ui.card} flex flex-col p-4`}>
+    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{items.map(d => <li key={d.key} className={`${ui.card} flex flex-col p-4`}>
       <div className="flex items-start justify-between gap-2"><h2 className="font-bold text-slate-900">{t(`m10Dataset_${d.key}`)}</h2>
         {d.ranged && <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800 ring-1 ring-inset ring-sky-600/20">{t('m10Dated')}</span>}</div>
       <p className="mt-1 flex-1 text-sm text-slate-600">{t(`m10Dataset_${d.key}_desc`)}</p>
@@ -245,7 +245,7 @@ export function BackupsPage() {
   const statusTone = { running: 'bg-sky-50 text-sky-800 ring-sky-600/20', completed: 'bg-emerald-50 text-emerald-800 ring-emerald-600/20', failed: 'bg-rose-50 text-rose-800 ring-rose-600/20' }
   return <Shell title={t('m10BackupsTitle')} description={t('m10BackupsIntro')}
     actions={<button type="button" className={ui.primary} disabled={create.isPending} onClick={() => create.mutate()}>{create.isPending ? t('m10BackingUp') : t('m10BackupNow')}</button>}>
-    <div className="grid gap-3 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
       {runs.data && <Notice tone="info">{t('m10Retention', { count: runs.data.retention })}</Notice>}
       <Notice tone="warning">{t('m10BackupSecurity')}</Notice>
       <Notice tone="info">{t('m10RestoreHelp')}</Notice>
@@ -341,7 +341,7 @@ export function ModulesPage({ canManage }: { canManage: boolean }) {
     </div>}
     {modules.isError && <Notice tone="error" action={<button type="button" className={ui.ghost} onClick={() => void modules.refetch()}>{t('m10Retry')}</button>}>{errorText(modules.error)}</Notice>}
     {modules.isPending && <Skeleton rows={5} />}
-    {modules.data && <ul className="grid gap-3 md:grid-cols-2">{modules.data.items.map(m => <li key={m.key} className={`${ui.card} flex items-start justify-between gap-4 p-4`}>
+    {modules.data && <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">{modules.data.items.map(m => <li key={m.key} className={`${ui.card} flex items-start justify-between gap-4 p-4`}>
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">{name(m.key)}
           {m.is_core && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{t('m10Core')}</span>}</p>

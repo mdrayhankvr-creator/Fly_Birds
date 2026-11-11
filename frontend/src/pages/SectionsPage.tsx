@@ -67,9 +67,9 @@ export function SectionsPage({ canManage }: { canManage: boolean }) {
     <LinkTabs label={t('academicStructure')} items={[{ to: '/admin/academic/sessions', label: t('academicSessions') }, { to: '/admin/academic/classes', label: t('classesHeading') }, { to: '/admin/academic/sections', label: t('sectionsHeading') }, { to: '/admin/academic/subjects', label: t('subjectsHeading') }]} />
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
     {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</p>}
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,1fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,1fr)]">
       <section className={`${ui.card} min-w-0 p-4 sm:p-6`} aria-label={t('academicDirectory')}>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className={ui.label}>{t('search')}<input className={field} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></label>
           <label className={ui.label}>{t('status')}<select className={field} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}><option value="">{t('allStatuses')}</option><option value="active">{t('active')}</option><option value="inactive">{t('inactive')}</option></select></label>
           <label className={ui.label}>{t('sectionSession')}<select className={field} value={sessionFilter} onChange={(e) => { setSessionFilter(e.target.value); setPage(1) }}><option value="">{t('sectionAllSessions')}</option>{sessions.data?.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>

@@ -33,7 +33,7 @@ async function shrink(file: File, edge: number): Promise<Blob> {
 }
 
 function Pair({ label, children }: { label: string; children: ReactNode }) {
-  return <fieldset className="min-w-0"><legend className="text-sm font-bold text-slate-800">{label}</legend><div className="mt-2 grid gap-3 md:grid-cols-2">{children}</div></fieldset>
+  return <fieldset className="min-w-0"><legend className="text-sm font-bold text-slate-800">{label}</legend><div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">{children}</div></fieldset>
 }
 
 function GalleryRow({ photo, index, authorized, busy, onChanged, onError }: { photo: GalleryPhoto; index: number; authorized: Authorized; busy: boolean; onChanged: (m: string) => Promise<void>; onError: (m: string) => void }) {
@@ -47,10 +47,10 @@ function GalleryRow({ photo, index, authorized, busy, onChanged, onError }: { ph
     setSaving(true)
     try { await task(); await onChanged(t('c5PublicSaved')) } catch { onError(t('c5PublicFailed')) } finally { setSaving(false) }
   }
-  return <li className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
+  return <li className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
     <img src={galleryImageUrl(photo, true)} alt={label} loading="lazy" decoding="async" className="aspect-[4/3] w-full rounded-lg bg-slate-100 object-cover" />
     <div className="min-w-0 space-y-2">
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className={ui.label}>{t('p3PhotoCaptionEN')}<input className={ui.field} maxLength={140} value={en} disabled={busy || saving} onChange={e => setEn(e.target.value)} /></label>
         <label className={ui.label}>{t('p3PhotoCaptionBN')}<input className={ui.field} maxLength={140} lang="bn" value={bn} disabled={busy || saving} onChange={e => setBn(e.target.value)} /></label>
       </div>

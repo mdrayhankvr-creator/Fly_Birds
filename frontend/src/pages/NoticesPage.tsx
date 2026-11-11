@@ -105,7 +105,7 @@ function NoticeManager() {
     {message && <Banner tone={message.tone}>{message.text}</Banner>}
     {editing ? <form onSubmit={save} className={`${ui.card} space-y-4 p-4 sm:p-6`} aria-labelledby="notice-editor">
       <div className="flex flex-wrap items-center justify-between gap-2"><CardTitle id="notice-editor" icon="megaphone">{current ? t('m9EditNotice') : t('m9NewNotice')}</CardTitle>{current && <span className="text-sm text-slate-500">{t(`m9Status_${current.status}`)}</span>}</div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Field label={t('m9TitleEn')}><input required maxLength={200} className={ui.field} value={form.title_en} onChange={e => setForm({ ...form, title_en: e.target.value })} /></Field>
         <Field label={t('m9TitleBn')}><input lang="bn" className={ui.field} value={form.title_bn} onChange={e => setForm({ ...form, title_bn: e.target.value })} /></Field>
         <Field label={t('m9BodyEn')}><textarea rows={5} className={ui.field} value={form.body_en} onChange={e => setForm({ ...form, body_en: e.target.value })} /></Field>

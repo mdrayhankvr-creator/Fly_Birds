@@ -175,9 +175,9 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
       {sections.map(([target, label]) => <a key={target} href={`#${target}`} className="btn btn-quiet btn-sm shrink-0" onClick={event => { event.preventDefault(); document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{t(label)}</a>)}
     </nav>
 
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <SectionCard title={t('profilePersonal')} id="profile-personal" icon="user">
-        <dl className="grid gap-4 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t('studentNameEN')}>{value.name_en}</Field>
           <Field label={t('studentNameBN')}>{value.name_bn}</Field>
           <Field label={t('dateOfBirth')}>{formatDate(value.date_of_birth, i18n.language)}</Field>
@@ -186,7 +186,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         </dl>
       </SectionCard>
       <SectionCard title={t('profileFamily')} id="profile-family" icon="users">
-        <dl className="grid gap-4 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t('profileFather')}>{pick(value.father_name_en, value.father_name_bn)}</Field>
           <Field label={t('profileMother')}>{pick(value.mother_name_en, value.mother_name_bn)}</Field>
           <Field label={t('profileGuardian')}>{guardian ? pick(guardian.name_en, guardian.name_bn) : ''}</Field>
@@ -201,7 +201,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         </dl>
       </SectionCard>
       <SectionCard title={t('profileAcademic')} id="profile-academic" icon="book">
-        <dl className="grid gap-4 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t('idCardStudentId')}>{value.student_code}</Field>
           <Field label={t('admissionNo')}>{value.admission_no}</Field>
           <Field label={t('classLabel')}>{value.class_name}</Field>
@@ -245,7 +245,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         {editor.kind === 'closed' ? <div className="flex flex-wrap gap-2">
           <button type="button" className={ui.primary} onClick={() => openEditor({ kind: 'new' })}><Icon name="user" className="h-4 w-4" />{t('p1GuardianAddNew')}</button>
           <button type="button" className={ui.secondary} onClick={() => openEditor({ kind: 'existing' })}>{t('p1GuardianLinkExisting')}</button></div>
-        : <form className="grid gap-3 sm:grid-cols-2" onSubmit={e => void saveEditor(e)} aria-labelledby="guardian-editor-title">
+        : <form className="grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={e => void saveEditor(e)} aria-labelledby="guardian-editor-title">
           <h3 id="guardian-editor-title" className="text-base font-semibold text-slate-900 sm:col-span-2">{t(editor.kind === 'new' ? 'p1GuardianAddNew' : editor.kind === 'edit' ? 'editGuardian' : 'p1GuardianLinkExisting')}</h3>
           {editor.kind === 'existing' ? <>
             <label className={ui.label}>{t('search')}<input className={ui.field} placeholder={t('search')} value={guardianSearch} onChange={e => setGuardianSearch(e.target.value)} /></label>

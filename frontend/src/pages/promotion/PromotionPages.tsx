@@ -67,7 +67,7 @@ function ProgressionPage({ caps }: { caps: Caps }) {
     {progression.isPending ? <Skeleton rows={4} /> : progression.isError ? <Notice tone="error">{t('pmLoadFailed')}</Notice> : <>
       {unset > 0 ? <Notice tone="warning"><span className="font-semibold">{t('pmUnsetCount', { count: unset, n: num(unset) })}</span> {t('pmUnsetHint')}</Notice>
         : <Notice tone="success">{t('pmAllSet')}</Notice>}
-      <ul className="grid gap-3 lg:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {rows.map(row => <ProgressionRow key={row.class_id + row.setting + (row.next_class_id ?? '')} row={row} rows={rows} canEdit={caps.manage} />)}
       </ul>
     </>}
@@ -206,7 +206,7 @@ function CreateBatch({ batches }: { batches: PromotionBatch[] }) {
   }
   return <SectionCard id="pm-create" title={t('pmCreateTitle')} description={t('pmCreateIntro')}>
     {sessions.isPending || classes.isPending ? <Skeleton rows={1} /> : sessions.isError || classes.isError ? <Notice tone="error">{t('pmLoadFailed')}</Notice> :
-      <form onSubmit={submit} className="grid gap-4 sm:grid-cols-3">
+      <form onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className={ui.label}>{t('pmFromSession')}
           <select className={ui.field} required value={fromId} onChange={e => setFrom(e.target.value)}>
             {defaults.sorted.map(s => <option key={s.id} value={s.id}>{s.name}{s.is_active ? ` · ${t('pmActive')}` : ''}</option>)}
@@ -250,7 +250,7 @@ function ConcessionsPage({ caps }: { caps: Caps }) {
   const bn = i18n.language === 'bn'
   return <PromotionFrame caps={caps} title={t('pmConcessionsTitle')} description={t('pmConcessionsIntro')}>
     <SectionCard id="pm-conc" title={t('pmConcessionsList')} actions={<Link to="/accounts/fees" className={ui.secondary}><Icon name="money" className="h-4 w-4" />{t('pmOpenFees')}</Link>}>
-      {sessions.isPending ? <Skeleton rows={1} /> : <div className="grid gap-4 sm:grid-cols-2">
+      {sessions.isPending ? <Skeleton rows={1} /> : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className={ui.label}>{t('pmFromSession')}<select className={ui.field} value={fromId} onChange={e => setFrom(e.target.value)}>
           {defaults.sorted.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('pmToSession')}<select className={ui.field} value={toId} onChange={e => setTo(e.target.value)}>

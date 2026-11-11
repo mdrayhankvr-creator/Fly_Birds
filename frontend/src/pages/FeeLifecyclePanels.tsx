@@ -58,7 +58,7 @@ export function CancellationsPanel({ access }: { access: FeeAccess }) {
         <p className="mt-1 text-xs text-slate-500">{t('afCancelRecorded', { date: c.created_at, name: c.created_by_name || t('afCancelAutomatic') })}</p>
         {c.reverted_at && <p className="mt-1 text-xs text-slate-600">{t('afRevertedOn', { date: c.reverted_at, name: c.reverted_by_name, reason: c.revert_reason })}</p>}
         {!c.reverted_at && isAdmin && reverting?.item.id !== c.id && <button type="button" className={`${ui.secondary} mt-2`} onClick={() => setReverting({ item: c, reason: '' })}>{t('afRevert')}</button>}
-        {reverting?.item.id === c.id && <form onSubmit={e => void revert(e)} className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" aria-label={t('afRevertTitle')}>
+        {reverting?.item.id === c.id && <form onSubmit={e => void revert(e)} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" aria-label={t('afRevertTitle')}>
           <label className={ui.label}>{t('afRevertReason')}<input required autoFocus maxLength={240} className={feeField} value={reverting.reason} onChange={e => setReverting({ ...reverting, reason: e.target.value })} /></label>
           <div className="flex items-end gap-2"><button disabled={action.busy || !reverting.reason.trim()} className={ui.primary}>{t('afRevert')}</button><button type="button" className={ui.secondary} onClick={() => setReverting(null)}>{t('feeCancel')}</button></div>
         </form>}
@@ -91,7 +91,7 @@ export function ReversePaymentPanel({ payment, onDone }: { payment: FeePayment; 
     <summary className="cursor-pointer text-base font-bold text-slate-900">{t('afReverseTitle')}</summary>
     <p className="mt-1 max-w-3xl text-sm text-slate-600">{t('afReverseHint')}</p>
     <div className="mt-3"><Notice error={action.error} message={action.message} /></div>
-    <form onSubmit={e => void reverse(e)} className="mt-3 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+    <form onSubmit={e => void reverse(e)} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
       <fieldset>
         <legend className={ui.label}>{t('afReverseKind')}</legend>
         <div className="mt-1.5 flex flex-wrap gap-3 text-sm">

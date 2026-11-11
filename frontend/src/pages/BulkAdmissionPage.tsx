@@ -80,7 +80,7 @@ export function BulkAdmissionPage({ canCreateLogins }: { canCreateLogins: boolea
     </SectionCard>
 
     <SectionCard title={t('c5BulkStep2')} id="bulk-upload" icon="upload">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={ui.label}>{t('sessionLabel')}<select className={ui.field} value={sessionId} onChange={e => { setSessionId(e.target.value); void check(null) }}>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('c5ChooseFile')}<input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className={ui.field} disabled={!sessionId || busy} onChange={e => { const f = e.target.files?.[0] ?? null; e.target.value = ''; void check(f) }} /></label>
       </div>

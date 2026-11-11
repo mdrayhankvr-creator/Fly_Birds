@@ -89,7 +89,7 @@ export function PublicSections() {
     </Section>}
 
     {v.head && message && <Section id="public-head" title={t('c5HeadTitle')}>
-      <figure className="grid max-w-4xl gap-6 rounded-3xl border border-slate-200 bg-white p-5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:p-8">
+      <figure className="grid grid-cols-1 max-w-4xl gap-6 rounded-3xl border border-slate-200 bg-white p-5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:p-8">
         {v.head.photo_version ? <img src={headPhotoUrl(v.head.photo_version)} alt={headName ? t('c5HeadPhotoAlt', { name: headName }) : ''} width={480} height={480} loading="lazy" decoding="async" className="h-32 w-32 rounded-2xl object-cover sm:h-40 sm:w-40" />
           : <span aria-hidden="true" className="grid h-32 w-32 place-items-center rounded-2xl bg-[var(--brand-soft)] text-4xl font-bold text-[var(--brand-ink)] sm:h-40 sm:w-40">{[...(headName || '·')][0]}</span>}
         <div className="min-w-0">
@@ -111,7 +111,7 @@ export function PublicSections() {
     </Section>}
 
     {v.notices.length > 0 && <Section id="public-notices" title={t('c5NoticesTitle')}>
-      <ul className="grid gap-3 md:grid-cols-2">{v.notices.map(n => <li key={n.id} className={`rounded-2xl border bg-white p-5 ${n.priority === 'urgent' ? 'border-rose-300' : n.priority === 'important' ? 'border-amber-300' : 'border-slate-200'}`}>
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">{v.notices.map(n => <li key={n.id} className={`rounded-2xl border bg-white p-5 ${n.priority === 'urgent' ? 'border-rose-300' : n.priority === 'important' ? 'border-amber-300' : 'border-slate-200'}`}>
         <p className="text-xs font-semibold text-slate-500"><time dateTime={n.publish_at}>{date(n.publish_at)}</time>{n.priority !== 'normal' && <> · <span className={n.priority === 'urgent' ? 'text-rose-700' : 'text-amber-800'}>{t(`m9Priority_${n.priority}`)}</span></>}</p>
         <h3 className="mt-1 text-lg font-bold text-slate-900">{pick(bn, n.title_en, n.title_bn)}</h3>
         <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{pick(bn, n.body_en, n.body_bn)}</p>
@@ -119,7 +119,7 @@ export function PublicSections() {
     </Section>}
 
     {v.contact && <Section id="public-contact" title={t('c5ContactTitle')}>
-      <dl className="grid max-w-4xl gap-3 sm:grid-cols-2">
+      <dl className="grid grid-cols-1 max-w-4xl gap-3 sm:grid-cols-2">
         {address && <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2"><dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"><Icon name="home" className="h-4 w-4" />{t('c5Address')}</dt><dd className="mt-1 whitespace-pre-line text-slate-900">{address}</dd>
           {v.contact.map_url && <dd className="mt-2"><a href={v.contact.map_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--brand-ink)] underline decoration-2 underline-offset-4">{t('c5OpenMap')}</a></dd>}</div>}
         {!address && v.contact.map_url && <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2"><a href={v.contact.map_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--brand-ink)] underline decoration-2 underline-offset-4">{t('c5OpenMap')}</a></div>}

@@ -130,7 +130,7 @@ function HeldCard({ term }: { term: AdmitTerm }) {
     {message && <div className="mt-3"><Notice tone={message.tone}>{message.text}</Notice></div>}
     {on && (held.isPending ? <Skeleton rows={2} /> : held.isError ? <Notice tone="error">{t('msLoadError')}</Notice> : held.data.length === 0 ?
       <p className="mt-3 text-sm text-slate-600">{t('msAdmitNoHeld')}</p> :
-      <ul className="mt-4 divide-y divide-slate-100">{held.data.map(s => <li key={s.student_id} className="grid gap-2 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_auto] md:items-center">
+      <ul className="mt-4 divide-y divide-slate-100">{held.data.map(s => <li key={s.student_id} className="grid grid-cols-1 gap-2 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_auto] md:items-center">
         <div className="min-w-0 text-sm">
           <p className="font-semibold text-slate-900">{nameOf(s)} <span className="font-normal text-slate-600">· {s.class_name} {s.section_name}{s.roll_no != null ? ` · ${t('msRoll')} ${num(String(s.roll_no))}` : ''}</span></p>
           <p className="text-slate-700">{t('msAdmitDue')}: <strong className="tabular-nums">{num(s.due)}</strong>{s.oldest_due && <> · {t('msAdmitOldest')}: {day(s.oldest_due)}</>}</p>
@@ -168,7 +168,7 @@ function SettingsCard() {
   }
   return <form className={`${ui.card} space-y-4 p-4 sm:p-5`} aria-labelledby="admit-settings" onSubmit={e => { e.preventDefault(); void save() }} data-testid="admit-settings">
     <CardTitle id="admit-settings" icon="settings">{t('msAdmitSettingsTitle')}</CardTitle>
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <label className={ui.label} htmlFor={`${uid}-en`}>{t('msAdmitRulesEN')}
         <textarea id={`${uid}-en`} className={`${ui.field} min-h-36`} maxLength={2000} placeholder={settings.data?.default_rules_en} value={form.rules_en} onChange={e => setForm({ ...form, rules_en: e.target.value })} /></label>
       <label className={ui.label} htmlFor={`${uid}-bn`}>{t('msAdmitRulesBN')}

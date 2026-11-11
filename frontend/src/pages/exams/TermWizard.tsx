@@ -74,7 +74,7 @@ export function TermWizard({ canManage }: { canManage: boolean }) {
     <PageHeader eyebrow={t('bpSetupTitle')} title={t('bpWizardTitle', { name: p.term.name })} description={t('bpWizardIntro')}
       actions={<Link to={`/admin/exams/setup?session=${session}`} className={ui.secondary}>{t('bpBackToSetup')}</Link>} />
     {!canManage && <Notice tone="info">{t('bpReadOnlyRole')}</Notice>}
-    <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
       <nav aria-label={t('bpSteps')} className={`${ui.card} p-3`}>
         <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-slate-100 lg:hidden" role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={index + 1} aria-label={t('bpStepOf', { n: index + 1, total: steps.length })}>
           <div className="h-full rounded-full bg-[var(--brand-primary)]" style={{ width: `${((index + 1) / steps.length) * 100}%` }} />
@@ -95,7 +95,7 @@ export function TermWizard({ canManage }: { canManage: boolean }) {
         <p className="mt-1 text-sm text-slate-600">{t(`bpStepIntro_${step}`)}</p>
         {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}
         <div className="mt-5">
-          {step === 'term' && <div className="grid gap-3 sm:grid-cols-2">
+          {step === 'term' && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className={`${ui.label} sm:col-span-2`}>{t('bpTermName')}<input disabled={!canManage} required maxLength={120} className={ui.field} value={term.name} onChange={e => setTerm({ ...term, name: e.target.value })} /></label>
             <label className={ui.label}>{t('bpTermKind')}<select disabled={!canManage || p.term.exams > 0} className={ui.field} value={term.kind} onChange={e => setTerm({ ...term, kind: e.target.value as ExamTerm['kind'] })}><option value="term">{t('bpKindTerm')}</option><option value="annual">{t('bpKindAnnual')}</option></select></label>
             <div className="flex items-end"><TermChip status={p.term.status} /></div>
@@ -125,7 +125,7 @@ export function TermWizard({ canManage }: { canManage: boolean }) {
           {step === 'assessments' && (p.assessments.length === 0 ? <p className="text-sm text-slate-600">{t('bpChooseClassesFirst')}</p> : <>
             <DueForAll disabled={!canManage} onApply={date => setSetup({ ...setup, due: Object.fromEntries(p.assessments.map(a => [a.key, date])) })} />
             <ul className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200">
-              {p.assessments.map(a => <li key={a.key} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+              {p.assessments.map(a => <li key={a.key} className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
                 <div><p className="font-semibold text-slate-900">{a.name} <span className="font-mono text-xs font-normal text-slate-500">{a.key}</span></p><p className="text-sm text-slate-600">{t(`bpKind_${a.kind}`)} · {t('bpClassesCount', { count: a.classes })}</p></div>
                 <label className="text-xs font-semibold text-slate-600">{t('bpDue')}<input disabled={!canManage} type="date" required className={`${ui.field} ${!setup.due[a.key] ? 'border-amber-400' : ''}`} value={setup.due[a.key] || ''} onChange={e => setSetup({ ...setup, due: { ...setup.due, [a.key]: e.target.value } })} /></label>
               </li>)}
@@ -135,7 +135,7 @@ export function TermWizard({ canManage }: { canManage: boolean }) {
           {step === 'sheets' && <SheetsStep p={p} setup={setup} setSetup={setSetup} canManage={canManage} />}
 
           {step === 'review' && <div className="space-y-4">
-            <dl className="grid gap-3 sm:grid-cols-4">
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <Figure label={t('bpFigClasses')} value={setup.class_ids.length} />
               <Figure label={t('bpFigExams')} value={p.new_exams} hint={p.exams > p.new_exams ? t('bpFigExisting', { count: p.exams - p.new_exams }) : undefined} />
               <Figure label={t('bpFigSheets')} value={p.to_create} hint={p.sheets > p.to_create ? t('bpFigExisting', { count: p.sheets - p.to_create }) : undefined} />
@@ -188,7 +188,7 @@ function SheetsStep({ p, setup, setSetup, canManage }: { p: SetupPlan; setup: Te
       <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
         {p.gaps.map(g => {
           const key = `${g.class_id}|${g.subject_id}`
-          return <li key={key} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_16rem] sm:items-center">
+          return <li key={key} className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_16rem] sm:items-center">
             <p><span className="font-semibold text-slate-900">{g.class_name} · {g.subject_name}</span><span className="block text-sm text-slate-600">{t('bpGapSheets', { count: g.sheets })}</span></p>
             <label className="sr-only" htmlFor={`gap-${key}`}>{t('bpAssignTeacher', { subject: g.subject_name, class: g.class_name })}</label>
             <select id={`gap-${key}`} disabled={!canManage} className="min-h-10 rounded-lg border border-slate-300 bg-white px-2 text-sm" value={setup.assignees[key] || ''}

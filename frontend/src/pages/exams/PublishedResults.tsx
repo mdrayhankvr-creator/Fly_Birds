@@ -22,7 +22,7 @@ export function PublishedResults({ childId }: { childId?: string }) {
   const chosen = results.data.find(r => r.id === open)
   return <section aria-labelledby="rv-published-title" className="space-y-3 print:hidden">
     <CardTitle id="rv-published-title" icon="grade">{t('rvTermResultsTitle')}</CardTitle>
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{results.data.map(r => <li key={r.id}><ResultCardButton r={r} selected={open === r.id} onOpen={() => setOpen(open === r.id ? '' : r.id)} /></li>)}</ul>
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{results.data.map(r => <li key={r.id}><ResultCardButton r={r} selected={open === r.id} onOpen={() => setOpen(open === r.id ? '' : r.id)} /></li>)}</ul>
     {chosen && <ResultDetail r={chosen} download={!childId} />}
   </section>
 }

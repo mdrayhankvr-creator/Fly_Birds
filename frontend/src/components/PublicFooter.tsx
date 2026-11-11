@@ -70,7 +70,7 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
   if (v?.contact) links.push({ key: 'contact', label: t('ppFooterContactLink'), to: '/#public-contact', onClick: section('public-contact') })
 
   return <footer className="public-footer border-t border-slate-200 bg-white" data-public-footer>
-    <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)]">
+    <div className="mx-auto grid grid-cols-1 max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)]">
       <section aria-label={t('ppFooter')} className="min-w-0">
         {name && <div className="flex min-w-0 items-center gap-3">
           <SchoolMark branding={branding} size="h-11 w-11" />

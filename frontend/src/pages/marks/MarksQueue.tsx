@@ -41,7 +41,7 @@ export function MarksQueue() {
         {items.map(s => {
           const writable = s.exam_status === 'draft' && (s.status === 'not_started' || s.status === 'in_progress' || s.status === 'returned')
           return <li key={s.sheet_id}>
-            <Link to={`/teacher/exams/${s.exam_id}/sheets/${s.sheet_id}`} className="grid gap-x-4 gap-y-2 px-4 py-3.5 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--brand-primary)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
+            <Link to={`/teacher/exams/${s.exam_id}/sheets/${s.sheet_id}`} className="grid grid-cols-1 gap-x-4 gap-y-2 px-4 py-3.5 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--brand-primary)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
               <span className="min-w-0">
                 <span className="flex flex-wrap items-center gap-2"><span className="font-semibold text-slate-900">{subject(s)}</span><SheetChip status={s.status} /></span>
                 <span className="mt-0.5 block truncate text-sm text-slate-600">{s.class_name} · {s.section_name} · {s.exam_name} · {s.session_name}</span>

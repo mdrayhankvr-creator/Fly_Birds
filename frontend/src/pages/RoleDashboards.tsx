@@ -237,7 +237,7 @@ function AdminDashboard({ ctx }: { ctx: Ctx }) {
     actions={<Actions keys={['students', 'fees', 'notices', 'staff', 'settings']} />}
     main={<>
       {analytics && ctx.nav.has('student_attendance') && <AttendanceTrend title={t('m12AttendanceLast30')} />}
-      <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
         {analytics && <Insights />}
         {ctx.nav.has('notices') && <NoticesPanel />}
       </div>
@@ -275,7 +275,7 @@ function HeadTeacherDashboard({ ctx }: { ctx: Ctx }) {
     actions={<Actions keys={['student_attendance', 'teacher_attendance', 'exams', 'routines', 'notices']} />}
     main={<>
       {analytics && ctx.nav.has('student_attendance') && <AttendanceTrend title={t('m12AttendanceLast30')} />}
-      <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
         {analytics && <Insights />}
         {ctx.nav.has('notices') && <NoticesPanel />}
       </div>
@@ -315,7 +315,7 @@ function TeacherDashboard({ ctx }: { ctx: Ctx }) {
       {ctx.nav.has('routine_teacher') && <ClassStrip path="/routines/classes/me" title={t('m12TodaysClasses')} teacherView link="/teacher/routine" />}
       {ctx.nav.has('routine_teacher') && <DutiesCard />}
       {assignments.data && <Panel title={t('m12AssignedClasses')} icon="teacher" module="people">
-        {classes.length === 0 ? <Empty>{t('m12NoAssignments')}</Empty> : <ul className="grid gap-2 sm:grid-cols-2">{classes.map(a => <li key={a.id} className="ds-softer ds-edge flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5" style={tone(subjectColour(a.subject_id))}>
+        {classes.length === 0 ? <Empty>{t('m12NoAssignments')}</Empty> : <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">{classes.map(a => <li key={a.id} className="ds-softer ds-edge flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5" style={tone(subjectColour(a.subject_id))}>
           <span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-900">{a.class_name}</span><span className="ds-ink text-xs font-semibold">{local(a.subject_name_en, a.subject_name_bn)}</span></span>
           {ctx.nav.has('exam_teacher') && <Link to="/teacher/exams" className="shrink-0 text-xs font-semibold text-[var(--brand-ink)] hover:underline">{t('m12EnterMarks')}</Link>}</li>)}</ul>}
       </Panel>}

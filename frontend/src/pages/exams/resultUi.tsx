@@ -231,7 +231,7 @@ function VersionDetail({ id }: { id: string }) {
   return <div className="mt-2 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
     <p role="status" className={ok ? 'font-semibold text-emerald-800' : 'font-semibold text-amber-900'}>{ok ? t('rvVerified') : t('rvNotReproduced', { fields: d.verification.differences.join(', ') })}</p>
     {d.verification.note && <p className="text-xs text-slate-600">{d.verification.note}</p>}
-    <dl className="grid gap-1 text-xs text-slate-600 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
+    <dl className="grid grid-cols-1 gap-1 text-xs text-slate-600 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
       <dt>{t('rvInputsHash')}</dt><dd className="break-all font-mono">{d.version.inputs_sha256}</dd>
       <dt>{t('rvRulesHash')}</dt><dd className="break-all font-mono">{d.rules_sha256}</dd>
       <dt>{t('rvBands')}</dt><dd>{t(d.rules.bands_source === 'blueprint_version' ? 'rvBandsVersion' : 'rvBandsSchool')}</dd>

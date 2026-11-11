@@ -17,7 +17,7 @@ export function PasswordSlip({ name, email, loginId, password, expiresAt }: { na
       <div><p className="font-bold text-slate-900">{school}</p><h3 id="password-slip-title" className="text-base font-semibold text-slate-800">{t('c4SlipTitle')}</h3></div>
       <p className="text-sm text-slate-600">{date}</p>
     </header>
-    <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+    <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="min-w-0"><dt className={label}>{t('displayName')}</dt><dd className="mt-0.5 font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name || '—'}</dd></div>
       {loginId && <div className="min-w-0"><dt className={label}>{t('c5SignInId')}</dt><dd className="mt-0.5 font-mono font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{loginId}</dd></div>}
       {!isPlaceholderEmail(email) && <div className="min-w-0"><dt className={label}>{t('c3LoginEmail')}</dt><dd className="mt-0.5 font-mono font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{email}</dd></div>}

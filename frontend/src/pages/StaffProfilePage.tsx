@@ -69,7 +69,7 @@ export function StaffProfilePage() {
       </div>
     </section>
 
-    <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 min-w-0 gap-5 lg:grid-cols-2">
       <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-today">
         <CardTitle id="staff-today" icon="clock">{t('c4TodayRoutine')}</CardTitle>
         {p.today.length === 0 ? <div className="mt-3"><EmptyState icon="calendar" title={t('c4NoPeriodsToday')} /></div> :
@@ -81,7 +81,7 @@ export function StaffProfilePage() {
 
       {(p.phone !== undefined || p.email !== undefined || p.qualifications !== undefined) && <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-contact">
         <CardTitle id="staff-contact" icon="user">{t('c4ContactAndQualifications')}</CardTitle>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+        <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {p.phone !== undefined && <Fact icon="phone" label={t('phoneLabel')}>{p.phone ? <a className={ui.link} href={`tel:${p.phone.replace(/[^+0-9]/g, '')}`}>{p.phone}</a> : <span className="font-normal text-slate-500">{t('profileNotProvided')}</span>}</Fact>}
           {p.email !== undefined && <Fact icon="mail" label={t('email')}>{p.email ? <a className={ui.link} href={`mailto:${p.email}`}>{p.email}</a> : <span className="font-normal text-slate-500">{t('profileNotProvided')}</span>}</Fact>}
         </dl>
@@ -152,13 +152,13 @@ function OfficialCard({ profile: p, busy, onSave, onRemoveNID }: { profile: Staf
       <CardTitle id="staff-official" icon="shield">{t('c4Official')}</CardTitle>
       {p.can_edit_official && !editing && <button type="button" className={`${ui.secondary} btn-sm`} onClick={() => setEditing(true)}>{t('edit')}</button>}
     </div>
-    {editing ? <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={e => void save(e)}>
+    {editing ? <form className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={e => void save(e)}>
       <label className={`${ui.label} sm:col-span-2`}>{t('email')}<input type="email" maxLength={254} className={ui.field} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
       <label className={ui.label}>{t('c4MPO')}<input maxLength={40} className={ui.field} value={form.mpo_index} onChange={e => setForm({ ...form, mpo_index: e.target.value })} /></label>
       <label className={ui.label}>{t('c4NID')}<input inputMode="numeric" autoComplete="off" pattern="[0-9 ]{10,20}" className={`${ui.field} font-mono`} placeholder={t('c4NIDKeep')} value={form.nid} onChange={e => setForm({ ...form, nid: e.target.value })} /></label>
       <p className="text-xs text-slate-500 sm:col-span-2">{t('c4NIDRule')}</p>
       <div className="flex flex-wrap gap-2 sm:col-span-2"><button disabled={busy} className={ui.primary}>{t('saveChanges')}</button><button type="button" className={ui.secondary} onClick={() => setEditing(false)}>{t('cancel')}</button></div>
-    </form> : <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+    </form> : <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
       {p.joined_on !== undefined && <Fact icon="calendar" label={t('c4JoinedOn')}>{p.joined_on}</Fact>}
       {p.mpo_index !== undefined && <Fact label={t('c4MPO')}>{p.mpo_index || <span className="font-normal text-slate-500">{t('profileNotProvided')}</span>}</Fact>}
       {p.nid_masked !== undefined && <div className="min-w-0 sm:col-span-2">
@@ -182,7 +182,7 @@ function OwnSettings({ qualifications, visibility, busy, onSave }: { qualificati
   const set = (field: Field, audience: keyof Audience, value: boolean) => setShare(v => ({ ...v, [field]: { ...v[field], [audience]: value } }))
   return <form className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-own" onSubmit={e => { e.preventDefault(); void onSave({ qualifications: list.map(q => q.trim()).filter(Boolean), visibility: share }) }}>
     <CardTitle id="staff-own" icon="settings">{t('c4OwnSettings')}</CardTitle>
-    <div className="mt-4 grid gap-6 lg:grid-cols-2">
+    <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
       <fieldset className="min-w-0">
         <legend className="text-sm font-bold text-slate-900">{t('c4Qualifications')}</legend>
         <ul className="mt-2 space-y-2">{list.map((q, i) => <li key={i} className="flex gap-2">

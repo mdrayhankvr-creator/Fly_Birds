@@ -138,7 +138,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
         </section>
 
         {statement.isPending ? <div className={feeCard} role="status"><span className="sr-only">{t('feeLoading')}</span><Skeleton rows={4} /></div> : statement.isError ? <p role="alert" className={`${feeCard} text-rose-700`}>{t('feeErrGeneric')}</p> :
-          <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-start">
+          <div className="grid grid-cols-1 min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-start">
             <section className={`${feeCard} print:hidden`} aria-labelledby="counter-dues">
               <div className="flex flex-wrap items-baseline justify-between gap-2"><CardTitle id="counter-dues" icon="receipt">{t('c3DuesOldestFirst')}</CardTitle><p className="text-sm font-semibold text-slate-700">{t('c3TotalDue')}: <span className="tabular-nums">{money(statement.data.totals.balance)}</span></p></div>
               {outstanding.length === 0 ? <div className="mt-3"><EmptyState icon="check" title={t('feeNothingOutstanding')} /></div> : <>
@@ -188,7 +188,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
         {access.canManage && <details className={`${feeCard} print:hidden`}>
           <summary className="cursor-pointer text-base font-bold text-slate-900">{t('feeAssignTitle')}</summary>
           <p className="mt-1 text-sm text-slate-600">{t('feeAssignHint')}</p>
-          <form onSubmit={assignDue} className="mt-3 grid gap-3 sm:grid-cols-3">
+          <form onSubmit={assignDue} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className={ui.label}>{t('feeStructure')}<select required className={feeField} value={assign.structure_id} onChange={e => setAssign({ ...assign, structure_id: e.target.value })}><option value="">{t('feeChoose')}</option>{structures.data?.items.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{name(s.category_name_en, s.category_name_bn)} · {money(s.amount)}</option>)}</select></label>
             <label className={ui.label}>{t('feeMonth')}<input type="month" required={selectedStructure?.frequency !== 'one_time'} className={feeField} value={assign.period} onChange={e => setAssign({ ...assign, period: e.target.value })} /></label>
             <div className="flex items-end"><button disabled={action.busy} className={`${ui.primary} w-full`}>{t('feeAssign')}</button></div>

@@ -129,7 +129,7 @@ export function StudentPicker({ onPick, label }: { onPick: (student: FeeStudent)
     <label className={ui.label}>{label ?? t('feeFindStudent')}<input className={feeField} value={search} placeholder={t('feeFindStudentHint')} onChange={e => setSearch(e.target.value)} /></label>
     {students.isError && <p role="alert" className="mt-2 text-sm text-rose-700">{t('feeErrGeneric')}</p>}
     {students.data && (students.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-600">{t('feeNoStudents')}</p> :
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{students.data.items.map(s => <li key={s.id}><button type="button" className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-[var(--brand-primary)] hover:bg-[var(--brand-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" onClick={() => { onPick(s); setSearch('') }}>
+      <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">{students.data.items.map(s => <li key={s.id}><button type="button" className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-[var(--brand-primary)] hover:bg-[var(--brand-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" onClick={() => { onPick(s); setSearch('') }}>
         <strong>{name(s.name_en, s.name_bn)}</strong><span className="block text-xs text-slate-600">{s.admission_no} · {s.class_name} / {s.section_name} · {s.session_name}</span></button></li>)}</ul>)}
   </div>
 }
@@ -152,7 +152,7 @@ export function ReceiptView({ receipt, onClose, actions = true }: { receipt: Fee
     {p.voided_at && <div role="note" className="mt-3 rounded-xl border-2 border-slate-800 bg-slate-50 p-3 text-slate-900"><VoidLabel /><p className="mt-1 text-sm">{t('feeVoidedOn', { date: p.voided_at, reason: p.void_reason })}</p></div>}
     {p.reversed_at && <div role="note" className="mt-3 rounded-xl border-2 border-amber-700 bg-amber-50 p-3 text-amber-900"><ReversedLabel /><p className="mt-1 text-sm">{t('afReversedOn', { date: p.reversed_at, name: p.reversed_by_name, kind: t(`afReverseKind_${p.reversal_kind}`), reason: p.reversal_reason })}</p></div>}
     {receipt.replayed && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-900 print:hidden">{t('feeReplayed')}</p>}
-    <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+    <dl className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
       <div><dt className="text-slate-500">{t('feeStudent')}</dt><dd className="font-semibold">{p.student_name}{p.student_name_bn && <span lang="bn" className="block">{p.student_name_bn}</span>}<span className="block font-normal text-slate-600">{p.admission_no}</span></dd></div>
       <div><dt className="text-slate-500">{t('feeClassSection')}</dt><dd>{p.class_name} / {p.section_name}</dd></div>
       <div><dt className="text-slate-500">{t('feeMethod')}</dt><dd>{t(`feeMethod_${p.method}`)}{p.source === 'online' ? ` · ${t('feeOnline')}` : ''}</dd></div>

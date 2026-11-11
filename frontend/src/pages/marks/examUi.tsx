@@ -23,6 +23,6 @@ export function Progress({ done, total, label }: { done: number; total: number; 
     <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={label}>
       <div className="h-full rounded-full bg-[var(--brand-primary)] transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${pct}%` }} />
     </div>
-    <span className="truncate text-xs tabular-nums text-slate-600">{label}</span>
+    <span className="min-w-0 text-xs tabular-nums text-slate-600">{label}</span>
   </div>
 }

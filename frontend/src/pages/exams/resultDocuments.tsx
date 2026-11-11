@@ -118,7 +118,7 @@ export function ClassDocuments({ scope, scopeId, classId, published, provisional
           </select>
         </label>}
       </div>
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{KINDS.map(k => <li key={k.kind}>
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{KINDS.map(k => <li key={k.kind}>
         <button type="button" disabled={busy} onClick={() => void start(`${k.kind}:${language}`, { ...base, kind: k.kind })}
           className="flex h-full w-full items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-60">
           <span aria-hidden="true" className="ds-soft ds-ink grid h-9 w-9 shrink-0 place-items-center rounded-xl"><Icon name={k.icon} className="h-[18px] w-[18px]" /></span>
