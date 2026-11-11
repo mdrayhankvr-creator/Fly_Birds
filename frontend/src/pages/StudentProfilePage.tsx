@@ -209,6 +209,10 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
           <Field label={t('rollNo')}>{value.roll_no == null ? '' : num(value.roll_no)}</Field>
           <Field label={t('sessionLabel')}>{value.session_name}</Field>
           <Field label={t('profileAdmissionDate')}>{formatDate(value.admission_date, i18n.language)}</Field>
+          <Field label={t('profileShift')}>{value.shift_id ? pick(value.shift_name_en, value.shift_name_bn) : ''}</Field>
+          <Field label={t('profileMedium')}>{value.medium ? t(value.medium === 'bangla' ? 'mediumBangla' : 'mediumEnglish') : ''}</Field>
+          {value.class_uses_groups && <Field label={t('profileGroup')}>{value.group_id ? pick(value.group_name_en, value.group_name_bn) : ''}</Field>}
+          <Field label={t('profileFourthSubject')}>{value.fourth_subject_id ? pick(value.fourth_subject_name_en, value.fourth_subject_name_bn) : ''}</Field>
         </dl>
       </SectionCard>
     </div>
