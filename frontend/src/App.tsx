@@ -20,6 +20,7 @@ const SchoolSettingsPage = lazy(() => import('./pages/SchoolSettingsPage').then(
 const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })))
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
 const AcademicPage = lazy(() => import('./pages/AcademicPage').then(m => ({ default: m.AcademicPage })))
+const GroupsShiftsPage = lazy(() => import('./pages/AcademicPage').then(m => ({ default: m.GroupsShiftsPage })))
 const AcademicSessionsPage = lazy(() => import('./pages/AcademicSessionsPage').then(m => ({ default: m.AcademicSessionsPage })))
 const StaffPage = lazy(() => import('./pages/StaffPage').then(m => ({ default: m.StaffPage })))
 const TeacherAttendancePage = lazy(() => import('./pages/TeacherAttendancePage').then(m => ({ default: m.TeacherAttendancePage })))
@@ -117,14 +118,16 @@ function UsersGate({ permissions, role, loading, error }: { permissions: string[
   return <UsersPage permissions={permissions} />
 }
 
-function AcademicGate({ kind, permissions, role, enabled, loading, error }: { kind: 'classes' | 'subjects' | 'sections'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+function AcademicGate({ kind, permissions, role, enabled, loading, error }: { kind: 'classes' | 'subjects' | 'sections' | 'groups'; permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
   const { t } = useTranslation()
   if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
   if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
   if (!permissions?.includes('academics:read')) return <StateScreen kind="denied" message={t('permissionDenied')} />
   if (!enabled) return <StateScreen kind="disabled" message={t('academicModuleDisabled')} />
   const canManage = role === 'admin' && permissions.includes('academics:manage')
-  return kind === 'sections' ? <SectionsPage canManage={canManage} /> : <AcademicPage kind={kind} canManage={canManage} />
+  if (kind === 'sections') return <SectionsPage canManage={canManage} />
+  if (kind === 'groups') return <GroupsShiftsPage canManage={canManage} />
+  return <AcademicPage kind={kind} canManage={canManage} />
 }
 
 function AcademicSessionsGate({ permissions, loading, error }: { permissions: string[] | undefined; loading: boolean; error: boolean }) {
@@ -491,6 +494,7 @@ export default function App() {
         <Route path="/admin/school-settings" element={<ProtectedRoute><SchoolGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
         <Route path="/admin/academic/classes" element={<ProtectedRoute><AcademicGate kind="classes" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/academic/subjects" element={<ProtectedRoute><AcademicGate kind="subjects" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
+        <Route path="/admin/academic/groups" element={<ProtectedRoute><AcademicGate kind="groups" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/academic/sections" element={<ProtectedRoute><AcademicGate kind="sections" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/academic/sessions" element={<ProtectedRoute><AcademicSessionsGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own={false} enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />

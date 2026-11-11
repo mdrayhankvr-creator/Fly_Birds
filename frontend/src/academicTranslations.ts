@@ -5,6 +5,10 @@ export const academicTranslations = {
     className: 'Class name', displayOrder: 'Display order', subjectNameEN: 'English name', subjectNameBN: 'Bangla name', subjectCode: 'Subject code', createClass: 'Create class', createSubject: 'Create subject', edit: 'Edit', cancel: 'Cancel', remove: 'Remove', subject: 'Subject', chooseSubject: 'Choose a subject',
     classSubjects: 'Class subjects', noClassSubjects: 'No subjects assigned to this class.', assignSubjects: 'Assign subjects', subjectType: 'Subject type', requiredSubject: 'Required', fourthSubject: 'Fourth / optional', switchSubjectType: 'Switch type', confirmRemoveSubject: 'Remove this subject from the class?', subjectOptionsLimit: 'Only the first 100 matching subjects are shown. Narrow your search to find more.', academicModuleDisabled: 'The academic module is disabled.',
     nav_academic_classes: 'Classes', nav_academic_subjects: 'Subjects',
+    groupsShiftsHeading: 'Groups & shifts', groupsShiftsDescription: 'The groups classes 9–10 choose from (Science, Humanities, Business Studies) and the school’s shifts.',
+    groupsHeading: 'Groups', shiftsHeading: 'Shifts', groupsHint: 'Students of a class that uses groups choose one; each group’s subjects are set on the class.', shiftsHint: 'Shifts (Morning, Day …) appear on admission, the profile and the transcript. Schools without shifts can leave this empty.',
+    createGroup: 'Create group', createShift: 'Create shift', classUsesGroups: 'Uses groups', classUsesGroupsHint: 'Students of this class choose a group (Science, Humanities …); subjects can then be limited to a group.',
+    groupSubjectsTitle: 'Group subjects', groupSubjectsHint: 'Tick the subjects only one group takes. A subject left unticked everywhere stays common to the whole class.', noGroups: 'No groups are set up yet. Add them under Academic structure → Groups & shifts.',
   },
   bn: {
     academicStructure: 'একাডেমিক কাঠামো', classesHeading: 'শ্রেণি', subjectsHeading: 'বিষয়', classesDescription: 'শ্রেণির নাম এবং বিষয় বরাদ্দ নির্ধারণ করুন।', subjectsDescription: 'বিষয়ের ইংরেজি ও বাংলা নাম এবং কোড পরিচালনা করুন।',
@@ -12,5 +16,9 @@ export const academicTranslations = {
     className: 'শ্রেণির নাম', displayOrder: 'প্রদর্শনের ক্রম', subjectNameEN: 'ইংরেজি নাম', subjectNameBN: 'বাংলা নাম', subjectCode: 'বিষয় কোড', createClass: 'শ্রেণি তৈরি করুন', createSubject: 'বিষয় তৈরি করুন', edit: 'সম্পাদনা', cancel: 'বাতিল', remove: 'সরান', subject: 'বিষয়', chooseSubject: 'বিষয় নির্বাচন করুন',
     classSubjects: 'শ্রেণির বিষয়', noClassSubjects: 'এই শ্রেণিতে কোনো বিষয় বরাদ্দ নেই।', assignSubjects: 'বিষয় বরাদ্দ করুন', subjectType: 'বিষয়ের ধরন', requiredSubject: 'আবশ্যিক', fourthSubject: 'চতুর্থ / ঐচ্ছিক', switchSubjectType: 'ধরন পরিবর্তন', confirmRemoveSubject: 'শ্রেণি থেকে বিষয়টি সরাবেন?', subjectOptionsLimit: 'প্রথম ১০০টি মিল থাকা বিষয় দেখানো হচ্ছে। আরও খুঁজতে অনুসন্ধান নির্দিষ্ট করুন।', academicModuleDisabled: 'একাডেমিক মডিউল বন্ধ আছে।',
     nav_academic_classes: 'শ্রেণি', nav_academic_subjects: 'বিষয়',
+    groupsShiftsHeading: 'বিভাগ ও শিফট', groupsShiftsDescription: 'নবম–দশম শ্রেণির বিভাগ (বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা) এবং স্কুলের শিফটের তালিকা।',
+    groupsHeading: 'বিভাগ', shiftsHeading: 'শিফট', groupsHint: 'যে শ্রেণিতে বিভাগ চালু, তার শিক্ষার্থীরা একটি বিভাগ নেয়; প্রতিটি বিভাগের বিষয় শ্রেণিতে নির্ধারণ করা হয়।', shiftsHint: 'শিফট (প্রভাতী, দিবা …) ভর্তি ফরম, প্রোফাইল ও ফলাফল পত্রে দেখা যায়। শিফট না থাকলে তালিকা খালি রাখুন।',
+    createGroup: 'বিভাগ তৈরি করুন', createShift: 'শিফট তৈরি করুন', classUsesGroups: 'বিভাগ চালু', classUsesGroupsHint: 'এই শ্রেণির শিক্ষার্থীরা একটি বিভাগ (বিজ্ঞান, মানবিক …) নেয়; বিষয় বিভাগের মধ্যে সীমাবদ্ধ করা যায়।',
+    groupSubjectsTitle: 'বিভাগের বিষয়', groupSubjectsHint: 'যে বিষয় শুধু একটি বিভাগ পড়ে সেগুলো টিক দিন। কোথাও টিক না দেওয়া বিষয় পুরো শ্রেণির জন্য সাধারণ থাকে।', noGroups: 'এখনো কোনো বিভাগ নেই। একাডেমিক কাঠামো → বিভাগ ও শিফট থেকে যোগ করুন।',
   },
 }

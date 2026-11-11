@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, getAcademicClasses, getAcademicSections, getAcademicSessions, saveAcademicSection, type AcademicSection, type AcademicSectionInput } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import { academicTabs } from './AcademicPage'
 import { ui, CardTitle, PageHeader, LinkTabs } from './attendanceUi'
 import { ClassTeachersCard } from './ClassTeachersCard'
 
@@ -64,7 +65,7 @@ export function SectionsPage({ canManage }: { canManage: boolean }) {
 
   return <div className="space-y-6">
     <PageHeader eyebrow={t('academicStructure')} title={t('sectionsHeading')} description={t('sectionsDescription')} />
-    <LinkTabs label={t('academicStructure')} items={[{ to: '/admin/academic/sessions', label: t('academicSessions') }, { to: '/admin/academic/classes', label: t('classesHeading') }, { to: '/admin/academic/sections', label: t('sectionsHeading') }, { to: '/admin/academic/subjects', label: t('subjectsHeading') }]} />
+    <LinkTabs label={t('academicStructure')} items={academicTabs(t)} />
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
     {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</p>}
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,1fr)]">
