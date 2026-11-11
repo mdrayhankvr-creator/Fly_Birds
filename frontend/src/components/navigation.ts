@@ -46,6 +46,8 @@ export function buildNavigation({ role, has, on }: NavContext): NavGroup[] {
         ...(on('examinations') && has('exams:read') ? [{ key: 'exams', label: 'm12Nav_exams', path: '/admin/exams', icon: 'grade' as const }] : []),
         ...(on('examinations') && has('exams:enter_marks') && role === 'teacher' ? [{ key: 'exams_me', label: 'm12Nav_marksEntry', path: '/teacher/exams', icon: 'grade' as const }] : []),
         ...(on('examinations') && has('exams:read_self') && role === 'student' ? [{ key: 'results', label: 'm12Nav_myResults', path: '/student/results', icon: 'grade' as const }] : []),
+        ...(on('examinations') && has('exams:comment') && (admin || role === 'head_teacher' || role === 'teacher') ? [{ key: 'comments', label: 'msNavComments', path: '/exams/comments', icon: 'notebook' as const }] : []),
+        ...(on('routine') && ((has('routine:admit_cards') && (admin || role === 'head_teacher' || role === 'teacher')) || (has('routine:admit_release') && (admin || role === 'accountant'))) ? [{ key: 'admit_cards', label: 'msNavAdmit', path: '/admit-cards', icon: 'card' as const }] : []),
         ...(on('diary') && has('diary:write') && (role === 'teacher' || role === 'head_teacher') ? [{ key: 'diary', label: 'm12Nav_classDiary', path: '/teacher/diary', icon: 'notebook' as const }] : []),
         ...(on('diary') && has('diary:read_self') && role === 'student' ? [{ key: 'diary_me', label: 'm12Nav_classDiary', path: '/student/diary', icon: 'notebook' as const }] : []),
         ...(on('diary') && has('diary:read') ? [{ key: 'diary_admin', label: 'm12Nav_diaryOversight', path: '/admin/diary', icon: 'notebook' as const }] : []),

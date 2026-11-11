@@ -141,7 +141,7 @@ func subjectsOf(l lang, rs []exams.DocResult) []tabSubject {
 			if line.Optional {
 				name += " *"
 			}
-			out = append(out, tabSubject{Key: line.Key, Code: l.num(line.Code), Name: name})
+			out = append(out, tabSubject{Key: line.Key, Code: l.code(line.Code), Name: name})
 		}
 	}
 	return out
@@ -204,7 +204,7 @@ func (s *Service) classData(l lang, kind string, set exams.DocSet, results []exa
 				if section != "" {
 					pos = r.Outputs.SectionPosition
 				}
-				row.Position = posText(l, pos)
+				row.Position = posText(l, pos, 0)
 			}
 			d.Tabulation.Rows = append(d.Tabulation.Rows, row)
 		}

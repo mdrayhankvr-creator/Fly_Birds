@@ -21,6 +21,16 @@ func (l lang) num(s string) string {
 
 func (l lang) int(n int) string { return l.num(strconv.Itoa(n)) }
 
+// code writes an identifier (subject code, student ID): Bangla digits only
+// when it is all digits ("১০১"); a code with letters ("BAN-101", "DEMO-001")
+// stays as written, as it is printed elsewhere.
+func (l lang) code(s string) string {
+	if s == "" || strings.Trim(s, "0123456789") != "" {
+		return s
+	}
+	return l.num(s)
+}
+
 // marks trims a two-decimal mark: "45.00" → "45", "45.50" → "45.5".
 func (l lang) marks(s *string) string {
 	if s == nil || *s == "" {
@@ -109,7 +119,11 @@ var labelsEN = map[string]string{
 	"total_marks": "Total marks", "gpa": "GPA", "gpa_without": "GPA without 4th subject", "letter": "Letter grade", "result": "Result",
 	"class_pos": "Position in class", "section_pos": "Position in section", "published": "Published", "version": "Version",
 	"passed": "Passed", "failed": "Failed", "withheld": "Withheld", "withheld_note": "This result is withheld. Please contact the school.",
-	"sig_class_teacher": "Class teacher", "sig_head": "Head teacher", "sig_guardian": "Guardian",
+	"sig_class_teacher": "Class teacher", "sig_head": "Head teacher", "sig_guardian": "Guardian", "sig_date": "Date",
+	"father": "Father", "mother": "Mother", "dob": "Date of birth", "failed_count": "Failed subjects", "attendance": "Attendance",
+	"attendance_value": "%s / %s days (%s%%)", "pos_of": "%s of %s", "comment": "Class teacher's comment", "full": "Full",
+	"obtained": "Obtained", "optional_heading": "Optional (4th) subject — only the grade point above 2.00 is added to the GPA; it never fails the result",
+	"combined": "Combined", "summary_title": "Summary",
 	"footer":             "Issued from the published result (version %s, %s). Scan the QR code to check that it is genuine. Document code: %s",
 	"footer_noqr":        "Issued from the published result (version %s, %s). Document code: %s",
 	"footer_provisional": "Provisional preview for staff. These results are not published and may change.",
@@ -124,13 +138,17 @@ var labelsEN = map[string]string{
 }
 
 var labelsBN = map[string]string{
-	"marksheet": "একাডেমিক ট্রান্সক্রিপ্ট", "provisional": "অস্থায়ী — প্রকাশিত নয়", "annual": "বার্ষিক ফলাফল", "term": "সাময়িক ফলাফল",
+	"marksheet": "ফলাফল পত্র", "provisional": "অস্থায়ী — প্রকাশিত নয়", "annual": "বার্ষিক ফলাফল", "term": "সাময়িক ফলাফল",
 	"name": "নাম", "student_id": "শিক্ষার্থী আইডি", "class": "শ্রেণি", "section": "শাখা", "roll": "রোল", "session": "শিক্ষাবর্ষ", "exam": "পরীক্ষা", "photo": "ছবি",
 	"code": "কোড", "subject": "বিষয়", "ct": "শ্রেণি অভীক্ষা", "total": "মোট", "highest": "সর্বোচ্চ", "grade": "গ্রেড", "gp": "জিপি", "fourth": "৪র্থ বিষয়",
 	"total_marks": "মোট নম্বর", "gpa": "জিপিএ", "gpa_without": "৪র্থ বিষয় ছাড়া জিপিএ", "letter": "লেটার গ্রেড", "result": "ফলাফল",
 	"class_pos": "শ্রেণিতে অবস্থান", "section_pos": "শাখায় অবস্থান", "published": "প্রকাশ", "version": "সংস্করণ",
 	"passed": "উত্তীর্ণ", "failed": "অকৃতকার্য", "withheld": "স্থগিত", "withheld_note": "এই ফলাফল স্থগিত রাখা হয়েছে। অনুগ্রহ করে বিদ্যালয়ে যোগাযোগ করুন।",
-	"sig_class_teacher": "শ্রেণি শিক্ষক", "sig_head": "প্রধান শিক্ষক", "sig_guardian": "অভিভাবক",
+	"sig_class_teacher": "শ্রেণি শিক্ষক", "sig_head": "প্রধান শিক্ষক", "sig_guardian": "অভিভাবক", "sig_date": "তারিখ",
+	"father": "পিতা", "mother": "মাতা", "dob": "জন্ম তারিখ", "failed_count": "অকৃতকার্য বিষয়", "attendance": "উপস্থিতি",
+	"attendance_value": "%s / %s দিন (%s%%)", "pos_of": "%[2]s জনের মধ্যে %[1]s", "comment": "শ্রেণি শিক্ষকের মন্তব্য", "full": "পূর্ণমান",
+	"obtained": "প্রাপ্ত", "optional_heading": "ঐচ্ছিক (৪র্থ) বিষয় — শুধু ২.০০-এর বেশি গ্রেড পয়েন্ট জিপিএ-তে যোগ হয়; এতে অকৃতকার্য হলেও ফলাফল অকৃতকার্য হয় না",
+	"combined": "সমন্বিত", "summary_title": "সারসংক্ষেপ",
 	"footer":             "প্রকাশিত ফলাফল থেকে প্রস্তুত (সংস্করণ %s, %s)। আসল কিনা যাচাই করতে কিউআর কোড স্ক্যান করুন। ডকুমেন্ট কোড: %s",
 	"footer_noqr":        "প্রকাশিত ফলাফল থেকে প্রস্তুত (সংস্করণ %s, %s)। ডকুমেন্ট কোড: %s",
 	"footer_provisional": "শিক্ষক ও কর্মীদের জন্য অস্থায়ী নমুনা। এই ফলাফল প্রকাশিত নয় এবং পরিবর্তন হতে পারে।",

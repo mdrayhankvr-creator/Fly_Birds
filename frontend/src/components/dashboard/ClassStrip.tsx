@@ -80,7 +80,7 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
   return <Panel title={title} icon="clock" module="routine" action={<span className="flex items-center gap-2">{nav}{link && <ViewAll to={link} />}</span>}>
     {q.isPending ? <Lines /> : q.isError ? <Unavailable error={q.error} /> : slots.length === 0 ? <Empty>{clock.weekday === 5 ? t('m12WeeklyHoliday') : t('m12NoClassesToday')}</Empty> : <>
       <p className="-mt-2 mb-3 text-xs font-medium text-slate-500">{left > 0 ? t('p1ClassesLeft', { left: f.num(left), total: f.num(slots.length) }) : t('p1AllClassesDone')}</p>
-      <ol ref={track} onScroll={onScroll} aria-label={title} className="ds-scroll-x ds-snap -mx-4 flex gap-3 px-4 pb-1 sm:-mx-5 sm:px-5">
+      <ol ref={track} onScroll={onScroll} aria-label={title} tabIndex={0} className="ds-scroll-x ds-snap -mx-4 flex gap-3 px-4 pb-1 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] sm:-mx-5 sm:px-5">
         {slots.map((s, i) => {
           const st = stateOf(i)
           const size = 'w-[80%] shrink-0 min-[420px]:w-[70%] sm:w-[calc(50%-6px)] xl:w-[calc(33.333%-8px)]'
@@ -107,7 +107,7 @@ export function ClassStrip({ path, title, teacherView = false, link }: { path: s
                 : <span />}
               <span className="text-xs font-semibold tabular-nums text-slate-600">{time(s)}</span>
             </div>
-            <div className={`mt-3 ${done ? 'opacity-75' : ''}`}>
+            <div className="mt-3">
               <p className="ds-ink truncate text-lg font-extrabold leading-tight">{label(s)}</p>
               <p className="truncate text-xs text-slate-600">{line(s)}</p>
             </div>

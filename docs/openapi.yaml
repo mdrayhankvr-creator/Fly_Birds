@@ -3752,6 +3752,204 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/AnalyticsReport' }, { $ref: '#/components/parameters/AnalyticsSession' }, { $ref: '#/components/parameters/AnalyticsClass' }, { $ref: '#/components/parameters/AnalyticsSection' }, { $ref: '#/components/parameters/AnalyticsExam' }, { $ref: '#/components/parameters/AnalyticsFrom' }, { $ref: '#/components/parameters/AnalyticsTo' }]
       responses: { '200': { description: CSV file, content: { text/csv: { schema: { type: string } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /academic/class-teachers:
+    get:
+      operationId: listClassTeachers
+      summary: List a session's sections with their class teachers
+      description: "Requires academics:read and the academics module. Every active section of the session, its class, its class teacher (if assigned) and whether that teacher has uploaded a signature."
+      tags: [academic]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Sections and class teachers }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /academic/sections/{id}/class-teacher:
+    put:
+      operationId: assignClassTeacher
+      summary: Assign or clear a section's class teacher
+      description: "Requires academics:manage, the administrator role and the academics module. employee_id is an active teacher; empty clears the assignment. One class teacher per section (sections belong to one session). Audited."
+      tags: [academic]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { employee_id: { type: string } } } } } }
+      responses: { '200': { description: The section with its class teacher }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/comments/presets:
+    get:
+      operationId: listCommentPresets
+      summary: List preset class-teacher comments
+      description: "Requires exams:comment and the examinations module. Active presets in English and Bangla; all=true also lists inactive ones for the administrator and the head teacher."
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: all, in: query, schema: { type: boolean } }]
+      responses: { '200': { description: Presets }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createCommentPreset
+      summary: Create a preset comment
+      description: "Requires exams:comment, the administrator or head teacher role and the examinations module. text_en and text_bn (up to 300 characters each), display_order and is_active."
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text_en, text_bn], properties: { text_en: { type: string }, text_bn: { type: string }, display_order: { type: integer }, is_active: { type: boolean } } } } } }
+      responses: { '200': { description: The preset }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/comments/presets/{id}:
+    put:
+      operationId: updateCommentPreset
+      summary: Change a preset comment
+      description: "Requires exams:comment, the administrator or head teacher role and the examinations module. Comments already written with it print the changed text from then on."
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text_en, text_bn], properties: { text_en: { type: string }, text_bn: { type: string }, display_order: { type: integer }, is_active: { type: boolean } } } } } }
+      responses: { '200': { description: The preset }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/comments/sections:
+    get:
+      operationId: listCommentSections
+      summary: Sections the signed-in user may comment on or review
+      description: "Requires exams:comment and the examinations module. A teacher gets the sections they are class teacher of; the administrator and the head teacher get every section of the active session (or session_id). Each comes with its results: the session's terms and its annual result."
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Sections }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/comments:
+    get:
+      operationId: getSectionComments
+      summary: A section's class-teacher comments on one result
+      description: "Requires exams:comment and the examinations module. The class teacher of the section, the head teacher or the administrator. Each active student with their comment (a preset or own words), its status (written or reviewed) and, once published, the GPA and outcome."
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: scope, in: query, required: true, schema: { type: string, enum: [term, annual] } }, { name: scope_id, in: query, required: true, schema: { type: string, format: uuid }, description: The term, or the session for the annual result }, { name: section_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Comments }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveComment
+      summary: Write or clear a student's class-teacher comment
+      description: "Requires exams:comment and the examinations module. The class teacher writes (status written); the head teacher or administrator may correct one, which counts as reviewed. Either preset_id or custom_text (up to 400 characters), not both; neither clears the comment. A comment never changes a published result; the next marksheet shows it. Audited."
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [scope, scope_id, student_id], properties: { scope: { type: string, enum: [term, annual] }, scope_id: { type: string, format: uuid }, student_id: { type: string, format: uuid }, preset_id: { type: string, format: uuid, nullable: true }, custom_text: { type: string } } } } } }
+      responses: { '200': { description: The comment }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/comments/review:
+    post:
+      operationId: reviewComments
+      summary: Mark a section's comments reviewed
+      description: "Requires exams:comment, the administrator or head teacher role and the examinations module. Marks the written comments of the section on the result reviewed (all, or student_ids). Audited."
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [scope, scope_id, section_id], properties: { scope: { type: string, enum: [term, annual] }, scope_id: { type: string, format: uuid }, section_id: { type: string, format: uuid }, student_ids: { type: array, items: { type: string, format: uuid } } } } } } }
+      responses: { '200': { description: How many were marked }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /staff/me/signature:
+    get:
+      operationId: getOwnSignature
+      summary: The signed-in member of staff's signature
+      description: "Requires staff:read_self and the staff module. The stored PNG (transparent background); 404 when none."
+      tags: [staff]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: PNG, content: { image/png: { schema: { type: string, format: binary } } } }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveOwnSignature
+      summary: Upload the signed-in member of staff's signature
+      description: "Requires staff:read_self and the staff module. The body is a PNG or JPEG (Content-Type image/png or image/jpeg, up to 4 MB). A PNG keeps its transparency; light paper in a photo or scan becomes transparent. The ink is trimmed, scaled to fit 600 × 200 pixels and stored as PNG. Printed on marksheets when the member of staff is a class teacher. Audited."
+      tags: [staff]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { image/png: { schema: { type: string, format: binary } }, image/jpeg: { schema: { type: string, format: binary } } } }
+      responses: { '200': { description: Saved, with its version }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: deleteOwnSignature
+      summary: Remove the signed-in member of staff's signature
+      description: "Requires staff:read_self and the staff module. Audited."
+      tags: [staff]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Deleted }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/settings:
+    get:
+      operationId: getAdmitCardSettings
+      summary: Admit card rules and the fee hold
+      description: "Requires routine:admit_cards or routine:admit_release and the routine module. The rules printed on cards (English and Bangla; empty uses the built-in rules, which are returned too) and the fee hold: when withhold_for_dues is on, a student with a due unpaid on or before dues_cutoff gets no card until released."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Settings }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveAdmitCardSettings
+      summary: Change the admit card rules and the fee hold
+      description: "Requires routine:admit_settings, the administrator role and the routine module. Rules up to 2,000 characters per language, one rule per line. The hold needs a cutoff date. Off by default. Audited."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { rules_en: { type: string }, rules_bn: { type: string }, withhold_for_dues: { type: boolean }, dues_cutoff: { type: string, format: date, nullable: true } } } } } }
+      responses: { '200': { description: Settings }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/terms:
+    get:
+      operationId: listAdmitCardTerms
+      summary: Terms with a published routine and the sections the user may print
+      description: "Requires routine:admit_cards or routine:admit_release and the routine module. The administrator, the head teacher and the office (accountant) see every section; a teacher the sections they are class teacher of. Each section with its active students and how many are held for dues."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Terms }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/terms/{termId}/students:
+    get:
+      operationId: listAdmitCardStudents
+      summary: A term's students with the fee hold
+      description: "Requires routine:admit_cards and the routine module. Students of the class or section (or every section the user may print) with their dues unpaid by the cutoff, and whether their card is held or released."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: section_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Students }, '404': { description: The term has no published routine }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/terms/{termId}/pdf:
+    get:
+      operationId: printAdmitCards
+      summary: Print the admit cards of a section or class
+      description: "Requires routine:admit_cards and the routine module. Two cards per A4 sheet with a cut line, from the term's published routine: each student's own papers (date, time, subject), room and seat, the rules, the head teacher's signature and a verification QR code. Seats are numbered within each room and sitting by class, section and roll. A whole class is for the administrator and the head teacher; a teacher prints a section they are class teacher of. Held students are left out; X-Admit-Cards-Held says how many. Audited."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, schema: { type: string, format: uuid } }, { name: section_id, in: query, schema: { type: string, format: uuid } }, { name: lang, in: query, schema: { type: string, enum: [en, bn] } }]
+      responses: { '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { description: The term has no published routine }, '409': { description: no_admit_cards (everyone is held, or nobody is enrolled) }, '503': { description: documents_unavailable }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/withheld:
+    get:
+      operationId: listHeldAdmitCards
+      summary: Students with dues by the cutoff (held or released)
+      description: "Requires routine:admit_release (administrator and accountant) and the routine module. Every student of the term's session with a due unpaid on or before the cutoff, the amount, the oldest due date and whether they were released."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: term_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Students }, '404': { description: The term has no published routine }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/terms/{termId}/releases/{studentId}:
+    parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }]
+    put:
+      operationId: releaseAdmitCard
+      summary: Release a held student's admit card for a term
+      description: "Requires routine:admit_release (administrator and accountant) and the routine module. An optional note (up to 240 characters). Audited."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { note: { type: string } } } } } }
+      responses: { '200': { description: Released }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      operationId: unreleaseAdmitCard
+      summary: Hold a released student's admit card again
+      description: "Requires routine:admit_release and the routine module. Audited."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Held again }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/me:
+    get:
+      operationId: listMyAdmitCards
+      summary: The signed-in student's admit cards
+      description: "Requires routine:read_self, the student role and the routine module. One per term of the student's session whose routine is published, and whether it is held for dues."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Cards }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/admit-cards/me/{termId}/pdf:
+    get:
+      operationId: getMyAdmitCard
+      summary: The signed-in student's admit card of a term
+      description: "Requires routine:read_self, the student role and the routine module. 409 admit_card_held while held for dues."
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: termId, in: path, required: true, schema: { type: string, format: uuid } }, { name: lang, in: query, schema: { type: string, enum: [en, bn] } }]
+      responses: { '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }, '404': { description: No published routine of the student's session for the term }, '409': { description: admit_card_held }, '503': { description: documents_unavailable }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /public/admit-cards/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{22}$' } }]
+    get:
+      operationId: verifyAdmitCard
+      summary: Publicly check an admit card
+      description: Unauthenticated by design; the QR code on an admit card opens it. Returns whether the routine the card was printed from is still current or was amended later (superseded), the term, session, class and section, the routine version and its publication date, when the card was issued, and the school identity. No name or identifier. Unknown and malformed codes, and a disabled Routine module, return 404.
+      tags: [routine]
+      security: []
+      responses: { '200': { description: Card state }, '404': { $ref: '#/components/responses/NotFound' } }
 components:
   securitySchemes:
     bearerAuth:

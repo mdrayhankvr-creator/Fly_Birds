@@ -18,6 +18,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/attendance"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/classteacher"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/config"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/dashboard"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
@@ -72,6 +73,7 @@ func run(logger *slog.Logger) error {
 	var adminServices *httpapi.AdminServices
 	var analyticsService *analytics.Service
 	var promotionService *promotion.Service
+	var classTeacherService *classteacher.Service
 	var documentService *documents.Service
 	if cfg.DatabaseURL != "" {
 		// Wait up to a minute for PostgreSQL: when Docker starts, both start
@@ -149,6 +151,7 @@ func run(logger *slog.Logger) error {
 		adminServices = &httpapi.AdminServices{Exporter: admin.NewExporter(db), Backups: backups, Overview: admin.NewOverviewReader(db, backups)}
 		analyticsService = analytics.NewService(analytics.NewRepository(db))
 		promotionService = promotion.NewService(db)
+		classTeacherService = classteacher.NewService(db)
 		// Result documents need the Typst renderer and its fonts; without
 		// them the document routes answer 503 and everything else works.
 		var renderer documents.Renderer
@@ -166,6 +169,10 @@ func run(logger *slog.Logger) error {
 		if routineService.Term != nil && documentService.RoutineAvailable() {
 			routineService.Term.Documents = documentService
 		}
+		// Admit cards too.
+		if routineService.Admit != nil && documentService.RoutineAvailable() {
+			routineService.Admit.Documents = documentService
+		}
 		logger.Info("postgres connected")
 	} else {
 		logger.Warn("DATABASE_URL is unset; starting without postgres")
@@ -173,7 +180,7 @@ func run(logger *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.NewRouterWithDocuments(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService, promotionService, documentService),
+		Handler:           httpapi.NewRouterWithDocuments(authService, cfg.AuthCookieSecure, authorization, schoolService, userService, auditService, dashboardService, sessionService, academicService, sectionService, peopleService, staffService, attendanceService, studentAttendanceService, routineService, examService, feeService, comm, adminServices, analyticsService, promotionService, documentService, classTeacherService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

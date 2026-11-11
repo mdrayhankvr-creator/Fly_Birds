@@ -31,51 +31,82 @@ type gradeRow struct {
 	Point string `json:"point"`
 }
 
+// sheetCell is a mark and the full marks it is out of ("" when not shown).
+type sheetCell struct {
+	Obt  string `json:"obt"`
+	Full string `json:"full"`
+}
+
+// paperRow is one paper of a combined subject (Bangla 1st and 2nd paper …).
+type paperRow struct {
+	Code    string      `json:"code"`
+	Subject string      `json:"subject"`
+	Parts   []sheetCell `json:"parts"`
+}
+
 type sheetRow struct {
-	Code     string   `json:"code"`
-	Subject  string   `json:"subject"`
-	Optional bool     `json:"optional"`
-	Note     string   `json:"note"`
-	Parts    []string `json:"parts"`
-	CT       string   `json:"ct"`
-	Total    string   `json:"total"`
-	Full     string   `json:"full"`
-	Highest  string   `json:"highest"`
-	Grade    string   `json:"grade"`
-	GP       string   `json:"gp"`
-	Failed   bool     `json:"failed"`
+	Code     string      `json:"code"`
+	Subject  string      `json:"subject"`
+	Optional bool        `json:"optional"`
+	Note     string      `json:"note"`
+	Parts    []sheetCell `json:"parts"`
+	Papers   []paperRow  `json:"papers"` // two or more: a combined subject, one row per paper
+	CT       string      `json:"ct"`
+	Total    string      `json:"total"`
+	Full     string      `json:"full"`
+	Highest  string      `json:"highest"`
+	Grade    string      `json:"grade"`
+	GP       string      `json:"gp"`
+	Failed   bool        `json:"failed"`
+}
+
+type signature struct {
+	Title string `json:"title"`
+	Name  string `json:"name"`
+	Image string `json:"image"` // asset name or ""
+	Date  bool   `json:"date"`  // a blank date line under it (guardian)
 }
 
 type sheetStudent struct {
-	Name       string     `json:"name"`
-	NameAlt    string     `json:"name_alt"`
-	StudentID  string     `json:"student_id"`
-	Class      string     `json:"class"`
-	Section    string     `json:"section"`
-	Roll       string     `json:"roll"`
-	Session    string     `json:"session"`
-	Exam       string     `json:"exam"`
-	Photo      string     `json:"photo"`
-	QR         string     `json:"qr"`
-	Withheld   bool       `json:"withheld"`
-	Rows       []sheetRow `json:"rows"`
-	Total      string     `json:"total"`
-	GPA        string     `json:"gpa"`
-	GPAWithout string     `json:"gpa_without"`
-	Letter     string     `json:"letter"`
-	Result     string     `json:"result"`
-	Failed     bool       `json:"failed"`
-	ClassPos   string     `json:"class_pos"`
-	SectionPos string     `json:"section_pos"`
-	Published  string     `json:"published"`
-	Footer     string     `json:"footer"`
+	Name        string      `json:"name"`
+	NameAlt     string      `json:"name_alt"`
+	Father      string      `json:"father"`
+	Mother      string      `json:"mother"`
+	DOB         string      `json:"dob"`
+	StudentID   string      `json:"student_id"`
+	Class       string      `json:"class"`
+	Section     string      `json:"section"`
+	Roll        string      `json:"roll"`
+	Session     string      `json:"session"`
+	Exam        string      `json:"exam"`
+	Photo       string      `json:"photo"`
+	QR          string      `json:"qr"`
+	Withheld    bool        `json:"withheld"`
+	Rows        []sheetRow  `json:"rows"`
+	Optional    []sheetRow  `json:"optional"`
+	Total       string      `json:"total"`
+	GPA         string      `json:"gpa"`
+	GPAWithout  string      `json:"gpa_without"`
+	Letter      string      `json:"letter"`
+	Result      string      `json:"result"`
+	Failed      bool        `json:"failed"`
+	FailedCount string      `json:"failed_count"`
+	ClassPos    string      `json:"class_pos"`
+	SectionPos  string      `json:"section_pos"`
+	Attendance  string      `json:"attendance"`
+	Published   string      `json:"published"`
+	Comment     string      `json:"comment"`
+	Signatures  []signature `json:"signatures"`
+	Footer      string      `json:"footer"`
 }
 
 type sheetData struct {
 	Lang        string            `json:"lang"`
 	Title       string            `json:"title"`
 	Heading     string            `json:"heading"`
+	HeadingAlt  string            `json:"heading_alt"`
 	ExamName    string            `json:"exam_name"`
+	SessionName string            `json:"session_name"`
 	Provisional bool              `json:"provisional"`
 	Labels      map[string]string `json:"labels"`
 	School      schoolData        `json:"school"`
@@ -216,15 +247,17 @@ func markText(v float64) string {
 	return s
 }
 
-// rows breaks a result's subject lines into the table's rows.
-func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64) []sheetRow {
+// rows breaks a result's subject lines into the table's rows: the required
+// subjects, then the optional (fourth) one. A combined subject keeps one
+// row per paper; its total, grade and point cover them all.
+func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names map[string]subjectName) (required, optional []sheetRow) {
 	var inputs exams.TermInputs
 	if lo.scope == exams.ScopeTerm {
 		inputs, _ = exams.TermInputsOf(r.Inputs)
 	}
-	rows := make([]sheetRow, 0, len(r.Outputs.Subjects))
+	required, optional = []sheetRow{}, []sheetRow{}
 	for _, line := range r.Outputs.Subjects {
-		row := sheetRow{Code: l.num(line.Code), Subject: l.pick(line.NameEN, line.NameBN), Optional: line.Optional, CT: "—", Full: l.marks(&line.Full), Highest: "—", Grade: "—", GP: "—"}
+		row := sheetRow{Code: l.code(line.Code), Subject: l.pick(line.NameEN, line.NameBN), Optional: line.Optional, CT: "—", Full: l.marks(&line.Full), Highest: "—", Grade: "—", GP: "—", Papers: []paperRow{}}
 		switch line.Status {
 		case "graded":
 			row.Total = l.marks(line.Marks)
@@ -249,37 +282,16 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64) []sheet
 		}
 		switch lo.scope {
 		case exams.ScopeTerm:
-			row.Parts = make([]string, len(lo.compKeys))
-			for i, key := range lo.compKeys {
-				sum, any := 0.0, false
+			row.Parts = lo.termParts(l, inputs, line.SubjectIDs, &row)
+			if len(line.SubjectIDs) > 1 {
 				for _, sid := range line.SubjectIDs {
-					for ak := range lo.examKeys {
-						m, ok := inputs.Marks[ak][sid]
-						if !ok {
-							continue
-						}
-						for _, c := range m.Components {
-							if c.Key == key && c.Marks != nil {
-								if v, err := strconv.ParseFloat(*c.Marks, 64); err == nil {
-									sum, any = sum+v, true
-								}
-							}
-						}
-						// An ordinary paper keeps its mark without components.
-						if strings.EqualFold(key, "TOTAL") && len(m.Components) == 0 && m.Marks != nil {
-							if v, err := strconv.ParseFloat(*m.Marks, 64); err == nil {
-								sum, any = sum+v, true
-							}
-						}
-						if m.Status == "absent" && len(m.Components) == 0 && i == 0 {
-							row.Note = l.t("absent")
-						}
+					n := names[sid]
+					paper := paperRow{Code: l.code(n.Code), Subject: l.pick(n.EN, n.BN)}
+					if paper.Subject == "" {
+						paper.Subject = row.Subject
 					}
-				}
-				row.Parts[i] = "—"
-				if any {
-					s := markText(sum)
-					row.Parts[i] = l.marks(&s)
+					paper.Parts = lo.termParts(l, inputs, []string{sid}, nil)
+					row.Papers = append(row.Papers, paper)
 				}
 			}
 			ct, any := 0.0, false
@@ -302,20 +314,87 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64) []sheet
 				row.CT = l.marks(&s)
 			}
 		case exams.ScopeAnnual:
-			row.Parts = make([]string, len(lo.termIDs))
+			row.Parts = make([]sheetCell, len(lo.termIDs))
 			for i, id := range lo.termIDs {
-				row.Parts[i] = "—"
+				row.Parts[i] = sheetCell{Obt: "—"}
 				for _, t := range line.Terms {
 					if t.TermID == id && t.Marks != "" {
 						m := t.Marks
-						row.Parts[i] = l.marks(&m)
+						row.Parts[i].Obt = l.marks(&m)
 					}
 				}
 			}
+			if len(line.SubjectIDs) > 1 {
+				parts := []string{}
+				for _, sid := range line.SubjectIDs {
+					if n, ok := names[sid]; ok {
+						parts = append(parts, l.pick(n.EN, n.BN))
+					}
+				}
+				row.Note = strings.Join(parts, " + ")
+			}
 		}
-		rows = append(rows, row)
+		if line.Optional {
+			optional = append(optional, row)
+		} else {
+			required = append(required, row)
+		}
 	}
-	return rows
+	return required, optional
+}
+
+// termParts sums each component's obtained and full marks over the given
+// papers of the term's exams. With row set, an absence is noted on it.
+func (lo layout) termParts(l lang, inputs exams.TermInputs, subjectIDs []string, row *sheetRow) []sheetCell {
+	parts := make([]sheetCell, len(lo.compKeys))
+	for i, key := range lo.compKeys {
+		sum, full, any, anyFull := 0.0, 0.0, false, false
+		for _, sid := range subjectIDs {
+			for ak := range lo.examKeys {
+				m, ok := inputs.Marks[ak][sid]
+				if !ok {
+					continue
+				}
+				for _, c := range m.Components {
+					if c.Key != key {
+						continue
+					}
+					if v, err := strconv.ParseFloat(c.Full, 64); err == nil {
+						full, anyFull = full+v, true
+					}
+					if c.Marks != nil {
+						if v, err := strconv.ParseFloat(*c.Marks, 64); err == nil {
+							sum, any = sum+v, true
+						}
+					}
+				}
+				// An ordinary paper keeps its mark without components.
+				if strings.EqualFold(key, "TOTAL") && len(m.Components) == 0 {
+					if v, err := strconv.ParseFloat(m.Full, 64); err == nil {
+						full, anyFull = full+v, true
+					}
+					if m.Marks != nil {
+						if v, err := strconv.ParseFloat(*m.Marks, 64); err == nil {
+							sum, any = sum+v, true
+						}
+					}
+				}
+				if row != nil && m.Status == "absent" && i == 0 {
+					row.Note = l.t("absent")
+				}
+			}
+		}
+		parts[i] = sheetCell{Obt: "—"}
+		if any {
+			s := markText(sum)
+			parts[i].Obt = l.marks(&s)
+		}
+		if anyFull {
+			s := markText(full)
+			parts[i].Full = l.marks(&s)
+		}
+	}
+	return parts
 }
 
 // requiredGPA is the GPA without the fourth subject, by the same rounding.
@@ -391,9 +470,13 @@ func outcomeText(l lang, outcome string) string {
 	return l.t("incomplete")
 }
 
-func posText(l lang, p *int) string {
+// posText is a merit position, "3 of 60" when the count is known.
+func posText(l lang, p *int, of int) string {
 	if p == nil || *p <= 0 {
 		return "—"
+	}
+	if of > 0 {
+		return fmt.Sprintf(l.t("pos_of"), l.int(*p), l.int(of))
 	}
 	return l.int(*p)
 }

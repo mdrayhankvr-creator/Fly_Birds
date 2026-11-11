@@ -502,6 +502,15 @@ func (r *GormRepository) Card(ctx context.Context, scope, actor, studentID, exam
 	if err := cardFromVersion(&card, *v, scope); err != nil {
 		return Card{}, err
 	}
+	if card.Exam.TermID != nil {
+		var ids []string
+		if err := tx.Raw("SELECT id FROM result_versions WHERE scope='term' AND scope_id=? AND student_id=? AND status='published' LIMIT 1", *card.Exam.TermID, studentID).Scan(&ids).Error; err != nil {
+			return Card{}, err
+		}
+		if len(ids) == 1 {
+			card.MarksheetVersionID = &ids[0]
+		}
+	}
 	err = tx.Raw("SELECT name_en,name_bn,logo_url FROM school_settings WHERE id=1").Row().Scan(&card.SchoolNameEN, &card.SchoolNameBN, &card.LogoURL)
 	return card, err
 }
