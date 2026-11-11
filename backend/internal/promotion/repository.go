@@ -80,10 +80,20 @@ func view(tx *gorm.DB, id string) (Batch, error) {
 	if err := tx.Raw(`SELECT i.student_id, st.name_en AS student_name, st.admission_no, i.enrolment_id, i.source_section_id, ss.name AS source_section_name,
        i.source_roll_no, i.annual_version_id, i.annual_outcome, i.annual_class_position, i.recommendation, i.decision, i.reason,
        coalesce(nullif(du.display_name, ''), du.email) AS decided_by, i.target_class_id, tc.name AS target_class_name,
-       i.target_section_id, tsec.name AS target_section_name, i.target_roll_no, i.applied_enrolment_id
-  FROM promotion_items i JOIN students st ON st.id = i.student_id JOIN academic_sections ss ON ss.id = i.source_section_id
+       i.target_section_id, tsec.name AS target_section_name, i.target_roll_no, i.applied_enrolment_id,
+       sgr.name_en AS source_group_name, sfs.name_en AS source_fourth_subject_name,
+       i.target_group_id, tg.name_en AS target_group_name, i.target_fourth_subject_id, tfs.name_en AS target_fourth_subject_name,
+       coalesce(tc.uses_groups, false) AS target_class_uses_groups
+  FROM promotion_items i JOIN promotion_batches pb ON pb.id = i.batch_id
+  JOIN students st ON st.id = i.student_id JOIN academic_sections ss ON ss.id = i.source_section_id
   LEFT JOIN users du ON du.id = i.decided_by LEFT JOIN academic_classes tc ON tc.id = i.target_class_id
   LEFT JOIN academic_sections tsec ON tsec.id = i.target_section_id
+  LEFT JOIN student_group_choices sgc ON sgc.student_id = i.student_id AND sgc.session_id = pb.from_session_id
+  LEFT JOIN academic_groups sgr ON sgr.id = sgc.group_id
+  LEFT JOIN student_subject_choices ssc ON ssc.student_id = i.student_id AND ssc.session_id = pb.from_session_id AND ssc.role = 'optional'
+  LEFT JOIN academic_subjects sfs ON sfs.id = ssc.subject_id
+  LEFT JOIN academic_groups tg ON tg.id = i.target_group_id
+  LEFT JOIN academic_subjects tfs ON tfs.id = i.target_fourth_subject_id
  WHERE i.batch_id = ?
  ORDER BY ss.display_order, ss.name, i.source_roll_no NULLS LAST, st.admission_no, i.student_id`, id).Scan(&b.Items).Error; err != nil {
 		return b, err
@@ -164,11 +174,12 @@ func inputsHash(b Batch) (string, error) {
 		Reason                     string
 		TargetClass, TargetSection *string
 		TargetRoll                 *int
+		TargetGroup, TargetFourth  *string
 	}
 	lines := make([]line, 0, len(b.Items))
 	for _, it := range b.Items {
 		lines = append(lines, line{it.StudentID, it.EnrolmentID, it.AnnualVersionID, it.AnnualOutcome, it.Recommendation, it.Decision, it.Reason,
-			it.TargetClassID, it.TargetSectionID, it.TargetRollNo})
+			it.TargetClassID, it.TargetSectionID, it.TargetRollNo, it.TargetGroupID, it.TargetFourthSubjectID})
 	}
 	sort.Slice(lines, func(i, j int) bool { return lines[i].Student < lines[j].Student })
 	raw, err := json.Marshal(struct {
@@ -409,9 +420,16 @@ func syncItems(tx *gorm.DB, b batchRow) error {
 			}
 			continue
 		}
+		// The closing year's group and fourth subject carry forward as the
+		// suggested next-year values; place() clears what the target class
+		// cannot take, and the batch can edit them.
 		if err := tx.Exec(`INSERT INTO promotion_items (batch_id, student_id, enrolment_id, source_section_id, source_roll_no, annual_version_id, annual_outcome,
-       annual_class_position, recommendation, decision) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-			b.ID, st.StudentID, st.EnrolmentID, st.SectionID, st.RollNo, versionID, outcome, position, rec, decision).Error; err != nil {
+       annual_class_position, recommendation, decision, target_group_id, target_fourth_subject_id)
+VALUES (?,?,?,?,?,?,?,?,?,?,
+       (SELECT group_id FROM student_group_choices WHERE student_id = ? AND session_id = ?),
+       (SELECT subject_id FROM student_subject_choices WHERE student_id = ? AND session_id = ? AND role = 'optional'))`,
+			b.ID, st.StudentID, st.EnrolmentID, st.SectionID, st.RollNo, versionID, outcome, position, rec, decision,
+			st.StudentID, b.FromSessionID, st.StudentID, b.FromSessionID).Error; err != nil {
 			return err
 		}
 	}
@@ -445,6 +463,19 @@ func place(tx *gorm.DB, b batchRow) error {
 	if err := tx.Exec(`UPDATE promotion_items i SET target_section_id = (SELECT s.id FROM academic_sections s WHERE s.session_id = ? AND s.class_id = i.target_class_id AND s.is_active)
  WHERE i.batch_id = ? AND i.target_class_id IS NOT NULL AND i.target_section_id IS NULL
    AND (SELECT count(*) FROM academic_sections s WHERE s.session_id = ? AND s.class_id = i.target_class_id AND s.is_active) = 1`, b.ToSessionID, b.ID, b.ToSessionID).Error; err != nil {
+		return err
+	}
+	// A carried group only fits a target class that uses groups; a carried
+	// fourth subject only one the target class offers as a fourth subject.
+	if err := tx.Exec(`UPDATE promotion_items i SET target_group_id = NULL
+ WHERE i.batch_id = ? AND i.target_group_id IS NOT NULL
+   AND (i.target_class_id IS NULL OR NOT EXISTS (SELECT 1 FROM academic_classes c WHERE c.id = i.target_class_id AND c.uses_groups))`, b.ID).Error; err != nil {
+		return err
+	}
+	if err := tx.Exec(`UPDATE promotion_items i SET target_fourth_subject_id = NULL
+ WHERE i.batch_id = ? AND i.target_fourth_subject_id IS NOT NULL
+   AND (i.target_class_id IS NULL OR NOT EXISTS (SELECT 1 FROM academic_class_subjects acs
+        WHERE acs.class_id = i.target_class_id AND acs.subject_id = i.target_fourth_subject_id AND acs.is_fourth_subject))`, b.ID).Error; err != nil {
 		return err
 	}
 	switch b.RollPolicy {
@@ -618,6 +649,43 @@ func (r *Repository) UpdateItem(ctx context.Context, a Actor, id, studentID stri
 				return err
 			}
 		}
+		// Next year's group and fourth subject: "" clears; a value must fit
+		// the student's target class (a class that uses groups; a fourth
+		// subject the class offers).
+		if in.TargetGroupID != nil {
+			if *in.TargetGroupID == "" {
+				if err := tx.Exec("UPDATE promotion_items SET target_group_id = NULL WHERE batch_id = ? AND student_id = ?", id, studentID).Error; err != nil {
+					return err
+				}
+			} else {
+				res := tx.Exec(`UPDATE promotion_items i SET target_group_id = g.id FROM academic_groups g, academic_classes c
+ WHERE i.batch_id = ? AND i.student_id = ? AND g.id = ? AND g.is_active AND c.id = i.target_class_id AND c.uses_groups`,
+					id, studentID, *in.TargetGroupID)
+				if res.Error != nil {
+					return dbErr(res.Error)
+				}
+				if res.RowsAffected == 0 {
+					return ErrInvalid
+				}
+			}
+		}
+		if in.TargetFourthSubjectID != nil {
+			if *in.TargetFourthSubjectID == "" {
+				if err := tx.Exec("UPDATE promotion_items SET target_fourth_subject_id = NULL WHERE batch_id = ? AND student_id = ?", id, studentID).Error; err != nil {
+					return err
+				}
+			} else {
+				res := tx.Exec(`UPDATE promotion_items i SET target_fourth_subject_id = acs.subject_id FROM academic_class_subjects acs
+ WHERE i.batch_id = ? AND i.student_id = ? AND acs.class_id = i.target_class_id AND acs.subject_id = ? AND acs.is_fourth_subject`,
+					id, studentID, *in.TargetFourthSubjectID)
+				if res.Error != nil {
+					return dbErr(res.Error)
+				}
+				if res.RowsAffected == 0 {
+					return ErrInvalid
+				}
+			}
+		}
 		if err := reopen(tx, b); err != nil {
 			return err
 		}
@@ -626,7 +694,8 @@ func (r *Repository) UpdateItem(ctx context.Context, a Actor, id, studentID stri
 		}
 		return audit.Record(tx, &a.ID, "promotion.item_updated", "promotion_batch", id, map[string]any{
 			"student_id": studentID, "recommendation": it.Recommendation, "decision": decision, "reason": reason,
-			"target_section_id": in.TargetSectionID, "target_roll_no": in.TargetRollNo, "approval_cleared": b.Status == "approved"})
+			"target_section_id": in.TargetSectionID, "target_roll_no": in.TargetRollNo,
+			"target_group_id": in.TargetGroupID, "target_fourth_subject_id": in.TargetFourthSubjectID, "approval_cleared": b.Status == "approved"})
 	})
 	return out, dbErr(err)
 }
@@ -798,6 +867,22 @@ func (r *Repository) Apply(ctx context.Context, a Actor, id string) (Batch, erro
  WHERE batch_id = ? AND student_id = ?`, it.StudentID, b.ToSessionID, id, it.StudentID).Error; err != nil {
 					return err
 				}
+				// The carried group and fourth subject become the new
+				// session's choices.
+				if it.TargetGroupID != nil {
+					if err := tx.Exec(`INSERT INTO student_group_choices (student_id, session_id, group_id, updated_by) VALUES (?,?,?,?)
+ON CONFLICT (student_id, session_id) DO UPDATE SET group_id = EXCLUDED.group_id, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+						it.StudentID, b.ToSessionID, *it.TargetGroupID, a.ID).Error; err != nil {
+						return dbErr(err)
+					}
+				}
+				if it.TargetFourthSubjectID != nil {
+					if err := tx.Exec(`INSERT INTO student_subject_choices (student_id, session_id, subject_id, role, updated_by) VALUES (?,?,?,'optional',?)
+ON CONFLICT (student_id, session_id, role) DO UPDATE SET subject_id = EXCLUDED.subject_id, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+						it.StudentID, b.ToSessionID, *it.TargetFourthSubjectID, a.ID).Error; err != nil {
+						return dbErr(err)
+					}
+				}
 			}
 		}
 		if err := settings(tx, a.ID, "", "", "", ""); err != nil {
@@ -844,6 +929,13 @@ func (r *Repository) Revert(ctx context.Context, a Actor, id, reason string) (Ba
 			switch *it.Decision {
 			case Promote, Repeat:
 				if err := settings(tx, a.ID, "", "", "on", ""); err != nil {
+					return err
+				}
+				// The choices the apply wrote for the new year go with it.
+				if err := tx.Exec("DELETE FROM student_group_choices WHERE student_id = ? AND session_id = ?", it.StudentID, b.ToSessionID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM student_subject_choices WHERE student_id = ? AND session_id = ? AND role = 'optional'", it.StudentID, b.ToSessionID).Error; err != nil {
 					return err
 				}
 				res = tx.Exec("UPDATE students SET session_id = ?, class_id = ?, section_id = ?, roll_no = ?, updated_at = now() WHERE id = ?",
