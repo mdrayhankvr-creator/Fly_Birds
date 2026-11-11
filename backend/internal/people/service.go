@@ -55,6 +55,22 @@ type Student struct {
 	PresentAddress   string `json:"present_address"`
 	PermanentAddress string `json:"permanent_address"`
 	AdmissionDate    string `json:"admission_date"`
+	// Shift and medium (transcript v3, migration 1807); empty when not
+	// recorded. The shift names come from the school's shift list.
+	ShiftID     *string `json:"shift_id"`
+	ShiftNameEN string  `json:"shift_name_en"`
+	ShiftNameBN string  `json:"shift_name_bn"`
+	Medium      string  `json:"medium"`
+	// Group and fourth subject of the student's current session (migration
+	// 1808); null when none is chosen. ClassUsesGroups says whether the
+	// student's class uses groups, so clients can hide the fields.
+	GroupID             *string `json:"group_id"`
+	GroupNameEN         string  `json:"group_name_en"`
+	GroupNameBN         string  `json:"group_name_bn"`
+	ClassUsesGroups     bool    `json:"class_uses_groups"`
+	FourthSubjectID     *string `json:"fourth_subject_id"`
+	FourthSubjectNameEN string  `json:"fourth_subject_name_en"`
+	FourthSubjectNameBN string  `json:"fourth_subject_name_bn"`
 	// Primary guardian from the existing relationship; only on single-student reads.
 	PrimaryGuardian *GuardianSummary `json:"primary_guardian,omitempty" gorm:"-"`
 }
@@ -87,6 +103,13 @@ type StudentInput struct {
 	PresentAddress   *string `json:"present_address,omitempty"`
 	PermanentAddress *string `json:"permanent_address,omitempty"`
 	AdmissionDate    *string `json:"admission_date,omitempty"`
+	// Shift, medium, group and fourth subject. An omitted field keeps the
+	// stored value; "" clears it. The group needs a class that uses groups,
+	// and the fourth subject must be a fourth subject of the class.
+	ShiftID         *string `json:"shift_id,omitempty"`
+	Medium          *string `json:"medium,omitempty"`
+	GroupID         *string `json:"group_id,omitempty"`
+	FourthSubjectID *string `json:"fourth_subject_id,omitempty"`
 }
 type Guardian struct {
 	ID      string  `json:"id"`
@@ -230,6 +253,14 @@ func normalizeProfile(v StudentInput) (StudentInput, error) {
 			return v, ErrInvalid
 		}
 		if v.DateOfBirth != "" && *v.AdmissionDate < v.DateOfBirth {
+			return v, ErrInvalid
+		}
+	}
+	if v.Medium != nil && *v.Medium != "" && *v.Medium != "bangla" && *v.Medium != "english" {
+		return v, ErrInvalid
+	}
+	for _, ref := range []*string{v.ShiftID, v.GroupID, v.FourthSubjectID} {
+		if ref != nil && *ref != "" && !validID(*ref) {
 			return v, ErrInvalid
 		}
 	}
