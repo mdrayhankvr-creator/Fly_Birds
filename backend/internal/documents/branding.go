@@ -153,6 +153,9 @@ type logoEntry struct {
 
 var errLogo = errors.New("logo unavailable")
 
+// logoUserAgent names the school's own server to the logo's host.
+const logoUserAgent = "Fly_Birds/1.0 (school logo for printed documents)"
+
 func NewLogoFetcher() *LogoFetcher {
 	dialer := &net.Dialer{Timeout: 4 * time.Second}
 	transport := &http.Transport{
@@ -217,6 +220,10 @@ func (f *LogoFetcher) fetch(ctx context.Context, raw string) ([]byte, error) {
 	if err != nil {
 		return nil, errLogo
 	}
+	// Some image hosts (Wikimedia among them) refuse Go's default client
+	// name; without the logo every document falls back to the initials.
+	req.Header.Set("User-Agent", logoUserAgent)
+	req.Header.Set("Accept", "image/png, image/jpeg")
 	resp, err := f.client.Do(req)
 	if err != nil {
 		return nil, errLogo

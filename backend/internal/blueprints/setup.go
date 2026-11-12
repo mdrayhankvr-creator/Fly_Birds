@@ -398,6 +398,12 @@ func (r *Repository) CreateTerm(ctx context.Context, actor, termID string) (Setu
 		}
 		for _, e := range exams {
 			if e.Exists {
+				// Running the wizard again may move a marks deadline: the
+				// existing exams follow it, so teachers see the date shown here.
+				if err := tx.Exec("UPDATE exams SET marks_due_on = ?, updated_by = ?, updated_at = now() WHERE term_id = ? AND assessment_key = ? AND section_id = ? AND marks_due_on IS DISTINCT FROM ?::date",
+					nullDate(e.Due), actor, termID, e.Key, e.SectionID, nullDate(e.Due)).Error; err != nil {
+					return dbErr(err)
+				}
 				continue
 			}
 			var examID string

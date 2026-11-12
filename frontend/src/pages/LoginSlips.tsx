@@ -63,6 +63,7 @@ function savedLayout(): SlipLayout {
   try { return localStorage.getItem(layoutKey) === 'eight' ? 'eight' : 'standard' } catch { return 'standard' }
 }
 
+// out two across, four to an A4 page.
 export function LoginSlipSheet({ logins }: { logins: StudentLogin[] }) {
   const { t } = useTranslation()
   const school = useSchoolNames()

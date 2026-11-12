@@ -438,6 +438,15 @@ func TestPostgresTermRoutinePlanner(t *testing.T) {
 	if err != nil || len(terms) != 1 || len(terms[0].Versions) != 2 || terms[0].Versions[0].Version != 2 || terms[0].Versions[0].Placed != 8 {
 		t.Fatalf("terms: %+v %v", terms, err)
 	}
+	// The annual term ("Add First Term, Half-Yearly and Annual" makes it of
+	// kind annual) has exams too, so it gets a routine like any other term.
+	annual := insert("INSERT INTO exam_terms(session_id,name,sequence,kind,starts_on,ends_on) VALUES (?,'Annual',2,'annual','2190-11-01','2190-11-30') RETURNING id", session)
+	if terms, err = s.ListTerms(ctx, session); err != nil || len(terms) != 2 || terms[1].TermID != annual {
+		t.Fatalf("terms with the annual term: %+v %v", terms, err)
+	}
+	if av, err := s.CreateVersion(ctx, admin, VersionInput{TermID: annual}); err != nil || av.Version != 1 || av.Status != "draft" {
+		t.Fatalf("annual routine: %+v %v", av.VersionSummary, err)
+	}
 	// Audit trail.
 	for _, action := range []string{"routine.version_created", "routine.paper_placed", "routine.generated", "routine.version_submitted", "routine.version_returned", "routine.version_approved", "routine.version_published", "routine.version_amended", "routine.duty_added", "routine.room_saved"} {
 		var count int64

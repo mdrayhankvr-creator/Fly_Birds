@@ -118,6 +118,20 @@ func TestPostgresCheckpointFourLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The administrator chose the password: like an admission or a reset,
+	// it is temporary and must be changed before anything else.
+	if !teacherCredentials.User.MustChangePassword {
+		t.Fatal("an account created in Admin > Users must choose its own password first")
+	}
+	forced := map[string]string{"Authorization": "Bearer " + teacherCredentials.AccessToken}
+	if body := check("GET", "/dashboard", "", forced, 403); !bytes.Contains(body, []byte("password_change_required")) {
+		t.Fatalf("dashboard before the change: %s", body)
+	}
+	const own = "Checkpoint-own-password-2026"
+	check("POST", "/auth/password", `{"current_password":"`+password+`","new_password":"`+own+`"}`, forced, 200)
+	if teacherCredentials, err = authService.Login(ctx, user.Email, own); err != nil || teacherCredentials.User.MustChangePassword {
+		t.Fatalf("sign-in with the chosen password: %v", err)
+	}
 	teacherAuth := map[string]string{"Authorization": "Bearer " + teacherCredentials.AccessToken}
 	check("GET", "/users", "", teacherAuth, 403)
 	check("GET", "/audit/events", "", teacherAuth, 403)

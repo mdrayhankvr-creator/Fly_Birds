@@ -544,6 +544,9 @@ func TestPostgresResultDocuments(t *testing.T) {
 
 func TestFormatting(t *testing.T) {
 	bn, en := lang("bn"), lang("en")
+	if studentCode(" RMS260001 ", "2026-0001") != "RMS260001" || studentCode("", "2026-0001") != "2026-0001" {
+		t.Fatal("student ID: the school's ID, or the admission number")
+	}
 	m := "45.50"
 	if bn.marks(&m) != "৪৫.৫" || en.marks(&m) != "45.5" {
 		t.Fatalf("marks: %s %s", bn.marks(&m), en.marks(&m))

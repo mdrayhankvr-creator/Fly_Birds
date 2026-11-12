@@ -172,6 +172,7 @@ function ChoicesPanel({ sessionId, canManage }: { sessionId: string; canManage: 
   const chosenClass = classId || classes.data?.[0]?.class_id || ''
   const choices = useQuery({ queryKey: ['e5', 'choices', sessionId, chosenClass], enabled: !!chosenClass, queryFn: () => authorized(token => getSubjectChoices(token, sessionId, chosenClass)), retry: false })
   const [edits, setEdits] = useState<Record<string, string>>({})
+  const [fill, setFill] = useState('')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const changed = Object.keys(edits).length
@@ -188,7 +189,7 @@ function ChoicesPanel({ sessionId, canManage }: { sessionId: string; canManage: 
   return <SectionCard id="bp-choices" title={t('bpChoicesTitle')} description={t('bpChoicesIntro')}
     actions={canManage && changed > 0 ? <button type="button" disabled={busy} className={ui.primary} onClick={() => void save()}>{t('bpSaveChoices', { count: changed })}</button> : undefined}>
     <label className={`${ui.label} max-w-xs`}>{t('bpClass')}
-      <select className={ui.field} value={chosenClass} onChange={e => { setClassId(e.target.value); setEdits({}) }}>
+      <select className={ui.field} value={chosenClass} onChange={e => { setClassId(e.target.value); setEdits({}); setFill('') }}>
         {classes.data?.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
       </select>
     </label>
@@ -199,6 +200,21 @@ function ChoicesPanel({ sessionId, canManage }: { sessionId: string; canManage: 
         : <>
           <Notice tone="info">{t(choices.data.in_use ? 'bpChoicesInUse' : 'bpChoicesNotInUse')}</Notice>
           <p className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600">{choices.data.optional.map(s => <span key={s.id}><strong className="tabular-nums text-slate-900">{choices.data.counts[s.id] || 0}</strong> · {subjectName(s)}</span>)}</p>
+          {/* Most classes give one optional subject to nearly everyone: fill the
+              students without a choice in one step, then save as usual. */}
+          {canManage && choices.data.students.some(s => !s.subject_id && edits[s.student_id] === undefined) && <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className={`${ui.label} max-w-xs`}>{t('bpFillChoices')}
+              <select className={ui.field} value={fill} onChange={e => setFill(e.target.value)}>
+                <option value="">{t('bpNoChoice')}</option>
+                {choices.data.optional.map(o => <option key={o.id} value={o.id}>{subjectName(o)}</option>)}
+              </select>
+            </label>
+            <button type="button" className={ui.secondary} disabled={!fill} onClick={() => {
+              const open = choices.data.students.filter(s => !s.subject_id && edits[s.student_id] === undefined)
+              setEdits(prev => ({ ...prev, ...Object.fromEntries(open.map(s => [s.student_id, fill])) }))
+              setNotice({ tone: 'success', text: t('bpFillChoicesDone', { count: open.length, subject: subjectName(choices.data.optional.find(o => o.id === fill)!) }) })
+            }}>{t('bpFillChoicesApply')}</button>
+          </div>}
           <div className="mt-3 max-h-[32rem] overflow-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 bg-slate-50"><tr><th scope="col" className={ui.th}>{t('bpRoll')}</th><th scope="col" className={ui.th}>{t('bpStudent')}</th><th scope="col" className={ui.th}>{t('bpSection')}</th><th scope="col" className={ui.th}>{t('bpOptionalSubject')}</th></tr></thead>

@@ -160,3 +160,13 @@ var labelsBN = map[string]string{
 	"appeared": "ফলাফল", "pass_rate": "পাসের হার", "grade_distribution": "গ্রেড বণ্টন (জিপিএ অনুযায়ী)", "subject_distribution": "বিষয়ভিত্তিক গ্রেড",
 	"page": "পৃষ্ঠা", "generated": "প্রস্তুত", "count": "সংখ্যা", "share": "হার", "by_section": "শাখাভিত্তিক", "overall": "সার্বিক",
 }
+
+// studentCode is what documents print as the student ID: the school's student
+// ID (the sign-in ID, also on the ID card), or the admission number when the
+// school gave none, as on the student's profile.
+func studentCode(code, admissionNo string) string {
+	if code = strings.TrimSpace(code); code != "" {
+		return code
+	}
+	return admissionNo
+}

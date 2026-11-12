@@ -39,7 +39,9 @@ export function BulkAdmissionPage({ canCreateLogins }: { canCreateLogins: boolea
     setError(t(known.includes(code) ? `c5File_${code}` : cause instanceof ApiError && cause.status === 403 ? 'permissionDenied' : 'c5BulkFailed'))
   }
   async function check(chosen: File | null) {
-    setFile(chosen); setPreview(null); setResult(null); setError(''); setKey(newAdmissionKey())
+    // A new file starts with every row shown: the "only problems" box is
+    // hidden when the new file has none, so it must not stay ticked.
+    setFile(chosen); setPreview(null); setResult(null); setError(''); setOnlyProblems(false); setKey(newAdmissionKey())
     if (!chosen || !sessionId) return
     setBusy(true)
     try { setPreview(await authorized(token => previewBulk(token, sessionId, chosen))) } catch (cause) { failure(cause) } finally { setBusy(false) }

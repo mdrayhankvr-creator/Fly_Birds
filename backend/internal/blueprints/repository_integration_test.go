@@ -119,6 +119,10 @@ func TestPostgresTermsAndBlueprints(t *testing.T) {
 	if len(draft.Definition.Assessments) != 3 || len(draft.Definition.Subjects) != 3 || draft.Definition.Subjects[2].Role != "optional" || len(draft.Issues) != 0 {
 		t.Fatalf("seed: %+v issues %+v", draft.Definition, draft.Issues)
 	}
+	// A new blueprint: a failed final (annual) term fails the year.
+	if !draft.Definition.Annual.FinalMustPass || draft.Definition.Annual.Method != "final_only" {
+		t.Fatalf("new blueprint annual rule: %+v", draft.Definition.Annual)
+	}
 	if _, err := svc.CreateBlueprint(ctx, f.admin, f.session, f.class, ""); !errors.Is(err, ErrConflict) {
 		t.Fatalf("second draft: %v", err)
 	}
@@ -151,6 +155,7 @@ func TestPostgresTermsAndBlueprints(t *testing.T) {
 		s.Sheets = append(s.Sheets, Sheet{Assessment: "CT1", Pass: 7, Components: total(20)}, Sheet{Assessment: "CT2", Pass: 7, Components: total(20)})
 		s.Terms[0].Contributions = []Contribution{{From: []string{"CT1", "CT2"}, Combine: "average", Worth: 20}, {From: []string{"EX1"}, Combine: "single", Worth: 70}}
 	}
+	d.Annual.FinalMustPass = false // a school's own choice is kept
 	saved, err := svc.SaveDraft(ctx, f.admin, v2.ID, d)
 	if err != nil {
 		t.Fatal(err)
@@ -215,6 +220,9 @@ func TestPostgresTermsAndBlueprints(t *testing.T) {
 	}
 	if next.Definition.Assessments[0].Visibility != "hidden" {
 		t.Fatal("copy forward keeps the definition's own visibility")
+	}
+	if next.Definition.Annual.FinalMustPass {
+		t.Fatal("copy forward keeps the school's annual rule (final term need not be passed)")
 	}
 }
 
@@ -360,5 +368,19 @@ func TestPostgresTermSetupWizard(t *testing.T) {
 	again, err := svc.CreateTerm(ctx, f.admin, term.ID)
 	if err != nil || again.ExamsCreated != 0 || again.SheetsCreated != 0 {
 		t.Fatalf("second create: %+v %v", again, err)
+	}
+	// A deadline moved in the wizard after creation reaches the existing exams.
+	setup.Due["EX1"] = "2200-05-15"
+	if _, err := svc.SaveSetup(ctx, f.admin, term.ID, setup); err != nil {
+		t.Fatal(err)
+	}
+	if moved, err := svc.CreateTerm(ctx, f.admin, term.ID); err != nil || moved.ExamsCreated != 0 {
+		t.Fatalf("create after moving a deadline: %+v %v", moved, err)
+	}
+	var due struct{ Moved, Kept int }
+	f.tx.Raw(`SELECT (SELECT count(*) FROM exams WHERE term_id = ? AND assessment_key = 'EX1' AND marks_due_on = '2200-05-15') AS moved,
+       (SELECT count(*) FROM exams WHERE term_id = ? AND assessment_key = 'CT1' AND marks_due_on = '2200-02-01') AS kept`, term.ID, term.ID).Scan(&due)
+	if due.Moved != 2 || due.Kept != 2 {
+		t.Fatalf("moved deadline: %+v", due)
 	}
 }

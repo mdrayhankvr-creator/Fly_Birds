@@ -25,6 +25,9 @@ English or Bangla.
 **Attendance:** days present (present or late) out of working days. Working
 days run from the term's start to its end (or to today, if earlier), less
 the weekly off days and published holidays (the same rules as attendance).
+They start on the first day the section's attendance was recorded in the
+period, if that is later: a school that starts using Fly_Birds in the
+middle of a term has no record of the earlier days, which is not absence.
 A term without dates starts the day after the previous term's end (or on
 the session's first day) and ends on the day the results were published;
 the annual result covers the session. With no attendance recorded the field
@@ -146,8 +149,8 @@ and guardian forms) gains `marksheet_version_id`.
   review is a mark, not an approval step that blocks printing.
 - **Signature images** are trimmed and resized but not cleaned further;
   a busy photo background may need cropping before upload.
-- **Attendance** counts recorded days; a working day with nothing recorded
-  for the student counts as not present.
+- **Attendance** counts recorded days; after the section's first record, a
+  working day with nothing recorded for the student counts as not present.
 
 ## 6. Also changed
 

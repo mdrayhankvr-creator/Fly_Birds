@@ -79,6 +79,8 @@ test('adding and removing assessments keeps the definition consistent', () => {
 test('a blueprint preset sets every graded subject in one click', () => {
   const def = base()
   const plain = applyBlueprintPreset(def, 'T1', 'cq_mcq', false)
+  assert.equal(plain.annual.final_must_pass, true, 'a preset makes a failed final term fail the year')
+  assert.equal(def.annual.final_must_pass, false, 'the original is not changed')
   for (const s of plain.subjects.filter(x => x.role !== 'non_graded')) {
     const ex = s.sheets.find(x => x.assessment === 'EX1')
     assert.deepEqual(ex.components.map(c => `${c.key}:${c.full}`), ['CQ:70', 'MCQ:30'])

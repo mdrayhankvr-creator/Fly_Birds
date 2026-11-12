@@ -439,6 +439,14 @@ func place(tx *gorm.DB, b batchRow) error {
    AND s.session_id = ? AND s.class_id = i.target_class_id AND s.is_active AND upper(s.code) = upper(src.code)`, b.ID, b.ToSessionID).Error; err != nil {
 		return err
 	}
+	// A class with one section next year takes everyone (two sections often
+	// become one); otherwise a student whose section code has no match is
+	// placed by hand.
+	if err := tx.Exec(`UPDATE promotion_items i SET target_section_id = (SELECT s.id FROM academic_sections s WHERE s.session_id = ? AND s.class_id = i.target_class_id AND s.is_active)
+ WHERE i.batch_id = ? AND i.target_class_id IS NOT NULL AND i.target_section_id IS NULL
+   AND (SELECT count(*) FROM academic_sections s WHERE s.session_id = ? AND s.class_id = i.target_class_id AND s.is_active) = 1`, b.ToSessionID, b.ID, b.ToSessionID).Error; err != nil {
+		return err
+	}
 	switch b.RollPolicy {
 	case "manual":
 		return nil
