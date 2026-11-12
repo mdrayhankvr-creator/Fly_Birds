@@ -20,7 +20,7 @@ var (
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
-var Categories = []string{"notice", "absence", "result", "fee", "diary"}
+var Categories = []string{"notice", "absence", "result", "fee", "diary", "routine"}
 
 // Dhaka is Bangladesh Standard Time (no daylight saving).
 var Dhaka = time.FixedZone("BST", 6*60*60)

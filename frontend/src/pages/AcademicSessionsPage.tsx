@@ -8,6 +8,7 @@ import {
   type AcademicSession, type AcademicSessionInput,
 } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import { academicTabs } from './AcademicPage'
 import { CardTitle, ui, PageHeader, LinkTabs } from './attendanceUi'
 
 const emptyForm: AcademicSessionInput = { name: '', start_date: '', end_date: '' }
@@ -97,7 +98,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
 
   return <div className="space-y-8">
     <PageHeader eyebrow={t('academicStructure')} title={t('academicSessions')} description={t('academicSessionsDescription')} />
-    <LinkTabs label={t('academicStructure')} items={[{ to: '/admin/academic/sessions', label: t('academicSessions') }, { to: '/admin/academic/classes', label: t('classesHeading') }, { to: '/admin/academic/sections', label: t('sectionsHeading') }, { to: '/admin/academic/subjects', label: t('subjectsHeading') }]} />
+    <LinkTabs label={t('academicStructure')} items={academicTabs(t)} />
     {message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-emerald-900">{message}</p>}
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
     <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('currentSession')}>

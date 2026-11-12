@@ -26,7 +26,7 @@ function ReportCardView({card,mode}:{card:ReportCard;mode:Mode}) {
  const when=useWhen()
  const school=i18n.language==='bn'&&card.school_name_bn?card.school_name_bn:card.school_name_en
  const student=i18n.language==='bn'&&card.result.student_name_bn?card.result.student_name_bn:card.result.student_name
- return <article className="exam-report rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+ return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
   <header className="flex items-center gap-4 border-b pb-4">{card.logo_url&&<img src={card.logo_url} alt="" className="h-14 w-14 object-contain" />}<div><p className={ui.sectionTitle}>{school}</p><h2 className="text-lg font-semibold">{t('examReport')} · {card.exam.name}</h2><p className="text-sm text-slate-600">{card.exam.session_name} · {card.exam.class_name} / {card.exam.section_name}</p></div></header>
   {card.withheld?<div className="mt-4 space-y-3"><p><strong>{student}</strong> · {card.result.admission_no}</p><p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-semibold text-amber-900">{t('e3ResultWithheld')}</p></div>:<>
   <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2"><p><strong>{student}</strong> · {card.result.admission_no}</p><p>{t('examResult')}: <strong>{t(card.result.passed?'examPassed':'examFailed')}</strong></p><p>{t('examGpa')}: <strong>{card.result.gpa.toFixed(2)}</strong></p><p>{t('examTotal')}: {card.result.total_marks} / {card.result.full_marks}</p><p>{t('examClassPosition')}: {card.result.class_position}</p><p>{t('examSectionPosition')}: {card.result.section_position}</p></div>
@@ -39,16 +39,16 @@ function ReportCardView({card,mode}:{card:ReportCard;mode:Mode}) {
  </article>
 }
 
-// ReportCardPdf: the report card prints as the marksheet PDF (marksheet v2)
-// of the exam's term result, once that result is published.
+// ReportCardPdf: every exam's own published result — a class test as much as
+// a half-yearly — prints as the transcript PDF; the browser print page is
+// gone. Students download through their published version, staff through the
+// documents service (assessment scope).
 function ReportCardPdf({card,mode}:{card:ReportCard;mode:Mode}) {
  const {t}=useTranslation()
  const {run,start,busy}=useDocuments()
- const versionId=card.marksheet_version_id
- if(!versionId||!card.exam.term_id)return <p className="mt-5 text-sm text-slate-600 print:hidden">{t('msMarksheetLater')}</p>
- if(mode==='student')return <div className="mt-5"><p className="mb-2 text-sm font-semibold text-slate-800">{t('msMarksheetPdf')}</p><MyMarksheet versionId={versionId} /></div>
- const termId=card.exam.term_id
- return <div className="mt-5 space-y-2 print:hidden"><p className="text-sm font-semibold text-slate-800">{t('msMarksheetPdf')}</p><div className="flex flex-wrap gap-2">{(['en','bn'] as const).map(l=><button key={l} type="button" className={ui.secondary} disabled={busy} onClick={()=>void start(`marksheet:${l}`,{kind:'marksheet',scope:'term',scope_id:termId,class_id:card.exam.class_id,student_id:card.result.student_id,language:l})}><Icon name="download" className="h-4 w-4" />{t(l==='en'?'e7DownloadEnglish':'e7DownloadBangla')}</button>)}</div>{run?.error&&<Notice tone="error">{run.error}</Notice>}{run&&!run.error&&<p role="status" className="text-sm text-slate-600">{t('e7Preparing')}</p>}</div>
+ if(!card.version_id)return <p className="mt-5 text-sm text-slate-600">{t('msMarksheetLater')}</p>
+ if(mode==='student')return <div className="mt-5"><p className="mb-2 text-sm font-semibold text-slate-800">{t('msMarksheetPdf')}</p><MyMarksheet versionId={card.version_id} /></div>
+ return <div className="mt-5 space-y-2"><p className="text-sm font-semibold text-slate-800">{t('msMarksheetPdf')}</p><div className="flex flex-wrap gap-2">{(['en','bn'] as const).map(l=><button key={l} type="button" className={ui.secondary} disabled={busy} onClick={()=>void start(`marksheet:${l}`,{kind:'marksheet',scope:'assessment',scope_id:card.exam.id,class_id:card.exam.class_id,student_id:card.result.student_id,language:l})}><Icon name="download" className="h-4 w-4" />{t(l==='en'?'e7DownloadEnglish':'e7DownloadBangla')}</button>)}</div>{run?.error&&<Notice tone="error">{run.error}</Notice>}{run&&!run.error&&<p role="status" className="text-sm text-slate-600">{t('e7Preparing')}</p>}</div>
 }
 
 // SheetsPanel: one row per subject sheet with its progress and review

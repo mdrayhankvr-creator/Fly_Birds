@@ -61,10 +61,16 @@ func requireScopedGrant(tx *gorm.DB, a Actor) error {
 	return nil
 }
 
-const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo,s.student_code,s.gender,s.blood_group,s.father_name_en,s.father_name_bn,s.mother_name_en,s.mother_name_bn,s.present_address,s.permanent_address,COALESCE(to_char(s.admission_date,'YYYY-MM-DD'),'') AS admission_date,COALESCE(lu.login_id,'') AS login_id"
+const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo,s.student_code,s.gender,s.blood_group,s.father_name_en,s.father_name_bn,s.mother_name_en,s.mother_name_bn,s.present_address,s.permanent_address,COALESCE(to_char(s.admission_date,'YYYY-MM-DD'),'') AS admission_date,COALESCE(lu.login_id,'') AS login_id," +
+	"s.shift_id,COALESCE(sh.name_en,'') AS shift_name_en,COALESCE(sh.name_bn,'') AS shift_name_bn,s.medium,c.uses_groups AS class_uses_groups," +
+	"gc.group_id,COALESCE(gr.name_en,'') AS group_name_en,COALESCE(gr.name_bn,'') AS group_name_bn," +
+	"ssc.subject_id AS fourth_subject_id,COALESCE(fsub.name_en,'') AS fourth_subject_name_en,COALESCE(fsub.name_bn,'') AS fourth_subject_name_bn"
 
 func studentBase(db *gorm.DB) *gorm.DB {
-	return db.Table("students AS s").Joins("JOIN academic_sessions AS a ON a.id=s.session_id").Joins("JOIN academic_classes AS c ON c.id=s.class_id").Joins("JOIN academic_sections AS sec ON sec.id=s.section_id").Joins("LEFT JOIN student_photos AS p ON p.student_id=s.id").Joins("LEFT JOIN users AS lu ON lu.id=s.user_id")
+	return db.Table("students AS s").Joins("JOIN academic_sessions AS a ON a.id=s.session_id").Joins("JOIN academic_classes AS c ON c.id=s.class_id").Joins("JOIN academic_sections AS sec ON sec.id=s.section_id").Joins("LEFT JOIN student_photos AS p ON p.student_id=s.id").Joins("LEFT JOIN users AS lu ON lu.id=s.user_id").
+		Joins("LEFT JOIN school_shifts AS sh ON sh.id=s.shift_id").
+		Joins("LEFT JOIN student_group_choices AS gc ON gc.student_id=s.id AND gc.session_id=s.session_id").Joins("LEFT JOIN academic_groups AS gr ON gr.id=gc.group_id").
+		Joins("LEFT JOIN student_subject_choices AS ssc ON ssc.student_id=s.id AND ssc.session_id=s.session_id AND ssc.role='optional'").Joins("LEFT JOIN academic_subjects AS fsub ON fsub.id=ssc.subject_id")
 }
 func (r *GormRepository) ListStudents(ctx context.Context, q Query) (Page[Student], error) {
 	base := studentBase(r.db.WithContext(ctx))
@@ -161,19 +167,68 @@ func profileArgs(v StudentInput) []any {
 func saveStudentTx(tx *gorm.DB, id string, v StudentInput) (string, error) {
 	base := []any{v.AdmissionNo, v.NameEN, v.NameBN, v.DateOfBirth, v.Status, v.SessionID, v.ClassID, v.SectionID, v.RollNo, v.UserID}
 	if id == "" {
-		args := append(append(base, profileArgs(v)...), v.AdmissionDate)
-		err := tx.Raw("INSERT INTO students (admission_no,name_en,name_bn,date_of_birth,status,session_id,class_id,section_id,roll_no,user_id,student_code,gender,blood_group,father_name_en,father_name_bn,mother_name_en,mother_name_bn,present_address,permanent_address,admission_date) VALUES (?,?,?,NULLIF(?,'')::date,?,?,?,?,?,NULLIF(?,'')::uuid,COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),NULLIF(?::text,'')::date) RETURNING id", args...).Scan(&id).Error
-		return id, err
+		args := append(append(base, profileArgs(v)...), v.AdmissionDate, v.ShiftID, v.Medium)
+		err := tx.Raw("INSERT INTO students (admission_no,name_en,name_bn,date_of_birth,status,session_id,class_id,section_id,roll_no,user_id,student_code,gender,blood_group,father_name_en,father_name_bn,mother_name_en,mother_name_bn,present_address,permanent_address,admission_date,shift_id,medium) VALUES (?,?,?,NULLIF(?,'')::date,?,?,?,?,?,NULLIF(?,'')::uuid,COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),NULLIF(?::text,'')::date,NULLIF(COALESCE(?,''),'')::uuid,COALESCE(?,'')) RETURNING id", args...).Scan(&id).Error
+		if err != nil {
+			return id, err
+		}
+		return id, saveStudentChoices(tx, id, v)
 	}
-	args := append(append(base, profileArgs(v)...), v.AdmissionDate, v.AdmissionDate, id)
-	res := tx.Exec("UPDATE students SET admission_no=?,name_en=?,name_bn=?,date_of_birth=NULLIF(?,'')::date,status=?,session_id=?,class_id=?,section_id=?,roll_no=?,user_id=NULLIF(?,'')::uuid,student_code=COALESCE(?,student_code),gender=COALESCE(?,gender),blood_group=COALESCE(?,blood_group),father_name_en=COALESCE(?,father_name_en),father_name_bn=COALESCE(?,father_name_bn),mother_name_en=COALESCE(?,mother_name_en),mother_name_bn=COALESCE(?,mother_name_bn),present_address=COALESCE(?,present_address),permanent_address=COALESCE(?,permanent_address),admission_date=CASE WHEN ?::text IS NULL THEN admission_date ELSE NULLIF(?::text,'')::date END,updated_at=now() WHERE id=?", args...)
+	args := append(append(base, profileArgs(v)...), v.AdmissionDate, v.AdmissionDate, v.ShiftID, v.ShiftID, v.Medium, id)
+	res := tx.Exec("UPDATE students SET admission_no=?,name_en=?,name_bn=?,date_of_birth=NULLIF(?,'')::date,status=?,session_id=?,class_id=?,section_id=?,roll_no=?,user_id=NULLIF(?,'')::uuid,student_code=COALESCE(?,student_code),gender=COALESCE(?,gender),blood_group=COALESCE(?,blood_group),father_name_en=COALESCE(?,father_name_en),father_name_bn=COALESCE(?,father_name_bn),mother_name_en=COALESCE(?,mother_name_en),mother_name_bn=COALESCE(?,mother_name_bn),present_address=COALESCE(?,present_address),permanent_address=COALESCE(?,permanent_address),admission_date=CASE WHEN ?::text IS NULL THEN admission_date ELSE NULLIF(?::text,'')::date END,shift_id=CASE WHEN ?::text IS NULL THEN shift_id ELSE NULLIF(?::text,'')::uuid END,medium=COALESCE(?,medium),updated_at=now() WHERE id=?", args...)
 	if res.Error != nil {
 		return "", res.Error
 	}
 	if res.RowsAffected == 0 {
 		return "", ErrNotFound
 	}
-	return id, nil
+	return id, saveStudentChoices(tx, id, v)
+}
+
+// saveStudentChoices writes the student's group and fourth subject for the
+// session the student was just saved into. An omitted field changes nothing;
+// "" removes the choice. The group needs a class that uses groups, and the
+// fourth subject must be a fourth subject of the class (ErrInvalid otherwise).
+func saveStudentChoices(tx *gorm.DB, id string, v StudentInput) error {
+	if v.GroupID != nil {
+		if *v.GroupID == "" {
+			if err := tx.Exec("DELETE FROM student_group_choices WHERE student_id=? AND session_id=?", id, v.SessionID).Error; err != nil {
+				return err
+			}
+		} else {
+			var ok int64
+			if err := tx.Table("academic_classes").Where("id=? AND uses_groups", v.ClassID).Count(&ok).Error; err != nil {
+				return err
+			}
+			if ok == 0 {
+				return ErrInvalid
+			}
+			if err := tx.Exec(`INSERT INTO student_group_choices (student_id,session_id,group_id) VALUES (?,?,?)
+ON CONFLICT (student_id,session_id) DO UPDATE SET group_id=EXCLUDED.group_id, updated_at=now()`, id, v.SessionID, *v.GroupID).Error; err != nil {
+				return err
+			}
+		}
+	}
+	if v.FourthSubjectID != nil {
+		if *v.FourthSubjectID == "" {
+			if err := tx.Exec("DELETE FROM student_subject_choices WHERE student_id=? AND session_id=? AND role='optional'", id, v.SessionID).Error; err != nil {
+				return err
+			}
+		} else {
+			var ok int64
+			if err := tx.Table("academic_class_subjects").Where("class_id=? AND subject_id=? AND is_fourth_subject", v.ClassID, *v.FourthSubjectID).Count(&ok).Error; err != nil {
+				return err
+			}
+			if ok == 0 {
+				return ErrInvalid
+			}
+			if err := tx.Exec(`INSERT INTO student_subject_choices (student_id,session_id,subject_id,role) VALUES (?,?,?,'optional')
+ON CONFLICT (student_id,session_id,role) DO UPDATE SET subject_id=EXCLUDED.subject_id, updated_at=now()`, id, v.SessionID, *v.FourthSubjectID).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 func (r *GormRepository) SaveStudent(ctx context.Context, a Actor, id string, v StudentInput) (Student, error) {
 	created := id == ""

@@ -31,23 +31,26 @@ type DocResult struct {
 	Outputs     Outputs         `json:"outputs"`
 }
 
-// DocSet is a class's term or annual results, as documents use them.
+// DocSet is a class's term, annual or assessment results, as documents use
+// them.
 type DocSet struct {
 	ScopeRef
 	SessionID   string `json:"session_id"`
 	SessionName string `json:"session_name"`
 	ClassName   string `json:"class_name"`
-	// Title is the term's name (term) or the session's name (annual).
+	// Title is the term's name (term), the session's name (annual) or the
+	// exam's name (assessment).
 	Title       string `json:"title"`
 	Provisional bool   `json:"provisional"`
 	Revision    int    `json:"revision"`
 	PublishedAt string `json:"published_at"`
 	// Key changes whenever any result in the set changes: the published
 	// version ids, or the inputs hash of a provisional calculation.
-	Key     string               `json:"key"`
-	Term    *TermRules           `json:"-"`
-	Annual  *AnnualRulesSnapshot `json:"-"`
-	Results []DocResult          `json:"results"`
+	Key        string               `json:"key"`
+	Term       *TermRules           `json:"-"`
+	Annual     *AnnualRulesSnapshot `json:"-"`
+	Assessment *AssessmentRules     `json:"-"`
+	Results    []DocResult          `json:"results"`
 }
 
 // VersionRef is where a published version belongs.
@@ -59,13 +62,13 @@ type VersionRef struct {
 	Status    string
 }
 
-// DocumentVersion locates a term or annual version by id.
+// DocumentVersion locates a term, annual or assessment version by id.
 func (r *Results) DocumentVersion(ctx context.Context, versionID string) (VersionRef, error) {
 	if !uuid.MatchString(versionID) {
 		return VersionRef{}, ErrNotFound
 	}
 	var v VersionRef
-	err := r.db.WithContext(ctx).Raw("SELECT scope, scope_id, class_id, student_id, session_id, section_id, status FROM result_versions WHERE id = ? AND scope IN ('term','annual')", versionID).
+	err := r.db.WithContext(ctx).Raw("SELECT scope, scope_id, class_id, student_id, session_id, section_id, status FROM result_versions WHERE id = ? AND scope IN ('term','annual','assessment')", versionID).
 		Row().Scan(&v.Scope, &v.ScopeID, &v.ClassID, &v.StudentID, &v.SessionID, &v.SectionID, &v.Status)
 	if errors.Is(err, sql.ErrNoRows) {
 		return VersionRef{}, ErrNotFound
@@ -73,9 +76,18 @@ func (r *Results) DocumentVersion(ctx context.Context, versionID string) (Versio
 	return v, err
 }
 
-// PublishedDocSet is a class's current published term or annual results.
+// StudentsMaySee reports whether students and guardians may see an exam's own
+// published result (class tests are hidden unless the blueprint opens them).
+func (r *Results) StudentsMaySee(ctx context.Context, examID string) (bool, error) {
+	var ok bool
+	err := r.db.WithContext(ctx).Raw("SELECT exam_visible_to_students(?)", examID).Row().Scan(&ok)
+	return ok, err
+}
+
+// PublishedDocSet is a class's current published term, annual or assessment
+// results.
 func (r *Results) PublishedDocSet(ctx context.Context, ref ScopeRef) (DocSet, error) {
-	if (ref.Scope != ScopeTerm && ref.Scope != ScopeAnnual) || !ref.valid() {
+	if (ref.Scope != ScopeTerm && ref.Scope != ScopeAnnual && ref.Scope != ScopeAssessment) || !ref.valid() {
 		return DocSet{}, ErrInvalid
 	}
 	tx := r.db.WithContext(ctx)
@@ -183,6 +195,12 @@ func (s *DocSet) parseRules(rules string) error {
 			return err
 		}
 		s.Annual = &a
+	case ScopeAssessment:
+		var a AssessmentRules
+		if err := json.Unmarshal([]byte(rules), &a); err != nil {
+			return err
+		}
+		s.Assessment = &a
 	}
 	return nil
 }
@@ -193,10 +211,15 @@ func (s *DocSet) names(tx *gorm.DB) error {
 		return err
 	}
 	s.SessionName, s.ClassName, s.Title = session, class, session
-	if s.Scope == ScopeTerm {
+	switch s.Scope {
+	case ScopeTerm:
 		if s.Term != nil && s.Term.TermName != "" {
 			s.Title = s.Term.TermName
 		} else if err := tx.Raw("SELECT name FROM exam_terms WHERE id = ?", s.ScopeID).Row().Scan(&s.Title); err != nil {
+			return err
+		}
+	case ScopeAssessment:
+		if err := tx.Raw("SELECT name FROM exams WHERE id = ?", s.ScopeID).Row().Scan(&s.Title); err != nil {
 			return err
 		}
 	}
@@ -206,6 +229,13 @@ func (s *DocSet) names(tx *gorm.DB) error {
 // TermInputsOf decodes a term result's inputs.
 func TermInputsOf(raw json.RawMessage) (TermInputs, error) {
 	var in TermInputs
+	err := json.Unmarshal(raw, &in)
+	return in, err
+}
+
+// AssessmentInputsOf decodes an assessment result's inputs.
+func AssessmentInputsOf(raw json.RawMessage) (AssessmentInputs, error) {
+	var in AssessmentInputs
 	err := json.Unmarshal(raw, &in)
 	return in, err
 }

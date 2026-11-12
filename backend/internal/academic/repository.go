@@ -52,28 +52,32 @@ func (r *GormRepository) ListClasses(ctx context.Context, q Query) (Page[Class],
 	if err := base.Count(&result.Total).Error; err != nil {
 		return Page[Class]{}, err
 	}
-	err := base.Select("id,name,display_order,is_active").Order("display_order ASC,name ASC,id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&result.Items).Error
+	err := base.Select("id,name,display_order,is_active,uses_groups").Order("display_order ASC,name ASC,id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&result.Items).Error
 	return result, err
 }
 func (r *GormRepository) GetClass(ctx context.Context, id string) (Class, error) {
 	var item Class
-	err := r.db.WithContext(ctx).Table("academic_classes").Select("id,name,display_order,is_active").Where("id=?", id).Take(&item).Error
+	err := r.db.WithContext(ctx).Table("academic_classes").Select("id,name,display_order,is_active,uses_groups").Where("id=?", id).Take(&item).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return Class{}, ErrNotFound
 	}
 	return item, err
 }
-func (r *GormRepository) SaveClass(ctx context.Context, actor, id string, value Class) (Class, error) {
+func (r *GormRepository) SaveClass(ctx context.Context, actor, id string, value Class, setUsesGroups bool) (Class, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := requireManage(tx, actor); err != nil {
 			return err
 		}
 		if id == "" {
-			if err := tx.Raw("INSERT INTO academic_classes (name,display_order,is_active) VALUES (?,?,?) RETURNING id", value.Name, value.DisplayOrder, value.IsActive).Scan(&value.ID).Error; err != nil {
+			if err := tx.Raw("INSERT INTO academic_classes (name,display_order,is_active,uses_groups) VALUES (?,?,?,?) RETURNING id", value.Name, value.DisplayOrder, value.IsActive, value.UsesGroups).Scan(&value.ID).Error; err != nil {
 				return err
 			}
 		} else {
-			updated := tx.Table("academic_classes").Where("id=?", id).Updates(map[string]any{"name": value.Name, "display_order": value.DisplayOrder, "is_active": value.IsActive, "updated_at": time.Now().UTC()})
+			fields := map[string]any{"name": value.Name, "display_order": value.DisplayOrder, "is_active": value.IsActive, "updated_at": time.Now().UTC()}
+			if setUsesGroups {
+				fields["uses_groups"] = value.UsesGroups
+			}
+			updated := tx.Table("academic_classes").Where("id=?", id).Updates(fields)
 			if updated.Error != nil {
 				return updated.Error
 			}
@@ -81,6 +85,11 @@ func (r *GormRepository) SaveClass(ctx context.Context, actor, id string, value 
 				return ErrNotFound
 			}
 			value.ID = id
+			if !setUsesGroups {
+				if err := tx.Table("academic_classes").Select("uses_groups").Where("id=?", id).Scan(&value.UsesGroups).Error; err != nil {
+					return err
+				}
+			}
 		}
 		return audit.Record(tx, &actor, "academic.class_saved", "academic_class", value.ID, map[string]any{"created": id == ""})
 	})

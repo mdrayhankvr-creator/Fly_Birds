@@ -25,7 +25,7 @@ import (
 
 // templateVersion changes whenever a template's output changes, so cached
 // documents are rebuilt.
-const templateVersion = "ms2-1"
+const templateVersion = "ms3-1"
 
 var (
 	ErrInvalid      = errors.New("invalid document request")
@@ -147,13 +147,17 @@ func (s *Service) canClass(ctx context.Context, a Actor, sessionID, classID stri
 	return n > 0, err
 }
 
-// sessionOf is the session a term or annual scope belongs to.
+// sessionOf is the session a term, annual or assessment scope belongs to.
 func (s *Service) sessionOf(ctx context.Context, scope, scopeID string) (string, error) {
 	if scope == exams.ScopeAnnual {
 		return scopeID, nil
 	}
+	table := "exam_terms"
+	if scope == exams.ScopeAssessment {
+		table = "exams"
+	}
 	var id string
-	err := s.db.WithContext(ctx).Raw("SELECT session_id FROM exam_terms WHERE id = ?", scopeID).Row().Scan(&id)
+	err := s.db.WithContext(ctx).Raw("SELECT session_id FROM "+table+" WHERE id = ?", scopeID).Row().Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
 	}
@@ -165,9 +169,18 @@ func (r *Request) normalize() error {
 	if r.Language == "" {
 		r.Language = "en"
 	}
-	if !kinds[r.Kind] || (r.Scope != exams.ScopeTerm && r.Scope != exams.ScopeAnnual) || (r.Language != "en" && r.Language != "bn") ||
+	if !kinds[r.Kind] || (r.Scope != exams.ScopeTerm && r.Scope != exams.ScopeAnnual && r.Scope != exams.ScopeAssessment) || (r.Language != "en" && r.Language != "bn") ||
 		!uuidPattern.MatchString(r.ScopeID) || !uuidPattern.MatchString(r.ClassID) ||
 		(r.SectionID != "" && !uuidPattern.MatchString(r.SectionID)) || (r.StudentID != "" && !uuidPattern.MatchString(r.StudentID)) {
+		return ErrInvalid
+	}
+	// An exam's own published result prints marksheets only; the class
+	// documents stay with term and annual results.
+	if r.Scope == exams.ScopeAssessment && r.Kind != "marksheet" && r.Kind != "marksheets" {
+		return ErrInvalid
+	}
+	// A provisional preview exists for term and annual results only.
+	if r.Scope == exams.ScopeAssessment && r.Provisional {
 		return ErrInvalid
 	}
 	if (r.Kind == "marksheet") != (r.StudentID != "") {
@@ -228,6 +241,17 @@ func (s *Service) StudentMarksheet(ctx context.Context, a Actor, versionID, lang
 	// Someone else's result, or a superseded or withdrawn one, is not found.
 	if own == 0 || ref.Status != "published" {
 		return Document{}, ErrNotFound
+	}
+	// An exam's own result (a class test …) follows its visibility rule:
+	// while it is hidden from students, so is its marksheet.
+	if ref.Scope == exams.ScopeAssessment {
+		visible, err := s.results.StudentsMaySee(ctx, ref.ScopeID)
+		if err != nil {
+			return Document{}, err
+		}
+		if !visible {
+			return Document{}, ErrNotFound
+		}
 	}
 	in := Request{Kind: "marksheet", Scope: ref.Scope, ScopeID: ref.ScopeID, ClassID: ref.ClassID, StudentID: ref.StudentID, Language: language}
 	if err := in.normalize(); err != nil {
@@ -680,15 +704,20 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		}
 		row := sheetStudent{Name: l.pick(st.NameEN, st.NameBN), NameAlt: l.other(st.NameEN, st.NameBN), StudentID: l.code(studentCode(x.Code, st.AdmissionNo)), Class: st.ClassName, Section: st.SectionName,
 			Roll: rollText(l, st.RollNo), Session: l.num(st.SessionName), Exam: examName(l, set), Withheld: r.Outcome == "withheld", Rows: []sheetRow{}, Optional: []sheetRow{},
-			Total: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", FailedCount: "—",
-			ClassPos: posText(l, o.ClassPosition, classN), SectionPos: posText(l, o.SectionPosition, sectionN[st.SectionID]), Attendance: "—", Published: "—"}
+			Total: "—", TotalMarks: "—", FullMarks: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", FailedCount: "—",
+			ClassPos: posText(l, o.ClassPosition, classN), SectionPos: posText(l, o.SectionPosition, sectionN[st.SectionID]),
+			Held: "—", PresentDays: "—", AbsentDays: "—", Published: "—"}
 		row.Father, row.Mother = orDash(l.pick(x.FatherEN, x.FatherBN)), orDash(l.pick(x.MotherEN, x.MotherBN))
 		row.DOB = "—"
 		if x.DOB != nil {
 			row.DOB, _ = l.day(*x.DOB)
 		}
+		row.Shift, row.Group = l.pick(x.ShiftEN, x.ShiftBN), l.pick(x.GroupEN, x.GroupBN)
+		if x.Medium != "" {
+			row.Medium = l.t("medium_" + x.Medium)
+		}
 		if x.Working > 0 && x.HasAttendance {
-			row.Attendance = fmt.Sprintf(l.t("attendance_value"), l.int(x.Present), l.int(x.Working), l.int(x.Present*100/x.Working))
+			row.Held, row.PresentDays, row.AbsentDays = l.int(x.Working), l.int(x.Present), l.int(x.Working-x.Present)
 		}
 		switch {
 		case x.Custom != "":
@@ -703,8 +732,14 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		}
 		if !row.Withheld {
 			row.Rows, row.Optional = lo.rows(l, r, top, ex.subjects)
+			// The 4th subject's name goes in the student's details, as on a
+			// board transcript.
+			if len(row.Optional) > 0 {
+				row.Fourth = row.Optional[0].Subject
+			}
 			if o.Total != nil && o.Full != nil {
-				row.Total = l.marks(o.Total) + " / " + l.marks(o.Full)
+				row.TotalMarks, row.FullMarks = l.marks(o.Total), l.marks(o.Full)
+				row.Total = row.TotalMarks + " / " + row.FullMarks
 			}
 			row.GPA = l.points(o.GPA)
 			row.GPAWithout = l.points(lo.requiredGPA(o))
@@ -729,7 +764,8 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		if brand.school.Signatory != "" {
 			head.Title = brand.school.Signatory
 		}
-		row.Signatures = []signature{teacher, head, {Title: l.t("sig_guardian"), Date: true}}
+		// The reference order: the class teacher, the guardian, then the head.
+		row.Signatures = []signature{teacher, {Title: l.t("sig_guardian"), Date: true}, head}
 		if set.Provisional {
 			row.Footer = l.t("footer_provisional")
 		} else {
@@ -827,11 +863,12 @@ func (s *Service) Classes(ctx context.Context, a Actor) ([]ClassSet, error) {
 	}
 	rows := []ClassSet{}
 	q := `SELECT * FROM (SELECT DISTINCT ON (p.scope, p.scope_id, p.class_id) p.scope, p.scope_id, p.session_id, s.name AS session_name, p.class_id, c.name AS class_name,
- coalesce(t.name, s.name) AS title, p.revision, to_char(p.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
+ coalesce(t.name, e.name, s.name) AS title, p.revision, to_char(p.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
  (SELECT count(*) FROM result_versions v WHERE v.scope = p.scope AND v.scope_id = p.scope_id AND v.class_id = p.class_id AND v.status = 'published') AS students
  FROM result_publications p JOIN academic_sessions s ON s.id = p.session_id JOIN academic_classes c ON c.id = p.class_id
  LEFT JOIN exam_terms t ON p.scope = 'term' AND t.id = p.scope_id
- WHERE p.status = 'published' AND p.scope IN ('term', 'annual')`
+ LEFT JOIN exams e ON p.scope = 'assessment' AND e.id = p.scope_id
+ WHERE p.status = 'published' AND p.scope IN ('term', 'annual', 'assessment')`
 	args := []any{}
 	if !staffAll(a) {
 		q += ` AND EXISTS (SELECT 1 FROM teacher_assignments ta JOIN employees emp ON emp.id = ta.employee_id WHERE emp.user_id = ? AND emp.is_active AND ta.session_id = p.session_id AND ta.class_id = p.class_id)`

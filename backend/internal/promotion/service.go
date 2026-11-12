@@ -72,6 +72,9 @@ type ItemInput struct {
 	Reason          *string `json:"reason"`
 	TargetSectionID *string `json:"target_section_id"`
 	TargetRollNo    *int    `json:"target_roll_no"`
+	// Next year's group and fourth subject; "" clears the value.
+	TargetGroupID         *string `json:"target_group_id"`
+	TargetFourthSubjectID *string `json:"target_fourth_subject_id"`
 }
 
 type HashInput struct {
@@ -154,6 +157,18 @@ type Item struct {
 	TargetSectionName   *string `json:"target_section_name"`
 	TargetRollNo        *int    `json:"target_roll_no"`
 	AppliedEnrolmentID  *string `json:"applied_enrolment_id"`
+	// Group and fourth subject: the closing year's values, and the next
+	// year's (prefilled from the closing year, editable while the batch is
+	// open; applied as the new session's choices). TargetClassUsesGroups
+	// says whether the target class uses groups, so clients can hide the
+	// fields. (Migration 1809.)
+	SourceGroupName         *string `json:"source_group_name"`
+	SourceFourthSubjectName *string `json:"source_fourth_subject_name"`
+	TargetGroupID           *string `json:"target_group_id"`
+	TargetGroupName         *string `json:"target_group_name"`
+	TargetFourthSubjectID   *string `json:"target_fourth_subject_id"`
+	TargetFourthSubjectName *string `json:"target_fourth_subject_name"`
+	TargetClassUsesGroups   bool    `json:"target_class_uses_groups"`
 }
 
 // Issue is a blocker or a warning, for the batch or one student.
@@ -231,7 +246,13 @@ func (s *Service) UpdateItem(ctx context.Context, a Actor, id, studentID string,
 	if in.TargetRollNo != nil && (*in.TargetRollNo < 1 || *in.TargetRollNo > 999999) {
 		return Batch{}, ErrInvalid
 	}
-	if in.Decision == nil && in.Reason == nil && in.TargetSectionID == nil && in.TargetRollNo == nil {
+	if in.TargetGroupID != nil && *in.TargetGroupID != "" && !validID(*in.TargetGroupID) {
+		return Batch{}, ErrInvalid
+	}
+	if in.TargetFourthSubjectID != nil && *in.TargetFourthSubjectID != "" && !validID(*in.TargetFourthSubjectID) {
+		return Batch{}, ErrInvalid
+	}
+	if in.Decision == nil && in.Reason == nil && in.TargetSectionID == nil && in.TargetRollNo == nil && in.TargetGroupID == nil && in.TargetFourthSubjectID == nil {
 		return Batch{}, ErrInvalid
 	}
 	return s.repo.UpdateItem(ctx, a, id, studentID, in)

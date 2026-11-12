@@ -163,6 +163,14 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
           })}</div>
           {(draft.weekly_off_days ?? []).length > 6 && <p role="alert" className="mt-2 text-sm text-rose-700">{t('afOffDaysTooMany')}</p>}
         </fieldset>
+        <fieldset className="mt-6 rounded-xl border border-slate-200 p-4 sm:p-5" aria-describedby="transcript-hint">
+          <legend className="px-1 text-base font-semibold text-slate-900">{t('transcriptSettingsTitle')}</legend>
+          <p id="transcript-hint" className="text-sm text-slate-600">{t('transcriptSettingsHint')}</p>
+          <div className="mt-3 flex flex-wrap gap-4">
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={draft.transcript_border} disabled={!canEditSettings} onChange={(event) => setField('transcript_border', event.target.checked)} />{t('transcriptBorderLabel')}</label>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={draft.transcript_watermark} disabled={!canEditSettings} onChange={(event) => setField('transcript_watermark', event.target.checked)} />{t('transcriptWatermarkLabel')}</label>
+          </div>
+        </fieldset>
         <div className="mt-6 rounded-xl border border-slate-200 p-5" data-theme-preview={draft.dashboard_theme} style={previewStyle}>
           <h3 className="text-lg font-semibold">{t('preview')}</h3>
           <div className="mt-3 flex flex-wrap items-center gap-4">

@@ -189,15 +189,14 @@ func TestPostgresMarksheetV2(t *testing.T) {
 	}
 	// 9 of the 12 marked days were present, 1 late (counts as present), 2
 	// absent: 10 days present.
-	wantAttendance := fmt.Sprintf("10 / %d days (%d%%)", working, 10*100/working)
-	if st.Attendance != wantAttendance {
-		t.Fatalf("attendance: %q, want %q", st.Attendance, wantAttendance)
+	if st.Held != fmt.Sprintf("%d", working) || st.PresentDays != "10" || st.AbsentDays != fmt.Sprintf("%d", working-10) {
+		t.Fatalf("attendance: held %q present %q absent %q (working %d)", st.Held, st.PresentDays, st.AbsentDays, working)
 	}
-	if st.Comment != presets[0].TextEN || st.ClassPos != "1 of 3" || st.SectionPos != "1 of 3" || st.FailedCount != "0" {
+	if st.Comment != presets[0].TextEN || st.ClassPos != "1st of 3" || st.SectionPos != "1st of 3" || st.FailedCount != "0" {
 		t.Fatalf("summary: comment %q pos %q/%q failed %q", st.Comment, st.ClassPos, st.SectionPos, st.FailedCount)
 	}
 	if len(st.Signatures) != 3 || st.Signatures[0].Name != "Nasrin Sultana" || st.Signatures[0].Image != "ctsig-"+sigVersion+".png" ||
-		st.Signatures[1].Name != "Head Master" || !st.Signatures[2].Date || st.Signatures[2].Image != "" {
+		!st.Signatures[1].Date || st.Signatures[1].Image != "" || st.Signatures[2].Name != "Head Master" {
 		t.Fatalf("signatures: %+v", st.Signatures)
 	}
 	if _, ok := fake.last().Assets["ctsig-"+sigVersion+".png"]; !ok {
@@ -219,13 +218,13 @@ func TestPostgresMarksheetV2(t *testing.T) {
 
 	// Bangla: Bangla names, digits and the comment preset's Bangla text.
 	_, bn := request(0, "bn")
-	if bn.Father != "আবদুল করিম" || bn.Comment != presets[0].TextBN || bn.ClassPos != "৩ জনের মধ্যে ১" || !strings.HasPrefix(bn.Attendance, "১০ / ") || bn.Signatures[0].Name != "নাসরিন সুলতানা" {
-		t.Fatalf("bangla: %q %q %q %q", bn.Father, bn.Comment, bn.ClassPos, bn.Attendance)
+	if bn.Father != "আবদুল করিম" || bn.Comment != presets[0].TextBN || bn.ClassPos != "৩ জনের মধ্যে ১ম" || bn.PresentDays != "১০" || bn.Signatures[0].Name != "নাসরিন সুলতানা" {
+		t.Fatalf("bangla: %q %q %q %q", bn.Father, bn.Comment, bn.ClassPos, bn.PresentDays)
 	}
 
 	_, failing := request(1, "en")
-	if failing.FailedCount != "1" || failing.Comment != long || failing.Result != "Failed" || failing.Father != "—" || failing.Attendance != "—" {
-		t.Fatalf("student 1: failed %q comment %q father %q attendance %q", failing.FailedCount, failing.Comment, failing.Father, failing.Attendance)
+	if failing.FailedCount != "1" || failing.Comment != long || failing.Result != "Failed" || failing.Father != "—" || failing.Held != "—" {
+		t.Fatalf("student 1: failed %q comment %q father %q held %q", failing.FailedCount, failing.Comment, failing.Father, failing.Held)
 	}
 
 	// The same request again is the cached document, not rendered again.
@@ -283,7 +282,7 @@ func TestPostgresMarksheetV2(t *testing.T) {
 			later++
 		}
 	}
-	if _, st4 := request(0, "en"); later >= working || st4.Attendance != fmt.Sprintf("%d / %d days (%d%%)", present, later, present*100/later) {
-		t.Fatalf("attendance from the first record (%s): %q, want %d of %d", first, st4.Attendance, present, later)
+	if _, st4 := request(0, "en"); later >= working || st4.Held != fmt.Sprintf("%d", later) || st4.PresentDays != fmt.Sprintf("%d", present) {
+		t.Fatalf("attendance from the first record (%s): held %q present %q, want %d of %d", first, st4.Held, st4.PresentDays, present, later)
 	}
 }

@@ -2,13 +2,21 @@ import { confirmAction } from '../components/ConfirmDialog'
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ApiError, addClassSubject, getAcademicClasses, getAcademicSubjects, getClassSubjects, removeClassSubject, saveAcademicClass, saveAcademicSubject, updateClassSubject, type AcademicClass, type AcademicClassInput, type AcademicSubject, type AcademicSubjectInput, type Page } from '../api/client'
+import { ApiError, addClassSubject, getAcademicClasses, getAcademicGroups, getAcademicSubjects, getClassGroups, getClassSubjects, getSchoolShifts, removeClassSubject, saveAcademicClass, saveAcademicGroup, saveAcademicSubject, saveSchoolShift, setClassGroupSubjects, updateClassSubject, type AcademicClass, type AcademicClassInput, type AcademicSubject, type AcademicSubjectInput, type NamedListInput, type NamedListItem, type Page } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { CardTitle, ui, PageHeader, LinkTabs } from './attendanceUi'
 
 const field = ui.field
-const emptyClass: AcademicClassInput = { name: '', display_order: 0, is_active: true }
+const emptyClass: AcademicClassInput = { name: '', display_order: 0, is_active: true, uses_groups: false }
 const emptySubject: AcademicSubjectInput = { name_en: '', name_bn: '', code: '', is_active: true }
+
+export const academicTabs = (t: (k: string) => string) => [
+  { to: '/admin/academic/sessions', label: t('academicSessions') },
+  { to: '/admin/academic/classes', label: t('classesHeading') },
+  { to: '/admin/academic/sections', label: t('sectionsHeading') },
+  { to: '/admin/academic/subjects', label: t('subjectsHeading') },
+  { to: '/admin/academic/groups', label: t('groupsShiftsHeading') },
+]
 
 export function AcademicPage({ kind, canManage }: { kind: 'classes' | 'subjects'; canManage: boolean }) {
   const { t, i18n } = useTranslation()
@@ -59,7 +67,7 @@ export function AcademicPage({ kind, canManage }: { kind: 'classes' | 'subjects'
     } finally { setBusy(false) }
   }
   function selectClass(item: AcademicClass) { setSelectedClass(item); setMappingPage(1); setMappingSearch(''); setSubjectId('') }
-  function editClass(item: AcademicClass) { setEditingId(item.id); setClassForm({ name: item.name, display_order: item.display_order, is_active: item.is_active }); selectClass(item) }
+  function editClass(item: AcademicClass) { setEditingId(item.id); setClassForm({ name: item.name, display_order: item.display_order, is_active: item.is_active, uses_groups: item.uses_groups }); selectClass(item) }
   function editSubject(item: AcademicSubject) { setEditingId(item.id); setSubjectForm({ name_en: item.name_en, name_bn: item.name_bn, code: item.code, is_active: item.is_active }) }
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -76,7 +84,7 @@ export function AcademicPage({ kind, canManage }: { kind: 'classes' | 'subjects'
   const mappingPages = Math.max(1, Math.ceil((mappings.data?.total ?? 0) / 10))
   return <div className="space-y-6">
     <PageHeader eyebrow={t('academicStructure')} title={t(kind === 'classes' ? 'classesHeading' : 'subjectsHeading')} description={t(kind === 'classes' ? 'classesDescription' : 'subjectsDescription')} />
-    <LinkTabs label={t('academicStructure')} items={[{ to: '/admin/academic/sessions', label: t('academicSessions') }, { to: '/admin/academic/classes', label: t('classesHeading') }, { to: '/admin/academic/sections', label: t('sectionsHeading') }, { to: '/admin/academic/subjects', label: t('subjectsHeading') }]} />
+    <LinkTabs label={t('academicStructure')} items={academicTabs(t)} />
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
     {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</p>}
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,1fr)]">
@@ -86,14 +94,14 @@ export function AcademicPage({ kind, canManage }: { kind: 'classes' | 'subjects'
           <label className={ui.label}>{t('status')}<select className={field} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}><option value="">{t('allStatuses')}</option><option value="active">{t('active')}</option><option value="inactive">{t('inactive')}</option></select></label>
         </div>
         {listing.isPending ? <p role="status" className="mt-4">{t('academicLoading')}</p> : listing.isError ? <p role="alert" className="mt-4 text-rose-700">{t('academicLoadError')}</p> : items.length === 0 ? <p className="mt-4 text-slate-600">{t('academicEmpty')}</p> : <ul className="mt-4 space-y-2">
-          {items.map((item) => kind === 'classes' ? (() => { const value = item as AcademicClass; return <li key={value.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="font-semibold text-slate-900">{value.name}</p><p className="text-sm text-slate-600">{t('displayOrder')}: {value.display_order} · {t(value.is_active ? 'active' : 'inactive')}</p></div><div className="flex gap-2"><button className={ui.ghost} onClick={() => selectClass(value)}>{t('assignSubjects')}</button>{canManage && <button className={ui.ghost} onClick={() => editClass(value)}>{t('edit')}</button>}</div></li> })() : (() => { const value = item as AcademicSubject; return <li key={value.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="font-semibold text-slate-900">{i18n.language === 'bn' ? value.name_bn : value.name_en} <span className="text-sm font-normal text-slate-500">({value.code})</span></p><p className="text-sm text-slate-600">{t(value.is_active ? 'active' : 'inactive')}</p></div>{canManage && <button className={ui.ghost} onClick={() => editSubject(value)}>{t('edit')}</button>}</li> })())}
+          {items.map((item) => kind === 'classes' ? (() => { const value = item as AcademicClass; return <li key={value.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="font-semibold text-slate-900">{value.name}</p><p className="text-sm text-slate-600">{t('displayOrder')}: {value.display_order} · {t(value.is_active ? 'active' : 'inactive')}{value.uses_groups ? <> · {t('classUsesGroups')}</> : null}</p></div><div className="flex gap-2"><button className={ui.ghost} onClick={() => selectClass(value)}>{t('assignSubjects')}</button>{canManage && <button className={ui.ghost} onClick={() => editClass(value)}>{t('edit')}</button>}</div></li> })() :(() => { const value = item as AcademicSubject; return <li key={value.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="font-semibold text-slate-900">{i18n.language === 'bn' ? value.name_bn : value.name_en} <span className="text-sm font-normal text-slate-500">({value.code})</span></p><p className="text-sm text-slate-600">{t(value.is_active ? 'active' : 'inactive')}</p></div>{canManage && <button className={ui.ghost} onClick={() => editSubject(value)}>{t('edit')}</button>}</li> })())}
         </ul>}
         {pages > 1 && <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-between gap-3 text-sm"><button className={ui.secondary} disabled={page <= 1} onClick={() => setPage(page-1)}>{t('previous')}</button><span>{t('pageOf', { page, total: pages })}</span><button className={ui.secondary} disabled={page >= pages} onClick={() => setPage(page+1)}>{t('next')}</button></div>}
       </section>
       {canManage && <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('academicEditor')}>
         <h2 className={ui.sectionTitle}>{t(editingId ? 'edit' : kind === 'classes' ? 'createClass' : 'createSubject')}</h2>
         <form className="mt-4 space-y-4" onSubmit={save}>
-          {kind === 'classes' ? <><label className={ui.label}>{t('className')}<input required maxLength={120} className={field} value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} /></label><label className={ui.label}>{t('displayOrder')}<input required type="number" min="0" max="100000" className={field} value={classForm.display_order} onChange={(e) => setClassForm({ ...classForm, display_order: Number(e.target.value) })} /></label></> : <><label className={ui.label}>{t('subjectNameEN')}<input required maxLength={160} className={field} value={subjectForm.name_en} onChange={(e) => setSubjectForm({ ...subjectForm, name_en: e.target.value })} /></label><label className={ui.label}>{t('subjectNameBN')}<input required maxLength={160} className={field} value={subjectForm.name_bn} onChange={(e) => setSubjectForm({ ...subjectForm, name_bn: e.target.value })} /></label><label className={ui.label}>{t('subjectCode')}<input required maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_-]*" className={field} value={subjectForm.code} onChange={(e) => setSubjectForm({ ...subjectForm, code: e.target.value })} /></label></>}
+          {kind === 'classes' ? <><label className={ui.label}>{t('className')}<input required maxLength={120} className={field} value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} /></label><label className={ui.label}>{t('displayOrder')}<input required type="number" min="0" max="100000" className={field} value={classForm.display_order} onChange={(e) => setClassForm({ ...classForm, display_order: Number(e.target.value) })} /></label><label className="flex items-start gap-2 text-sm font-semibold"><input type="checkbox" className="mt-0.5" checked={classForm.uses_groups} onChange={(e) => setClassForm({ ...classForm, uses_groups: e.target.checked })} /><span>{t('classUsesGroups')}<span className="block text-xs font-normal text-slate-600">{t('classUsesGroupsHint')}</span></span></label></> :<><label className={ui.label}>{t('subjectNameEN')}<input required maxLength={160} className={field} value={subjectForm.name_en} onChange={(e) => setSubjectForm({ ...subjectForm, name_en: e.target.value })} /></label><label className={ui.label}>{t('subjectNameBN')}<input required maxLength={160} className={field} value={subjectForm.name_bn} onChange={(e) => setSubjectForm({ ...subjectForm, name_bn: e.target.value })} /></label><label className={ui.label}>{t('subjectCode')}<input required maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_-]*" className={field} value={subjectForm.code} onChange={(e) => setSubjectForm({ ...subjectForm, code: e.target.value })} /></label></>}
           <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={kind === 'classes' ? classForm.is_active : subjectForm.is_active} onChange={(e) => kind === 'classes' ? setClassForm({ ...classForm, is_active: e.target.checked }) : setSubjectForm({ ...subjectForm, is_active: e.target.checked })} />{t('active')}</label>
           <div className="flex flex-wrap gap-2"><button disabled={busy} className={ui.primary}>{t('saveChanges')}</button>{editingId && <button type="button" className={ui.secondary} onClick={() => { setEditingId(''); setClassForm(emptyClass); setSubjectForm(emptySubject) }}>{t('cancel')}</button>}</div>
         </form>
@@ -106,6 +114,111 @@ export function AcademicPage({ kind, canManage }: { kind: 'classes' | 'subjects'
       {mappingPages > 1 && <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between gap-3 text-sm"><button className={ui.secondary} disabled={mappingPage <= 1} onClick={() => setMappingPage(mappingPage-1)}>{t('previous')}</button><span>{t('pageOf', { page: mappingPage, total: mappingPages })}</span><button className={ui.secondary} disabled={mappingPage >= mappingPages} onClick={() => setMappingPage(mappingPage+1)}>{t('next')}</button></div>}
       {canManage && <form className="mt-6 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end" onSubmit={addMapping}><div className="space-y-2"><label className={ui.label}>{t('search')}<input className={field} value={subjectSearch} onChange={(e) => { setSubjectSearch(e.target.value); setSubjectId('') }} /></label><label className={ui.label}>{t('subject')}<select required className={field} value={subjectId} onChange={(e) => setSubjectId(e.target.value)}><option value="">{t('chooseSubject')}</option>{allSubjects.data?.items.map((item) => <option key={item.id} value={item.id}>{i18n.language === 'bn' ? item.name_bn : item.name_en} ({item.code})</option>)}</select></label></div><label className={ui.label}>{t('subjectType')}<select className={field} value={fourth ? 'fourth' : 'required'} onChange={(e) => setFourth(e.target.value === 'fourth')}><option value="required">{t('requiredSubject')}</option><option value="fourth">{t('fourthSubject')}</option></select></label><button disabled={busy || !selectedClass.is_active} className={ui.primary}>{t('assignSubjects')}</button></form>}
       {allSubjects.data && allSubjects.data.total > 100 && <p className="mt-2 text-sm text-amber-700">{t('subjectOptionsLimit')}</p>}
+      {selectedClass.uses_groups && <ClassGroupsEditor key={selectedClass.id} classId={selectedClass.id} canManage={canManage} busy={busy} authorized={authorized} run={run} />}
     </section>}
   </div>
+}
+
+// ClassGroupsEditor maps each group's subjects in one class. A subject mapped
+// to any group is taken only by that group's students; unmapped subjects stay
+// common to the class.
+function ClassGroupsEditor({ classId, canManage, busy, authorized, run }: { classId: string; canManage: boolean; busy: boolean; authorized: <T>(request: (token: string) => Promise<T>) => Promise<T>; run: (action: () => Promise<unknown>) => Promise<void> }) {
+  const { t, i18n } = useTranslation()
+  const [draft, setDraft] = useState<Record<string, string[]>>({})
+  const groups = useQuery({ queryKey: ['academic', 'class-groups', classId], queryFn: () => authorized((token) => getClassGroups(token, classId)), retry: false })
+  const subjects = useQuery({ queryKey: ['academic', 'group-subject-options', classId], queryFn: () => authorized((token) => getClassSubjects(token, classId, new URLSearchParams({ page: '1', page_size: '100' }))), retry: false })
+  if (groups.isPending || subjects.isPending) return <p className="mt-6 border-t border-slate-200 pt-5" role="status">{t('academicLoading')}</p>
+  if (groups.isError || subjects.isError) return <p className="mt-6 border-t border-slate-200 pt-5 text-rose-700" role="alert">{t('academicLoadError')}</p>
+  const active = (groups.data?.items ?? []).filter((g) => g.is_active)
+  const options = subjects.data?.items ?? []
+  const chosen = (g: { group_id: string; subject_ids: string[] }) => draft[g.group_id] ?? g.subject_ids
+  const toggle = (groupId: string, current: string[], subjectId: string, on: boolean) =>
+    setDraft({ ...draft, [groupId]: on ? [...current, subjectId] : current.filter((id) => id !== subjectId) })
+  return <div className="mt-6 border-t border-slate-200 pt-5">
+    <h3 className="font-bold">{t('groupSubjectsTitle')}</h3>
+    <p className="mt-1 text-sm text-slate-600">{t('groupSubjectsHint')}</p>
+    {active.length === 0 ? <p className="mt-3 text-slate-600">{t('noGroups')}</p> : <div className="mt-4 grid gap-3 lg:grid-cols-3">
+      {active.map((g) => { const current = chosen(g); return <div key={g.group_id} className="rounded-xl border border-slate-200 p-3">
+        <p className="font-semibold">{i18n.language === 'bn' && g.name_bn ? g.name_bn : g.name_en}</p>
+        <ul className="mt-2 space-y-1.5">
+          {options.map((m) => <li key={m.subject_id}><label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!canManage} checked={current.includes(m.subject_id)} onChange={(e) => toggle(g.group_id, current, m.subject_id, e.target.checked)} />{i18n.language === 'bn' ? m.subject_name_bn : m.subject_name_en} ({m.subject_code})</label></li>)}
+        </ul>
+        {canManage && draft[g.group_id] !== undefined && <button type="button" disabled={busy} className={`${ui.primary} mt-3`} onClick={() => void run(async () => { await authorized((token) => setClassGroupSubjects(token, classId, g.group_id, current)); setDraft((d) => { const next = { ...d }; delete next[g.group_id]; return next }) })}>{t('saveChanges')}</button>}
+      </div> })}
+    </div>}
+  </div>
+}
+
+// GroupsShiftsPage manages the school's two editable lists: the groups
+// (Science, Humanities …) classes 9–10 use, and the shifts students can
+// belong to.
+export function GroupsShiftsPage({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
+  return <div className="space-y-6">
+    <PageHeader eyebrow={t('academicStructure')} title={t('groupsShiftsHeading')} description={t('groupsShiftsDescription')} />
+    <LinkTabs label={t('academicStructure')} items={academicTabs(t)} />
+    <div className="grid gap-6 lg:grid-cols-2">
+      <NamedListCard kind="groups" canManage={canManage} />
+      <NamedListCard kind="shifts" canManage={canManage} />
+    </div>
+  </div>
+}
+
+function NamedListCard({ kind, canManage }: { kind: 'groups' | 'shifts'; canManage: boolean }) {
+  const { t, i18n } = useTranslation()
+  const { accessToken, renew, expire } = useAuth()
+  const client = useQueryClient()
+  const empty: NamedListInput = { name_en: '', name_bn: '', display_order: 0, is_active: true }
+  const [editingId, setEditingId] = useState('')
+  const [form, setForm] = useState<NamedListInput>(empty)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function authorized<T>(request: (token: string) => Promise<T>): Promise<T> {
+    if (!accessToken) throw new ApiError(401, 'unauthorized')
+    try { return await request(accessToken) }
+    catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) {
+        try { return await request(await renew()) }
+        catch (retryCause) { if (retryCause instanceof ApiError && retryCause.status === 401) expire(); throw retryCause }
+      }
+      throw cause
+    }
+  }
+  const params = new URLSearchParams({ page: '1', page_size: '100' })
+  const listing = useQuery({ queryKey: ['academic', kind], queryFn: () => authorized((token) => kind === 'groups' ? getAcademicGroups(token, params) : getSchoolShifts(token, params)), retry: false })
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBusy(true); setError('')
+    try {
+      await authorized((token) => kind === 'groups' ? saveAcademicGroup(token, form, editingId || undefined) : saveSchoolShift(token, form, editingId || undefined))
+      await client.invalidateQueries({ queryKey: ['academic', kind] })
+      setEditingId(''); setForm(empty)
+    } catch (cause) {
+      setError(cause instanceof ApiError && cause.code === 'duplicate_academic_record' ? t('academicDuplicate') : t('academicSaveError'))
+    } finally { setBusy(false) }
+  }
+  const items = listing.data?.items ?? []
+  return <section className={`${ui.card} p-4 sm:p-6`} aria-label={t(kind === 'groups' ? 'groupsHeading' : 'shiftsHeading')}>
+    <CardTitle icon={kind === 'groups' ? 'book' : 'clock'}>{t(kind === 'groups' ? 'groupsHeading' : 'shiftsHeading')}</CardTitle>
+    <p className="mt-1 text-sm text-slate-600">{t(kind === 'groups' ? 'groupsHint' : 'shiftsHint')}</p>
+    {error && <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
+    {listing.isPending ? <p className="mt-4" role="status">{t('academicLoading')}</p> : listing.isError ? <p className="mt-4 text-rose-700" role="alert">{t('academicLoadError')}</p> : items.length === 0 ? <p className="mt-4 text-slate-600">{t('academicEmpty')}</p> : <ul className="mt-4 space-y-2">
+      {items.map((item: NamedListItem) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+        <div className="min-w-0"><p className="font-semibold text-slate-900">{i18n.language === 'bn' && item.name_bn ? item.name_bn : item.name_en}{item.name_bn && <span className="text-sm font-normal text-slate-500"> · {i18n.language === 'bn' ? item.name_en : item.name_bn}</span>}</p><p className="text-sm text-slate-600">{t('displayOrder')}: {item.display_order} · {t(item.is_active ? 'active' : 'inactive')}</p></div>
+        {canManage && <button className={ui.ghost} onClick={() => { setEditingId(item.id); setForm({ name_en: item.name_en, name_bn: item.name_bn, display_order: item.display_order, is_active: item.is_active }) }}>{t('edit')}</button>}
+      </li>)}
+    </ul>}
+    {canManage && <form className="mt-5 space-y-3 border-t border-slate-200 pt-4" onSubmit={save}>
+      <h3 className="text-sm font-bold">{t(editingId ? 'edit' : kind === 'groups' ? 'createGroup' : 'createShift')}</h3>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={ui.label}>{t('subjectNameEN')}<input required maxLength={80} className={field} value={form.name_en} onChange={(e) => setForm({ ...form, name_en: e.target.value })} /></label>
+        <label className={ui.label}>{t('subjectNameBN')}<input maxLength={80} className={field} value={form.name_bn} onChange={(e) => setForm({ ...form, name_bn: e.target.value })} /></label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+        <label className={ui.label}>{t('displayOrder')}<input required type="number" min="0" max="100000" className={field} value={form.display_order} onChange={(e) => setForm({ ...form, display_order: Number(e.target.value) })} /></label>
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />{t('active')}</label>
+      </div>
+      <div className="flex flex-wrap gap-2"><button disabled={busy} className={ui.primary}>{t('saveChanges')}</button>{editingId && <button type="button" className={ui.secondary} onClick={() => { setEditingId(''); setForm(empty) }}>{t('cancel')}</button>}</div>
+    </form>}
+  </section>
 }

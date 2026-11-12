@@ -16,6 +16,12 @@ export type PromotionItem = {
   target_class_id: string | null; target_class_name: string | null
   target_section_id: string | null; target_section_name: string | null; target_roll_no: number | null
   applied_enrolment_id: string | null
+  // Group and fourth subject: the closing year's values and the next year's
+  // (prefilled, editable while the batch is open).
+  source_group_name: string | null; source_fourth_subject_name: string | null
+  target_group_id: string | null; target_group_name: string | null
+  target_fourth_subject_id: string | null; target_fourth_subject_name: string | null
+  target_class_uses_groups: boolean
 }
 export type PromotionBatch = {
   id: string; from_session_id: string; from_session_name: string; to_session_id: string; to_session_name: string
@@ -39,7 +45,7 @@ export type ConcessionReview = {
   student_name: string; admission_no: string; category_name_en: string; category_name_bn: string
   to_session_id: string; to_class_name: string; to_section_name: string; to_percent: number | null
 }
-export type ItemInput = { decision?: Decision; reason?: string; target_section_id?: string | null; target_roll_no?: number | null }
+export type ItemInput = { decision?: Decision; reason?: string; target_section_id?: string | null; target_roll_no?: number | null; target_group_id?: string; target_fourth_subject_id?: string }
 
 const id = (value: string) => encodeURIComponent(value)
 

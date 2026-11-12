@@ -144,6 +144,8 @@ export type SchoolSettings = SchoolBranding & SchoolDetails & {
   address: string; phone: string; email: string; grading_scheme_id: string; updated_at: string
   // Days without attendance, 0 Sunday … 6 Saturday (Friday by default).
   weekly_off_days: number[]
+  // Transcript v3 decorations (both default on).
+  transcript_border: boolean; transcript_watermark: boolean
 }
 export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at' | keyof SchoolDetails>
 export type GradeBand = { grade: string; min_marks: number; max_marks: number; gpa: number }
@@ -216,7 +218,7 @@ export const setUserRole = (token: string, id: string, role: string) => bearerRe
 })
 export const getDashboard = (token: string) => bearerRequest<DashboardData>('/dashboard', token)
 
-export type AcademicClass = { id: string; name: string; display_order: number; is_active: boolean }
+export type AcademicClass = { id: string; name: string; display_order: number; is_active: boolean; uses_groups: boolean }
 export type AcademicSubject = { id: string; name_en: string; name_bn: string; code: string; is_active: boolean }
 export type ClassSubject = { id: string; class_id: string; subject_id: string; is_required: boolean; is_fourth_subject: boolean; subject_name_en: string; subject_name_bn: string; subject_code: string }
 export type AcademicClassInput = Omit<AcademicClass, 'id'>
@@ -230,6 +232,19 @@ export const addClassSubject = (token: string, classId: string, subjectId: strin
 export const updateClassSubject = (token: string, classId: string, subjectId: string, fourth: boolean) => bearerRequest<ClassSubject>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_required: !fourth, is_fourth_subject: fourth }) })
 export const removeClassSubject = (token: string, classId: string, subjectId: string) => bearerRequest<{ deleted: boolean }>(`/academic/classes/${encodeURIComponent(classId)}/subjects/${encodeURIComponent(subjectId)}`, token, { method: 'DELETE' })
 
+// Groups (Science, Humanities …) and shifts are school-editable lists; a
+// class opts into groups with uses_groups, and each group's subjects are
+// mapped per class.
+export type NamedListItem = { id: string; name_en: string; name_bn: string; display_order: number; is_active: boolean }
+export type NamedListInput = Omit<NamedListItem, 'id'>
+export type ClassGroup = { group_id: string; name_en: string; name_bn: string; is_active: boolean; subject_ids: string[] }
+export const getAcademicGroups = (token: string, params: URLSearchParams) => bearerRequest<Page<NamedListItem>>(`/academic/groups?${params}`, token)
+export const saveAcademicGroup = (token: string, input: NamedListInput, id?: string) => bearerRequest<NamedListItem>(id ? `/academic/groups/${encodeURIComponent(id)}` : '/academic/groups', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+export const getSchoolShifts = (token: string, params: URLSearchParams) => bearerRequest<Page<NamedListItem>>(`/academic/shifts?${params}`, token)
+export const saveSchoolShift = (token: string, input: NamedListInput, id?: string) => bearerRequest<NamedListItem>(id ? `/academic/shifts/${encodeURIComponent(id)}` : '/academic/shifts', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+export const getClassGroups = (token: string, classId: string) => bearerRequest<{ items: ClassGroup[] }>(`/academic/classes/${encodeURIComponent(classId)}/groups`, token)
+export const setClassGroupSubjects = (token: string, classId: string, groupId: string, subjectIds: string[]) => bearerRequest<{ items: ClassGroup[] }>(`/academic/classes/${encodeURIComponent(classId)}/groups/${encodeURIComponent(groupId)}/subjects`, token, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject_ids: subjectIds }) })
+
 export type AcademicSection = { id: string; session_id: string; class_id: string; name: string; code: string; display_order: number; is_active: boolean; session_name: string; class_name: string }
 export type AcademicSectionInput = Omit<AcademicSection, 'id' | 'session_name' | 'class_name'>
 export const getAcademicSections = (token: string, params: URLSearchParams) => bearerRequest<Page<AcademicSection>>(`/academic/sections?${params}`, token)
@@ -239,10 +254,17 @@ export const saveAcademicSection = (token: string, input: AcademicSectionInput, 
 export type Gender = '' | 'male' | 'female' | 'other'
 export const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
 export type StudentProfileDetails = { student_code: string; gender: Gender; blood_group: string; father_name_en: string; father_name_bn: string; mother_name_en: string; mother_name_bn: string; present_address: string; permanent_address: string; admission_date: string }
+export type Medium = '' | 'bangla' | 'english'
+// Shift, version (medium), group and fourth subject (transcript v3). On
+// input an omitted field keeps the stored value and '' clears it; group and
+// fourth subject belong to the student's session and need a class that uses
+// them.
+export type StudentChoiceDetails = { shift_id: string | null; medium: Medium; group_id: string | null; fourth_subject_id: string | null }
+export type StudentChoiceNames = { shift_name_en: string; shift_name_bn: string; group_name_en: string; group_name_bn: string; class_uses_groups: boolean; fourth_subject_name_en: string; fourth_subject_name_bn: string }
 export type GuardianSummary = { name_en: string; name_bn: string; relationship: string; phone: string }
-export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; login_id?: string; session_name: string; class_name: string; section_name: string; has_photo: boolean; primary_guardian?: GuardianSummary } & StudentProfileDetails
+export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; login_id?: string; session_name: string; class_name: string; section_name: string; has_photo: boolean; primary_guardian?: GuardianSummary } & StudentProfileDetails & StudentChoiceDetails & StudentChoiceNames
 // Profile details are optional on input: an omitted detail keeps its stored value.
-export type StudentInput = Omit<Student, 'id' | 'login_id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails> & Partial<StudentProfileDetails>
+export type StudentInput = Omit<Student, 'id' | 'login_id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails | keyof StudentChoiceDetails | keyof StudentChoiceNames> & Partial<StudentProfileDetails> & { shift_id?: string; medium?: Medium; group_id?: string; fourth_subject_id?: string }
 export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
 export type GuardianInput = Omit<Guardian, 'id'>
 // One school year of a student (M15): where they were and how the year ended.

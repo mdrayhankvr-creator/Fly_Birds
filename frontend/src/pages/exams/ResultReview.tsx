@@ -82,7 +82,7 @@ export function ResultReview({ canApprove, canPublish }: { canApprove: boolean; 
           }} />
       </section>
 
-      {ref.scope !== 'assessment' && ref.class_id && <ClassDocuments scope={ref.scope} scopeId={ref.scope_id} classId={ref.class_id} published={!!v.published} provisionalAllowed />}
+      {ref.class_id && <ClassDocuments scope={ref.scope} scopeId={ref.scope_id} classId={ref.class_id} published={!!v.published} provisionalAllowed={ref.scope !== 'assessment'} />}
 
       {history && <VersionHistory scope={ref.scope} scopeId={ref.scope_id} studentId={history.id} studentName={history.name} onClose={() => setHistory(null)} />}
 
