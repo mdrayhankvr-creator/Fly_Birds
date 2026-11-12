@@ -381,7 +381,8 @@ func TestPostgresM9NoticesNotificationsAndDiary(t *testing.T) {
 	}
 	call("PUT", "/notifications/preferences", `{"items":[{"category":"absence","in_app":false,"sms":false},{"category":"absence","in_app":true,"sms":true}]}`, guardA, 400)
 	prefs := call("PUT", "/notifications/preferences", `{"items":[{"category":"absence","in_app":false,"sms":false}]}`, guardA, 200)["data"].([]any)
-	if len(prefs) != 5 || prefs[1].(map[string]any)["in_app"] != false {
+	// One row per category, in the order notify lists them.
+	if len(prefs) != len(notify.Categories) || prefs[1].(map[string]any)["in_app"] != false {
 		t.Fatalf("preferences %+v", prefs)
 	}
 	second := insert("INSERT INTO student_attendance(student_id,session_id,class_id,section_id,attendance_date,status,source,recorded_by,updated_by) VALUES (?,?,?,?,(now() AT TIME ZONE 'Asia/Dhaka')::date - 1,'absent','manual',?,?) RETURNING id", studentA, sessionID, classID, sectionA, teacher.user.ID, teacher.user.ID)
