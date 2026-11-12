@@ -58,14 +58,17 @@ CREATE TABLE student_group_choices (
 );
 CREATE INDEX student_group_choices_group_idx ON student_group_choices (session_id, group_id);
 
--- The fourth-subject rule as before, and the group rule: a subject mapped to
--- groups of a class (while the class uses groups) is taken only by students
--- whose chosen group includes it.
+-- The fourth-subject rule exactly as migration 1701 left it (choices are
+-- matched through the enrolment of their session, so a promoted student's
+-- old year keeps its choices), plus the group rule: a subject mapped to
+-- groups of a class, while the class uses groups, is taken only by the
+-- students whose chosen group includes it.
 CREATE OR REPLACE FUNCTION student_takes_subject(p_student uuid, p_session uuid, p_class uuid, p_subject uuid)
 RETURNS boolean LANGUAGE sql STABLE AS $$
     SELECT (NOT coalesce((SELECT acs.is_fourth_subject FROM academic_class_subjects acs WHERE acs.class_id = p_class AND acs.subject_id = p_subject), false)
-        OR NOT EXISTS (SELECT 1 FROM student_subject_choices c JOIN students s ON s.id = c.student_id
-                       WHERE c.session_id = p_session AND s.session_id = p_session AND s.class_id = p_class)
+        OR NOT EXISTS (SELECT 1 FROM student_subject_choices c
+                         JOIN student_enrolments e ON e.student_id = c.student_id AND e.session_id = c.session_id
+                        WHERE c.session_id = p_session AND e.class_id = p_class)
         OR EXISTS (SELECT 1 FROM student_subject_choices c
                    WHERE c.student_id = p_student AND c.session_id = p_session AND c.subject_id = p_subject))
        AND (NOT coalesce((SELECT uses_groups FROM academic_classes WHERE id = p_class), false)
