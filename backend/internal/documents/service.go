@@ -704,7 +704,7 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		}
 		row := sheetStudent{Name: l.pick(st.NameEN, st.NameBN), NameAlt: l.other(st.NameEN, st.NameBN), StudentID: l.code(studentCode(x.Code, st.AdmissionNo)), Class: st.ClassName, Section: st.SectionName,
 			Roll: rollText(l, st.RollNo), Session: l.num(st.SessionName), Exam: examName(l, set), Withheld: r.Outcome == "withheld", Rows: []sheetRow{}, Optional: []sheetRow{},
-			Total: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", FailedCount: "—",
+			Total: "—", TotalMarks: "—", FullMarks: "—", GPA: "—", GPAWithout: "—", Letter: "—", Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", FailedCount: "—",
 			ClassPos: posText(l, o.ClassPosition, classN), SectionPos: posText(l, o.SectionPosition, sectionN[st.SectionID]),
 			Held: "—", PresentDays: "—", AbsentDays: "—", Published: "—"}
 		row.Father, row.Mother = orDash(l.pick(x.FatherEN, x.FatherBN)), orDash(l.pick(x.MotherEN, x.MotherBN))
@@ -732,8 +732,14 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		}
 		if !row.Withheld {
 			row.Rows, row.Optional = lo.rows(l, r, top, ex.subjects)
+			// The 4th subject's name goes in the student's details, as on a
+			// board transcript.
+			if len(row.Optional) > 0 {
+				row.Fourth = row.Optional[0].Subject
+			}
 			if o.Total != nil && o.Full != nil {
-				row.Total = l.marks(o.Total) + " / " + l.marks(o.Full)
+				row.TotalMarks, row.FullMarks = l.marks(o.Total), l.marks(o.Full)
+				row.Total = row.TotalMarks + " / " + row.FullMarks
 			}
 			row.GPA = l.points(o.GPA)
 			row.GPAWithout = l.points(lo.requiredGPA(o))

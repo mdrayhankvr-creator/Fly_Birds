@@ -76,26 +76,30 @@ type signature struct {
 }
 
 type sheetStudent struct {
-	Name        string      `json:"name"`
-	NameAlt     string      `json:"name_alt"`
-	Father      string      `json:"father"`
-	Mother      string      `json:"mother"`
-	DOB         string      `json:"dob"`
-	StudentID   string      `json:"student_id"`
-	Class       string      `json:"class"`
-	Section     string      `json:"section"`
-	Roll        string      `json:"roll"`
-	Session     string      `json:"session"`
-	Exam        string      `json:"exam"`
-	Medium      string      `json:"medium"` // version: Bangla/English medium, "" hides the row
-	Shift       string      `json:"shift"`  // "" hides the row
-	Group       string      `json:"group"`  // "" hides the row
-	Photo       string      `json:"photo"`
-	QR          string      `json:"qr"`
-	Withheld    bool        `json:"withheld"`
-	Rows        []sheetRow  `json:"rows"`
-	Optional    []sheetRow  `json:"optional"`
-	Total       string      `json:"total"`
+	Name      string     `json:"name"`
+	NameAlt   string     `json:"name_alt"`
+	Father    string     `json:"father"`
+	Mother    string     `json:"mother"`
+	DOB       string     `json:"dob"`
+	StudentID string     `json:"student_id"`
+	Class     string     `json:"class"`
+	Section   string     `json:"section"`
+	Roll      string     `json:"roll"`
+	Session   string     `json:"session"`
+	Exam      string     `json:"exam"`
+	Medium    string     `json:"medium"` // version: Bangla/English medium, "" hides the row
+	Shift     string     `json:"shift"`  // "" hides the row
+	Group     string     `json:"group"`  // "" hides the row
+	Fourth    string     `json:"fourth"` // the 4th subject's name, "" hides the row
+	Photo     string     `json:"photo"`
+	QR        string     `json:"qr"`
+	Withheld  bool       `json:"withheld"`
+	Rows      []sheetRow `json:"rows"`
+	Optional  []sheetRow `json:"optional"`
+	Total     string     `json:"total"`
+	// TotalMarks and FullMarks are the Total/GPA row's two numbers.
+	TotalMarks  string      `json:"total_marks"`
+	FullMarks   string      `json:"full_marks"`
 	GPA         string      `json:"gpa"`
 	GPAWithout  string      `json:"gpa_without"`
 	Letter      string      `json:"letter"`
