@@ -5,9 +5,10 @@ import { ApiError, bearerBlob, bearerRequest, json } from './client'
 export type DocumentKind = 'marksheet' | 'marksheets' | 'tabulation' | 'merit_list' | 'failed_list' | 'summary'
 export type DocumentLanguage = 'en' | 'bn'
 
+export type DocumentScope = 'term' | 'annual' | 'assessment'
 export type DocumentRequest = {
   kind: DocumentKind
-  scope: 'term' | 'annual'
+  scope: DocumentScope
   scope_id: string
   class_id: string
   section_id?: string
@@ -17,19 +18,19 @@ export type DocumentRequest = {
 }
 
 export type ResultDocument = {
-  id: string; kind: DocumentKind; scope: 'term' | 'annual'; scope_id: string; session_id: string; class_id: string
+  id: string; kind: DocumentKind; scope: DocumentScope; scope_id: string; session_id: string; class_id: string
   section_id: string | null; student_id: string | null; language: DocumentLanguage; provisional: boolean
   status: 'queued' | 'running' | 'done' | 'failed'; progress_done: number; progress_total: number
   pages: number | null; bytes: number | null; sha256: string | null; error: string; created_at: string; finished_at: string | null; file_name: string
 }
 
 export type DocumentClass = {
-  scope: 'term' | 'annual'; scope_id: string; session_id: string; session_name: string; class_id: string; class_name: string
+  scope: DocumentScope; scope_id: string; session_id: string; session_name: string; class_id: string; class_name: string
   title: string; revision: number; published_at: string; students: number; sections: { id: string; name: string }[]
 }
 
 export type ResultVerification = {
-  state: 'current' | 'superseded' | 'withdrawn'; code: string; scope: 'term' | 'annual'; title: string; session_name: string
+  state: 'current' | 'superseded' | 'withdrawn'; code: string; scope: DocumentScope; title: string; session_name: string
   class_name: string; version: number; published_at: string; school_name_en: string; school_name_bn: string; logo_url: string
 }
 
