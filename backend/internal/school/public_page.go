@@ -47,6 +47,8 @@ var (
 // names: founded_year, eiin, head_teacher_name_en/bn, address, address_bn,
 // phone, email and map_url.
 type PublicPage struct {
+	DesignStyle      string `json:"design_style"`
+	PassRate         *int   `json:"pass_rate"`
 	AboutEN          string `json:"about_en"`
 	AboutBN          string `json:"about_bn"`
 	FoundedYear      *int   `json:"founded_year"`
@@ -66,6 +68,8 @@ type PublicPage struct {
 
 // PublicPageInput is everything but the photo, which has its own upload.
 type PublicPageInput struct {
+	DesignStyle      string `json:"design_style"`
+	PassRate         *int   `json:"pass_rate"`
 	AboutEN          string `json:"about_en"`
 	AboutBN          string `json:"about_bn"`
 	FoundedYear      *int   `json:"founded_year"`
@@ -105,13 +109,15 @@ type PublicNotice struct {
 // PublicView is what anyone may read. A nil section has no content and is
 // not shown.
 type PublicView struct {
-	About   *PublicAbout   `json:"about"`
-	Head    *PublicHead    `json:"head"`
-	Gallery []GalleryPhoto `json:"gallery"`
-	Notices []PublicNotice `json:"notices"`
-	Contact *PublicContact `json:"contact"`
+	DesignStyle string         `json:"design_style"`
+	About       *PublicAbout   `json:"about"`
+	Head        *PublicHead    `json:"head"`
+	Gallery     []GalleryPhoto `json:"gallery"`
+	Notices     []PublicNotice `json:"notices"`
+	Contact     *PublicContact `json:"contact"`
 }
 type PublicAbout struct {
+	PassRate    *int   `json:"pass_rate,omitempty"`
 	AboutEN     string `json:"about_en"`
 	AboutBN     string `json:"about_bn"`
 	FoundedYear *int   `json:"founded_year,omitempty"`
@@ -129,7 +135,6 @@ type PublicHead struct {
 type PublicContact struct {
 	AddressEN string `json:"address_en"`
 	AddressBN string `json:"address_bn"`
-	Phone     string `json:"phone"`
 	Email     string `json:"email"`
 	MapURL    string `json:"map_url"`
 }
@@ -166,9 +171,9 @@ func (s *Service) PublicView(ctx context.Context) (PublicView, error) {
 	if err != nil {
 		return PublicView{}, err
 	}
-	out := PublicView{Gallery: []GalleryPhoto{}, Notices: []PublicNotice{}}
-	if p.AboutEN != "" || p.AboutBN != "" || p.FoundedYear != nil || p.EIIN != "" || p.ShowCounts {
-		about := &PublicAbout{AboutEN: p.AboutEN, AboutBN: p.AboutBN, FoundedYear: p.FoundedYear, EIIN: p.EIIN}
+	out := PublicView{DesignStyle: p.DesignStyle, Gallery: []GalleryPhoto{}, Notices: []PublicNotice{}}
+	if p.AboutEN != "" || p.AboutBN != "" || p.FoundedYear != nil || p.EIIN != "" || p.ShowCounts || p.PassRate != nil {
+		about := &PublicAbout{AboutEN: p.AboutEN, AboutBN: p.AboutBN, FoundedYear: p.FoundedYear, EIIN: p.EIIN, PassRate: p.PassRate}
 		if p.ShowCounts {
 			students, teachers, err := repo.PublicCounts(ctx)
 			if err != nil {
@@ -181,8 +186,8 @@ func (s *Service) PublicView(ctx context.Context) (PublicView, error) {
 	if p.HeadMessageEN != "" || p.HeadMessageBN != "" {
 		out.Head = &PublicHead{NameEN: p.HeadNameEN, NameBN: p.HeadNameBN, MessageEN: p.HeadMessageEN, MessageBN: p.HeadMessageBN, PhotoVersion: p.HeadPhotoVersion}
 	}
-	if p.ContactAddressEN != "" || p.ContactAddressBN != "" || p.ContactPhone != "" || p.ContactEmail != "" || p.MapURL != "" {
-		out.Contact = &PublicContact{AddressEN: p.ContactAddressEN, AddressBN: p.ContactAddressBN, Phone: p.ContactPhone, Email: p.ContactEmail, MapURL: p.MapURL}
+	if p.ContactAddressEN != "" || p.ContactAddressBN != "" || p.ContactEmail != "" || p.MapURL != "" {
+		out.Contact = &PublicContact{AddressEN: p.ContactAddressEN, AddressBN: p.ContactAddressBN, Email: p.ContactEmail, MapURL: p.MapURL}
 	}
 	if out.Gallery, err = repo.Gallery(ctx); err != nil {
 		return PublicView{}, err
@@ -231,7 +236,12 @@ func (s *Service) SavePublicPage(ctx context.Context, actor string, in PublicPag
 		trim(v)
 	}
 	in.ContactEmail = strings.ToLower(in.ContactEmail)
+	if in.DesignStyle == "" {
+		in.DesignStyle = "modern_bold"
+	}
 	ok := actorID.MatchString(actor) &&
+		(in.DesignStyle == "modern_bold" || in.DesignStyle == "classic" || in.DesignStyle == "minimal") &&
+		(in.PassRate == nil || (*in.PassRate >= 0 && *in.PassRate <= 100)) &&
 		validPublicText(in.AboutEN, 3000, true) && validPublicText(in.AboutBN, 3000, true) &&
 		validPublicText(in.HeadMessageEN, 3000, true) && validPublicText(in.HeadMessageBN, 3000, true) &&
 		validLine(in.HeadNameEN, 160) && validLine(in.HeadNameBN, 160) &&
@@ -437,7 +447,7 @@ func scaleDown(img image.Image, r image.Rectangle, w, h int) *image.RGBA {
 
 // The page's own text from school_public_page; the school details from
 // school_settings.
-const publicPageColumns = "p.about_en, p.about_bn, s.founded_year, s.eiin, p.show_counts, s.head_teacher_name_en AS head_name_en, s.head_teacher_name_bn AS head_name_bn, p.head_message_en, p.head_message_bn, p.head_photo_version, s.address AS contact_address_en, s.address_bn AS contact_address_bn, s.phone AS contact_phone, s.email AS contact_email, s.map_url"
+const publicPageColumns = "p.design_style, p.pass_rate, p.about_en, p.about_bn, s.founded_year, s.eiin, p.show_counts, s.head_teacher_name_en AS head_name_en, s.head_teacher_name_bn AS head_name_bn, p.head_message_en, p.head_message_bn, p.head_photo_version, s.address AS contact_address_en, s.address_bn AS contact_address_bn, s.phone AS contact_phone, s.email AS contact_email, s.map_url"
 const galleryColumns = "id::text AS id, position, width, height, version, caption_en, caption_bn"
 
 func (r *GormRepository) PublicPage(ctx context.Context) (PublicPage, error) {
@@ -480,8 +490,8 @@ func (r *GormRepository) Gallery(ctx context.Context) ([]GalleryPhoto, error) {
 
 func (r *GormRepository) SavePublicPage(ctx context.Context, actor string, in PublicPageInput) (PublicPage, error) {
 	err := r.slideWrite(ctx, actor, func(tx *gorm.DB) error {
-		if err := tx.Exec(`UPDATE school_public_page SET about_en=?, about_bn=?, show_counts=?, head_message_en=?, head_message_bn=?, updated_by=?, updated_at=now() WHERE id = 1`,
-			in.AboutEN, in.AboutBN, in.ShowCounts, in.HeadMessageEN, in.HeadMessageBN, actor).Error; err != nil {
+		if err := tx.Exec(`UPDATE school_public_page SET design_style=?, pass_rate=?, about_en=?, about_bn=?, show_counts=?, head_message_en=?, head_message_bn=?, updated_by=?, updated_at=now() WHERE id = 1`,
+			in.DesignStyle, in.PassRate, in.AboutEN, in.AboutBN, in.ShowCounts, in.HeadMessageEN, in.HeadMessageBN, actor).Error; err != nil {
 			return err
 		}
 		if err := tx.Exec(`UPDATE school_settings SET founded_year=?, eiin=?, head_teacher_name_en=?, head_teacher_name_bn=?, address=?, address_bn=?, phone=?, email=?, map_url=?, updated_at=now() WHERE id = ?`,

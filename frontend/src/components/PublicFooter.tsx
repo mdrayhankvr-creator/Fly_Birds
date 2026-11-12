@@ -36,7 +36,6 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
   const v = page.data
   const name = branding ? (bn ? branding.name_bn || branding.name_en : branding.name_en || branding.name_bn) : ''
   const address = v?.contact ? (bn ? v.contact.address_bn || v.contact.address_en : v.contact.address_en || v.contact.address_bn) : ''
-  const phone = v?.contact?.phone ?? ''
   const email = v?.contact?.email ?? ''
   const eiin = v?.about?.eiin ?? ''
   const year = new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date())))
@@ -69,7 +68,7 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
   if (v?.notices.length) links.push({ key: 'notices', label: t('ppFooterNotices'), to: '/#public-notices', onClick: section('public-notices') })
   if (v?.contact) links.push({ key: 'contact', label: t('ppFooterContactLink'), to: '/#public-contact', onClick: section('public-contact') })
 
-  return <footer className="public-footer border-t border-slate-200 bg-white" data-public-footer>
+  return <footer className="public-footer border-t border-slate-200 bg-white" data-public-footer data-public-style={v?.design_style || 'modern_bold'}>
     <div className="mx-auto grid grid-cols-1 max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)]">
       <section aria-label={t('ppFooter')} className="min-w-0">
         {name && <div className="flex min-w-0 items-center gap-3">
@@ -82,10 +81,9 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
         </div>}
       </section>
 
-      {(phone || email) && <section aria-labelledby="footer-contact" className="min-w-0">
+      {email && <section aria-labelledby="footer-contact" className="min-w-0">
         <h2 id="footer-contact" className="text-xs font-bold uppercase tracking-wide text-slate-600">{t('ppFooterContact')}</h2>
         <ul className="mt-3 space-y-2 text-sm">
-          {phone && <li className="flex min-w-0 items-center gap-2"><Icon name="phone" className="h-4 w-4 shrink-0 text-slate-500" /><a className={link} href={`tel:${phone.replace(/[^+0-9]/g, '')}`}>{phone}</a></li>}
           {email && <li className="flex min-w-0 items-center gap-2"><Icon name="mail" className="h-4 w-4 shrink-0 text-slate-500" /><a className={`${link} min-w-0`} style={{ overflowWrap: 'anywhere' }} href={`mailto:${email}`}>{email}</a></li>}
         </ul>
       </section>}

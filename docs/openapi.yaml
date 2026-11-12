@@ -301,14 +301,14 @@ paths:
       operationId: getPublicSchoolPage
       tags: [school]
       summary: The public school page below the sign-in form
-      description: 'No sign-in. Returns only what the administrator wrote for the public: about (with optional totals of active students and teachers), the head teacher''s message, the gallery, notices whose authors chose to show them publicly (title and text, newest six, live only) and contact details. A section with no content is null. Never includes student records. Cached for 60 seconds.'
+      description: 'No sign-in. Returns design_style (modern_bold, classic or minimal), about (with optional totals of active students and teachers and an entered pass rate), the head teacher''s message, gallery, live public notices and contact address, email and map link. Phone numbers, NID, guardian details and marks are excluded. A section with no content is null. Cached for 60 seconds.'
       security: []
       responses: { '200': { description: The public page } }
     put:
       operationId: savePublicSchoolPage
       tags: [school]
       summary: Edit the public school page
-      description: 'Requires school_settings:update, administrator and the school settings module. Body: about_en/bn, founded_year, eiin (6 digits or empty), show_counts, head_name_en/bn, head_message_en/bn, contact_address_en/bn, contact_phone, contact_email, map_url (https only). Every field is replaced.'
+      description: 'Requires school_settings:update, administrator and the school settings module. Body: design_style (modern_bold by default, classic, minimal), pass_rate (optional integer 0–100), about_en/bn, founded_year, eiin (6 digits or empty), show_counts, head_name_en/bn, head_message_en/bn, contact_address_en/bn, contact_phone (school setting; never published), contact_email, map_url (https only). Every field is replaced.'
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses: { '200': { description: The saved page }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
@@ -355,7 +355,7 @@ paths:
       operationId: uploadSchoolLogo
       tags: [school]
       summary: Upload the school logo
-      description: 'Requires school_settings:update, administrator and the school settings module. JPEG or PNG up to 6 MB, at least 16 px; stored at most 512 px on its longer side, PNG when it has transparency and JPEG otherwise, re-encoded (which drops metadata). Sets logo_url to /api/school/logo?v=<version>, which pages and documents use.'
+      description: 'Requires school_settings:update, administrator and the school settings module. JPEG or PNG up to 6 MB, at least 16 px; stored at most 512 px on its longer side, PNG when it has transparency and JPEG otherwise, re-encoded (which drops metadata). Sets logo_url to /api/school/logo?v=<version> and stores two dominant non-neutral swatches for the public page. The client adjusts shades for WCAG AA contrast.'
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } } } }
       responses: { '200': { description: 'The new logo_url' }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '413': { description: too_large }, '415': { description: unsupported_media_type } }
@@ -5152,6 +5152,8 @@ components:
         name_en: { type: string }
         name_bn: { type: string }
         logo_url: { type: string, description: Optional HTTPS PNG, JPEG, or WebP URL }
+        logo_palette_primary: { type: string, readOnly: true, description: Dominant uploaded-logo swatch; empty when the theme colour is used }
+        logo_palette_accent: { type: string, readOnly: true, description: Second uploaded-logo swatch; empty when the theme colour is used }
         preferred_language: { type: string, enum: [en, bn] }
         primary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
         secondary_color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }

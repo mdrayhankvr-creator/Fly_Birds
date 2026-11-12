@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../api/client'
-import { addGalleryPhoto, deleteGalleryPhoto, deleteHeadPhoto, galleryImageUrl, getPublicPageForEdit, headPhotoUrl, saveHeadPhoto, savePublicPage, updateGalleryPhoto, type GalleryPhoto, type PublicPageInput } from '../api/publicPage'
+import { addGalleryPhoto, deleteGalleryPhoto, deleteHeadPhoto, galleryImageUrl, getPublicPageForEdit, headPhotoUrl, saveHeadPhoto, savePublicPage, updateGalleryPhoto, type GalleryPhoto, type PublicDesignStyle, type PublicPageInput } from '../api/publicPage'
 import { confirmAction } from '../components/ConfirmDialog'
 import { Icon } from '../components/icons'
 import { CardTitle, Notice, ui } from './attendanceUi'
@@ -10,7 +10,9 @@ import { CardTitle, Notice, ui } from './attendanceUi'
 // The administrator's editor for the public school page (checkpoint 5).
 type Authorized = <T>(request: (token: string) => Promise<T>) => Promise<T>
 
-const blank: PublicPageInput = { about_en: '', about_bn: '', founded_year: null, eiin: '', show_counts: false, head_name_en: '', head_name_bn: '', head_message_en: '', head_message_bn: '', contact_address_en: '', contact_address_bn: '', contact_phone: '', contact_email: '', map_url: '' }
+const blank: PublicPageInput = { design_style: 'modern_bold', pass_rate: null, about_en: '', about_bn: '', founded_year: null, eiin: '', show_counts: false, head_name_en: '', head_name_bn: '', head_message_en: '', head_message_bn: '', contact_address_en: '', contact_address_bn: '', contact_phone: '', contact_email: '', map_url: '' }
+
+const styles: PublicDesignStyle[] = ['modern_bold', 'classic', 'minimal']
 
 // Shrinks a photo in the browser before upload (the server re-encodes again),
 // so slow connections send a few hundred KB instead of the camera original.
@@ -114,12 +116,22 @@ export function PublicPageEditor({ authorized }: { authorized: Authorized }) {
     {message && <div className="mt-4"><Notice tone={message.tone}>{message.text}</Notice></div>}
     {data.isError && <div className="mt-4"><Notice tone="error">{t('c5PublicFailed')}</Notice></div>}
     <form className="mt-5 space-y-6" onSubmit={e => void save(e)}>
+      <fieldset><legend className="text-sm font-bold text-slate-800">{t('pdStyleLabel')}</legend>
+        <p className="mt-1 text-sm text-slate-600">{t('pdStyleHint')}</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">{styles.map(style => <label key={style} className={`min-w-0 rounded-2xl border-2 p-3 transition-colors ${form.design_style === style ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200 bg-white hover:border-slate-400'}`}>
+          <input type="radio" name="public-design-style" value={style} checked={form.design_style === style} onChange={() => set('design_style', style)} className="sr-only" />
+          <span aria-hidden="true" className={`pd-preview pd-preview-${style}`}><span className="pd-preview-hero"><i /><b /><i /></span><span className="pd-preview-row"><i /><i /><i /></span></span>
+          <span className="mt-2 block text-sm font-bold text-slate-900">{t(`pdStyle_${style}`)}</span>
+          <span className="mt-0.5 block text-xs leading-5 text-slate-600">{t(`pdStyleDescription_${style}`)}</span>
+        </label>)}</div>
+      </fieldset>
       <Pair label={t('c5AboutTitle')}>
         <label className={ui.label}>{t('c5InEnglish')}<textarea className={area} maxLength={3000} value={form.about_en} onChange={e => set('about_en', e.target.value)} /></label>
         <label className={ui.label}>{t('c5InBangla')}<textarea className={area} maxLength={3000} lang="bn" value={form.about_bn} onChange={e => set('about_bn', e.target.value)} /></label>
         <label className={ui.label}>{t('c5Founded')}<input className={ui.field} inputMode="numeric" min={1800} max={2100} type="number" value={form.founded_year ?? ''} onChange={e => set('founded_year', e.target.value ? Number(e.target.value) : null)} /></label>
         <label className={ui.label}>{t('c5EIIN')}<input className={ui.field} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={form.eiin} onChange={e => set('eiin', e.target.value.replace(/\D/g, ''))} /></label>
         <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-slate-800 md:col-span-2"><input type="checkbox" className="h-5 w-5 accent-[var(--brand-primary)]" checked={form.show_counts} onChange={e => set('show_counts', e.target.checked)} />{t('c5ShowCounts')}</label>
+        <label className={ui.label}>{t('pdPassRate')}<input className={ui.field} inputMode="numeric" min={0} max={100} type="number" value={form.pass_rate ?? ''} onChange={e => set('pass_rate', e.target.value === '' ? null : Number(e.target.value))} /><span className="mt-1 block text-xs font-normal text-slate-500">{t('pdPassRateHint')}</span></label>
       </Pair>
       <Pair label={t('c5HeadTitle')}>
         <label className={ui.label}>{t('c5HeadNameEN')}<input className={ui.field} maxLength={160} value={form.head_name_en} onChange={e => set('head_name_en', e.target.value)} /></label>

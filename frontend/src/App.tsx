@@ -364,6 +364,28 @@ function applyBranding(branding: SchoolBranding | undefined) {
   const tint = luminance(mixToward(primary, 255, 0.91))
   for (let step = 1; step <= 14 && contrast(luminance(ink), tint) < 4.6; step++) ink = mixToward(primary, 0, step * 0.05)
   const onBrand = contrast(luminance(primary), 1) >= contrast(luminance(primary), luminance('#0f172a')) ? '#ffffff' : '#0f172a'
+  const logoPrimary = validColor(branding?.logo_palette_primary)
+  const logoAccent = validColor(branding?.logo_palette_accent)
+  const readableOnWhite = (hex: string) => {
+    for (let step = 0; step <= 20; step++) {
+      const shade = mixToward(hex, 0, step * 0.04)
+      if (contrast(luminance(shade), 1) >= 4.5) return shade
+    }
+    return '#172033'
+  }
+  const readableOnDark = (hex: string) => {
+    for (let step = 0; step <= 20; step++) {
+      const shade = mixToward(hex, 255, step * 0.04)
+      if (contrast(luminance(shade), luminance('#101827')) >= 4.5) return shade
+    }
+    return '#dbeafe'
+  }
+  const publicPrimary = logoPrimary || primary
+  const publicAccent = logoAccent || validColor(branding?.secondary_color) || primary
+  root.style.setProperty('--public-primary', readableOnWhite(publicPrimary))
+  root.style.setProperty('--public-accent', readableOnWhite(publicAccent))
+  root.style.setProperty('--public-light', readableOnDark(publicPrimary))
+  root.dataset.logoPalette = logoPrimary || ''
   root.style.setProperty('--brand-primary', primary)
   root.style.setProperty('--brand-ink', ink)
   root.style.setProperty('--brand-on', onBrand)

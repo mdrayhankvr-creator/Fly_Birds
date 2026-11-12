@@ -22,6 +22,14 @@ On `feature/phone-login`, from main after transcript v3 (PR #50). Migration 1811
 - **Unchanged by design:** the same generic error for an unknown email, number, Student ID or wrong password; the same lockout and rate limit; the number never appears on a public page.
 - **Not now (deliberately deferred):** SMS one-time passwords, email verification and Google sign-in. None of them is started; sign-in stays password-only, and the mock SMS provider is still the only SMS path.
 
+## Current Status — Public School Page Design (2026-11-13)
+
+On `feature/public-modern-bold`, created from fetched `origin/main` `e104c25`. PR #49 was not yet in that remote main when fetched, so the UX round 2 commits were cherry-picked onto this branch before the public design work. This feature is outside the M0–M13 criteria, so the completion figures above do not change. Migration 1762 follows the highest used migration in the allowed range, 1761.
+
+- **Three designs:** Modern Bold is the persisted default for existing and new schools; Classic keeps the earlier layout, and Minimal offers a restrained variant. The public page editor shows selectable previews and lets the school enter an optional pass rate.
+- **Branding and presentation:** logo uploads store two dominant colour swatches; the public page uses contrast-adjusted shades or falls back to the school theme. Plus Jakarta Sans and Noto Sans Bengali load from the app bundle. The photo hero, calls to action, alternating sections, head teacher quote and image, animated stats, notices, gallery/lightbox, contact/map and footer support EN/BN and light/dark. Reduced motion disables the animation. Structured public responses omit phone numbers, NID, guardian details and marks.
+- **Checks:** frontend typecheck/build, i18n check (3890 EN / 3888 BN keys), and unit tests 20/20; `go vet` for touched packages and focused Go tests for `internal/school`, `internal/httpapi` and `internal/database` against a fresh isolated database. On rebuilt `fbqa-cp1b`: `suite.mjs` 118/118, `whitelabel.mjs` 23/23, `narrow-phones.mjs` 15/15, `checkpoint5.mjs` 64/64, `public-design.mjs` 77/77. The new browser run covers all styles, palette/contrast, privacy, reduced motion, 320/360/375 px overflow and axe WCAG A/AA checks. Its 24 full-page screenshots and index are in `C:\Users\Laptop Click\Fly_Birds_QA_env\shots-public-bold\`. The QA stack's original database connection was restored after testing.
+
 ## Current Status — UX Round 2: Phone Layouts, Student Photos, Logo Upload (2026-11-12)
 
 On `feature/ux-round-2`, from `main` `3fa4564`. Migrations 1760 (student photo submissions) and 1761 (school logo). Outside the brief's M0–M13 criteria, so the completion figures above do not change.

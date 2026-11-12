@@ -125,6 +125,9 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	if v, _ := publicView(); v.Data.About != nil || v.Data.Head != nil || v.Data.Contact != nil {
 		t.Fatalf("empty page has sections: %+v", v.Data)
 	}
+	if v, _ := publicView(); v.Data.DesignStyle != "modern_bold" {
+		t.Fatalf("existing school default design = %q", v.Data.DesignStyle)
+	}
 
 	// Only administrators edit it.
 	page := `{"about_en":"A village school since 1972.\nCo-educational.","about_bn":"১৯৭২ সাল থেকে গ্রামের বিদ্যালয়।","founded_year":1972,"eiin":"123456","show_counts":true,"head_name_en":"Ayesha Rahman","head_name_bn":"আয়েশা রহমান","head_message_en":"Welcome, families.","head_message_bn":"স্বাগতম।","contact_address_en":"Main Road, Sylhet","contact_address_bn":"প্রধান সড়ক, সিলেট","contact_phone":"+880 1711-000000","contact_email":"Office@School.example","map_url":"https://maps.example.com/?q=school"}`
@@ -133,9 +136,19 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	call(http.MethodPut, "/school/public-page", strings.Replace(page, `"123456"`, `"12345"`, 1), adminH, http.StatusBadRequest)
 	call(http.MethodPut, "/school/public-page", strings.Replace(page, "https://maps", "http://maps", 1), adminH, http.StatusBadRequest)
 	call(http.MethodPut, "/school/public-page", strings.Replace(page, "https://maps.example.com/?q=school", "javascript:alert(1)", 1), adminH, http.StatusBadRequest)
+	stylePage := strings.Replace(page, `{"about_en"`, `{"design_style":"minimal","pass_rate":92,"about_en"`, 1)
+	call(http.MethodPut, "/school/public-page", strings.Replace(stylePage, `"minimal"`, `"unknown"`, 1), adminH, http.StatusBadRequest)
+	call(http.MethodPut, "/school/public-page", strings.Replace(stylePage, `"pass_rate":92`, `"pass_rate":101`, 1), adminH, http.StatusBadRequest)
+	call(http.MethodPut, "/school/public-page", stylePage, adminH, http.StatusOK)
+	if v, _ := publicView(); v.Data.DesignStyle != "minimal" || v.Data.About == nil || v.Data.About.PassRate == nil || *v.Data.About.PassRate != 92 {
+		t.Fatalf("saved public design not read back: %+v", v.Data)
+	}
 	call(http.MethodPut, "/school/public-page", page, adminH, http.StatusOK)
 
-	v, _ := publicView()
+	v, publicJSON := publicView()
+	if strings.Contains(publicJSON, "contact_phone") || strings.Contains(publicJSON, "+880 1711-000000") || v.Data.DesignStyle != "modern_bold" {
+		t.Fatalf("public page leaks phone or did not restore default style: %s", publicJSON)
+	}
 	a, h, c := v.Data.About, v.Data.Head, v.Data.Contact
 	if a == nil || h == nil || c == nil || a.EIIN != "123456" || a.FoundedYear == nil || *a.FoundedYear != 1972 || a.Students == nil || a.Teachers == nil || h.NameBN != "আয়েশা রহমান" || c.Email != "office@school.example" || c.MapURL == "" {
 		t.Fatalf("public page %+v %+v %+v", a, h, c)
@@ -289,7 +302,7 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	var keys map[string]map[string]json.RawMessage
 	_ = json.Unmarshal([]byte(body), &keys)
 	for k := range keys["data"] {
-		if k != "about" && k != "head" && k != "gallery" && k != "notices" && k != "contact" {
+		if k != "design_style" && k != "about" && k != "head" && k != "gallery" && k != "notices" && k != "contact" {
 			t.Fatalf("unexpected section %q", k)
 		}
 	}

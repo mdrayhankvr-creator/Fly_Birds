@@ -5,13 +5,16 @@ import { ApiError, apiBaseUrl, bearerRequest, json } from './client'
 export type GalleryPhoto = { id: string; position: number; width: number; height: number; version: string; caption_en: string; caption_bn: string }
 export type PublicNotice = { id: string; title_en: string; title_bn: string; body_en: string; body_bn: string; priority: 'normal' | 'important' | 'urgent'; publish_at: string }
 export type PublicView = {
-  about: { about_en: string; about_bn: string; founded_year?: number; eiin?: string; students?: number; teachers?: number } | null
+  design_style: PublicDesignStyle
+  about: { about_en: string; about_bn: string; founded_year?: number; eiin?: string; students?: number; teachers?: number; pass_rate?: number } | null
   head: { name_en: string; name_bn: string; message_en: string; message_bn: string; photo_version?: string } | null
   gallery: GalleryPhoto[]
   notices: PublicNotice[]
-  contact: { address_en: string; address_bn: string; phone: string; email: string; map_url: string } | null
+  contact: { address_en: string; address_bn: string; email: string; map_url: string } | null
 }
+export type PublicDesignStyle = 'modern_bold' | 'classic' | 'minimal'
 export type PublicPage = {
+  design_style: PublicDesignStyle; pass_rate: number | null
   about_en: string; about_bn: string; founded_year: number | null; eiin: string; show_counts: boolean
   head_name_en: string; head_name_bn: string; head_message_en: string; head_message_bn: string; head_photo_version: string
   contact_address_en: string; contact_address_bn: string; contact_phone: string; contact_email: string; map_url: string

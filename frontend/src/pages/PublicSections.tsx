@@ -12,10 +12,43 @@ import { Icon } from '../components/icons'
 const pick = (bn: boolean, en: string, other: string) => (bn ? other || en : en || other)
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return <section aria-labelledby={id} className="public-section mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
-    <h2 id={id} className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h2>
-    <div className="mt-5">{children}</div>
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const node = ref.current
+    if (!node || !('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    node.classList.add('pd-reveal')
+    const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { node.classList.add('pd-entered'); observer.disconnect() } }, { threshold: 0.06 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  return <section ref={ref} aria-labelledby={id} className="public-section py-10 sm:py-16">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6"><h2 id={id} className="public-section-title text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h2>
+    <div className="mt-5">{children}</div></div>
   </section>
+}
+
+function CountUp({ value, suffix = '', format }: { value: number; suffix?: string; format: (n: number) => string }) {
+  const ref = useRef<HTMLElement>(null)
+  const [shown, setShown] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches ? value : 0)
+  useEffect(() => {
+    const node = ref.current
+    if (!node || !('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setShown(value); return }
+    let frame = 0
+    const observer = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return
+      observer.disconnect()
+      const start = performance.now()
+      const tick = (now: number) => {
+        const progress = Math.min(1, (now - start) / 1000)
+        setShown(Math.round(value * (1 - (1 - progress) ** 3)))
+        if (progress < 1) frame = requestAnimationFrame(tick)
+      }
+      frame = requestAnimationFrame(tick)
+    }, { threshold: 0.3 })
+    observer.observe(node)
+    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+  }, [value])
+  return <><span ref={ref} data-count-up={value} aria-hidden="true" className="inline-block tabular-nums" style={{ minWidth: `${String(value).length + 1}ch` }}>{format(shown)}{suffix}</span><span className="sr-only">{format(value)}{suffix}</span></>
 }
 
 function Paragraphs({ text, lang }: { text: string; lang?: string }) {
@@ -73,19 +106,24 @@ export function PublicSections() {
   if (!v) return null
   const number = (n: number) => new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US').format(n)
   const date = (iso: string) => new Intl.DateTimeFormat(bn ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dhaka' }).format(new Date(iso))
-  const facts: [string, string][] = []
-  if (v.about?.founded_year) facts.push([t('c5Founded'), bn ? number(v.about.founded_year).replace(/,/g, '') : String(v.about.founded_year)])
-  if (v.about?.eiin) facts.push([t('c5EIIN'), v.about.eiin])
-  if (v.about?.students != null) facts.push([t('c5Students'), number(v.about.students)])
-  if (v.about?.teachers != null) facts.push([t('c5Teachers'), number(v.about.teachers)])
+  const style = v.design_style || 'modern_bold'
+  const facts: { label: string; value: number | string; suffix?: string }[] = []
+  const year = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date()))
+  if (style === 'modern_bold' && v.about?.founded_year) facts.push({ label: t('pdYears'), value: Math.max(0, year - v.about.founded_year) })
+  if (v.about?.students != null) facts.push({ label: t('c5Students'), value: v.about.students })
+  if (v.about?.teachers != null) facts.push({ label: t('c5Teachers'), value: v.about.teachers })
+  if (v.about?.pass_rate != null) facts.push({ label: t('pdPassRateStat'), value: v.about.pass_rate, suffix: '%' })
+  if (style !== 'modern_bold' && v.about?.founded_year) facts.unshift({ label: t('c5Founded'), value: new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(v.about.founded_year) })
+  if (style !== 'modern_bold' && v.about?.eiin) facts.push({ label: t('c5EIIN'), value: v.about.eiin })
   const about = v.about && pick(bn, v.about.about_en, v.about.about_bn)
   const message = v.head && pick(bn, v.head.message_en, v.head.message_bn)
   const headName = v.head && pick(bn, v.head.name_en, v.head.name_bn)
   const address = v.contact && pick(bn, v.contact.address_en, v.contact.address_bn)
-  return <div className="public-page border-t border-slate-200 bg-slate-50" data-public-page>
+  return <div className="public-page border-t border-slate-200 bg-slate-50" data-public-page data-public-style={style}>
     {v.about && <Section id="public-about" title={t('c5AboutTitle')}>
       {about && <Paragraphs text={about} />}
-      {facts.length > 0 && <dl className="mt-6 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">{facts.map(([label, value]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900">{value}</dd></div>)}</dl>}
+      {style === 'modern_bold' && (v.about?.founded_year || v.about?.eiin) && <p className="mt-4 text-sm font-semibold text-slate-600">{v.about?.founded_year ? `${t('c5Founded')}: ${new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(v.about.founded_year)}` : ''}{v.about?.founded_year && v.about?.eiin ? ' · ' : ''}{v.about?.eiin ? `${t('c5EIIN')}: ${v.about.eiin}` : ''}</p>}
+      {facts.length > 0 && <dl className="public-stats mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{facts.map(({label, value, suffix}) => <div key={label} className="public-stat rounded-2xl border border-slate-200 bg-white p-4"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900">{typeof value === 'number' && style === 'modern_bold' ? <CountUp value={value} suffix={suffix} format={number} /> : typeof value === 'number' ? `${number(value)}${suffix || ''}` : value}</dd></div>)}</dl>}
     </Section>}
 
     {v.head && message && <Section id="public-head" title={t('c5HeadTitle')}>
@@ -93,7 +131,7 @@ export function PublicSections() {
         {v.head.photo_version ? <img src={headPhotoUrl(v.head.photo_version)} alt={headName ? t('c5HeadPhotoAlt', { name: headName }) : ''} width={480} height={480} loading="lazy" decoding="async" className="h-32 w-32 rounded-2xl object-cover sm:h-40 sm:w-40" />
           : <span aria-hidden="true" className="grid h-32 w-32 place-items-center rounded-2xl bg-[var(--brand-soft)] text-4xl font-bold text-[var(--brand-ink)] sm:h-40 sm:w-40">{[...(headName || '·')][0]}</span>}
         <div className="min-w-0">
-          <blockquote><Paragraphs text={message} /></blockquote>
+          <blockquote className="public-head-quote relative"><span aria-hidden="true" className="public-quote-mark">“</span><Paragraphs text={message} /></blockquote>
           {headName && <figcaption className="mt-4 font-semibold text-slate-900">{headName}<span className="block text-sm font-normal text-slate-600">{t('c5HeadRole')}</span></figcaption>}
         </div>
       </figure>
@@ -123,7 +161,6 @@ export function PublicSections() {
         {address && <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2"><dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"><Icon name="home" className="h-4 w-4" />{t('c5Address')}</dt><dd className="mt-1 whitespace-pre-line text-slate-900">{address}</dd>
           {v.contact.map_url && <dd className="mt-2"><a href={v.contact.map_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--brand-ink)] underline decoration-2 underline-offset-4">{t('c5OpenMap')}</a></dd>}</div>}
         {!address && v.contact.map_url && <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2"><a href={v.contact.map_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--brand-ink)] underline decoration-2 underline-offset-4">{t('c5OpenMap')}</a></div>}
-        {v.contact.phone && <div className="rounded-2xl border border-slate-200 bg-white p-4"><dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"><Icon name="phone" className="h-4 w-4" />{t('phoneLabel')}</dt><dd className="mt-1"><a href={`tel:${v.contact.phone.replace(/[^+0-9]/g, '')}`} className="font-semibold text-[var(--brand-ink)] underline decoration-2 underline-offset-4">{v.contact.phone}</a></dd></div>}
         {v.contact.email && <div className="rounded-2xl border border-slate-200 bg-white p-4"><dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"><Icon name="mail" className="h-4 w-4" />{t('email')}</dt><dd className="mt-1" style={{ overflowWrap: 'anywhere' }}><a href={`mailto:${v.contact.email}`} className="font-semibold text-[var(--brand-ink)] underline decoration-2 underline-offset-4">{v.contact.email}</a></dd></div>}
       </dl>
     </Section>}
