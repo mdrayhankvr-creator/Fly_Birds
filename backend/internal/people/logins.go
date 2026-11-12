@@ -50,6 +50,9 @@ type newLogin struct {
 	Email     string
 	Hash      string
 	Password  string
+	// Phone is the number the account signs in with (+8801XXXXXXXXX),
+	// usually the guardian's; "" leaves the account without one.
+	Phone string
 }
 
 // studentLoginIDTx chooses the sign-in ID for a student by the rule above.
@@ -107,7 +110,11 @@ FROM students s JOIN academic_classes c ON c.id = s.class_id JOIN academic_secti
 	// The student sets their own password at the first sign-in, within
 	// auth.TemporaryPasswordLifetime.
 	expires := time.Now().UTC().Add(auth.TemporaryPasswordLifetime)
-	if err := tx.Raw("INSERT INTO users (email,display_name,role,is_active,password_hash,must_change_password,temporary_password_expires_at,login_id) VALUES (?,?,'student',true,?,true,?,?) RETURNING id, temporary_password_expires_at AS expires_at", email, row.NameEN, in.Hash, expires, loginID).Scan(&created).Error; err != nil {
+	var phone any
+	if in.Phone != "" {
+		phone = in.Phone
+	}
+	if err := tx.Raw("INSERT INTO users (email,display_name,role,is_active,password_hash,must_change_password,temporary_password_expires_at,login_id,login_phone) VALUES (?,?,'student',true,?,true,?,?,?) RETURNING id, temporary_password_expires_at AS expires_at", email, row.NameEN, in.Hash, expires, loginID, phone).Scan(&created).Error; err != nil {
 		return StudentLogin{}, loginError(err)
 	}
 	userID := created.ID

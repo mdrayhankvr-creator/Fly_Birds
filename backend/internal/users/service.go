@@ -31,6 +31,8 @@ type User struct {
 	// LoginID is a student login's sign-in ID. A student login without an
 	// email has a placeholder address (auth.PlaceholderDomain) instead.
 	LoginID string `json:"login_id,omitempty"`
+	// LoginPhone is the number this account signs in with, +8801XXXXXXXXX.
+	LoginPhone string `json:"login_phone,omitempty"`
 }
 type CreateInput struct {
 	Email       string `json:"email"`
@@ -41,6 +43,12 @@ type CreateInput struct {
 type UpdateInput struct {
 	Email       string `json:"email"`
 	DisplayName string `json:"display_name"`
+}
+
+// PhoneInput sets or clears an account's login phone. An empty number
+// removes it.
+type PhoneInput struct {
+	LoginPhone string `json:"login_phone"`
 }
 type Query struct {
 	Search   string
@@ -61,6 +69,7 @@ type Repository interface {
 	Get(context.Context, string) (User, error)
 	Update(context.Context, string, string, UpdateInput) (User, error)
 	SetStatus(context.Context, string, string, bool) (User, error)
+	SetLoginPhone(context.Context, string, string, string) (User, error)
 	ResetPassword(context.Context, string, string, string) (User, int64, time.Time, error)
 }
 
@@ -139,6 +148,25 @@ func (s *Service) Update(ctx context.Context, actor, id string, input UpdateInpu
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	return s.repo.Update(ctx, actor, id, input)
 }
+
+// SetLoginPhone sets the number an account signs in with. Staff numbers
+// must be unique (the database enforces it); student accounts of one family
+// may share a guardian's number.
+func (s *Service) SetLoginPhone(ctx context.Context, actor, id string, input PhoneInput) (User, error) {
+	if !uuid.MatchString(actor) || !uuid.MatchString(id) {
+		return User{}, ErrInvalid
+	}
+	phone := strings.TrimSpace(input.LoginPhone)
+	if phone == "" {
+		return s.repo.SetLoginPhone(ctx, actor, id, "")
+	}
+	stored, ok := auth.NormalizePhone(phone)
+	if !ok {
+		return User{}, ErrInvalid
+	}
+	return s.repo.SetLoginPhone(ctx, actor, id, stored)
+}
+
 func (s *Service) SetStatus(ctx context.Context, actor, id string, active bool) (User, error) {
 	if !uuid.MatchString(actor) || !uuid.MatchString(id) {
 		return User{}, ErrInvalid

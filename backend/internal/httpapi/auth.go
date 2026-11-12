@@ -117,7 +117,7 @@ func (h *authHandler) login(c *gin.Context) {
 	}
 	credentials, err := h.service.Login(c.Request.Context(), request.Identifier, request.Password)
 	if errors.Is(err, auth.ErrInvalidCredentials) {
-		failure(c, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
+		failure(c, http.StatusUnauthorized, "invalid_credentials", "invalid email, phone, Student ID or password")
 		return
 	}
 	if errors.Is(err, auth.ErrTemporaryPasswordExpired) {
@@ -189,6 +189,51 @@ func (h *authHandler) logout(c *gin.Context) {
 func (h *authHandler) me(c *gin.Context) {
 	user, _ := c.Get("auth_user")
 	success(c, http.StatusOK, user)
+}
+
+// siblings godoc
+// @Summary List the children that share this account's login phone
+// @Tags authentication
+// @Router /auth/siblings [get]
+func (h *authHandler) siblings(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	user := c.MustGet("auth_user").(auth.User)
+	list, err := h.service.Siblings(c.Request.Context(), user.ID)
+	if err != nil {
+		failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
+		return
+	}
+	success(c, http.StatusOK, list)
+}
+
+// switchChild godoc
+// @Summary Move to a sibling's account without the password again
+// @Tags authentication
+// @Router /auth/switch [post]
+func (h *authHandler) switchChild(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var request struct {
+		UserID string `json:"user_id"`
+	}
+	if !decodeSchoolJSON(c, 1024, &request) {
+		return
+	}
+	user := c.MustGet("auth_user").(auth.User)
+	credentials, err := h.service.SwitchTo(c.Request.Context(), user.ID, request.UserID)
+	if errors.Is(err, auth.ErrInvalidCredentials) {
+		failure(c, http.StatusForbidden, "forbidden", "that account cannot be opened from this one")
+		return
+	}
+	if err != nil {
+		failure(c, http.StatusInternalServerError, "internal_error", "internal server error")
+		return
+	}
+	h.setCookies(c, credentials)
+	success(c, http.StatusOK, credentials)
 }
 
 // permissions godoc

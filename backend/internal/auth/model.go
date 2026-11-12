@@ -56,9 +56,13 @@ type User struct {
 	TemporaryPasswordExpiresAt *time.Time `gorm:"column:temporary_password_expires_at" json:"-"`
 	// LoginID is a student login's sign-in ID (Student ID or admission
 	// number); staff and guardians have none and sign in with their email.
-	LoginID   *string   `gorm:"column:login_id" json:"login_id,omitempty"`
-	CreatedAt time.Time `json:"-"`
-	UpdatedAt time.Time `json:"-"`
+	LoginID *string `gorm:"column:login_id" json:"login_id,omitempty"`
+	// LoginPhone is the number this account signs in with, stored as
+	// +8801XXXXXXXXX. Staff numbers are unique; student accounts of one
+	// family may share a guardian's number (migration 1811).
+	LoginPhone *string   `gorm:"column:login_phone" json:"login_phone,omitempty"`
+	CreatedAt  time.Time `json:"-"`
+	UpdatedAt  time.Time `json:"-"`
 }
 
 func (User) TableName() string { return "users" }

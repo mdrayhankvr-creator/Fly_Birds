@@ -39,7 +39,10 @@ type Student struct {
 	RollNo      *int    `json:"roll_no"`
 	UserID      *string `json:"user_id"`
 	// LoginID is the linked login's sign-in ID, when it has one.
-	LoginID     string `json:"login_id,omitempty"`
+	LoginID string `json:"login_id,omitempty"`
+	// LoginPhone is the number that login signs in with (+8801XXXXXXXXX),
+	// usually the guardian's; siblings may share it.
+	LoginPhone  string `json:"login_phone,omitempty"`
 	SessionName string `json:"session_name"`
 	ClassName   string `json:"class_name"`
 	SectionName string `json:"section_name"`
