@@ -196,7 +196,7 @@ func TestPostgresMarksheetV2(t *testing.T) {
 		t.Fatalf("summary: comment %q pos %q/%q failed %q", st.Comment, st.ClassPos, st.SectionPos, st.FailedCount)
 	}
 	if len(st.Signatures) != 3 || st.Signatures[0].Name != "Nasrin Sultana" || st.Signatures[0].Image != "ctsig-"+sigVersion+".png" ||
-		st.Signatures[1].Name != "Head Master" || !st.Signatures[2].Date || st.Signatures[2].Image != "" {
+		!st.Signatures[1].Date || st.Signatures[1].Image != "" || st.Signatures[2].Name != "Head Master" {
 		t.Fatalf("signatures: %+v", st.Signatures)
 	}
 	if _, ok := fake.last().Assets["ctsig-"+sigVersion+".png"]; !ok {

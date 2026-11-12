@@ -764,7 +764,8 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 		if brand.school.Signatory != "" {
 			head.Title = brand.school.Signatory
 		}
-		row.Signatures = []signature{teacher, head, {Title: l.t("sig_guardian"), Date: true}}
+		// The reference order: the class teacher, the guardian, then the head.
+		row.Signatures = []signature{teacher, {Title: l.t("sig_guardian"), Date: true}, head}
 		if set.Provisional {
 			row.Footer = l.t("footer_provisional")
 		} else {
