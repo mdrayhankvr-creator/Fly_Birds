@@ -141,9 +141,27 @@ func revertIssues(tx *gorm.DB, b *Batch) error {
 		var placed, records bool
 		switch *it.Decision {
 		case Promote, Repeat:
+			// The group and fourth subject the apply itself wrote for the new
+			// year do not block the revert (the revert removes them); a choice
+			// someone changed since, like any other new-year record, does.
 			if err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM students s JOIN student_enrolments e ON e.student_id = s.id AND e.state = 'current'
-  WHERE s.id = ? AND s.session_id = ? AND s.status = 'active' AND e.id = ?), student_has_session_records(?, ?)`,
-				it.StudentID, b.ToSessionID, it.AppliedEnrolmentID, it.StudentID, b.ToSessionID).Row().Scan(&placed, &records); err != nil {
+  WHERE s.id = ? AND s.session_id = ? AND s.status = 'active' AND e.id = ?),
+       EXISTS (SELECT 1 FROM student_attendance WHERE student_id = ? AND session_id = ?)
+    OR EXISTS (SELECT 1 FROM exam_marks WHERE student_id = ? AND session_id = ?)
+    OR EXISTS (SELECT 1 FROM exam_results WHERE student_id = ? AND session_id = ?)
+    OR EXISTS (SELECT 1 FROM result_versions WHERE student_id = ? AND session_id = ?)
+    OR EXISTS (SELECT 1 FROM student_fees WHERE student_id = ? AND session_id = ?)
+    OR EXISTS (SELECT 1 FROM student_subject_choices c WHERE c.student_id = ? AND c.session_id = ?
+               AND (c.role <> 'optional' OR c.subject_id IS DISTINCT FROM ?::uuid))
+    OR EXISTS (SELECT 1 FROM student_group_choices g WHERE g.student_id = ? AND g.session_id = ?
+               AND g.group_id IS DISTINCT FROM ?::uuid)
+    OR EXISTS (SELECT 1 FROM homework_submissions h JOIN class_diaries d ON d.id = h.diary_id
+               WHERE h.student_id = ? AND d.session_id = ?)`,
+				it.StudentID, b.ToSessionID, it.AppliedEnrolmentID,
+				it.StudentID, b.ToSessionID, it.StudentID, b.ToSessionID, it.StudentID, b.ToSessionID, it.StudentID, b.ToSessionID, it.StudentID, b.ToSessionID,
+				it.StudentID, b.ToSessionID, it.TargetFourthSubjectID,
+				it.StudentID, b.ToSessionID, it.TargetGroupID,
+				it.StudentID, b.ToSessionID).Row().Scan(&placed, &records); err != nil {
 				return err
 			}
 		default:
@@ -467,15 +485,17 @@ func place(tx *gorm.DB, b batchRow) error {
 	}
 	// A carried group only fits a target class that uses groups; a carried
 	// fourth subject only one the target class offers as a fourth subject.
+	// An undecided student (no target class yet) keeps the carried values for
+	// when a decision places them.
 	if err := tx.Exec(`UPDATE promotion_items i SET target_group_id = NULL
- WHERE i.batch_id = ? AND i.target_group_id IS NOT NULL
-   AND (i.target_class_id IS NULL OR NOT EXISTS (SELECT 1 FROM academic_classes c WHERE c.id = i.target_class_id AND c.uses_groups))`, b.ID).Error; err != nil {
+ WHERE i.batch_id = ? AND i.target_group_id IS NOT NULL AND i.target_class_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM academic_classes c WHERE c.id = i.target_class_id AND c.uses_groups)`, b.ID).Error; err != nil {
 		return err
 	}
 	if err := tx.Exec(`UPDATE promotion_items i SET target_fourth_subject_id = NULL
- WHERE i.batch_id = ? AND i.target_fourth_subject_id IS NOT NULL
-   AND (i.target_class_id IS NULL OR NOT EXISTS (SELECT 1 FROM academic_class_subjects acs
-        WHERE acs.class_id = i.target_class_id AND acs.subject_id = i.target_fourth_subject_id AND acs.is_fourth_subject))`, b.ID).Error; err != nil {
+ WHERE i.batch_id = ? AND i.target_fourth_subject_id IS NOT NULL AND i.target_class_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM academic_class_subjects acs
+        WHERE acs.class_id = i.target_class_id AND acs.subject_id = i.target_fourth_subject_id AND acs.is_fourth_subject)`, b.ID).Error; err != nil {
 		return err
 	}
 	switch b.RollPolicy {
