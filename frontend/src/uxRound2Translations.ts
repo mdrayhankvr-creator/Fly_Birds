@@ -62,6 +62,7 @@ export const uxRound2Translations = {
     uxPhotoSetting: 'Students may upload their own photo',
     uxPhotoSettingHint: 'Each photo waits for the class teacher or an administrator to approve it before it is used.',
 
+    uxLogoLabel: 'School logo',
     uxLogoUpload: 'Upload logo',
     uxLogoReplace: 'Upload a new logo',
     uxLogoRemove: 'Remove',
@@ -135,6 +136,7 @@ export const uxRound2Translations = {
     uxPhotoSetting: 'শিক্ষার্থীরা নিজের ছবি আপলোড করতে পারবে',
     uxPhotoSettingHint: 'প্রতিটি ছবি ব্যবহারের আগে শ্রেণিশিক্ষক বা অ্যাডমিন অনুমোদন করবেন।',
 
+    uxLogoLabel: 'বিদ্যালয়ের লোগো',
     uxLogoUpload: 'লোগো আপলোড করুন',
     uxLogoReplace: 'নতুন লোগো আপলোড করুন',
     uxLogoRemove: 'সরান',

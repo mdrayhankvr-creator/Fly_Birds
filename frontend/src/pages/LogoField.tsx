@@ -46,7 +46,7 @@ export function LogoField({ value, disabled, inputClass, authorized, onChange }:
     } finally { setBusy(false) }
   }
   return <div className="sm:col-span-2" data-logo-field>
-    <span className="block text-sm font-semibold text-slate-700">{t('schoolLogo')}</span>
+    <span className="block text-sm font-semibold text-slate-700">{t('uxLogoLabel')}</span>
     <div className="mt-1.5 flex flex-col gap-3 sm:flex-row sm:items-center">
       {uploaded && <img src={value} alt={t('uxLogoCurrent')} className="h-16 w-16 shrink-0 rounded-lg bg-white object-contain ring-1 ring-slate-200" />}
       {uploaded
