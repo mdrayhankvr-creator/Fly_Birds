@@ -7,20 +7,22 @@ const SingleSchoolID = 1
 // SchoolSettings is one deployment's persisted profile. The repository uses
 // SingleSchoolID so a future tenant-aware repository can replace it cleanly.
 type SchoolSettings struct {
-	ID                int    `gorm:"primaryKey" json:"-"`
-	NameEN            string `json:"name_en"`
-	NameBN            string `json:"name_bn"`
-	LogoURL           string `json:"logo_url"`
-	Address           string `json:"address"`
-	Phone             string `json:"phone"`
-	Email             string `json:"email"`
-	PreferredLanguage string `json:"preferred_language"`
-	PrimaryColor      string `json:"primary_color"`
-	SecondaryColor    string `json:"secondary_color"`
-	DashboardTheme    string `json:"dashboard_theme"`
-	GradingSchemeID   string `json:"grading_scheme_id"`
-	TaglineEN         string `json:"tagline_en"`
-	TaglineBN         string `json:"tagline_bn"`
+	ID                 int    `gorm:"primaryKey" json:"-"`
+	NameEN             string `json:"name_en"`
+	NameBN             string `json:"name_bn"`
+	LogoURL            string `json:"logo_url"`
+	LogoPalettePrimary string `json:"logo_palette_primary"`
+	LogoPaletteAccent  string `json:"logo_palette_accent"`
+	Address            string `json:"address"`
+	Phone              string `json:"phone"`
+	Email              string `json:"email"`
+	PreferredLanguage  string `json:"preferred_language"`
+	PrimaryColor       string `json:"primary_color"`
+	SecondaryColor     string `json:"secondary_color"`
+	DashboardTheme     string `json:"dashboard_theme"`
+	GradingSchemeID    string `json:"grading_scheme_id"`
+	TaglineEN          string `json:"tagline_en"`
+	TaglineBN          string `json:"tagline_bn"`
 	// School details (migration 1759), shown on the public page and read by
 	// documents such as the marksheet. Address above is the English address.
 	EIIN              string `json:"eiin"`
@@ -45,17 +47,22 @@ type SchoolSettings struct {
 func (SchoolSettings) TableName() string { return "school_settings" }
 
 type SettingsInput struct {
-	NameEN            string `json:"name_en"`
-	NameBN            string `json:"name_bn"`
-	LogoURL           string `json:"logo_url"`
-	Address           string `json:"address"`
-	Phone             string `json:"phone"`
-	Email             string `json:"email"`
-	PreferredLanguage string `json:"preferred_language"`
-	PrimaryColor      string `json:"primary_color"`
-	SecondaryColor    string `json:"secondary_color"`
-	DashboardTheme    string `json:"dashboard_theme"`
-	GradingSchemeID   string `json:"grading_scheme_id"`
+	NameEN  string `json:"name_en"`
+	NameBN  string `json:"name_bn"`
+	LogoURL string `json:"logo_url"`
+	// GET includes these read-only fields. Accept them on a round-trip PUT,
+	// but the repository never writes client-supplied palette or timestamps.
+	LogoPalettePrimary *string    `json:"logo_palette_primary,omitempty"`
+	LogoPaletteAccent  *string    `json:"logo_palette_accent,omitempty"`
+	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
+	Address            string     `json:"address"`
+	Phone              string     `json:"phone"`
+	Email              string     `json:"email"`
+	PreferredLanguage  string     `json:"preferred_language"`
+	PrimaryColor       string     `json:"primary_color"`
+	SecondaryColor     string     `json:"secondary_color"`
+	DashboardTheme     string     `json:"dashboard_theme"`
+	GradingSchemeID    string     `json:"grading_scheme_id"`
 	// Taglines are optional so clients that predate them keep the saved text.
 	TaglineEN *string `json:"tagline_en,omitempty"`
 	TaglineBN *string `json:"tagline_bn,omitempty"`
@@ -79,19 +86,21 @@ type SettingsInput struct {
 }
 
 type Branding struct {
-	NameEN            string `json:"name_en"`
-	NameBN            string `json:"name_bn"`
-	LogoURL           string `json:"logo_url"`
-	PreferredLanguage string `json:"preferred_language"`
-	PrimaryColor      string `json:"primary_color"`
-	SecondaryColor    string `json:"secondary_color"`
-	DashboardTheme    string `json:"dashboard_theme"`
-	TaglineEN         string `json:"tagline_en"`
-	TaglineBN         string `json:"tagline_bn"`
+	NameEN             string `json:"name_en"`
+	NameBN             string `json:"name_bn"`
+	LogoURL            string `json:"logo_url"`
+	LogoPalettePrimary string `json:"logo_palette_primary"`
+	LogoPaletteAccent  string `json:"logo_palette_accent"`
+	PreferredLanguage  string `json:"preferred_language"`
+	PrimaryColor       string `json:"primary_color"`
+	SecondaryColor     string `json:"secondary_color"`
+	DashboardTheme     string `json:"dashboard_theme"`
+	TaglineEN          string `json:"tagline_en"`
+	TaglineBN          string `json:"tagline_bn"`
 }
 
 func (s SchoolSettings) Branding() Branding {
-	return Branding{s.NameEN, s.NameBN, s.LogoURL, s.PreferredLanguage, s.PrimaryColor, s.SecondaryColor, s.DashboardTheme, s.TaglineEN, s.TaglineBN}
+	return Branding{s.NameEN, s.NameBN, s.LogoURL, s.LogoPalettePrimary, s.LogoPaletteAccent, s.PreferredLanguage, s.PrimaryColor, s.SecondaryColor, s.DashboardTheme, s.TaglineEN, s.TaglineBN}
 }
 
 type GradeBand struct {

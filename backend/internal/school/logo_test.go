@@ -34,6 +34,29 @@ func logoImage(t *testing.T, w, h int, transparent bool, kind string) []byte {
 	return b.Bytes()
 }
 
+func TestLogoPaletteIgnoresWhiteAndTransparency(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 120, 80))
+	for y := 0; y < 80; y++ {
+		for x := 0; x < 120; x++ {
+			c := color.NRGBA{255, 255, 255, 255}
+			if x < 45 {
+				c = color.NRGBA{22, 75, 180, 255}
+			}
+			if x >= 45 && x < 65 {
+				c = color.NRGBA{225, 75, 35, 255}
+			}
+			if x >= 100 {
+				c = color.NRGBA{0, 0, 0, 0}
+			}
+			img.Set(x, y, c)
+		}
+	}
+	primary, accent := LogoPalette(img)
+	if primary != "#164BB4" || accent != "#E14B23" {
+		t.Fatalf("palette = %s, %s", primary, accent)
+	}
+}
+
 func TestProcessLogo(t *testing.T) {
 	// A large transparent PNG keeps its transparency and is scaled down,
 	// keeping its shape.

@@ -34,6 +34,7 @@ import { routinePlannerTranslations } from './routinePlannerTranslations'
 import { marksheetAdmitTranslations } from './marksheetAdmitTranslations'
 import { publicPolishTranslations } from './publicPolishTranslations'
 import { uxRound2Translations } from './uxRound2Translations'
+import { publicDesignTranslations } from './publicDesignTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -217,5 +218,7 @@ i18n.addResourceBundle('en', 'translation', publicPolishTranslations.en, true, t
 i18n.addResourceBundle('bn', 'translation', publicPolishTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', uxRound2Translations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', uxRound2Translations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', publicDesignTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', publicDesignTranslations.bn, true, true)
 
 export default i18n

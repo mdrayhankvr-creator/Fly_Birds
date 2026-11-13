@@ -71,6 +71,10 @@ func (r *GormRepository) UpdateSettings(ctx context.Context, actor string, input
 			return ErrInvalid
 		}
 		updates := map[string]any{"name_en": input.NameEN, "name_bn": input.NameBN, "logo_url": input.LogoURL, "address": input.Address, "phone": input.Phone, "email": input.Email, "preferred_language": input.PreferredLanguage, "primary_color": input.PrimaryColor, "secondary_color": input.SecondaryColor, "dashboard_theme": input.DashboardTheme, "grading_scheme_id": input.GradingSchemeID, "updated_at": time.Now().UTC()}
+		if !IsUploadedLogo(input.LogoURL) {
+			updates["logo_palette_primary"] = ""
+			updates["logo_palette_accent"] = ""
+		}
 		fields := []string{"name_en", "name_bn", "logo_url", "address", "phone", "email", "preferred_language", "primary_color", "secondary_color", "dashboard_theme", "grading_scheme_id"}
 		if input.TaglineEN != nil {
 			updates["tagline_en"] = *input.TaglineEN
