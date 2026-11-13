@@ -10,6 +10,17 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Sign-in by Phone Number (2026-11-13)
+
+On `feature/phone-login`, from main after transcript v3 (PR #50). Migration 1811. Outside the brief's M0–M13 criteria, so the completion figures above do not change.
+
+- **One sign-in field:** "Email, phone or Student ID" (EN/BN). An identifier with "@" is an email, a Bangladeshi mobile number is a phone, anything else is a Student ID. Numbers are accepted as 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX, with spaces, dashes or brackets and in Bangla digits, and are stored and compared as +8801XXXXXXXXX; operator prefixes 013–019 only. A ten-digit Student ID is still a Student ID.
+- **The number on the account** (`users.login_phone`, migration 1811): unique for staff through a partial index, deliberately shared for students, because a guardian signs in to a child's account with their own number and the children of one family share it.
+- **Siblings:** phone plus password checks every account with that number and opens the one the password matches. Every candidate is checked, so the time taken says nothing about which child; a failure counts against each of them, so the lockout protects the family as it protects an email. The account menu lists the children on that number and switches between them without the password again — only between student accounts with the very same number.
+- **Administration:** the login phone is set and cleared from one card on the user record, shown on the student profile and, for administrators only, the staff profile. The audit log records that it changed, never the number. The bulk admission import takes an optional `login_phone` column (used when the import creates logins).
+- **Unchanged by design:** the same generic error for an unknown email, number, Student ID or wrong password; the same lockout and rate limit; the number never appears on a public page.
+- **Not now (deliberately deferred):** SMS one-time passwords, email verification and Google sign-in. None of them is started; sign-in stays password-only, and the mock SMS provider is still the only SMS path.
+
 ## Current Status — Public Page Footer, Demo Content and Dashboard Fixes (2026-11-10)
 
 On `feature/public-polish`, rebased onto marksheet v2 and admit cards (PR #46). No migration. Outside the brief's M0–M13 criteria, so the completion figures above do not change.
