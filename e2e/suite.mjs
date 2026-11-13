@@ -57,7 +57,8 @@ try {
   await b.go('/')
   check('landing renders school identity and the sign-in form', await b.waitFor(`document.querySelector('main h1')?.innerText.includes('Green Valley Demo School') && !!document.querySelector('main #login-email') && !!document.querySelector('main #login-password')`))
   check('landing shows no invented figures', !/৳|\d+\.\d%/.test(await b.text()))
-  check('modern header shows school identity', await b.evaluate(`!!document.querySelector('[data-public-header] img') && document.querySelector('[data-public-header]').innerText.includes('Green Valley')`))
+  const headerIdentity = `(() => { const link = document.querySelector('[data-public-header] a[href="/#public-home"]'); const image = link?.querySelector('img'); const name = link?.querySelector('[data-public-school-name]'); return image ? image.complete && image.naturalWidth > 0 : !!name && name.textContent.trim().includes('Green Valley Demo School') && name.getClientRects().length > 0 && getComputedStyle(name).visibility === 'visible' })()`
+  check('modern header shows school identity', await b.waitFor(headerIdentity, 5000))
   check('modern header has a clear login button', await b.evaluate(`!!document.querySelector('[data-public-header] a[href="/#public-sign-in"]')`))
   check('header login button reaches the sign-in form', await b.evaluate(`(() => { const link = document.querySelector('[data-public-header] a[href="/#public-sign-in"]'); return link && getComputedStyle(link).display !== 'none' && !!document.querySelector('#public-sign-in #login-email') })()`))
   check('sign-in keeps email, phone and Student ID', await b.evaluate(`document.querySelector('label[for="login-email"]')?.innerText.trim() === 'Email, phone or Student ID'`))
@@ -67,9 +68,12 @@ try {
   const quickOn = await b.evaluate(`fetch('/api/auth/demo-login').then(r => r.status === 200)`)
   check('demo quick sign-in shown only when the server offers it', await b.waitFor(`${quickOn} === !!document.querySelector('#demo-quick-login')`), `server ${quickOn ? 'on' : 'off'}`)
   check('landing a11y basics', (await a11y()).length === 0, (await a11y()).slice(0, 3).join(' | '))
-  await b.viewport(375, 812, true); await b.go('/')
-  await b.waitFor(`!!document.querySelector('main #login-email')`)
-  check('landing fits a 375px phone without sideways scrolling', !(await b.overflow()))
+  for (const width of [320, 360, 375]) {
+    await b.viewport(width, 812, true); await b.go('/')
+    await b.waitFor(`!!document.querySelector('main #login-email')`)
+    check(`header shows school identity at ${width}px`, await b.waitFor(headerIdentity, 5000))
+    check(`landing fits a ${width}px phone without sideways scrolling`, !(await b.overflow()))
+  }
   await b.viewport(1366, 900)
   await b.go('/login')
   await b.waitFor(`document.querySelector('#login-password')`)

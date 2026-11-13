@@ -10,6 +10,12 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Public Header on a Plain CI Seed (2026-11-14)
+
+On `feature/public-modern-bold`, the fresh CI demo seed has a school name but no uploaded logo. The Modern Bold header had hidden its name below 640 px, while `suite.mjs` incorrectly required an image even when the school had no logo. The header now keeps the name visible at every width and uses the initials badge as a companion. The suite requires a loaded logo when one is configured, or a visible school name otherwise, at desktop and 320/360/375 px. The public-design browser fixture creates and removes a fifth gallery photo when the plain seed has only four, so its See all check still exercises expansion.
+
+- **Verification on a fresh no-logo `fbqa-cp1b` database:** reproduced the CI failure at 119/120; after the fix, frontend typecheck/build, `suite.mjs` 125/125, `whitelabel.mjs` 23/23 and `public-design.mjs` 90/90 passed. The full school name fits at 320 px in two lines and at 360/375 px in one line, with no horizontal overflow. The stack's original database connection was restored after testing; its data and Docker volumes were not deleted.
+
 ## Current Status — Sign-in by Phone Number (2026-11-13)
 
 On `feature/phone-login`, from main after transcript v3 (PR #50). Migration 1811. Outside the brief's M0–M13 criteria, so the completion figures above do not change.

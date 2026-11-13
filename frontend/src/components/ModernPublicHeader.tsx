@@ -45,7 +45,7 @@ export function ModernPublicHeader({ branding, onLanguage }: { branding?: School
     <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
       <a href="/#public-home" className="flex min-w-0 shrink items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--public-primary)]" aria-label={name || t('pdNavHome')}>
         <SchoolMark branding={branding} size="h-10 w-10" />
-        <span className="hidden max-w-40 truncate text-sm font-extrabold text-slate-900 sm:block xl:max-w-56">{name}</span>
+        <span data-public-school-name className="block min-w-0 max-h-12 overflow-hidden text-xs font-extrabold leading-4 text-slate-900 [overflow-wrap:anywhere] sm:max-h-10 sm:max-w-40 sm:text-sm sm:leading-5 xl:max-w-56">{name}</span>
       </a>
       <nav aria-label={t('pdNavigation')} className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex">{nav(false)}</nav>
       <div className="ml-auto flex shrink-0 items-center gap-1 lg:ml-0">

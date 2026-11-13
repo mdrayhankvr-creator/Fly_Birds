@@ -1,5 +1,6 @@
 // Public design and privacy on the disposable fbqa-cp1b demo school.
-// Makes 24 review screenshots in E2E_SHOTS_DIR, then restores the page and logo.
+// Makes 24 review screenshots in E2E_SHOTS_DIR, then restores the page,
+// logo, slideshow and temporary fifth gallery photo.
 import { launch, reporter, sleep } from './cdp.mjs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,7 +17,7 @@ const axeSource = readFileSync(join(here, '..', 'frontend', 'node_modules', 'axe
 const styles = ['modern_bold', 'classic', 'minimal']
 const labels = { modern_bold: 'Modern Bold', classic: 'Classic', minimal: 'Minimal' }
 const headings = ['# Public school page design screenshots', '', 'QA stack: fbqa-cp1b at 127.0.0.1:8092.', 'Each image is a full-page capture at the named viewport width.', '']
-let originalPage, originalSettings, originalLogo, addedSlideId
+let originalPage, originalSettings, originalLogo, addedSlideId, addedGalleryId
 const editable = page => { const { head_photo_version: _photo, ...input } = page; return input }
 
 async function admin() { await b.login('demo.admin@demo.flybirds.test', pw); await b.go('/admin/school-settings') }
@@ -73,6 +74,23 @@ try {
   // school-building image temporarily so the captures exercise the photo hero.
   const slides = (await b.api('/school/slides')).body.data
   const gallery = (await b.api('/school/public-page/edit')).body.data.gallery
+  // A plain CI seed has four photos, exactly the preview limit. Add one
+  // temporary photo so See all must expand the grid, then remove it below.
+  if (gallery.length <= 4) {
+    if (!gallery.length) throw new Error('the demo school has no gallery photo to extend')
+    const result = await b.evaluate(`(async () => {
+      const image = await (await fetch('/api/school/gallery/${gallery[0].id}/image')).blob()
+      const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1])
+      const token = (await (await fetch('/api/auth/refresh', { method: 'POST', headers: { 'X-CSRF-Token': csrf } })).json()).data.access_token
+      const response = await fetch('/api/school/gallery', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': image.type }, body: image })
+      if (response.status !== 201) return { status: response.status }
+      const body = await response.json()
+      const caption = await fetch('/api/school/gallery/' + body.data.id, { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ caption_en: 'School life', caption_bn: 'বিদ্যালয়ের জীবন' }) })
+      return { status: response.status, id: body.data.id, captionStatus: caption.status }
+    })()`)
+    if (result.status === 201) addedGalleryId = result.id
+    if (result.status !== 201 || result.captionStatus !== 200) throw new Error(`could not prepare fifth gallery photo: ${result.status}/${result.captionStatus}`)
+  }
   if (!slides.length && gallery.length) {
     const result = await b.evaluate(`(async () => {
       const image = await (await fetch('/api/school/gallery/${gallery[0].id}/image')).blob()
@@ -171,6 +189,7 @@ try {
       await admin()
       await b.api('/school/public-page', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editable(originalPage)) })
       if (addedSlideId) await b.api(`/school/slides/${addedSlideId}`, { method: 'DELETE' })
+      if (addedGalleryId && (await b.api(`/school/gallery/${addedGalleryId}`, { method: 'DELETE' })).status !== 200) throw new Error('could not remove the temporary gallery photo')
       if (originalLogo) {
         await b.evaluate(`(async () => { const bytes = Uint8Array.from(atob(${JSON.stringify(originalLogo.bytes)}), c => c.charCodeAt(0)); const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1]); const token = (await (await fetch('/api/auth/refresh', { method: 'POST', headers: { 'X-CSRF-Token': csrf } })).json()).data.access_token; return fetch('/api/school/logo', { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': ${JSON.stringify(originalLogo.kind)} }, body: bytes }).then(r => r.status) })()`)
       } else {
