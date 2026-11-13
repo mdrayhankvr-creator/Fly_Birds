@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
-import { galleryImageUrl, getPublicPage, headPhotoUrl, type GalleryPhoto } from '../api/publicPage'
+import { getSchoolBranding } from '../api/client'
+import { galleryImageUrl, getPublicPage, headPhotoUrl, type GalleryPhoto, type PublicView } from '../api/publicPage'
+import { SchoolMark } from '../components/AppShell'
 import { Icon } from '../components/icons'
 
 // The public school page below the sign-in form (checkpoint 5). It is a
@@ -91,6 +93,97 @@ function Lightbox({ photos, index, onIndex, onClose, bn }: { photos: GalleryPhot
   </div>
 }
 
+function ModernSection({ id, title, action, children }: { id: string; title: string; action?: ReactNode; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const node = ref.current
+    if (!node || !('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    node.classList.add('pd-reveal')
+    const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { node.classList.add('pd-entered'); observer.disconnect() } }, { threshold: 0.06 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  return <section ref={ref} id={id} className="public-section pd-modern-section" aria-labelledby={`${id}-title`}>
+    <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <div className="pd-section-heading"><h2 id={`${id}-title`} className="public-section-title">{title}</h2>{action}</div>
+      <div className="pd-section-content">{children}</div>
+    </div>
+  </section>
+}
+
+function ModernSections({ view: v, bn }: { view: PublicView; bn: boolean }) {
+  const { t } = useTranslation()
+  const branding = useQuery({ queryKey: ['school', 'branding'], queryFn: ({ signal }) => getSchoolBranding(signal), staleTime: 60_000 })
+  const [galleryAll, setGalleryAll] = useState(false)
+  const [noticesAll, setNoticesAll] = useState(false)
+  const [open, setOpen] = useState<number | null>(null)
+  const name = branding.data ? pick(bn, branding.data.name_en, branding.data.name_bn) : ''
+  const about = v.about ? pick(bn, v.about.about_en, v.about.about_bn) : ''
+  const activities = pick(bn, v.activities_en, v.activities_bn).split('\n').map(s => s.trim()).filter(Boolean)
+  const message = v.head ? pick(bn, v.head.message_en, v.head.message_bn) : ''
+  const headName = v.head ? pick(bn, v.head.name_en, v.head.name_bn) : ''
+  const address = v.contact ? pick(bn, v.contact.address_en, v.contact.address_bn) : ''
+  const number = (n: number) => new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US').format(n)
+  const date = (iso: string) => new Intl.DateTimeFormat(bn ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dhaka' }).format(new Date(iso))
+  const thisYear = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date()))
+  const facts: { label: string; value: number; suffix?: string }[] = []
+  if (v.about?.founded_year) facts.push({ label: t('pdYears'), value: Math.max(0, thisYear - v.about.founded_year) })
+  if (v.about?.students != null) facts.push({ label: t('c5Students'), value: v.about.students })
+  if (v.about?.teachers != null) facts.push({ label: t('c5Teachers'), value: v.about.teachers })
+  if (v.about?.pass_rate != null) facts.push({ label: t('pdPassRateStat'), value: v.about.pass_rate, suffix: '%' })
+  return <div className="public-page pd-modern" data-public-page data-public-style="modern_bold">
+    {v.features.length > 0 && <ModernSection id="public-why" title={t('pdWhyTitle')}>
+      <div className="pd-feature-grid">{v.features.map(feature => <article key={feature.position} className="pd-feature-card">
+        <span className="pd-feature-icon"><Icon name={feature.icon} className="h-6 w-6" /></span>
+        <h3>{pick(bn, feature.title_en, feature.title_bn)}</h3>
+        <p>{pick(bn, feature.description_en, feature.description_bn)}</p>
+      </article>)}</div>
+    </ModernSection>}
+    {(v.about || activities.length > 0) && <ModernSection id="public-about" title={t('c5AboutTitle')}>
+      <div className="pd-about-grid">
+        {v.gallery.length > 0 && <div className="pd-about-photos" aria-label={t('c5GalleryTitle')}>
+          <img src={galleryImageUrl(v.gallery[0], true)} alt={pick(bn, v.gallery[0].caption_en, v.gallery[0].caption_bn)} width={v.gallery[0].width} height={v.gallery[0].height} loading="lazy" decoding="async" />
+          {v.gallery[1] && <img src={galleryImageUrl(v.gallery[1], true)} alt={pick(bn, v.gallery[1].caption_en, v.gallery[1].caption_bn)} width={v.gallery[1].width} height={v.gallery[1].height} loading="lazy" decoding="async" />}
+        </div>}
+        <div className="pd-about-copy">
+          <div className="flex min-w-0 items-center gap-3"><SchoolMark branding={branding.data} size="h-14 w-14" /><h3>{name}</h3></div>
+          {about && <Paragraphs text={about} />}
+          {activities.length > 0 && <div className="pd-activities"><h4>{t('pdActivitiesTitle')}</h4><ul>{activities.map((item, i) => <li key={i}><Icon name="check" className="h-5 w-5" />{item}</li>)}</ul></div>}
+          {(v.about?.founded_year || v.about?.eiin) && <p className="pd-about-details">{v.about?.founded_year ? `${t('c5Founded')}: ${new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(v.about.founded_year)}` : ''}{v.about?.founded_year && v.about?.eiin ? ' · ' : ''}{v.about?.eiin ? `${t('c5EIIN')}: ${v.about.eiin}` : ''}</p>}
+        </div>
+      </div>
+      {facts.length > 0 && <dl className="pd-stats">{facts.map(fact => <div key={fact.label} className="pd-stat-card"><dt>{fact.label}</dt><dd><CountUp value={fact.value} suffix={fact.suffix} format={number} /></dd></div>)}</dl>}
+    </ModernSection>}
+    {message && v.head && <ModernSection id="public-head" title={t('c5HeadTitle')}>
+      <figure className="pd-head-card">
+        {v.head.photo_version && <img src={headPhotoUrl(v.head.photo_version)} alt={headName ? t('c5HeadPhotoAlt', { name: headName }) : ''} width={480} height={480} loading="lazy" decoding="async" />}
+        <div className="min-w-0"><span className="pd-head-mark" aria-hidden="true">“</span><blockquote><Paragraphs text={message} /></blockquote>{headName && <figcaption>{headName}<span>{t('c5HeadRole')}</span></figcaption>}</div>
+      </figure>
+    </ModernSection>}
+    <ModernSection id="public-results" title={t('pdNavResults')}>
+      <div className="pd-results-card"><Icon name="report" className="h-9 w-9" /><p>{t('pdResultsPrivate')}</p><a href="/#public-sign-in" className="pd-pill">{t('pdHeroSignIn')} <Icon name="arrowRight" className="h-4 w-4" /></a></div>
+    </ModernSection>
+    {v.notices.length > 0 && <ModernSection id="public-notices" title={t('c5NoticesTitle')} action={v.notices.length > 3 ? <button type="button" className="pd-pill" onClick={() => setNoticesAll(x => !x)} aria-expanded={noticesAll}>{t(noticesAll ? 'pdShowLess' : 'pdSeeAll')} <Icon name="arrowRight" className="h-4 w-4" /></button> : undefined}>
+      <ul className="pd-notice-grid">{v.notices.slice(0, noticesAll ? undefined : 3).map(notice => <li key={notice.id} className="pd-notice-card">
+        <time dateTime={notice.publish_at}>{date(notice.publish_at)}</time><h3>{pick(bn, notice.title_en, notice.title_bn)}</h3><p>{pick(bn, notice.body_en, notice.body_bn)}</p>
+      </li>)}</ul>
+    </ModernSection>}
+    {v.gallery.length > 0 && <ModernSection id="public-gallery" title={t('c5GalleryTitle')} action={v.gallery.length > 4 ? <button type="button" className="pd-pill" onClick={() => setGalleryAll(x => !x)} aria-expanded={galleryAll}>{t(galleryAll ? 'pdShowLess' : 'pdSeeAll')} <Icon name="arrowRight" className="h-4 w-4" /></button> : undefined}>
+      <ul className="pd-gallery-grid">{v.gallery.slice(0, galleryAll ? undefined : 4).map((photo, i) => <li key={photo.id}><button type="button" onClick={() => setOpen(i)} aria-label={t('c5OpenPhoto', { n: i + 1 })}>
+        <img src={galleryImageUrl(photo, true)} alt="" width={photo.width} height={photo.height} loading="lazy" decoding="async" /><span>{pick(bn, photo.caption_en, photo.caption_bn)}</span>
+      </button></li>)}</ul>
+      {open !== null && <Lightbox photos={v.gallery} index={open} onIndex={setOpen} onClose={() => setOpen(null)} bn={bn} />}
+    </ModernSection>}
+    {v.contact && <ModernSection id="public-contact" title={t('c5ContactTitle')}>
+      <div className="pd-contact-grid">
+        {address && <div className="pd-contact-card"><Icon name="home" className="h-6 w-6" /><div><h3>{t('c5Address')}</h3><p>{address}</p>{v.contact.map_url && <a href={v.contact.map_url} target="_blank" rel="noopener noreferrer">{t('c5OpenMap')}</a>}</div></div>}
+        {v.contact.email && <div className="pd-contact-card"><Icon name="mail" className="h-6 w-6" /><div><h3>{t('email')}</h3><a href={`mailto:${v.contact.email}`}>{v.contact.email}</a></div></div>}
+        {!address && v.contact.map_url && <div className="pd-contact-card"><Icon name="home" className="h-6 w-6" /><a href={v.contact.map_url} target="_blank" rel="noopener noreferrer">{t('c5OpenMap')}</a></div>}
+      </div>
+    </ModernSection>}
+  </div>
+}
+
 export function PublicSections() {
   const { t, i18n } = useTranslation()
   const bn = i18n.language === 'bn'
@@ -104,17 +197,16 @@ export function PublicSections() {
     document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' })
   }, [v, hash])
   if (!v) return null
+  if (v.design_style === 'modern_bold') return <ModernSections view={v} bn={bn} />
   const number = (n: number) => new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US').format(n)
   const date = (iso: string) => new Intl.DateTimeFormat(bn ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dhaka' }).format(new Date(iso))
   const style = v.design_style || 'modern_bold'
   const facts: { label: string; value: number | string; suffix?: string }[] = []
-  const year = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date()))
-  if (style === 'modern_bold' && v.about?.founded_year) facts.push({ label: t('pdYears'), value: Math.max(0, year - v.about.founded_year) })
   if (v.about?.students != null) facts.push({ label: t('c5Students'), value: v.about.students })
   if (v.about?.teachers != null) facts.push({ label: t('c5Teachers'), value: v.about.teachers })
   if (v.about?.pass_rate != null) facts.push({ label: t('pdPassRateStat'), value: v.about.pass_rate, suffix: '%' })
-  if (style !== 'modern_bold' && v.about?.founded_year) facts.unshift({ label: t('c5Founded'), value: new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(v.about.founded_year) })
-  if (style !== 'modern_bold' && v.about?.eiin) facts.push({ label: t('c5EIIN'), value: v.about.eiin })
+  if (v.about?.founded_year) facts.unshift({ label: t('c5Founded'), value: new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(v.about.founded_year) })
+  if (v.about?.eiin) facts.push({ label: t('c5EIIN'), value: v.about.eiin })
   const about = v.about && pick(bn, v.about.about_en, v.about.about_bn)
   const message = v.head && pick(bn, v.head.message_en, v.head.message_bn)
   const headName = v.head && pick(bn, v.head.name_en, v.head.name_bn)
@@ -122,8 +214,7 @@ export function PublicSections() {
   return <div className="public-page border-t border-slate-200 bg-slate-50" data-public-page data-public-style={style}>
     {v.about && <Section id="public-about" title={t('c5AboutTitle')}>
       {about && <Paragraphs text={about} />}
-      {style === 'modern_bold' && (v.about?.founded_year || v.about?.eiin) && <p className="mt-4 text-sm font-semibold text-slate-600">{v.about?.founded_year ? `${t('c5Founded')}: ${new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(v.about.founded_year)}` : ''}{v.about?.founded_year && v.about?.eiin ? ' · ' : ''}{v.about?.eiin ? `${t('c5EIIN')}: ${v.about.eiin}` : ''}</p>}
-      {facts.length > 0 && <dl className="public-stats mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{facts.map(({label, value, suffix}) => <div key={label} className="public-stat rounded-2xl border border-slate-200 bg-white p-4"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900">{typeof value === 'number' && style === 'modern_bold' ? <CountUp value={value} suffix={suffix} format={number} /> : typeof value === 'number' ? `${number(value)}${suffix || ''}` : value}</dd></div>)}</dl>}
+      {facts.length > 0 && <dl className="public-stats mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{facts.map(({label, value, suffix}) => <div key={label} className="public-stat rounded-2xl border border-slate-200 bg-white p-4"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900">{typeof value === 'number' ? `${number(value)}${suffix || ''}` : value}</dd></div>)}</dl>}
     </Section>}
 
     {v.head && message && <Section id="public-head" title={t('c5HeadTitle')}>

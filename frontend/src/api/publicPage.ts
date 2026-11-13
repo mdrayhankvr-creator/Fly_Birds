@@ -4,8 +4,20 @@ import { ApiError, apiBaseUrl, bearerRequest, json } from './client'
 // section has no content and is not shown.
 export type GalleryPhoto = { id: string; position: number; width: number; height: number; version: string; caption_en: string; caption_bn: string }
 export type PublicNotice = { id: string; title_en: string; title_bn: string; body_en: string; body_bn: string; priority: 'normal' | 'important' | 'urgent'; publish_at: string }
+export type PublicFeature = { position: number; icon: 'book' | 'teacher' | 'shield' | 'users' | 'school' | 'grade' | 'chart' | 'globe'; title_en: string; title_bn: string; description_en: string; description_bn: string }
+export type PublicExtras = {
+  features: PublicFeature[]; activities_en: string; activities_bn: string
+  footer_description_en: string; footer_description_bn: string
+  social_facebook: string; social_youtube: string; social_whatsapp: string; social_messenger: string
+  privacy_policy_en: string; privacy_policy_bn: string; terms_en: string; terms_bn: string
+}
 export type PublicView = {
   design_style: PublicDesignStyle
+  features: PublicFeature[]
+  activities_en: string; activities_bn: string
+  footer_description_en: string; footer_description_bn: string
+  social_facebook: string; social_youtube: string; social_whatsapp: string; social_messenger: string
+  privacy_policy_en: string; privacy_policy_bn: string; terms_en: string; terms_bn: string
   about: { about_en: string; about_bn: string; founded_year?: number; eiin?: string; students?: number; teachers?: number; pass_rate?: number } | null
   head: { name_en: string; name_bn: string; message_en: string; message_bn: string; photo_version?: string } | null
   gallery: GalleryPhoto[]
@@ -13,7 +25,7 @@ export type PublicView = {
   contact: { address_en: string; address_bn: string; email: string; map_url: string } | null
 }
 export type PublicDesignStyle = 'modern_bold' | 'classic' | 'minimal'
-export type PublicPage = {
+export type PublicPage = PublicExtras & {
   design_style: PublicDesignStyle; pass_rate: number | null
   about_en: string; about_bn: string; founded_year: number | null; eiin: string; show_counts: boolean
   head_name_en: string; head_name_bn: string; head_message_en: string; head_message_bn: string; head_photo_version: string

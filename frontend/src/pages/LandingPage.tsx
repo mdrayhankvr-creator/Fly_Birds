@@ -117,7 +117,7 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const design = publicPage.data?.design_style || 'modern_bold'
   const exploreTarget = publicPage.data?.about ? '#public-about' : publicPage.data?.gallery.length ? '#public-gallery' : '#public-sign-in'
 
-  return <><div className="landing relative isolate" data-public-style={design}>
+  return <><div id="public-home" className="landing relative isolate" data-public-style={design}>
     {/* Banner: the photos on phones, the whole first screen on large screens. */}
     <section aria-label={t('p3Slides')} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}
       onFocus={() => setHold(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHold(false) }}

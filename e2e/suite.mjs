@@ -21,10 +21,11 @@ async function openTodayForAttendance() {
   if (day.open) return
   if (day.reason !== 'weekly_off') throw new Error(`today is a holiday (${day.holiday_title_en}) in this school: run the suite on another day`)
   await b.login(email('admin'), pw)
-  const { updated_at: _updated, ...settings } = (await b.api('/school/settings')).body.data
-  const put = days => b.api('/school/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...settings, weekly_off_days: days }) })
-  await put([])
-  restoreOffDays = async () => { await b.login(email('admin'), pw); await put(day.weekly_off_days) }
+  const settings = (await b.api('/school/settings')).body.data
+  const { logo_palette_primary: _primary, logo_palette_accent: _accent, updated_at: _updated, ...editableSettings } = settings
+  const put = days => b.api('/school/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editableSettings, weekly_off_days: days }) })
+  if ((await put([])).status !== 200) throw new Error('could not open the weekly off day for the attendance QA run')
+  restoreOffDays = async () => { await b.login(email('admin'), pw); if ((await put(settings.weekly_off_days)).status !== 200) throw new Error('could not restore weekly off days') }
   await b.login(email('teacher'), pw)
 }
 const sidebarLabels = () => b.evaluate(`[...document.querySelectorAll('aside nav a')].map(a => a.innerText.trim())`)
@@ -56,11 +57,13 @@ try {
   await b.go('/')
   check('landing renders school identity and the sign-in form', await b.waitFor(`document.querySelector('main h1')?.innerText.includes('Green Valley Demo School') && !!document.querySelector('main #login-email') && !!document.querySelector('main #login-password')`))
   check('landing shows no invented figures', !/৳|\d+\.\d%/.test(await b.text()))
-  check('landing shows the school identity once (not again in the header)', await b.evaluate(`!document.querySelector('header').innerText.includes('Green Valley') && !document.querySelector('header img')`))
-  check('no Sign in link in the header on the sign-in page', await b.evaluate(`!document.querySelector('header a[href="/login"]')`))
-  // The footer may carry one small "Powered by Fly_Birds"; nothing else markets the product.
+  check('modern header shows school identity', await b.evaluate(`!!document.querySelector('[data-public-header] img') && document.querySelector('[data-public-header]').innerText.includes('Green Valley')`))
+  check('modern header has a clear login button', await b.evaluate(`!!document.querySelector('[data-public-header] a[href="/#public-sign-in"]')`))
+  check('header login button reaches the sign-in form', await b.evaluate(`(() => { const link = document.querySelector('[data-public-header] a[href="/#public-sign-in"]'); return link && getComputedStyle(link).display !== 'none' && !!document.querySelector('#public-sign-in #login-email') })()`))
+  check('sign-in keeps email, phone and Student ID', await b.evaluate(`document.querySelector('label[for="login-email"]')?.innerText.trim() === 'Email, phone or Student ID'`))
+  // The footer carries one small product credit; nothing else markets the product.
   check('landing has no vendor marketing or role grid', await b.evaluate(`(() => { const page = document.body.cloneNode(true); page.querySelector('[data-public-footer]')?.remove(); return !/Run your whole school|For schools across Bangladesh|Built for every role|Everything a school day needs|Powered by/i.test(page.textContent) })()`))
-  check('the footer credits Fly_Birds once, in small print', await b.waitFor(`(() => { const f = document.querySelector('[data-public-footer]'); if (!f) return false; const credit = [...f.querySelectorAll('p')].filter(p => /Powered by/.test(p.textContent)); return credit.length === 1 && credit[0].textContent.trim() === 'Powered by Fly_Birds' && parseFloat(getComputedStyle(credit[0]).fontSize) <= 12 && !/Run your whole school|Built for every role/i.test(f.textContent) })()`, 15000))
+  check('the footer credits Fly Birds once, in small print', await b.waitFor(`(() => { const f = document.querySelector('[data-public-footer]'); if (!f) return false; const credit = [...f.querySelectorAll('p')].filter(p => /Developed by Fly Birds/.test(p.textContent)); return credit.length === 1 && credit[0].textContent.trim() === 'Developed by Fly Birds' && parseFloat(getComputedStyle(credit[0]).fontSize) <= 12 && !/Run your whole school|Built for every role/i.test(f.textContent) })()`, 15000))
   const quickOn = await b.evaluate(`fetch('/api/auth/demo-login').then(r => r.status === 200)`)
   check('demo quick sign-in shown only when the server offers it', await b.waitFor(`${quickOn} === !!document.querySelector('#demo-quick-login')`), `server ${quickOn ? 'on' : 'off'}`)
   check('landing a11y basics', (await a11y()).length === 0, (await a11y()).slice(0, 3).join(' | '))

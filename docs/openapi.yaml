@@ -301,14 +301,14 @@ paths:
       operationId: getPublicSchoolPage
       tags: [school]
       summary: The public school page below the sign-in form
-      description: 'No sign-in. Returns design_style (modern_bold, classic or minimal), about (with optional totals of active students and teachers and an entered pass rate), the head teacher''s message, gallery, live public notices and contact address, email and map link. Phone numbers, NID, guardian details and marks are excluded. A section with no content is null. Cached for 60 seconds.'
+      description: 'No sign-in. Returns design_style (modern_bold, classic or minimal), about (with optional totals of active students and teachers and an entered pass rate), the head teacher''s message, gallery, live public notices and contact address, email and map link. Modern Bold also returns four bilingual feature cards, activities, footer description, optional social links and optional privacy/terms text. Phone numbers, NID, guardian details and marks are excluded. A section with no content is null. Cached for 60 seconds.'
       security: []
       responses: { '200': { description: The public page } }
     put:
       operationId: savePublicSchoolPage
       tags: [school]
       summary: Edit the public school page
-      description: 'Requires school_settings:update, administrator and the school settings module. Body: design_style (modern_bold by default, classic, minimal), pass_rate (optional integer 0–100), about_en/bn, founded_year, eiin (6 digits or empty), show_counts, head_name_en/bn, head_message_en/bn, contact_address_en/bn, contact_phone (school setting; never published), contact_email, map_url (https only). Every field is replaced.'
+      description: 'Requires school_settings:update, administrator and the school settings module. Body: design_style (modern_bold by default, classic, minimal), pass_rate (optional integer 0–100), four features (position 1–4, icon from a built-in set, bilingual title and description), activities_en/bn (one item per line), footer_description_en/bn, optional social_facebook/youtube/whatsapp/messenger HTTPS links (phone numbers rejected), optional privacy_policy_en/bn and terms_en/bn, about_en/bn, founded_year, eiin (6 digits or empty), show_counts, head_name_en/bn, head_message_en/bn, contact_address_en/bn, contact_phone (school setting; never published), contact_email, map_url (https only). Every field is replaced except the feature cards when omitted by an older client.'
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses: { '200': { description: The saved page }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }

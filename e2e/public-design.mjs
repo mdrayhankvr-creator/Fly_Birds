@@ -49,6 +49,7 @@ try {
   originalSettings = (await b.api('/school/settings')).body.data
   originalPage = (await b.api('/school/public-page/edit')).body.data.page
   check('existing school defaults to Modern Bold', originalPage.design_style === 'modern_bold')
+  check('four bilingual feature cards have defaults', originalPage.features?.length === 4 && originalPage.features.every(f => f.title_en && f.title_bn && f.description_en && f.description_bn))
   if (originalSettings.logo_url?.startsWith('/api/school/logo?')) {
     originalLogo = await b.evaluate(`fetch('/api/school/logo').then(async r => { if (!r.ok) return null; const a = new Uint8Array(await r.arrayBuffer()); let text = ''; for (let i = 0; i < a.length; i += 8192) text += String.fromCharCode(...a.slice(i, i + 8192)); return { kind: r.headers.get('content-type'), bytes: btoa(text) } })`)
   }
@@ -85,8 +86,23 @@ try {
   }
 
   for (const style of styles) await saveStyle(style, true)
+  await saveStyle('modern_bold', true)
+  if (!(await b.waitFor(`!!document.querySelector('[data-feature-card="0"] [data-feature-title-en]') && !!document.querySelector('[data-public-field="activities_en"]')`, 15000))) throw new Error('modern feature editor did not load')
+  await b.evaluate(`(() => {
+    const set = (selector, value) => { const el = document.querySelector(selector); const prototype = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(prototype, 'value').set.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })) }
+    set('[data-feature-card="0"] [data-feature-title-en]', 'Thoughtful learning')
+    set('[data-public-field="activities_en"]', 'Classroom learning\\nCreative activities')
+    document.querySelector('section[aria-labelledby="public-page-editor"] form').requestSubmit()
+  })()`)
+  if (!(await b.waitFor(`document.querySelector('section[aria-labelledby="public-page-editor"]')?.innerText.includes('Public page saved.')`, 15000))) throw new Error('modern editor fields did not save')
+  const edited = (await b.api('/school/public-page/edit')).body.data.page
+  check('feature title and activities are editable in the admin form', edited.features[0].title_en === 'Thoughtful learning' && edited.activities_en.includes('Creative activities'))
   // Give the stats a value entered by the school, for every design screenshot.
-  const page = { ...editable(originalPage), pass_rate: 92 }
+  const page = { ...editable(originalPage), features: edited.features, pass_rate: 92,
+    activities_en: 'Classroom learning\nCreative activities', activities_bn: 'শ্রেণিকক্ষে পাঠ\nসৃজনশীল কার্যক্রম',
+    footer_description_en: 'A place to learn and grow together.', footer_description_bn: 'একসঙ্গে শেখা ও বেড়ে ওঠার স্থান।',
+    social_facebook: 'https://facebook.com/flybirds.demo', privacy_policy_en: 'We use school information only for education.', privacy_policy_bn: 'বিদ্যালয়ের তথ্য শুধু শিক্ষার কাজে ব্যবহার করা হয়।',
+    terms_en: 'Use this public page with care.', terms_bn: 'এই পাবলিক পাতাটি দায়িত্বের সঙ্গে ব্যবহার করুন.' }
   for (const style of styles) {
     const result = await b.api('/school/public-page', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...page, design_style: style }) })
     if (result.status !== 200) throw new Error(`prepare ${style}: ${result.status}`)
@@ -116,6 +132,25 @@ try {
     check(`${labels[style]} public API excludes private fields`, !/("[^\"]*(?:phone|nid|guardian|marks)[^\"]*"\s*:)/i.test(serialized))
     check(`${labels[style]} page excludes phone and private records`, await b.evaluate(`!document.querySelector('[data-public-page] a[href^="tel:"], [data-public-footer] a[href^="tel:"]') && !/\\+880\\s*1[3-9]\\d/.test(document.body.innerText)`))
     if (style === 'modern_bold') {
+      check('Modern Bold has sticky navigation and four feature cards', await b.evaluate(`(() => { const h = document.querySelector('[data-public-header]'); return h && getComputedStyle(h).position === 'sticky' && document.querySelectorAll('.pd-feature-card').length === 4 && !!document.querySelector('#public-results') })()`))
+      check('About uses two uploaded gallery photos and editable activities', await b.evaluate(`document.querySelectorAll('.pd-about-photos img').length === 2 && document.querySelectorAll('.pd-activities li').length === 2`))
+      check('four-column footer uses only the filled social link and hides phone and payment methods', await b.evaluate(`document.querySelectorAll('.pd-modern-footer > div:first-child > section, .pd-modern-footer > div:first-child > nav').length === 4 && document.querySelectorAll('.pd-social').length === 1 && !document.querySelector('.pd-modern-footer a[href^="tel:"], [data-payment-methods]')`))
+      check('privacy and terms links appear only when their pages have content', await b.evaluate(`document.querySelectorAll('.pd-modern-footer a[href="/privacy-policy"], .pd-modern-footer a[href="/terms"]').length === 2`))
+      await b.evaluate(`document.querySelector('#public-gallery .pd-pill')?.click()`)
+      check('gallery See all reveals full grid', await b.waitFor(`document.querySelectorAll('#public-gallery .pd-gallery-grid li').length >= 5`, 5000))
+      await b.evaluate(`document.querySelector('#public-gallery .pd-gallery-grid button')?.click()`)
+      check('gallery lightbox opens', await b.waitFor(`!!document.querySelector('[role="dialog"][aria-modal="true"]')`, 5000))
+      await b.evaluate(`document.querySelector('[role="dialog"] button')?.click()`)
+      await b.evaluate(`document.querySelector('.pd-menu-button')?.click()`)
+      check('mobile hamburger reveals six public links', await b.waitFor(`document.querySelectorAll('#pd-mobile-menu .pd-nav-link').length === 6`, 5000))
+      await b.evaluate(`document.querySelector('.pd-menu-button')?.click()`)
+      await b.evaluate(`localStorage.setItem('flybirds.language', 'en')`)
+      await b.go('/privacy-policy')
+      check('admin-editable privacy page is published without HTML injection', await b.evaluate(`document.querySelector('.pd-legal')?.innerText.includes('school information') && !document.querySelector('.pd-legal script')`))
+      await b.go('/terms')
+      check('admin-editable terms page is published', await b.evaluate(`document.querySelector('.pd-legal')?.innerText.includes('public page with care')`))
+      await b.go('/')
+      await b.waitFor(`!!document.querySelector('[data-public-page]')`, 15000)
       const motion = await b.evaluate(`(() => { const el = document.querySelector('#public-gallery img') || document.querySelector('[data-public-page]'); return { reduced: matchMedia('(prefers-reduced-motion: reduce)').matches, duration: parseFloat(getComputedStyle(el).transitionDuration), hidden: getComputedStyle(document.querySelector('[data-public-page] .public-section')).opacity === '0' } })()`)
       check('reduced motion disables reveal and transitions', motion.reduced && motion.duration < 0.01 && !motion.hidden, JSON.stringify(motion))
       const applied = await b.evaluate(`(() => ({ raw: document.documentElement.dataset.logoPalette, primary: getComputedStyle(document.documentElement).getPropertyValue('--public-primary').trim() }))()`)
