@@ -41,8 +41,13 @@ type extras struct {
 	students map[string]*studentExtra
 	headEN   string
 	headBN   string
-	window   [2]string // attendance window (YYYY-MM-DD), "" when unknown
-	subjects map[string]subjectName
+	// The head teacher's own uploaded signature, used when the ID-card
+	// settings carry none; headSigVersion is what makes a replaced
+	// signature a new document.
+	headSig        []byte
+	headSigVersion string
+	window         [2]string // attendance window (YYYY-MM-DD), "" when unknown
+	subjects       map[string]subjectName
 }
 
 type subjectName struct{ Code, EN, BN string }
@@ -50,7 +55,7 @@ type subjectName struct{ Code, EN, BN string }
 // key is what the extras add to a document's cache key.
 func (x extras) key() string {
 	h := sha256.New()
-	fmt.Fprintf(h, "%s|%s|%s|%s\n", x.headEN, x.headBN, x.window[0], x.window[1])
+	fmt.Fprintf(h, "%s|%s|%s|%s|%s\n", x.headEN, x.headBN, x.headSigVersion, x.window[0], x.window[1])
 	ids := make([]string, 0, len(x.students))
 	for id := range x.students {
 		ids = append(ids, id)
@@ -88,6 +93,25 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 	}
 	if err := db.Raw("SELECT head_teacher_name_en, head_teacher_name_bn FROM school_settings WHERE id = 1").Row().Scan(&x.headEN, &x.headBN); err != nil {
 		return x, err
+	}
+	// The head teacher's own signature, uploaded once under their own
+	// account. The ID-card settings' signature wins when a school has set
+	// one, so nothing already in print changes.
+	var headSig []struct {
+		Content []byte
+		Version string
+	}
+	if err := db.Raw(`SELECT sig.content, sig.version
+ FROM employee_signatures sig
+ JOIN employees e ON e.id = sig.employee_id
+ JOIN users u ON u.id = e.user_id
+ WHERE u.role = 'head_teacher' AND u.is_active
+ ORDER BY u.created_at, u.id
+ LIMIT 1`).Scan(&headSig).Error; err != nil {
+		return x, err
+	}
+	if len(headSig) == 1 {
+		x.headSig, x.headSigVersion = headSig[0].Content, headSig[0].Version
 	}
 
 	// Parents, date of birth, shift, medium and the session's group.
