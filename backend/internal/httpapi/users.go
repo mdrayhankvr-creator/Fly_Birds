@@ -121,6 +121,25 @@ func (h *usersHandler) update(c *gin.Context) {
 // @Summary Activate or deactivate a user and revoke sessions on deactivation
 // @Tags users
 // @Router /users/{id}/status [patch]
+// loginPhone sets or clears the number an account signs in with. It is the
+// one edit reached from both the student profile and the staff profile.
+func (h *usersHandler) loginPhone(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var input users.PhoneInput
+	if !decodeSchoolJSON(c, 4*1024, &input) {
+		return
+	}
+	actor := c.MustGet("auth_user").(auth.User)
+	value, err := h.service.SetLoginPhone(c.Request.Context(), actor.ID, c.Param("id"), input)
+	if err != nil {
+		usersError(c, err)
+		return
+	}
+	success(c, 200, value)
+}
+
 func (h *usersHandler) status(c *gin.Context) {
 	if !h.available(c) {
 		return

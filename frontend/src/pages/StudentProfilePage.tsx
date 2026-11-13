@@ -11,6 +11,7 @@ import { StateScreen } from '../components/StateScreen'
 import { AcademicHistory } from './AcademicHistory'
 import { StudentInsights, type InsightAccess } from './StudentInsights'
 import { Fact, ProfilePhoto } from './profileUi'
+import { LoginPhoneCard } from './LoginPhoneCard'
 import { createStudentLogin, type StudentLogin } from '../api/studentLogins'
 import { LoginSlipSheet } from './LoginSlips'
 import { MyPhotoCard } from './MyPhotoCard'
@@ -215,7 +216,9 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
           <Field label={t('profileMedium')}>{value.medium ? t(value.medium === 'bangla' ? 'mediumBangla' : 'mediumEnglish') : ''}</Field>
           {value.class_uses_groups && <Field label={t('profileGroup')}>{value.group_id ? pick(value.group_name_en, value.group_name_bn) : ''}</Field>}
           <Field label={t('profileFourthSubject')}>{value.fourth_subject_id ? pick(value.fourth_subject_name_en, value.fourth_subject_name_bn) : ''}</Field>
+          <Field label={t('phLoginPhone')}>{value.login_phone || ''}</Field>
         </dl>
+        {mode === 'staff' && canManageLinks && value.user_id && <div className="mt-4 border-t border-slate-100 pt-4"><LoginPhoneCard userId={value.user_id} current={value.login_phone ?? ''} kind="student" /></div>}
       </SectionCard>
     </div>
 

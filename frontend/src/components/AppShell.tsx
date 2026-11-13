@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { signInName, type SchoolBranding } from '../api/client'
+import { useQuery } from '@tanstack/react-query'
+import { getSiblings, signInName, type SchoolBranding } from '../api/client'
+import { useAuth } from '../auth/AuthProvider'
 import { Icon } from './icons'
 import { activeItem, type NavGroup, type NavItem } from './navigation'
 import { navModule, tone } from './dashboard/kit'
@@ -70,9 +72,42 @@ function UserMenu({ user, onSignOut }: { user: ShellUser; onSignOut: () => void 
     </button>
     {open && <div role="menu" className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
       <div className="border-b border-slate-100 px-4 py-3"><p className="truncate text-sm font-semibold text-slate-900">{name}</p><p className="truncate text-xs text-slate-500">{signInName(user)}</p></div>
+      <SwitchChild onDone={() => setOpen(false)} />
       <Link role="menuitem" to="/account" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"><Icon name="user" className="h-4 w-4" />{t('account')}</Link>
       <button role="menuitem" type="button" onClick={() => { setOpen(false); onSignOut() }} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"><Icon name="logout" className="h-4 w-4" />{t('signOut')}</button>
     </div>}
+  </div>
+}
+
+// SwitchChild lists the children of one family that share a login phone, so
+// a guardian signed in to one child can open another without the password
+// again. It shows nothing for anyone else (the list comes back empty).
+function SwitchChild({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation()
+  const { user, accessToken, switchTo } = useAuth()
+  const [busy, setBusy] = useState('')
+  const [failed, setFailed] = useState(false)
+  const siblings = useQuery({
+    queryKey: ['auth', 'siblings', user?.id],
+    enabled: !!accessToken && user?.role === 'student',
+    queryFn: () => getSiblings(accessToken!),
+    retry: false,
+  })
+  const list = siblings.data ?? []
+  if (list.length < 2) return null
+  return <div className="border-b border-slate-100 py-1">
+    <p className="px-4 pb-1 pt-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('phSwitchChildOf')}</p>
+    {list.map(child => <button key={child.user_id} role="menuitem" type="button" disabled={child.current || !!busy}
+      onClick={async () => {
+        setBusy(child.user_id); setFailed(false)
+        try { await switchTo(child.user_id); onDone(); window.location.reload() }
+        catch { setFailed(true) } finally { setBusy('') }
+      }}
+      className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-slate-50 disabled:hover:bg-transparent ${child.current ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
+      <Icon name={child.current ? 'check' : 'user'} className="h-4 w-4 shrink-0" />
+      <span className="min-w-0 truncate">{child.display_name}</span>
+    </button>)}
+    {failed && <p role="alert" className="px-4 pb-2 text-xs text-rose-700">{t('phSwitchFailed')}</p>}
   </div>
 }
 

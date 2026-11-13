@@ -72,6 +72,11 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (Crede
 	if !ValidIdentifier(identifier) || password == "" || len(password) > 72 {
 		return Credentials{}, ErrInvalidCredentials
 	}
+	// A number may belong to several children of one family, so it takes its
+	// own path; everything else resolves to one account.
+	if phone, ok := NormalizePhone(identifier); ok {
+		return s.loginByPhone(ctx, phone, password)
+	}
 	user, err := s.findForLogin(ctx, identifier)
 	if errors.Is(err, ErrNotFound) {
 		s.verifyPadded(s.dummyHash, password)
@@ -113,6 +118,116 @@ func (s *Service) verifyPadded(hash, password string) bool {
 		VerifyPassword(s.dummyTemporary, password)
 	}
 	return valid
+}
+
+// loginByPhone signs in with a mobile number. Staff numbers match one
+// account; a guardian's number may match several children, so the password
+// is checked against every account with the number and the one it matches
+// signs in. Every candidate is checked, so the time taken says nothing about
+// which child it was, and an unknown number costs the same dummy check as a
+// wrong password does.
+func (s *Service) loginByPhone(ctx context.Context, phone, password string) (Credentials, error) {
+	users, err := s.repo.FindUsersByLoginPhone(ctx, phone)
+	if err != nil {
+		return Credentials{}, err
+	}
+	if len(users) == 0 {
+		s.verifyPadded(s.dummyHash, password)
+		return Credentials{}, ErrInvalidCredentials
+	}
+	now := s.now()
+	matched := -1
+	for i := range users {
+		if s.verifyPadded(users[i].PasswordHash, password) && matched < 0 {
+			matched = i
+		}
+	}
+	if matched < 0 {
+		// The attempt counts against every account the number could have
+		// opened, so guessing is limited the same way as by email.
+		for i := range users {
+			if err := s.repo.RecordLoginFailure(ctx, users[i].ID, now); err != nil {
+				return Credentials{}, err
+			}
+		}
+		return Credentials{}, ErrInvalidCredentials
+	}
+	user := users[matched]
+	if !user.IsActive || (user.LockedUntil != nil && user.LockedUntil.After(now)) {
+		return Credentials{}, ErrInvalidCredentials
+	}
+	if err := s.repo.ClearLoginFailures(ctx, user.ID, now); err != nil {
+		return Credentials{}, err
+	}
+	if user.TemporaryPasswordExpired(now) {
+		return Credentials{}, ErrTemporaryPasswordExpired
+	}
+	return s.newSession(ctx, user, now)
+}
+
+// Sibling is another child of the same family, as the header's child switch
+// lists them.
+type Sibling struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	LoginID     string `json:"login_id,omitempty"`
+	Current     bool   `json:"current"`
+}
+
+// Siblings lists the student accounts that share this account's login phone,
+// itself included. It is empty unless the account is a student with a number
+// shared by at least one other child.
+func (s *Service) Siblings(ctx context.Context, userID string) ([]Sibling, error) {
+	user, err := s.repo.FindActiveUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user.Role != "student" || user.LoginPhone == nil {
+		return []Sibling{}, nil
+	}
+	others, err := s.repo.FindUsersByLoginPhone(ctx, *user.LoginPhone)
+	if err != nil {
+		return nil, err
+	}
+	out := []Sibling{}
+	for i := range others {
+		if others[i].Role != "student" || !others[i].IsActive {
+			continue
+		}
+		sib := Sibling{UserID: others[i].ID, DisplayName: others[i].DisplayName, Current: others[i].ID == user.ID}
+		if others[i].LoginID != nil {
+			sib.LoginID = *others[i].LoginID
+		}
+		out = append(out, sib)
+	}
+	if len(out) < 2 {
+		return []Sibling{}, nil
+	}
+	return out, nil
+}
+
+// SwitchTo opens a session on a sibling's account without asking for the
+// password again: the guardian already gave it for an account that shares
+// the same login phone. Only a student account may switch, and only to
+// another active student account with the very same number.
+func (s *Service) SwitchTo(ctx context.Context, userID, targetID string) (Credentials, error) {
+	user, err := s.repo.FindActiveUser(ctx, userID)
+	if err != nil {
+		return Credentials{}, ErrInvalidCredentials
+	}
+	target, err := s.repo.FindActiveUser(ctx, targetID)
+	if err != nil {
+		return Credentials{}, ErrInvalidCredentials
+	}
+	if user.Role != "student" || target.Role != "student" || user.LoginPhone == nil || target.LoginPhone == nil ||
+		*user.LoginPhone != *target.LoginPhone || !target.IsActive {
+		return Credentials{}, ErrInvalidCredentials
+	}
+	now := s.now()
+	if target.LockedUntil != nil && target.LockedUntil.After(now) {
+		return Credentials{}, ErrInvalidCredentials
+	}
+	return s.newSession(ctx, target, now)
 }
 
 func (s *Service) findForLogin(ctx context.Context, identifier string) (User, error) {

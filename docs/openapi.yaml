@@ -155,6 +155,32 @@ paths:
         '200': { $ref: '#/components/responses/IDList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/siblings:
+    get:
+      operationId: listSiblings
+      summary: List the children that share this account's login phone
+      description: Requires auth:read_self and the core authentication module. Returns the active student accounts whose login phone is the same as the signed-in account's, the signed-in one marked current. Empty for staff, for a student without a login phone, and for a student whose number nobody else shares.
+      tags: [authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Children on this number, content: { application/json: { schema: { $ref: '#/components/schemas/SiblingsResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/switch:
+    post:
+      operationId: switchChild
+      summary: Open a sibling's account without the password again
+      description: Requires auth:read_self and the core authentication module. A guardian signed in to one child may open another child of the same family, since the password they gave belongs to an account with the same login phone. Both accounts must be active students with the identical login phone; anything else is 403. A new session is issued and the cookies are replaced, as at sign-in.
+      tags: [authentication]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SwitchChildInput' } } }
+      responses:
+        '200': { description: Signed in to the sibling, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: That account cannot be opened from this one }
   /auth/password:
     post:
       operationId: changeOwnPassword
@@ -602,6 +628,26 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: own_password }
+  /users/{id}/login-phone:
+    patch:
+      operationId: setUserLoginPhone
+      tags: [users]
+      summary: Set or clear the number an account signs in with
+      description: >-
+        Requires active admin, users:update, and the permissions module. The number is normalised to +8801XXXXXXXXX from 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX, with spaces, dashes or brackets and Bangla digits accepted; only operator prefixes 013-019 are valid, and anything else is 400. An empty string removes the number. A staff account's number must be unique (409); student accounts may share one, because a guardian signs in to a child's account and siblings share the guardian's number. user.login_phone_changed is audited without the number itself.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LoginPhoneInput' } } }
+      responses:
+        '200': { description: Updated user, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserResponse' } } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: User not found }
+        '409': { description: Another staff account already signs in with that number }
   /users/{id}/status:
     patch:
       operationId: setUserStatus
@@ -4528,6 +4574,25 @@ components:
         allowance_bdt: { type: string, pattern: '^[0-9]+(\.[0-9]{1,2})?$' }
         deduction_bdt: { type: string, pattern: '^[0-9]+(\.[0-9]{1,2})?$' }
         note: { type: string, maxLength: 500 }
+    LoginPhoneInput:
+      type: object
+      required: [login_phone]
+      properties:
+        login_phone: { type: string, description: 'A Bangladeshi mobile number in any written form, or an empty string to remove it.' }
+    SwitchChildInput:
+      type: object
+      required: [user_id]
+      properties:
+        user_id: { type: string, format: uuid, description: 'The sibling account to open.' }
+    Sibling:
+      type: object
+      required: [user_id, display_name, current]
+      properties:
+        user_id: { type: string, format: uuid }
+        display_name: { type: string }
+        login_id: { type: string, description: 'The sibling''s Student ID, when it has one.' }
+        current: { type: boolean, description: 'True for the account that is signed in.' }
+    SiblingsResponse: { type: object, required: [data], properties: { data: { type: array, items: { $ref: '#/components/schemas/Sibling' } } } }
     StudentInput:
       type: object
       required: [admission_no, name_en, status, session_id, class_id, section_id]
@@ -4557,7 +4622,7 @@ components:
         group_id: { type: string, nullable: true, description: 'The session''s group; the class must use groups. Omit to keep; empty clears.' }
         fourth_subject_id: { type: string, nullable: true, description: 'The session''s fourth subject; must be a fourth subject of the class. Omit to keep; empty clears.' }
     Student:
-      allOf: [{ $ref: '#/components/schemas/StudentInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string }, section_name: { type: string }, has_photo: { type: boolean }, shift_name_en: { type: string }, shift_name_bn: { type: string }, group_name_en: { type: string }, group_name_bn: { type: string }, class_uses_groups: { type: boolean }, fourth_subject_name_en: { type: string }, fourth_subject_name_bn: { type: string }, primary_guardian: { $ref: '#/components/schemas/GuardianSummary' } } }]
+      allOf: [{ $ref: '#/components/schemas/StudentInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string }, section_name: { type: string }, has_photo: { type: boolean }, login_phone: { type: string, description: 'The number this student''s account signs in with; administrators only.' }, shift_name_en: { type: string }, shift_name_bn: { type: string }, group_name_en: { type: string }, group_name_bn: { type: string }, class_uses_groups: { type: boolean }, fourth_subject_name_en: { type: string }, fourth_subject_name_bn: { type: string }, primary_guardian: { $ref: '#/components/schemas/GuardianSummary' } } }]
     GuardianSummary:
       type: object
       description: The primary guardian from the existing student-guardian link; present on single-student reads only.

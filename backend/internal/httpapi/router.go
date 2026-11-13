@@ -153,6 +153,8 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	authRoutes.GET("/me", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), handler.me)
 	authRoutes.GET("/permissions", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("permissions"), handler.permissions)
 	authRoutes.POST("/password", RequireAuth(service), RequirePermission(service, "auth:password_change_self"), moduleGuard("authentication"), handler.changePassword)
+	authRoutes.GET("/siblings", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), handler.siblings)
+	authRoutes.POST("/switch", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), handler.switchChild)
 	rbacHandler := &rbacHandler{service: grants}
 	management := router.Group("")
 	management.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store") }, RequireAuth(service), AuditDenied(auditService))
@@ -170,6 +172,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/users/:id", RequirePermission(service, "users:read"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.get)
 	management.PATCH("/users/:id", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.update)
 	management.PATCH("/users/:id/status", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.status)
+	management.PATCH("/users/:id/login-phone", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.loginPhone)
 	management.POST("/users/:id/password-reset", RequirePermission(service, "users:update"), moduleGuard("permissions"), RequireAdministrator(), usersHandler.resetPassword)
 	management.GET("/audit/actions", RequirePermission(service, "audit:read"), moduleGuard("permissions"), RequireAdministrator(), (&auditHandler{service: auditService}).actions)
 	registerAdmin(management, service, adminServices, moduleGuard("permissions"))
