@@ -84,6 +84,8 @@ func commError(c *gin.Context, err error) {
 		failure(c, 404, "not_found", "not found")
 	case errors.Is(err, diary.ErrClosed):
 		failure(c, 409, "submission_closed", "homework submission is not open")
+	case errors.Is(err, diary.ErrCommentsClosed):
+		failure(c, 409, "comments_closed", "comments are closed for this diary")
 	case errors.Is(err, notices.ErrConflict), errors.Is(err, diary.ErrConflict):
 		failure(c, 409, "conflict", "the record changed state or already exists")
 	case errors.Is(err, notices.ErrForbidden), errors.Is(err, diary.ErrForbidden):
@@ -374,6 +376,35 @@ func (h *commHandler) diaryFile(c *gin.Context) {
 		h.serve(c, c.Param("fileId"))
 	}
 }
+func (h *commHandler) diaryComments(c *gin.Context) {
+	if h.ready(c) {
+		v, err := h.svc.Diary.Comments(c.Request.Context(), h.viewer(c, ""), c.Param("id"))
+		reply(c, 200, v, err)
+	}
+}
+func (h *commHandler) postDiaryComment(c *gin.Context) {
+	var in struct {
+		Body string `json:"body"`
+	}
+	if h.ready(c) && decodeSchoolJSON(c, 2048, &in) {
+		v, err := h.svc.Diary.PostComment(c.Request.Context(), h.viewer(c, ""), c.Param("id"), c.Param("commentId"), in.Body)
+		reply(c, 201, v, err)
+	}
+}
+func (h *commHandler) hideDiaryComment(c *gin.Context) {
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	if h.ready(c) && decodeSchoolJSON(c, 2048, &in) {
+		v, err := h.svc.Diary.HideComment(c.Request.Context(), h.viewer(c, ""), c.Param("id"), c.Param("commentId"), in.Reason)
+		reply(c, 200, v, err)
+	}
+}
+func (h *commHandler) deleteDiaryComment(c *gin.Context) {
+	if h.ready(c) {
+		reply(c, 200, gin.H{"deleted": true}, h.svc.Diary.DeleteComment(c.Request.Context(), h.viewer(c, ""), c.Param("id"), c.Param("commentId")))
+	}
+}
 func (h *commHandler) mySubmission(c *gin.Context) {
 	if h.ready(c) {
 		v, err := h.svc.Diary.MySubmission(c.Request.Context(), commUser(c).ID, c.Param("id"))
@@ -469,6 +500,7 @@ func registerCommunication(g *gin.RouterGroup, service *auth.Service, comm *Comm
 	g.POST("/notifications/:id/read", perm("notifications:read_self"), notice, h.markRead)
 
 	anyDiary := RequireAnyPermission(service, "diary:write", "diary:read", "diary:read_self", "diary:read_children")
+	commentDiary := RequireAnyPermission(service, "diary:write", "diary:read_self")
 	g.GET("/diary/assignments", perm("diary:write"), diaryOn, h.diaryAssignments)
 	g.GET("/diary/teaching", perm("diary:write"), diaryOn, h.diaryTeaching)
 	g.POST("/diary", perm("diary:write"), diaryOn, writers, h.diarySave)
@@ -483,6 +515,11 @@ func registerCommunication(g *gin.RouterGroup, service *auth.Service, comm *Comm
 	g.PATCH("/diary/submissions/:id/review", perm("diary:write"), diaryOn, writers, h.review)
 	g.GET("/diary/submissions/:id/files/:fileId", anyDiary, diaryOn, h.submissionFile)
 	g.GET("/diary/:id", anyDiary, diaryOn, h.diaryGet)
+	g.GET("/diary/:id/comments", commentDiary, diaryOn, h.diaryComments)
+	g.POST("/diary/:id/comments", commentDiary, diaryOn, h.postDiaryComment)
+	g.POST("/diary/:id/comments/:commentId/replies", perm("diary:write"), diaryOn, writers, h.postDiaryComment)
+	g.PATCH("/diary/:id/comments/:commentId/hide", perm("diary:write"), diaryOn, writers, h.hideDiaryComment)
+	g.DELETE("/diary/:id/comments/:commentId", perm("diary:read_self"), diaryOn, RequireAnyRole("student"), h.deleteDiaryComment)
 	g.PATCH("/diary/:id", perm("diary:write"), diaryOn, writers, h.diarySave)
 	g.DELETE("/diary/:id", perm("diary:write"), diaryOn, writers, h.diaryDelete)
 	g.POST("/diary/:id/publish", perm("diary:write"), diaryOn, writers, h.diaryPublish)

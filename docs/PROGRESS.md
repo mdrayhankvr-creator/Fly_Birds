@@ -10,6 +10,13 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Class Diary Questions (2026-11-14)
+
+On `feature/diary-comments` from `origin/main` after PR #52, migration 1764 adds section-scoped diary comments and per-teacher read markers. Students can ask text questions (500 characters) under their current section's published diaries; the diary author and section class teacher can reply. Posting closes 30 days after the diary date. Students can remove their own question within ten minutes; teachers can hide a question with a reason recorded in the audit log. Hidden and deleted text is omitted from thread responses.
+
+- Publication sends each active student an immediate in-app `diary` notification, respecting their preference. Edits reuse the entry's notification row and only reopen it after ten minutes. A student's question notifies the author and class teacher; a reply notifies the student. The teacher list shows unread question counts, which clear when that teacher opens the thread. Student and teacher diary pages show the thread in EN/BN with light/dark theme support.
+- **Verification:** frontend typecheck and build, i18n mirror check (4000 EN / 3998 BN keys), unit tests 20/20, Go vet and the full touched Go packages (`internal/diary`, `internal/httpapi`, `internal/database`) on a fresh PostgreSQL database passed. The focused M9 test on another fresh database also checks that a class teacher cannot list another teacher's draft. On rebuilt fresh `fbqa-cp1b`, `suite.mjs` passed 125/125 and `daily-tasks.mjs` 55/55. The new `diary-comments.mjs` passed 27/27 on a separate fresh seed, including the reply's parent ID, notification, unread badge, 360/375 px and EN/BN light/dark threads. Four 375 px screenshots are indexed in `C:\Users\Laptop Click\Fly_Birds_QA_env\shots-diary-comments\index.md`.
+
 ## Current Status — Settings GET/PUT Round-Trip (2026-11-14)
 
 On `feature/public-modern-bold`, a fresh demo school's `GET /school/settings` response was rejected by an unchanged `PUT /school/settings` with `400 invalid_request`. The response includes the read-only `logo_palette_primary`, `logo_palette_accent`, and `updated_at` fields, while the strict request decoder did not recognize them. The input now accepts these fields for compatibility; the repository still derives the palette from the uploaded logo and owns the update timestamp. Optional settings omitted by older clients retain their saved values. A database-backed HTTP regression covers both the unchanged round-trip and a legacy payload with the new optional fields omitted.

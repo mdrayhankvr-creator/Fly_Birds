@@ -3639,7 +3639,7 @@ paths:
     get:
       operationId: getDiary
       summary: "Read one diary"
-      description: "Requires Any diary permission. Authors and oversight see any status; students and guardians only published diaries of the (linked) student's section (guardians may pass student_id)."
+      description: "Requires Any diary permission. Authors and oversight see any status; class teachers may see published diaries of their sections; students and guardians only published diaries of the (linked) student's section (guardians may pass student_id)."
       tags: [diary]
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
@@ -3670,6 +3670,53 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { '200': { description: Diary }, '403': { description: Permission, role or module denied }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /diary/{id}/comments:
+    get:
+      operationId: listDiaryComments
+      summary: Read the discussion under a published diary
+      description: Requires the diary module and diary:write or diary:read_self. Only current-section students, the author and the section's class teacher may read. Reading marks student comments as seen for that teacher.
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Comments }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Permission denied }, '404': { description: Diary not visible } }
+    post:
+      operationId: postDiaryComment
+      summary: Ask a question under a diary
+      description: Requires diary:read_self and student role. Text only, 1–500 characters. A diary dated more than 30 days ago is closed.
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [body], properties: { body: { type: string, minLength: 1, maxLength: 500 } } } } } }
+      responses: { '201': { description: Comment }, '400': { description: Invalid text }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Permission denied }, '404': { description: Diary not visible }, '409': { description: Comments closed } }
+  /diary/{id}/comments/{commentId}/replies:
+    post:
+      operationId: replyToDiaryComment
+      summary: Reply to a student's question
+      description: Requires diary:write and teacher or head teacher role; only the diary author or its class teacher. The question must be visible and the diary no older than 30 days.
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [body], properties: { body: { type: string, minLength: 1, maxLength: 500 } } } } } }
+      responses: { '201': { description: Reply }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Permission denied }, '404': { description: Question not visible }, '409': { description: Comments closed } }
+  /diary/{id}/comments/{commentId}/hide:
+    patch:
+      operationId: hideDiaryComment
+      summary: Hide a student's question with a reason
+      description: Requires diary:write and the author or class teacher. The reason is stored and the action audited; hidden text is not returned in the thread.
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 1, maxLength: 500 } } } } } }
+      responses: { '200': { description: Hidden comment }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Permission denied }, '404': { description: Question not visible } }
+  /diary/{id}/comments/{commentId}:
+    delete:
+      operationId: deleteOwnDiaryComment
+      summary: Remove one's own question within ten minutes
+      description: Requires diary:read_self and student role. The comment is soft deleted so any replies remain in the thread.
+      tags: [diary]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Deleted }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Permission denied }, '404': { description: Question not visible }, '409': { description: Delete window closed } }
   /diary/{id}/files/{fileId}:
     get:
       operationId: getDiaryFile

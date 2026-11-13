@@ -6,11 +6,12 @@ import (
 )
 
 var (
-	ErrInvalid   = errors.New("invalid diary input")
-	ErrNotFound  = errors.New("diary not found")
-	ErrConflict  = errors.New("diary state conflict")
-	ErrForbidden = errors.New("diary access denied")
-	ErrClosed    = errors.New("homework submission is closed")
+	ErrInvalid        = errors.New("invalid diary input")
+	ErrNotFound       = errors.New("diary not found")
+	ErrConflict       = errors.New("diary state conflict")
+	ErrForbidden      = errors.New("diary access denied")
+	ErrClosed         = errors.New("homework submission is closed")
+	ErrCommentsClosed = errors.New("diary comments are closed")
 )
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -25,17 +26,18 @@ type Attachment struct {
 // Assignment is one section and subject a teacher may write for on a day,
 // from the session whose dates contain it, with that day's diary status.
 type Assignment struct {
-	SessionID     string  `json:"session_id"`
-	SessionName   string  `json:"session_name"`
-	ClassID       string  `json:"class_id"`
-	ClassName     string  `json:"class_name"`
-	SectionID     string  `json:"section_id"`
-	SectionName   string  `json:"section_name"`
-	SubjectID     string  `json:"subject_id"`
-	SubjectNameEN string  `json:"subject_name_en"`
-	SubjectNameBN string  `json:"subject_name_bn"`
-	DiaryID       *string `json:"diary_id"`
-	DiaryStatus   *string `json:"diary_status"`
+	SessionID      string  `json:"session_id"`
+	SessionName    string  `json:"session_name"`
+	ClassID        string  `json:"class_id"`
+	ClassName      string  `json:"class_name"`
+	SectionID      string  `json:"section_id"`
+	SectionName    string  `json:"section_name"`
+	SubjectID      string  `json:"subject_id"`
+	SubjectNameEN  string  `json:"subject_name_en"`
+	SubjectNameBN  string  `json:"subject_name_bn"`
+	DiaryID        *string `json:"diary_id"`
+	DiaryStatus    *string `json:"diary_status"`
+	UnreadComments int64   `json:"unread_comments"`
 }
 
 type Diary struct {
@@ -60,8 +62,24 @@ type Diary struct {
 	SubmissionDueAt   *string      `json:"submission_due_at"`
 	SubmissionOpen    bool         `json:"submission_open"`
 	SubmissionCount   int64        `json:"submission_count"`
+	UnreadComments    int64        `json:"unread_comments"`
 	MySubmission      *string      `json:"my_submission_status"`
 	Attachments       []Attachment `json:"attachments" gorm:"-"`
+}
+
+type Comment struct {
+	ID           string  `json:"id"`
+	DiaryID      string  `json:"diary_id"`
+	ParentID     *string `json:"parent_id"`
+	AuthorUserID string  `json:"author_user_id"`
+	AuthorRole   string  `json:"author_role"`
+	AuthorName   string  `json:"author_name"`
+	Body         string  `json:"body"`
+	CreatedAt    string  `json:"created_at"`
+	Hidden       bool    `json:"hidden"`
+	HiddenReason string  `json:"hidden_reason"`
+	Deleted      bool    `json:"deleted"`
+	CanDelete    bool    `json:"can_delete"`
 }
 
 type DiaryInput struct {
