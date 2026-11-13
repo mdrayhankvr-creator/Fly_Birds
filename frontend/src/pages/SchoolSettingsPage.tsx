@@ -170,6 +170,7 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]" checked={draft.student_photo_uploads ?? true} disabled={!canEditSettings} onChange={e => setField('student_photo_uploads', e.target.checked)} data-photo-setting />
             <span><span className="font-semibold">{t('uxPhotoSetting')}</span><span className="mt-0.5 block text-slate-600">{t('uxPhotoSettingHint')}</span></span>
           </label>
+        </fieldset>
         <fieldset className="mt-6 rounded-xl border border-slate-200 p-4 sm:p-5" aria-describedby="transcript-hint">
           <legend className="px-1 text-base font-semibold text-slate-900">{t('transcriptSettingsTitle')}</legend>
           <p id="transcript-hint" className="text-sm text-slate-600">{t('transcriptSettingsHint')}</p>
