@@ -11,6 +11,8 @@ export type StaffProfile = {
   today: { start_minute: number; end_minute: number; subject_en: string; subject_bn: string; class_name: string; section_name: string; room: string }[]
   phone?: string; email?: string; qualifications?: string[]; joined_on?: string; mpo_index?: string; nid_masked?: string
   attendance?: { month: StaffCounts; session: StaffCounts }; leaves?: EmployeeLeave[]; visibility?: StaffVisibility
+  // The sign-in number, for administrators only.
+  user_id?: string; login_phone?: string
   self: boolean; can_edit_own: boolean; can_edit_official: boolean; can_reveal_nid: boolean; can_see_salary: boolean
 }
 export type OwnProfileInput = { qualifications: string[]; visibility: StaffVisibility }

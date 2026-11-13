@@ -262,7 +262,7 @@ export type Medium = '' | 'bangla' | 'english'
 export type StudentChoiceDetails = { shift_id: string | null; medium: Medium; group_id: string | null; fourth_subject_id: string | null }
 export type StudentChoiceNames = { shift_name_en: string; shift_name_bn: string; group_name_en: string; group_name_bn: string; class_uses_groups: boolean; fourth_subject_name_en: string; fourth_subject_name_bn: string }
 export type GuardianSummary = { name_en: string; name_bn: string; relationship: string; phone: string }
-export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; login_id?: string; session_name: string; class_name: string; section_name: string; has_photo: boolean; primary_guardian?: GuardianSummary } & StudentProfileDetails & StudentChoiceDetails & StudentChoiceNames
+export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; login_id?: string; session_name: string; class_name: string; section_name: string; has_photo: boolean; login_phone?: string; primary_guardian?: GuardianSummary } & StudentProfileDetails & StudentChoiceDetails & StudentChoiceNames
 // Profile details are optional on input: an omitted detail keeps its stored value.
 export type StudentInput = Omit<Student, 'id' | 'login_id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails | keyof StudentChoiceDetails | keyof StudentChoiceNames> & Partial<StudentProfileDetails> & { shift_id?: string; medium?: Medium; group_id?: string; fourth_subject_id?: string }
 export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
@@ -302,6 +302,19 @@ export async function verifyStudentCard(cardToken: string): Promise<CardVerifica
 export const getStudents = (token: string, params: URLSearchParams) => bearerRequest<Page<Student>>(`/students?${params}`, token)
 export const getStudent = (token: string, id: string) => bearerRequest<Student>(`/students/${encodeURIComponent(id)}`, token)
 export const getMyStudent = (token: string) => bearerRequest<Student>('/students/me', token)
+// The login phone lives on the user record, so one call serves both the
+// student and the staff profile. An empty number removes it.
+// Children of one family that share a login phone, and moving between them
+// without the password again (the guardian already gave it).
+export type Sibling = { user_id: string; display_name: string; login_id?: string; current: boolean }
+export const getSiblings = (token: string) => bearerRequest<Sibling[]>('/auth/siblings', token)
+export async function switchChild(token: string, userId: string): Promise<AuthSession> {
+  const session = await bearerRequest<AuthSession>('/auth/switch', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId }) })
+  return session
+}
+
+export const setLoginPhone = (token: string, userId: string, login_phone: string) =>
+  bearerRequest<{ id: string; login_phone?: string }>(`/users/${encodeURIComponent(userId)}/login-phone`, token, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login_phone }) })
 export const saveStudent = (token: string, input: StudentInput, id?: string) => bearerRequest<Student>(id ? `/students/${encodeURIComponent(id)}` : '/students', token, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 export const deleteStudent = (token: string, id: string) => bearerRequest<{ deleted: boolean }>(`/students/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
 export const importStudents = (token: string, params: URLSearchParams, csv: string) => bearerRequest<{ imported: number }>(`/students/import?${params}`, token, { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv })

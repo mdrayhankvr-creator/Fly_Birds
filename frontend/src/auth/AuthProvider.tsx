@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { demoLogin, hasRefreshSession, login, logout, refreshSession, type AuthSession, type AuthUser, type DemoRole } from '../api/client'
+import { demoLogin, hasRefreshSession, login, logout, refreshSession, switchChild, type AuthSession, type AuthUser, type DemoRole } from '../api/client'
 import { clearMarksDrafts } from '../pages/marks/useSheetAutosave'
 
 type AuthContextValue = {
@@ -9,6 +9,8 @@ type AuthContextValue = {
   expired: boolean
   signIn: (email: string, password: string) => Promise<void>
   signInAsDemo: (role: DemoRole) => Promise<void>
+  // Move to a sibling's account (same login phone), no password needed.
+  switchTo: (userId: string) => Promise<void>
   signOut: () => Promise<void>
   renew: () => Promise<string>
   expire: () => void
@@ -66,6 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpired(false)
   }
 
+  async function switchTo(userId: string) {
+    if (!session) return
+    const next = await switchChild(session.access_token, userId)
+    clearMarksDrafts()
+    setSession(next)
+    setExpired(false)
+  }
+
   async function signOut() {
     clearMarksDrafts() // unsaved marks kept for recovery never outlive the session
     await logout()
@@ -79,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user: session?.user ?? null, accessToken: session?.access_token ?? null, ready, expired, signIn, signInAsDemo, signOut, renew, expire }}>
+    <AuthContext.Provider value={{ user: session?.user ?? null, accessToken: session?.access_token ?? null, ready, expired, signIn, signInAsDemo, switchTo, signOut, renew, expire }}>
       {children}
     </AuthContext.Provider>
   )
