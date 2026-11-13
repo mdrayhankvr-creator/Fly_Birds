@@ -38,7 +38,17 @@ const (
 var (
 	ErrGalleryLimit = errors.New("the gallery is full")
 	eiinPattern     = regexp.MustCompile(`^([0-9]{6})?$`)
+	publicPhoneURL  = regexp.MustCompile(`(?:\+?88)?01[3-9][0-9]{8}`)
 )
+
+type PublicFeature struct {
+	Position      int    `json:"position"`
+	Icon          string `json:"icon"`
+	TitleEN       string `json:"title_en"`
+	TitleBN       string `json:"title_bn"`
+	DescriptionEN string `json:"description_en"`
+	DescriptionBN string `json:"description_bn"`
+}
 
 // PublicPage is the page as the administrator edits it. The school details
 // in it (founded year, EIIN, head teacher's name, contact address, phone,
@@ -47,39 +57,69 @@ var (
 // names: founded_year, eiin, head_teacher_name_en/bn, address, address_bn,
 // phone, email and map_url.
 type PublicPage struct {
-	AboutEN          string `json:"about_en"`
-	AboutBN          string `json:"about_bn"`
-	FoundedYear      *int   `json:"founded_year"`
-	EIIN             string `json:"eiin"`
-	ShowCounts       bool   `json:"show_counts"`
-	HeadNameEN       string `json:"head_name_en"`
-	HeadNameBN       string `json:"head_name_bn"`
-	HeadMessageEN    string `json:"head_message_en"`
-	HeadMessageBN    string `json:"head_message_bn"`
-	HeadPhotoVersion string `json:"head_photo_version"`
-	ContactAddressEN string `json:"contact_address_en"`
-	ContactAddressBN string `json:"contact_address_bn"`
-	ContactPhone     string `json:"contact_phone"`
-	ContactEmail     string `json:"contact_email"`
-	MapURL           string `json:"map_url"`
+	DesignStyle         string          `json:"design_style"`
+	PassRate            *int            `json:"pass_rate"`
+	Features            []PublicFeature `gorm:"-" json:"features"`
+	ActivitiesEN        string          `json:"activities_en"`
+	ActivitiesBN        string          `json:"activities_bn"`
+	FooterDescriptionEN string          `json:"footer_description_en"`
+	FooterDescriptionBN string          `json:"footer_description_bn"`
+	SocialFacebook      string          `json:"social_facebook"`
+	SocialYouTube       string          `json:"social_youtube"`
+	SocialWhatsApp      string          `json:"social_whatsapp"`
+	SocialMessenger     string          `json:"social_messenger"`
+	PrivacyPolicyEN     string          `json:"privacy_policy_en"`
+	PrivacyPolicyBN     string          `json:"privacy_policy_bn"`
+	TermsEN             string          `json:"terms_en"`
+	TermsBN             string          `json:"terms_bn"`
+	AboutEN             string          `json:"about_en"`
+	AboutBN             string          `json:"about_bn"`
+	FoundedYear         *int            `json:"founded_year"`
+	EIIN                string          `json:"eiin"`
+	ShowCounts          bool            `json:"show_counts"`
+	HeadNameEN          string          `json:"head_name_en"`
+	HeadNameBN          string          `json:"head_name_bn"`
+	HeadMessageEN       string          `json:"head_message_en"`
+	HeadMessageBN       string          `json:"head_message_bn"`
+	HeadPhotoVersion    string          `json:"head_photo_version"`
+	ContactAddressEN    string          `json:"contact_address_en"`
+	ContactAddressBN    string          `json:"contact_address_bn"`
+	ContactPhone        string          `json:"contact_phone"`
+	ContactEmail        string          `json:"contact_email"`
+	MapURL              string          `json:"map_url"`
 }
 
 // PublicPageInput is everything but the photo, which has its own upload.
 type PublicPageInput struct {
-	AboutEN          string `json:"about_en"`
-	AboutBN          string `json:"about_bn"`
-	FoundedYear      *int   `json:"founded_year"`
-	EIIN             string `json:"eiin"`
-	ShowCounts       bool   `json:"show_counts"`
-	HeadNameEN       string `json:"head_name_en"`
-	HeadNameBN       string `json:"head_name_bn"`
-	HeadMessageEN    string `json:"head_message_en"`
-	HeadMessageBN    string `json:"head_message_bn"`
-	ContactAddressEN string `json:"contact_address_en"`
-	ContactAddressBN string `json:"contact_address_bn"`
-	ContactPhone     string `json:"contact_phone"`
-	ContactEmail     string `json:"contact_email"`
-	MapURL           string `json:"map_url"`
+	DesignStyle         string          `json:"design_style"`
+	PassRate            *int            `json:"pass_rate"`
+	Features            []PublicFeature `json:"features"`
+	ActivitiesEN        string          `json:"activities_en"`
+	ActivitiesBN        string          `json:"activities_bn"`
+	FooterDescriptionEN string          `json:"footer_description_en"`
+	FooterDescriptionBN string          `json:"footer_description_bn"`
+	SocialFacebook      string          `json:"social_facebook"`
+	SocialYouTube       string          `json:"social_youtube"`
+	SocialWhatsApp      string          `json:"social_whatsapp"`
+	SocialMessenger     string          `json:"social_messenger"`
+	PrivacyPolicyEN     string          `json:"privacy_policy_en"`
+	PrivacyPolicyBN     string          `json:"privacy_policy_bn"`
+	TermsEN             string          `json:"terms_en"`
+	TermsBN             string          `json:"terms_bn"`
+	AboutEN             string          `json:"about_en"`
+	AboutBN             string          `json:"about_bn"`
+	FoundedYear         *int            `json:"founded_year"`
+	EIIN                string          `json:"eiin"`
+	ShowCounts          bool            `json:"show_counts"`
+	HeadNameEN          string          `json:"head_name_en"`
+	HeadNameBN          string          `json:"head_name_bn"`
+	HeadMessageEN       string          `json:"head_message_en"`
+	HeadMessageBN       string          `json:"head_message_bn"`
+	ContactAddressEN    string          `json:"contact_address_en"`
+	ContactAddressBN    string          `json:"contact_address_bn"`
+	ContactPhone        string          `json:"contact_phone"`
+	ContactEmail        string          `json:"contact_email"`
+	MapURL              string          `json:"map_url"`
 }
 
 type GalleryPhoto struct {
@@ -105,13 +145,28 @@ type PublicNotice struct {
 // PublicView is what anyone may read. A nil section has no content and is
 // not shown.
 type PublicView struct {
-	About   *PublicAbout   `json:"about"`
-	Head    *PublicHead    `json:"head"`
-	Gallery []GalleryPhoto `json:"gallery"`
-	Notices []PublicNotice `json:"notices"`
-	Contact *PublicContact `json:"contact"`
+	DesignStyle         string          `json:"design_style"`
+	Features            []PublicFeature `json:"features"`
+	ActivitiesEN        string          `json:"activities_en"`
+	ActivitiesBN        string          `json:"activities_bn"`
+	FooterDescriptionEN string          `json:"footer_description_en"`
+	FooterDescriptionBN string          `json:"footer_description_bn"`
+	SocialFacebook      string          `json:"social_facebook"`
+	SocialYouTube       string          `json:"social_youtube"`
+	SocialWhatsApp      string          `json:"social_whatsapp"`
+	SocialMessenger     string          `json:"social_messenger"`
+	PrivacyPolicyEN     string          `json:"privacy_policy_en"`
+	PrivacyPolicyBN     string          `json:"privacy_policy_bn"`
+	TermsEN             string          `json:"terms_en"`
+	TermsBN             string          `json:"terms_bn"`
+	About               *PublicAbout    `json:"about"`
+	Head                *PublicHead     `json:"head"`
+	Gallery             []GalleryPhoto  `json:"gallery"`
+	Notices             []PublicNotice  `json:"notices"`
+	Contact             *PublicContact  `json:"contact"`
 }
 type PublicAbout struct {
+	PassRate    *int   `json:"pass_rate,omitempty"`
 	AboutEN     string `json:"about_en"`
 	AboutBN     string `json:"about_bn"`
 	FoundedYear *int   `json:"founded_year,omitempty"`
@@ -129,7 +184,6 @@ type PublicHead struct {
 type PublicContact struct {
 	AddressEN string `json:"address_en"`
 	AddressBN string `json:"address_bn"`
-	Phone     string `json:"phone"`
 	Email     string `json:"email"`
 	MapURL    string `json:"map_url"`
 }
@@ -166,9 +220,9 @@ func (s *Service) PublicView(ctx context.Context) (PublicView, error) {
 	if err != nil {
 		return PublicView{}, err
 	}
-	out := PublicView{Gallery: []GalleryPhoto{}, Notices: []PublicNotice{}}
-	if p.AboutEN != "" || p.AboutBN != "" || p.FoundedYear != nil || p.EIIN != "" || p.ShowCounts {
-		about := &PublicAbout{AboutEN: p.AboutEN, AboutBN: p.AboutBN, FoundedYear: p.FoundedYear, EIIN: p.EIIN}
+	out := PublicView{DesignStyle: p.DesignStyle, Features: p.Features, ActivitiesEN: p.ActivitiesEN, ActivitiesBN: p.ActivitiesBN, FooterDescriptionEN: p.FooterDescriptionEN, FooterDescriptionBN: p.FooterDescriptionBN, SocialFacebook: p.SocialFacebook, SocialYouTube: p.SocialYouTube, SocialWhatsApp: p.SocialWhatsApp, SocialMessenger: p.SocialMessenger, PrivacyPolicyEN: p.PrivacyPolicyEN, PrivacyPolicyBN: p.PrivacyPolicyBN, TermsEN: p.TermsEN, TermsBN: p.TermsBN, Gallery: []GalleryPhoto{}, Notices: []PublicNotice{}}
+	if p.AboutEN != "" || p.AboutBN != "" || p.FoundedYear != nil || p.EIIN != "" || p.ShowCounts || p.PassRate != nil {
+		about := &PublicAbout{AboutEN: p.AboutEN, AboutBN: p.AboutBN, FoundedYear: p.FoundedYear, EIIN: p.EIIN, PassRate: p.PassRate}
 		if p.ShowCounts {
 			students, teachers, err := repo.PublicCounts(ctx)
 			if err != nil {
@@ -181,8 +235,8 @@ func (s *Service) PublicView(ctx context.Context) (PublicView, error) {
 	if p.HeadMessageEN != "" || p.HeadMessageBN != "" {
 		out.Head = &PublicHead{NameEN: p.HeadNameEN, NameBN: p.HeadNameBN, MessageEN: p.HeadMessageEN, MessageBN: p.HeadMessageBN, PhotoVersion: p.HeadPhotoVersion}
 	}
-	if p.ContactAddressEN != "" || p.ContactAddressBN != "" || p.ContactPhone != "" || p.ContactEmail != "" || p.MapURL != "" {
-		out.Contact = &PublicContact{AddressEN: p.ContactAddressEN, AddressBN: p.ContactAddressBN, Phone: p.ContactPhone, Email: p.ContactEmail, MapURL: p.MapURL}
+	if p.ContactAddressEN != "" || p.ContactAddressBN != "" || p.ContactEmail != "" || p.MapURL != "" {
+		out.Contact = &PublicContact{AddressEN: p.ContactAddressEN, AddressBN: p.ContactAddressBN, Email: p.ContactEmail, MapURL: p.MapURL}
 	}
 	if out.Gallery, err = repo.Gallery(ctx); err != nil {
 		return PublicView{}, err
@@ -227,11 +281,27 @@ func (s *Service) SavePublicPage(ctx context.Context, actor string, in PublicPag
 		return PublicPage{}, err
 	}
 	trim := func(v *string) { *v = strings.TrimSpace(strings.ReplaceAll(*v, "\r\n", "\n")) }
-	for _, v := range []*string{&in.AboutEN, &in.AboutBN, &in.EIIN, &in.HeadNameEN, &in.HeadNameBN, &in.HeadMessageEN, &in.HeadMessageBN, &in.ContactAddressEN, &in.ContactAddressBN, &in.ContactPhone, &in.ContactEmail, &in.MapURL} {
+	for _, v := range []*string{&in.AboutEN, &in.AboutBN, &in.EIIN, &in.HeadNameEN, &in.HeadNameBN, &in.HeadMessageEN, &in.HeadMessageBN, &in.ContactAddressEN, &in.ContactAddressBN, &in.ContactPhone, &in.ContactEmail, &in.MapURL, &in.ActivitiesEN, &in.ActivitiesBN, &in.FooterDescriptionEN, &in.FooterDescriptionBN, &in.SocialFacebook, &in.SocialYouTube, &in.SocialWhatsApp, &in.SocialMessenger, &in.PrivacyPolicyEN, &in.PrivacyPolicyBN, &in.TermsEN, &in.TermsBN} {
 		trim(v)
 	}
+	for i := range in.Features {
+		for _, v := range []*string{&in.Features[i].TitleEN, &in.Features[i].TitleBN, &in.Features[i].DescriptionEN, &in.Features[i].DescriptionBN} {
+			trim(v)
+		}
+	}
 	in.ContactEmail = strings.ToLower(in.ContactEmail)
+	if in.DesignStyle == "" {
+		in.DesignStyle = "modern_bold"
+	}
 	ok := actorID.MatchString(actor) &&
+		(in.DesignStyle == "modern_bold" || in.DesignStyle == "classic" || in.DesignStyle == "minimal") &&
+		(in.PassRate == nil || (*in.PassRate >= 0 && *in.PassRate <= 100)) &&
+		(len(in.Features) == 0 || len(in.Features) == 4) &&
+		validPublicText(in.ActivitiesEN, 1000, true) && validPublicText(in.ActivitiesBN, 1000, true) &&
+		validPublicText(in.FooterDescriptionEN, 300, true) && validPublicText(in.FooterDescriptionBN, 300, true) &&
+		validPublicText(in.PrivacyPolicyEN, 5000, true) && validPublicText(in.PrivacyPolicyBN, 5000, true) &&
+		validPublicText(in.TermsEN, 5000, true) && validPublicText(in.TermsBN, 5000, true) &&
+		validMapURL(in.SocialFacebook) && validMapURL(in.SocialYouTube) && validMapURL(in.SocialWhatsApp) && validMapURL(in.SocialMessenger) &&
 		validPublicText(in.AboutEN, 3000, true) && validPublicText(in.AboutBN, 3000, true) &&
 		validPublicText(in.HeadMessageEN, 3000, true) && validPublicText(in.HeadMessageBN, 3000, true) &&
 		validLine(in.HeadNameEN, 160) && validLine(in.HeadNameBN, 160) &&
@@ -242,6 +312,17 @@ func (s *Service) SavePublicPage(ctx context.Context, actor string, in PublicPag
 		(in.FoundedYear == nil || (*in.FoundedYear >= 1800 && *in.FoundedYear <= 2100))
 	if !ok {
 		return PublicPage{}, ErrInvalid
+	}
+	for i, f := range in.Features {
+		if f.Position != i+1 || !strings.Contains("|book|teacher|shield|users|school|grade|chart|globe|", "|"+f.Icon+"|") ||
+			!validLine(f.TitleEN, 100) || !validLine(f.TitleBN, 100) || !validPublicText(f.DescriptionEN, 240, true) || !validPublicText(f.DescriptionBN, 240, true) {
+			return PublicPage{}, ErrInvalid
+		}
+	}
+	for _, value := range []string{in.SocialFacebook, in.SocialYouTube, in.SocialWhatsApp, in.SocialMessenger} {
+		if publicPhoneURL.MatchString(value) {
+			return PublicPage{}, ErrInvalid
+		}
 	}
 	if in.ContactEmail != "" {
 		if parsed, err := mail.ParseAddress(in.ContactEmail); err != nil || parsed.Address != in.ContactEmail || len(in.ContactEmail) > 254 {
@@ -437,7 +518,7 @@ func scaleDown(img image.Image, r image.Rectangle, w, h int) *image.RGBA {
 
 // The page's own text from school_public_page; the school details from
 // school_settings.
-const publicPageColumns = "p.about_en, p.about_bn, s.founded_year, s.eiin, p.show_counts, s.head_teacher_name_en AS head_name_en, s.head_teacher_name_bn AS head_name_bn, p.head_message_en, p.head_message_bn, p.head_photo_version, s.address AS contact_address_en, s.address_bn AS contact_address_bn, s.phone AS contact_phone, s.email AS contact_email, s.map_url"
+const publicPageColumns = "p.design_style, p.pass_rate, p.activities_en, p.activities_bn, p.footer_description_en, p.footer_description_bn, p.social_facebook, p.social_youtube, p.social_whatsapp, p.social_messenger, p.privacy_policy_en, p.privacy_policy_bn, p.terms_en, p.terms_bn, p.about_en, p.about_bn, s.founded_year, s.eiin, p.show_counts, s.head_teacher_name_en AS head_name_en, s.head_teacher_name_bn AS head_name_bn, p.head_message_en, p.head_message_bn, p.head_photo_version, s.address AS contact_address_en, s.address_bn AS contact_address_bn, s.phone AS contact_phone, s.email AS contact_email, s.map_url"
 const galleryColumns = "id::text AS id, position, width, height, version, caption_en, caption_bn"
 
 func (r *GormRepository) PublicPage(ctx context.Context) (PublicPage, error) {
@@ -446,6 +527,11 @@ func (r *GormRepository) PublicPage(ctx context.Context) (PublicPage, error) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return PublicPage{}, nil
 	}
+	if err != nil {
+		return PublicPage{}, err
+	}
+	out.Features = []PublicFeature{}
+	err = r.db.WithContext(ctx).Table("school_public_features").Order("position").Scan(&out.Features).Error
 	return out, err
 }
 
@@ -480,9 +566,19 @@ func (r *GormRepository) Gallery(ctx context.Context) ([]GalleryPhoto, error) {
 
 func (r *GormRepository) SavePublicPage(ctx context.Context, actor string, in PublicPageInput) (PublicPage, error) {
 	err := r.slideWrite(ctx, actor, func(tx *gorm.DB) error {
-		if err := tx.Exec(`UPDATE school_public_page SET about_en=?, about_bn=?, show_counts=?, head_message_en=?, head_message_bn=?, updated_by=?, updated_at=now() WHERE id = 1`,
-			in.AboutEN, in.AboutBN, in.ShowCounts, in.HeadMessageEN, in.HeadMessageBN, actor).Error; err != nil {
+		if err := tx.Exec(`UPDATE school_public_page SET design_style=?, pass_rate=?, activities_en=?, activities_bn=?, footer_description_en=?, footer_description_bn=?, social_facebook=?, social_youtube=?, social_whatsapp=?, social_messenger=?, privacy_policy_en=?, privacy_policy_bn=?, terms_en=?, terms_bn=?, about_en=?, about_bn=?, show_counts=?, head_message_en=?, head_message_bn=?, updated_by=?, updated_at=now() WHERE id = 1`,
+			in.DesignStyle, in.PassRate, in.ActivitiesEN, in.ActivitiesBN, in.FooterDescriptionEN, in.FooterDescriptionBN, in.SocialFacebook, in.SocialYouTube, in.SocialWhatsApp, in.SocialMessenger, in.PrivacyPolicyEN, in.PrivacyPolicyBN, in.TermsEN, in.TermsBN, in.AboutEN, in.AboutBN, in.ShowCounts, in.HeadMessageEN, in.HeadMessageBN, actor).Error; err != nil {
 			return err
+		}
+		if len(in.Features) == 4 {
+			if err := tx.Exec("DELETE FROM school_public_features").Error; err != nil {
+				return err
+			}
+			for _, f := range in.Features {
+				if err := tx.Exec("INSERT INTO school_public_features(position,icon,title_en,title_bn,description_en,description_bn) VALUES (?,?,?,?,?,?)", f.Position, f.Icon, f.TitleEN, f.TitleBN, f.DescriptionEN, f.DescriptionBN).Error; err != nil {
+					return err
+				}
+			}
 		}
 		if err := tx.Exec(`UPDATE school_settings SET founded_year=?, eiin=?, head_teacher_name_en=?, head_teacher_name_bn=?, address=?, address_bn=?, phone=?, email=?, map_url=?, updated_at=now() WHERE id = ?`,
 			in.FoundedYear, in.EIIN, in.HeadNameEN, in.HeadNameBN, in.ContactAddressEN, in.ContactAddressBN, in.ContactPhone, in.ContactEmail, in.MapURL, SingleSchoolID).Error; err != nil {

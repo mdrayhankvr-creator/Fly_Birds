@@ -128,6 +128,7 @@ export const putRolePermissions = (token: string, role: string, ids: string[]) =
 
 export type SchoolBranding = {
   name_en: string; name_bn: string; logo_url: string; preferred_language: 'en' | 'bn'
+  logo_palette_primary: string; logo_palette_accent: string
   primary_color: string; secondary_color: string; dashboard_theme: 'light' | 'dark'
   tagline_en?: string; tagline_bn?: string
 }
@@ -149,7 +150,7 @@ export type SchoolSettings = SchoolBranding & SchoolDetails & {
   // Transcript v3 decorations (both default on).
   transcript_border: boolean; transcript_watermark: boolean
 }
-export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at' | keyof SchoolDetails>
+export type SchoolSettingsInput = Omit<SchoolSettings, 'updated_at' | 'logo_palette_primary' | 'logo_palette_accent' | keyof SchoolDetails>
 export type GradeBand = { grade: string; min_marks: number; max_marks: number; gpa: number }
 export type SchoolModule = { key: string; name: string; is_core: boolean; enabled: boolean }
 

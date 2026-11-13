@@ -60,7 +60,8 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
 
   useEffect(() => {
     if (settings.data) {
-      const { updated_at: _updatedAt, ...fields } = settings.data
+      const { updated_at: _updatedAt, logo_palette_primary: _palettePrimary, logo_palette_accent: _paletteAccent, ...fields } = settings.data
+      void _palettePrimary; void _paletteAccent
       const general: Record<string, unknown> = { ...fields }
       for (const key of schoolDetailKeys) delete general[key]
       setDraft(general as SchoolSettingsInput)
@@ -91,8 +92,11 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
   }
   function resetDrafts() {
     if (settings.data) {
-      const { updated_at: _updatedAt, ...fields } = settings.data
-      setDraft(fields)
+      const { updated_at: _updatedAt, logo_palette_primary: _palettePrimary, logo_palette_accent: _paletteAccent, ...fields } = settings.data
+      void _palettePrimary; void _paletteAccent
+      const general: Record<string, unknown> = { ...fields }
+      for (const key of schoolDetailKeys) delete general[key]
+      setDraft(general as SchoolSettingsInput)
     }
     if (grading.data) setBands(grading.data.map((band) => ({ ...band })))
     setError(''); setNotice('')

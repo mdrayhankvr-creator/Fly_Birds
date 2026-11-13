@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -135,6 +136,35 @@ func TestPostgresSchoolConfigurationHTTP(t *testing.T) {
 	}
 	if settings.NameEN != "School" || settings.GradingSchemeID != "bd_default" {
 		t.Fatal("neutral default settings missing")
+	}
+	// The settings GET is a valid unchanged PUT, including its read-only logo
+	// palette and timestamp. Legacy clients may omit all later optional fields.
+	settingsResponse := perform(router, "GET", "/school/settings", "", nil, adminHeader)
+	if settingsResponse.Code != 200 {
+		t.Fatalf("read settings: %d", settingsResponse.Code)
+	}
+	var settingsBody struct {
+		Data map[string]json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(settingsResponse.Body.Bytes(), &settingsBody); err != nil {
+		t.Fatal(err)
+	}
+	roundTrip, err := json.Marshal(settingsBody.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("PUT", "/school/settings", string(roundTrip), adminHeader, 200)
+	for _, key := range []string{"logo_palette_primary", "logo_palette_accent", "updated_at", "tagline_en", "tagline_bn", "eiin", "founded_year", "address_bn", "map_url", "head_teacher_name_en", "head_teacher_name_bn", "transcript_border", "transcript_watermark", "weekly_off_days", "student_photo_uploads"} {
+		delete(settingsBody.Data, key)
+	}
+	legacy, err := json.Marshal(settingsBody.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("PUT", "/school/settings", string(legacy), adminHeader, 200)
+	afterLegacy, err := schoolService.Settings(ctx)
+	if err != nil || afterLegacy.StudentPhotoUploads != settings.StudentPhotoUploads || afterLegacy.TranscriptBorder != settings.TranscriptBorder || afterLegacy.TranscriptWatermark != settings.TranscriptWatermark || !slices.Equal(afterLegacy.WeeklyOffDays, settings.WeeklyOffDays) {
+		t.Fatalf("legacy settings PUT changed optional defaults: %v", err)
 	}
 	input := school.SettingsInput{NameEN: "Test Academy", NameBN: "পরীক্ষা বিদ্যালয়", LogoURL: "https://assets.example.org/logo.png", Address: "Test Street", Phone: "+8801712345678", Email: "contact@example.test", PreferredLanguage: "bn", PrimaryColor: "#0F766E", SecondaryColor: "#334155", DashboardTheme: "dark", GradingSchemeID: "bd_default"}
 	body, _ := json.Marshal(input)

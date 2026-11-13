@@ -10,7 +10,10 @@ import { buildNavigation } from './components/navigation'
 import { ConfirmHost } from './components/ConfirmDialog'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { LandingPage } from './pages/LandingPage'
+import { PublicLegalPage } from './pages/PublicLegalPage'
 import { PublicFooter } from './components/PublicFooter'
+import { ModernPublicHeader } from './components/ModernPublicHeader'
+import { getPublicPage } from './api/publicPage'
 import { StateScreen } from './components/StateScreen'
 
 // Each page loads on first visit, so phones download only the screens they open.
@@ -364,6 +367,28 @@ function applyBranding(branding: SchoolBranding | undefined) {
   const tint = luminance(mixToward(primary, 255, 0.91))
   for (let step = 1; step <= 14 && contrast(luminance(ink), tint) < 4.6; step++) ink = mixToward(primary, 0, step * 0.05)
   const onBrand = contrast(luminance(primary), 1) >= contrast(luminance(primary), luminance('#0f172a')) ? '#ffffff' : '#0f172a'
+  const logoPrimary = validColor(branding?.logo_palette_primary)
+  const logoAccent = validColor(branding?.logo_palette_accent)
+  const readableOnWhite = (hex: string) => {
+    for (let step = 0; step <= 20; step++) {
+      const shade = mixToward(hex, 0, step * 0.04)
+      if (contrast(luminance(shade), 1) >= 4.5) return shade
+    }
+    return '#172033'
+  }
+  const readableOnDark = (hex: string) => {
+    for (let step = 0; step <= 20; step++) {
+      const shade = mixToward(hex, 255, step * 0.04)
+      if (contrast(luminance(shade), luminance('#142238')) >= 4.7) return shade
+    }
+    return '#dbeafe'
+  }
+  const publicPrimary = logoPrimary || primary
+  const publicAccent = logoAccent || validColor(branding?.secondary_color) || primary
+  root.style.setProperty('--public-primary', readableOnWhite(publicPrimary))
+  root.style.setProperty('--public-accent', readableOnWhite(publicAccent))
+  root.style.setProperty('--public-light', readableOnDark(publicPrimary))
+  root.dataset.logoPalette = logoPrimary || ''
   root.style.setProperty('--brand-primary', primary)
   root.style.setProperty('--brand-ink', ink)
   root.style.setProperty('--brand-on', onBrand)
@@ -377,9 +402,12 @@ export default function App() {
   const [logoutError, setLogoutError] = useState(false)
   const { pathname } = useLocation()
   const landing = pathname === '/' || pathname === '/login'
+  const publicDesignRoute = landing || pathname === '/privacy-policy' || pathname === '/terms'
   // These pages show the school's logo and name themselves; the header does not repeat them.
   const pageShowsSchool = landing || pathname.startsWith('/verify/')
   const branding = useQuery({ queryKey: ['school', 'branding'], queryFn: ({ signal }) => getSchoolBranding(signal), retry: false, staleTime: 60_000 })
+  const publicDesign = useQuery({ queryKey: ['school', 'public-page'], queryFn: ({ signal }) => getPublicPage(signal), enabled: publicDesignRoute && !user, staleTime: 60_000, retry: 1 })
+  const modernPublic = publicDesignRoute && publicDesign.data?.design_style === 'modern_bold'
   const myPermissions = useQuery({
     queryKey: ['my-permissions', user?.id],
     enabled: !!accessToken,
@@ -488,6 +516,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage branding={branding.data} />} />
         <Route path="/login" element={<LandingPage branding={branding.data} />} />
+        <Route path="/privacy-policy" element={<PublicLegalPage kind="privacy" />} />
+        <Route path="/terms" element={<PublicLegalPage kind="terms" />} />
         <Route path="/verify/:token" element={<VerifyCardPage />} />
         <Route path="/verify/result/:token" element={<VerifyResultPage />} />
         <Route path="/verify/admit/:token" element={<VerifyAdmitPage />} />
@@ -575,7 +605,7 @@ export default function App() {
   }
   return (
     <div className="shell-root min-h-screen">
-      <header className="shell-topbar border-b border-slate-200">
+      {modernPublic ? <ModernPublicHeader branding={branding.data} onLanguage={language => void setLanguage(language)} /> : <header className="shell-topbar border-b border-slate-200">
         <div className={`mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6 ${pageShowsSchool ? 'justify-end' : 'justify-between'}`}>
           {!pageShowsSchool && <Link to="/" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
             <SchoolMark branding={branding.data} />
@@ -587,7 +617,7 @@ export default function App() {
             {ready && !landing && !user && <Link to="/login" className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 sm:inline-block">{t('signIn')}</Link>}
           </div>
         </div>
-      </header>
+      </header>}
       {/* The landing page runs edge to edge; other public pages keep the reading width. */}
       <main id="main" className={landing ? '' : 'mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14'}>{forcedChange ? <Suspense fallback={<StateScreen kind="loading" />}><ForcedPasswordPage /></Suspense> : routes}</main>
       {!forcedChange && <PublicFooter branding={branding.data} />}

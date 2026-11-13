@@ -7,10 +7,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
 	"regexp"
+	"sort"
 
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/audit"
 	"gorm.io/gorm"
@@ -64,6 +66,64 @@ func ProcessLogo(contentType string, data []byte) ([]byte, string, string, error
 	}
 	sum := sha256.Sum256(out.Bytes())
 	return out.Bytes(), kind, hex.EncodeToString(sum[:6]), nil
+}
+
+// LogoPalette keeps the two most useful non-neutral swatches in the uploaded
+// artwork. Transparent pixels and white backgrounds do not drown out the
+// school's actual colours. Contrast adjustment happens where the swatches are
+// used, because a shade that works on white may fail on a dark surface.
+func LogoPalette(img image.Image) (string, string) {
+	type bucket struct{ n, r, g, b int }
+	buckets := map[int]*bucket{}
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y += 2 {
+		for x := b.Min.X; x < b.Max.X; x += 2 {
+			r16, g16, bl16, a16 := img.At(x, y).RGBA()
+			if a16 < 0xf000 {
+				continue
+			}
+			r, g, bl := int(r16>>8), int(g16>>8), int(bl16>>8)
+			hi, lo := max(r, g, bl), min(r, g, bl)
+			if hi < 35 || lo > 230 || hi-lo < 24 {
+				continue
+			}
+			key := (r/24)<<8 | (g/24)<<4 | bl/24
+			v := buckets[key]
+			if v == nil {
+				v = &bucket{}
+				buckets[key] = v
+			}
+			v.n++
+			v.r += r
+			v.g += g
+			v.b += bl
+		}
+	}
+	ordered := make([]*bucket, 0, len(buckets))
+	for _, v := range buckets {
+		ordered = append(ordered, v)
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].n > ordered[j].n })
+	if len(ordered) == 0 {
+		return "", ""
+	}
+	color := func(v *bucket) string { return fmt.Sprintf("#%02X%02X%02X", v.r/v.n, v.g/v.n, v.b/v.n) }
+	primary := color(ordered[0])
+	for _, v := range ordered[1:] {
+		other := color(v)
+		p := func(s string, offset int) int { var n int; fmt.Sscanf(s[offset:offset+2], "%02X", &n); return n }
+		absolute := func(n int) int {
+			if n < 0 {
+				return -n
+			}
+			return n
+		}
+		distance := absolute(p(primary, 1)-p(other, 1)) + absolute(p(primary, 3)-p(other, 3)) + absolute(p(primary, 5)-p(other, 5))
+		if distance >= 110 && v.n*20 >= ordered[0].n {
+			return primary, other
+		}
+	}
+	return primary, primary
 }
 
 // scaleKeepingAlpha returns src scaled so its longer side is at most edge, averaging
@@ -163,6 +223,11 @@ func (l *LogoStore) Save(ctx context.Context, actor, contentType string, data []
 		return "", err
 	}
 	logoURL := UploadedLogoPath + "?v=" + version
+	decoded, _, err := image.Decode(bytes.NewReader(content))
+	if err != nil {
+		return "", ErrInvalid
+	}
+	primary, accent := LogoPalette(decoded)
 	err = l.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := schoolLock(tx); err != nil {
 			return err
@@ -174,7 +239,7 @@ func (l *LogoStore) Save(ctx context.Context, actor, contentType string, data []
 ON CONFLICT (id) DO UPDATE SET content_type = EXCLUDED.content_type, content = EXCLUDED.content, version = EXCLUDED.version, updated_by = EXCLUDED.updated_by, updated_at = now()`, kind, content, version, actor).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec("UPDATE school_settings SET logo_url = ?, updated_at = now() WHERE id = ?", logoURL, SingleSchoolID).Error; err != nil {
+		if err := tx.Exec("UPDATE school_settings SET logo_url = ?, logo_palette_primary = ?, logo_palette_accent = ?, updated_at = now() WHERE id = ?", logoURL, primary, accent, SingleSchoolID).Error; err != nil {
 			return err
 		}
 		return audit.Record(tx, &actor, "school.logo_uploaded", "school", "1", map[string]any{"content_type": kind, "bytes": len(content), "version": version})
@@ -194,7 +259,7 @@ func (l *LogoStore) Delete(ctx context.Context, actor string) error {
 		if err := tx.Exec("DELETE FROM school_logo WHERE id = 1").Error; err != nil {
 			return err
 		}
-		if err := tx.Exec("UPDATE school_settings SET logo_url = '', updated_at = now() WHERE id = ? AND logo_url LIKE '/api/school/logo?v=%'", SingleSchoolID).Error; err != nil {
+		if err := tx.Exec("UPDATE school_settings SET logo_url = '', logo_palette_primary = '', logo_palette_accent = '', updated_at = now() WHERE id = ? AND logo_url LIKE '/api/school/logo?v=%'", SingleSchoolID).Error; err != nil {
 			return err
 		}
 		return audit.Record(tx, &actor, "school.logo_removed", "school", "1", nil)

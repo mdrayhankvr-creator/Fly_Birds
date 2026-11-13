@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router'
 import type { SchoolBranding } from '../api/client'
-import { getPublicPage } from '../api/publicPage'
+import { getPublicPage, type PublicView } from '../api/publicPage'
 import { SchoolMark } from './AppShell'
 import { Icon } from './icons'
 
@@ -26,6 +26,48 @@ function useIdle() {
 
 const link = 'rounded font-semibold text-[var(--brand-ink)] underline decoration-1 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]'
 
+function ModernFooter({ v, branding }: { v: PublicView; branding?: SchoolBranding }) {
+  const { t, i18n } = useTranslation()
+  const bn = i18n.language === 'bn'
+  const name = branding ? (bn ? branding.name_bn || branding.name_en : branding.name_en || branding.name_bn) : ''
+  const description = bn ? v.footer_description_bn || v.footer_description_en : v.footer_description_en || v.footer_description_bn
+  const address = v.contact ? (bn ? v.contact.address_bn || v.contact.address_en : v.contact.address_en || v.contact.address_bn) : ''
+  const year = new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date())))
+  const socials = [
+    { name: 'Facebook', symbol: 'f', url: v.social_facebook },
+    { name: 'YouTube', symbol: '▶', url: v.social_youtube },
+    { name: 'WhatsApp', symbol: 'W', url: v.social_whatsapp },
+    { name: 'Messenger', symbol: 'M', url: v.social_messenger },
+  ].filter(item => item.url)
+  const quickLinks = [
+    { label: t('pdNavHome'), to: '/#public-home' },
+    { label: t('pdNavNotices'), to: '/#public-notices', show: v.notices.length > 0 },
+    { label: t('pdNavResults'), to: '/#public-results' },
+    { label: t('pdNavGallery'), to: '/#public-gallery', show: v.gallery.length > 0 },
+    { label: t('pdNavAbout'), to: '/#public-about', show: !!v.about },
+    { label: t('pdNavContact'), to: '/#public-contact', show: !!v.contact },
+  ].filter(item => item.show !== false)
+  const privacy = v.privacy_policy_en || v.privacy_policy_bn
+  const terms = v.terms_en || v.terms_bn
+  return <footer className="public-footer pd-modern-footer" data-public-footer data-public-style="modern_bold">
+    <div className="mx-auto grid max-w-6xl gap-9 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,.8fr)_minmax(0,.8fr)_minmax(0,1.2fr)]">
+      <section className="min-w-0" aria-label={t('ppFooter')}>
+        <div className="flex min-w-0 items-center gap-3"><SchoolMark branding={branding} size="h-12 w-12" /><h2 className="min-w-0 text-lg font-extrabold" style={{ overflowWrap: 'anywhere' }}>{name}</h2></div>
+        {description && <p className="mt-4 leading-[1.7]">{description}</p>}
+        {socials.length > 0 && <ul className="pd-social-list mt-5 flex flex-wrap gap-2">{socials.map(social => <li key={social.name}><a className="pd-social" href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} title={social.name}>{social.symbol}</a></li>)}</ul>}
+      </section>
+      <nav aria-label={t('pdQuickLinks')}><h2>{t('pdQuickLinks')}</h2><ul>{quickLinks.map(item => <li key={item.to}><a href={item.to}>{item.label}</a></li>)}</ul></nav>
+      <nav aria-label={t('pdOthers')}><h2>{t('pdOthers')}</h2><ul>{privacy && <li><Link to="/privacy-policy">{t('pdPrivacy')}</Link></li>}{terms && <li><Link to="/terms">{t('pdTerms')}</Link></li>}</ul></nav>
+      <section className="min-w-0" aria-label={t('ppFooterContact')}><h2>{t('ppFooterContact')}</h2><ul>
+        {v.contact?.email && <li><Icon name="mail" className="h-5 w-5" /><a href={`mailto:${v.contact.email}`}>{v.contact.email}</a></li>}
+        {address && <li><Icon name="home" className="h-5 w-5" /><span>{address}</span></li>}
+      </ul></section>
+    </div>
+    {/* There is no live online payment provider. Simulation is never advertised as a payment method. */}
+    <div className="pd-footer-bottom"><div className="mx-auto flex max-w-6xl flex-col justify-between gap-2 px-4 py-4 text-xs sm:flex-row sm:px-6"><p>© {year} {name}. {t('pdRights')}</p><p>{t('pdDeveloped')}</p></div></div>
+  </footer>
+}
+
 export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
   const { t, i18n } = useTranslation()
   const bn = i18n.language === 'bn'
@@ -36,7 +78,6 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
   const v = page.data
   const name = branding ? (bn ? branding.name_bn || branding.name_en : branding.name_en || branding.name_bn) : ''
   const address = v?.contact ? (bn ? v.contact.address_bn || v.contact.address_en : v.contact.address_en || v.contact.address_bn) : ''
-  const phone = v?.contact?.phone ?? ''
   const email = v?.contact?.email ?? ''
   const eiin = v?.about?.eiin ?? ''
   const year = new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date())))
@@ -69,7 +110,9 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
   if (v?.notices.length) links.push({ key: 'notices', label: t('ppFooterNotices'), to: '/#public-notices', onClick: section('public-notices') })
   if (v?.contact) links.push({ key: 'contact', label: t('ppFooterContactLink'), to: '/#public-contact', onClick: section('public-contact') })
 
-  return <footer className="public-footer border-t border-slate-200 bg-white" data-public-footer>
+  if (v?.design_style === 'modern_bold') return <ModernFooter v={v} branding={branding} />
+
+  return <footer className="public-footer border-t border-slate-200 bg-white" data-public-footer data-public-style={v?.design_style || 'modern_bold'}>
     <div className="mx-auto grid grid-cols-1 max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)]">
       <section aria-label={t('ppFooter')} className="min-w-0">
         {name && <div className="flex min-w-0 items-center gap-3">
@@ -82,10 +125,9 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
         </div>}
       </section>
 
-      {(phone || email) && <section aria-labelledby="footer-contact" className="min-w-0">
+      {email && <section aria-labelledby="footer-contact" className="min-w-0">
         <h2 id="footer-contact" className="text-xs font-bold uppercase tracking-wide text-slate-600">{t('ppFooterContact')}</h2>
         <ul className="mt-3 space-y-2 text-sm">
-          {phone && <li className="flex min-w-0 items-center gap-2"><Icon name="phone" className="h-4 w-4 shrink-0 text-slate-500" /><a className={link} href={`tel:${phone.replace(/[^+0-9]/g, '')}`}>{phone}</a></li>}
           {email && <li className="flex min-w-0 items-center gap-2"><Icon name="mail" className="h-4 w-4 shrink-0 text-slate-500" /><a className={`${link} min-w-0`} style={{ overflowWrap: 'anywhere' }} href={`mailto:${email}`}>{email}</a></li>}
         </ul>
       </section>}

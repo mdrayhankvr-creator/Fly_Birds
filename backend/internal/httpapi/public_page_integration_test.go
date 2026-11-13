@@ -63,6 +63,8 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	// Start from an empty page and put back whatever was there.
 	var saved map[string]any
 	db.Table("school_public_page").Where("id = 1").Take(&saved)
+	var savedFeatures []school.PublicFeature
+	db.Table("school_public_features").Order("position").Scan(&savedFeatures)
 	db.Exec("UPDATE school_public_page SET about_en='',about_bn='',show_counts=false,head_message_en='',head_message_bn='',head_photo=NULL,head_photo_version='' WHERE id=1")
 	// The school details are school settings (migration 1759).
 	var savedDetails map[string]any
@@ -77,6 +79,10 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 		if saved != nil {
 			delete(saved, "id")
 			_ = db.Table("school_public_page").Where("id = 1").Updates(saved).Error
+		}
+		_ = db.Exec("DELETE FROM school_public_features").Error
+		for _, f := range savedFeatures {
+			_ = db.Exec("INSERT INTO school_public_features(position,icon,title_en,title_bn,description_en,description_bn) VALUES (?,?,?,?,?,?)", f.Position, f.Icon, f.TitleEN, f.TitleBN, f.DescriptionEN, f.DescriptionBN).Error
 		}
 		if savedDetails != nil {
 			_ = db.Table("school_settings").Where("id = 1").Updates(savedDetails).Error
@@ -125,6 +131,12 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	if v, _ := publicView(); v.Data.About != nil || v.Data.Head != nil || v.Data.Contact != nil {
 		t.Fatalf("empty page has sections: %+v", v.Data)
 	}
+	if v, _ := publicView(); v.Data.DesignStyle != "modern_bold" {
+		t.Fatalf("existing school default design = %q", v.Data.DesignStyle)
+	}
+	if v, _ := publicView(); len(v.Data.Features) != 4 || v.Data.Features[0].TitleBN == "" {
+		t.Fatalf("modern page defaults need four bilingual features: %+v", v.Data.Features)
+	}
 
 	// Only administrators edit it.
 	page := `{"about_en":"A village school since 1972.\nCo-educational.","about_bn":"১৯৭২ সাল থেকে গ্রামের বিদ্যালয়।","founded_year":1972,"eiin":"123456","show_counts":true,"head_name_en":"Ayesha Rahman","head_name_bn":"আয়েশা রহমান","head_message_en":"Welcome, families.","head_message_bn":"স্বাগতম।","contact_address_en":"Main Road, Sylhet","contact_address_bn":"প্রধান সড়ক, সিলেট","contact_phone":"+880 1711-000000","contact_email":"Office@School.example","map_url":"https://maps.example.com/?q=school"}`
@@ -133,9 +145,43 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	call(http.MethodPut, "/school/public-page", strings.Replace(page, `"123456"`, `"12345"`, 1), adminH, http.StatusBadRequest)
 	call(http.MethodPut, "/school/public-page", strings.Replace(page, "https://maps", "http://maps", 1), adminH, http.StatusBadRequest)
 	call(http.MethodPut, "/school/public-page", strings.Replace(page, "https://maps.example.com/?q=school", "javascript:alert(1)", 1), adminH, http.StatusBadRequest)
+	stylePage := strings.Replace(page, `{"about_en"`, `{"design_style":"minimal","pass_rate":92,"about_en"`, 1)
+	call(http.MethodPut, "/school/public-page", strings.Replace(stylePage, `"minimal"`, `"unknown"`, 1), adminH, http.StatusBadRequest)
+	call(http.MethodPut, "/school/public-page", strings.Replace(stylePage, `"pass_rate":92`, `"pass_rate":101`, 1), adminH, http.StatusBadRequest)
+	call(http.MethodPut, "/school/public-page", stylePage, adminH, http.StatusOK)
+	if v, _ := publicView(); v.Data.DesignStyle != "minimal" || v.Data.About == nil || v.Data.About.PassRate == nil || *v.Data.About.PassRate != 92 {
+		t.Fatalf("saved public design not read back: %+v", v.Data)
+	}
+	call(http.MethodPut, "/school/public-page", page, adminH, http.StatusOK)
+	var refined map[string]any
+	if err := json.Unmarshal([]byte(page), &refined); err != nil {
+		t.Fatal(err)
+	}
+	refined["activities_en"] = "Reading\nSports"
+	refined["activities_bn"] = "পাঠ\nখেলা"
+	refined["footer_description_en"] = "A school for every learner."
+	refined["social_facebook"] = "https://facebook.com/example.school"
+	refined["privacy_policy_en"] = "We use only what is needed for learning."
+	refined["features"] = []school.PublicFeature{
+		{Position: 1, Icon: "book", TitleEN: "Learning", TitleBN: "শিক্ষা", DescriptionEN: "Learn together.", DescriptionBN: "একসঙ্গে শেখা।"},
+		{Position: 2, Icon: "teacher", TitleEN: "Teachers", TitleBN: "শিক্ষক", DescriptionEN: "Careful guidance.", DescriptionBN: "যত্নশীল সহায়তা।"},
+		{Position: 3, Icon: "shield", TitleEN: "Care", TitleBN: "যত্ন", DescriptionEN: "A caring place.", DescriptionBN: "যত্নের পরিবেশ।"},
+		{Position: 4, Icon: "users", TitleEN: "Community", TitleBN: "সমাজ", DescriptionEN: "Work together.", DescriptionBN: "একসঙ্গে কাজ।"},
+	}
+	refinedJSON, _ := json.Marshal(refined)
+	call(http.MethodPut, "/school/public-page", string(refinedJSON), adminH, http.StatusOK)
+	if v, _ := publicView(); v.Data.ActivitiesBN != "পাঠ\nখেলা" || v.Data.FooterDescriptionEN != "A school for every learner." || v.Data.Features[0].Icon != "book" || v.Data.PrivacyPolicyEN == "" {
+		t.Fatalf("modern editable content not published: %+v", v.Data)
+	}
+	refined["social_whatsapp"] = "https://wa.me/8801711000000"
+	badSocial, _ := json.Marshal(refined)
+	call(http.MethodPut, "/school/public-page", string(badSocial), adminH, http.StatusBadRequest)
 	call(http.MethodPut, "/school/public-page", page, adminH, http.StatusOK)
 
-	v, _ := publicView()
+	v, publicJSON := publicView()
+	if strings.Contains(publicJSON, "contact_phone") || strings.Contains(publicJSON, "+880 1711-000000") || v.Data.DesignStyle != "modern_bold" {
+		t.Fatalf("public page leaks phone or did not restore default style: %s", publicJSON)
+	}
 	a, h, c := v.Data.About, v.Data.Head, v.Data.Contact
 	if a == nil || h == nil || c == nil || a.EIIN != "123456" || a.FoundedYear == nil || *a.FoundedYear != 1972 || a.Students == nil || a.Teachers == nil || h.NameBN != "আয়েশা রহমান" || c.Email != "office@school.example" || c.MapURL == "" {
 		t.Fatalf("public page %+v %+v %+v", a, h, c)
@@ -288,8 +334,15 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	}
 	var keys map[string]map[string]json.RawMessage
 	_ = json.Unmarshal([]byte(body), &keys)
+	known := map[string]bool{
+		"design_style": true, "features": true, "activities_en": true, "activities_bn": true,
+		"footer_description_en": true, "footer_description_bn": true,
+		"social_facebook": true, "social_youtube": true, "social_whatsapp": true, "social_messenger": true,
+		"privacy_policy_en": true, "privacy_policy_bn": true, "terms_en": true, "terms_bn": true,
+		"about": true, "head": true, "gallery": true, "notices": true, "contact": true,
+	}
 	for k := range keys["data"] {
-		if k != "about" && k != "head" && k != "gallery" && k != "notices" && k != "contact" {
+		if !known[k] {
 			t.Fatalf("unexpected section %q", k)
 		}
 	}

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router'
 import { getSchoolSlides, slideImageUrl, type SchoolBranding, type SchoolSlide } from '../api/client'
+import { getPublicPage } from '../api/publicPage'
 import { useAuth } from '../auth/AuthProvider'
 import { Icon } from '../components/icons'
 import { SignInForm } from './LoginPage'
@@ -89,6 +90,7 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const { t, i18n } = useTranslation()
   const { user, ready } = useAuth()
   const slides = useQuery({ queryKey: ['school', 'slides'], queryFn: ({ signal }) => getSchoolSlides(signal), staleTime: 60_000, retry: 1 })
+  const publicPage = useQuery({ queryKey: ['school', 'public-page'], queryFn: ({ signal }) => getPublicPage(signal), staleTime: 60_000, retry: 1 })
   const reduced = useReducedMotion()
   const showPublic = useAfterFirstPaint()
   const [index, setIndex] = useState(0)
@@ -112,8 +114,10 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const hasPhotos = count > 0
   const current = Math.min(index, Math.max(0, count - 1))
   const controls = { slides: list, index: current, onIndex: setIndex, playing, onPlaying: setPlaying, reduced, onHold: setHold }
+  const design = publicPage.data?.design_style || 'modern_bold'
+  const exploreTarget = publicPage.data?.about ? '#public-about' : publicPage.data?.gallery.length ? '#public-gallery' : '#public-sign-in'
 
-  return <><div className="landing relative isolate">
+  return <><div id="public-home" className="landing relative isolate" data-public-style={design}>
     {/* Banner: the photos on phones, the whole first screen on large screens. */}
     <section aria-label={t('p3Slides')} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}
       onFocus={() => setHold(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHold(false) }}
@@ -125,7 +129,7 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
     </section>
 
     <div className="relative mx-auto grid grid-cols-1 max-w-6xl gap-6 px-4 sm:px-6 lg:min-h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,25rem)] lg:items-center lg:gap-12 lg:py-12">
-      <div className="flex h-[17rem] min-w-0 flex-col justify-end pb-14 text-white sm:h-[21rem] lg:h-auto lg:pb-0">
+      <div className="pd-hero-copy flex h-[17rem] min-w-0 flex-col justify-end pb-14 text-white sm:h-[21rem] lg:h-auto lg:pb-0">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           {branding?.logo_url
             ? <img src={branding.logo_url} alt="" referrerPolicy="no-referrer" className="h-14 w-14 shrink-0 rounded-2xl bg-white object-contain p-1.5 shadow-lg ring-1 ring-white/40 sm:h-20 sm:w-20" />
@@ -136,9 +140,13 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
           </div>
         </div>
         {tagline && <p className="mt-3 max-w-xl text-sm leading-6 text-white/90 sm:mt-5 sm:text-lg sm:leading-8">{tagline}</p>}
+        {design !== 'classic' && <div className="pd-hero-actions mt-5 flex flex-wrap gap-3 sm:mt-8">
+          <a href={exploreTarget} className="pd-hero-button pd-hero-button-primary">{t('pdHeroExplore')} <span aria-hidden="true">↗</span></a>
+          <a href="#public-sign-in" className="pd-hero-button pd-hero-button-secondary">{t('pdHeroSignIn')}</a>
+        </div>}
         {count > 1 && <SlideControls {...controls} placement="desktop" showCaption className="mt-10 hidden max-w-xl lg:flex" />}
       </div>
-      <div className="min-w-0 pb-10 lg:pb-0"><SignInForm /></div>
+      <div id="public-sign-in" className="min-w-0 pb-10 lg:pb-0"><SignInForm /></div>
     </div>
   </div>
   {showPublic && <Suspense fallback={null}><PublicSections /></Suspense>}
