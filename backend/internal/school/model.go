@@ -47,17 +47,22 @@ type SchoolSettings struct {
 func (SchoolSettings) TableName() string { return "school_settings" }
 
 type SettingsInput struct {
-	NameEN            string `json:"name_en"`
-	NameBN            string `json:"name_bn"`
-	LogoURL           string `json:"logo_url"`
-	Address           string `json:"address"`
-	Phone             string `json:"phone"`
-	Email             string `json:"email"`
-	PreferredLanguage string `json:"preferred_language"`
-	PrimaryColor      string `json:"primary_color"`
-	SecondaryColor    string `json:"secondary_color"`
-	DashboardTheme    string `json:"dashboard_theme"`
-	GradingSchemeID   string `json:"grading_scheme_id"`
+	NameEN  string `json:"name_en"`
+	NameBN  string `json:"name_bn"`
+	LogoURL string `json:"logo_url"`
+	// GET includes these read-only fields. Accept them on a round-trip PUT,
+	// but the repository never writes client-supplied palette or timestamps.
+	LogoPalettePrimary *string    `json:"logo_palette_primary,omitempty"`
+	LogoPaletteAccent  *string    `json:"logo_palette_accent,omitempty"`
+	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
+	Address            string     `json:"address"`
+	Phone              string     `json:"phone"`
+	Email              string     `json:"email"`
+	PreferredLanguage  string     `json:"preferred_language"`
+	PrimaryColor       string     `json:"primary_color"`
+	SecondaryColor     string     `json:"secondary_color"`
+	DashboardTheme     string     `json:"dashboard_theme"`
+	GradingSchemeID    string     `json:"grading_scheme_id"`
 	// Taglines are optional so clients that predate them keep the saved text.
 	TaglineEN *string `json:"tagline_en,omitempty"`
 	TaglineBN *string `json:"tagline_bn,omitempty"`

@@ -10,6 +10,12 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Settings GET/PUT Round-Trip (2026-11-14)
+
+On `feature/public-modern-bold`, a fresh demo school's `GET /school/settings` response was rejected by an unchanged `PUT /school/settings` with `400 invalid_request`. The response includes the read-only `logo_palette_primary`, `logo_palette_accent`, and `updated_at` fields, while the strict request decoder did not recognize them. The input now accepts these fields for compatibility; the repository still derives the palette from the uploaded logo and owns the update timestamp. Optional settings omitted by older clients retain their saved values. A database-backed HTTP regression covers both the unchanged round-trip and a legacy payload with the new optional fields omitted.
+
+- **Verification on fresh temporary PostgreSQL databases:** the unchanged settings payload returned 400 before the fix and 200 after it. `go vet ./internal/school ./internal/httpapi`, `go test -p 1 -count=1 ./internal/school ./internal/httpapi`, frontend typecheck and production build passed. On the fresh plain-seeded `fbqa-cp1b` stack: `result-publication.mjs` 101/101, `suite.mjs` 125/125, `public-design.mjs` 90/90 and `whitelabel.mjs` 23/23.
+
 ## Current Status — Public Header on a Plain CI Seed (2026-11-14)
 
 On `feature/public-modern-bold`, the fresh CI demo seed has a school name but no uploaded logo. The Modern Bold header had hidden its name below 640 px, while `suite.mjs` incorrectly required an image even when the school had no logo. The header now keeps the name visible at every width and uses the initials badge as a companion. The suite requires a loaded logo when one is configured, or a visible school name otherwise, at desktop and 320/360/375 px. The public-design browser fixture creates and removes a fifth gallery photo when the plain seed has only four, so its See all check still exercises expansion.

@@ -487,7 +487,7 @@ paths:
     put:
       operationId: updateSchoolSettings
       summary: Replace school profile and theme
-      description: Requires an active administrator with school_settings:update. Logo is a validated public HTTPS image URL, not an upload. Colors must meet 4.5-to-1 contrast with white.
+      description: Requires an active administrator with school_settings:update. An unchanged GET data payload is accepted; read-only logo palette and updated_at values are ignored on write. Older clients may omit optional settings, which retain their saved values. Logo is a validated public HTTPS image URL, not an upload. Colors must meet 4.5-to-1 contrast with white.
       tags: [school]
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SchoolSettingsInput' } } } }
