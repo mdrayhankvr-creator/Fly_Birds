@@ -2,6 +2,7 @@ export const schoolTranslations = {
   en: {
     schoolSettings: 'School settings', schoolSettingsDescription: 'Manage the school profile, grading scale, and available modules.',
     schoolProfile: 'School profile', schoolNameEN: 'School name (English)', schoolNameBN: 'School name (Bangla)',
+    transcriptSettingsTitle: 'Academic transcript', transcriptSettingsHint: 'How marksheet PDFs look: the decorative certificate border and the faint logo watermark.', transcriptBorderLabel: 'Certificate border', transcriptWatermarkLabel: 'Logo watermark',
     schoolLogo: 'Logo URL (HTTPS PNG, JPEG, or WebP)', schoolAddress: 'Address', schoolPhone: 'Phone',
     schoolEmail: 'Contact email', preferredLanguage: 'Preferred language', primaryColor: 'Primary color',
     secondaryColor: 'Secondary color', dashboardTheme: 'Dashboard theme', lightTheme: 'Light', darkTheme: 'Dark',
@@ -21,6 +22,7 @@ export const schoolTranslations = {
   bn: {
     schoolSettings: 'বিদ্যালয়ের সেটিংস', schoolSettingsDescription: 'বিদ্যালয়ের পরিচয়, গ্রেডিং ও মডিউল পরিচালনা করুন।',
     schoolProfile: 'বিদ্যালয়ের পরিচয়', schoolNameEN: 'বিদ্যালয়ের নাম (ইংরেজি)', schoolNameBN: 'বিদ্যালয়ের নাম (বাংলা)',
+    transcriptSettingsTitle: 'ফলাফল পত্র', transcriptSettingsHint: 'মার্কশিট পিডিএফ কেমন দেখাবে: সার্টিফিকেট ধাঁচের বর্ডার ও হালকা লোগো জলছাপ।', transcriptBorderLabel: 'সার্টিফিকেট বর্ডার', transcriptWatermarkLabel: 'লোগো জলছাপ',
     schoolLogo: 'লোগোর URL (HTTPS PNG, JPEG বা WebP)', schoolAddress: 'ঠিকানা', schoolPhone: 'ফোন',
     schoolEmail: 'যোগাযোগের ইমেইল', preferredLanguage: 'পছন্দের ভাষা', primaryColor: 'প্রধান রং',
     secondaryColor: 'দ্বিতীয় রং', dashboardTheme: 'ড্যাশবোর্ড থিম', lightTheme: 'উজ্জ্বল', darkTheme: 'গাঢ়',

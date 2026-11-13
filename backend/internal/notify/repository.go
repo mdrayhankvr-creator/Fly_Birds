@@ -51,7 +51,7 @@ func (r *GormRepository) MarkAllRead(ctx context.Context, user string) (int64, e
 func (r *GormRepository) Preferences(ctx context.Context, user string) ([]Preference, error) {
 	out := []Preference{}
 	err := r.db.WithContext(ctx).Raw(`SELECT c.category, COALESCE(p.in_app, true) AS in_app, COALESCE(p.sms, true) AS sms
-FROM unnest(ARRAY['notice','absence','result','fee','diary']) WITH ORDINALITY AS c(category, ord)
+FROM unnest(ARRAY['notice','absence','result','fee','diary','routine']) WITH ORDINALITY AS c(category, ord)
 LEFT JOIN notification_preferences p ON p.user_id = ? AND p.category = c.category ORDER BY c.ord`, user).Scan(&out).Error
 	return out, err
 }
@@ -195,6 +195,40 @@ JOIN academic_subjects sub ON sub.id = d.subject_id
 JOIN students s ON s.section_id = d.section_id AND s.session_id = d.session_id AND s.status = 'active'
 ` + recipients + `
 WHERE d.status = 'published' AND d.published_at >= now() - interval '3 days'`},
+	// Exam routines (E8): publishing a term routine notifies the students of
+	// the classes it schedules; an amendment (version > 1) is a new published
+	// version, so its own notification goes out. In-app only, no SMS.
+	{category: "routine", module: "routine", sql: `SELECT u.id AS user_id, 'routine:' || rv.id || ':' || s.id AS source_key,
+  left(CASE WHEN rv.version > 1 THEN 'Exam routine amended: ' ELSE 'Exam routine published: ' END || t.name, 70) AS title_en,
+  left(CASE WHEN rv.version > 1 THEN 'পরীক্ষার রুটিন সংশোধিত: ' ELSE 'পরীক্ষার রুটিন প্রকাশিত: ' END || t.name, 220) AS title_bn,
+  left(t.name || ' runs ' || to_char(rv.starts_on, 'DD Mon') || ' – ' || to_char(rv.ends_on, 'DD Mon YYYY') ||
+       CASE WHEN rv.version > 1 THEN '. The routine was amended; please check the dates again.' ELSE '. Open Routine for the dates and times.' END, 240) AS body_en,
+  left(t.name || ' চলবে ' || to_char(rv.starts_on, 'DD-MM') || ' – ' || to_char(rv.ends_on, 'DD-MM-YYYY') ||
+       CASE WHEN rv.version > 1 THEN '। রুটিন সংশোধন করা হয়েছে; তারিখগুলো আবার দেখে নিন।' ELSE '। তারিখ ও সময় দেখতে রুটিন খুলুন।' END, 700) AS body_bn,
+  '/student/routine' AS link, rv.version > 1 AS urgent,
+  '' AS phone, false AS wants_sms, '' AS sms_body
+FROM routine_versions rv
+JOIN exam_terms t ON t.id = rv.term_id
+JOIN students s ON s.session_id = t.session_id AND s.status = 'active'
+  AND s.class_id IN (SELECT p.class_id FROM routine_papers p WHERE p.version_id = rv.id)
+JOIN users u ON u.id = s.user_id AND u.is_active
+WHERE rv.status = 'published' AND rv.published_at >= now() - interval '14 days'`},
+	// The invigilators on duty in the routine.
+	{category: "routine", module: "routine", sql: `SELECT u.id AS user_id, 'routine_duty:' || rv.id || ':' || e.id AS source_key,
+  left(CASE WHEN rv.version > 1 THEN 'Invigilation duty (amended routine): ' ELSE 'Invigilation duty: ' END || t.name, 70) AS title_en,
+  left(CASE WHEN rv.version > 1 THEN 'পরিদর্শকের দায়িত্ব (সংশোধিত রুটিন): ' ELSE 'পরিদর্শকের দায়িত্ব: ' END || t.name, 220) AS title_bn,
+  left('You have ' || count(*) || ' invigilation ' || CASE WHEN count(*) = 1 THEN 'duty' ELSE 'duties' END || ' in ' || t.name ||
+       ' (' || to_char(min(d.exam_date), 'DD Mon') || ' – ' || to_char(max(d.exam_date), 'DD Mon YYYY') || '). Open Routine for the room and times.', 240) AS body_en,
+  left(t.name || '-এ আপনার ' || count(*) || 'টি পরিদর্শকের দায়িত্ব (' || to_char(min(d.exam_date), 'DD-MM') || ' – ' || to_char(max(d.exam_date), 'DD-MM-YYYY') || ')। কক্ষ ও সময় দেখতে রুটিন খুলুন।', 700) AS body_bn,
+  '/teacher/routine' AS link, rv.version > 1 AS urgent,
+  '' AS phone, false AS wants_sms, '' AS sms_body
+FROM routine_versions rv
+JOIN exam_terms t ON t.id = rv.term_id
+JOIN routine_duties d ON d.version_id = rv.id
+JOIN employees e ON e.id = d.employee_id AND e.is_active AND e.user_id IS NOT NULL
+JOIN users u ON u.id = e.user_id AND u.is_active
+WHERE rv.status = 'published' AND rv.published_at >= now() - interval '14 days'
+GROUP BY u.id, rv.id, rv.version, t.name, e.id`},
 }
 
 // reminder notifies teachers who still have unpublished diaries for today's

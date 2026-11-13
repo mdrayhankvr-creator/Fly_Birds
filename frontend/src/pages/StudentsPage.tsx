@@ -3,14 +3,16 @@ import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, bloodGroups, deleteStudent, getAcademicClasses, getAcademicSections, getAcademicSessions, getStudents, getUsers, importStudents, saveStudent, type Gender, type Student, type StudentInput, type StudentProfileDetails } from '../api/client'
+import { ApiError, bloodGroups, deleteStudent, getAcademicClasses, getAcademicGroups, getAcademicSections, getAcademicSessions, getClassSubjects, getSchoolShifts, getStudents, getUsers, importStudents, saveStudent, type Gender, type Medium, type Student, type StudentInput, type StudentProfileDetails } from '../api/client'
 import { peopleField, usePeopleApi } from './peopleShared'
 import { Avatar, EmptyState, Notice, PageHeader, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 import { Icon } from '../components/icons'
 
 const blankProfile: StudentProfileDetails = { student_code: '', gender: '', blood_group: '', father_name_en: '', father_name_bn: '', mother_name_en: '', mother_name_bn: '', present_address: '', permanent_address: '', admission_date: '' }
-type StudentForm = StudentInput & StudentProfileDetails
-const blank: StudentForm = { admission_no: '', name_en: '', name_bn: '', date_of_birth: '', status: 'active', session_id: '', class_id: '', section_id: '', roll_no: null, user_id: '', ...blankProfile }
+type Choices = { shift_id: string; medium: Medium; group_id: string; fourth_subject_id: string }
+const blankChoices: Choices = { shift_id: '', medium: '', group_id: '', fourth_subject_id: '' }
+type StudentForm = StudentInput & StudentProfileDetails & Choices
+const blank: StudentForm = { admission_no: '', name_en: '', name_bn: '', date_of_birth: '', status: 'active', session_id: '', class_id: '', section_id: '', roll_no: null, user_id: '', ...blankProfile, ...blankChoices }
 
 export function StudentsPage({ canManage, canCreateLogins = false }: { canManage: boolean; canCreateLogins?: boolean }) {
   const { t, i18n } = useTranslation()
@@ -52,8 +54,13 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
     return authorized(token => getAcademicSections(token, q))
   }, retry: false })
   const accounts = useQuery({ queryKey: ['people', 'student-accounts', accountSearch], enabled: canManage, queryFn: () => authorized(token => getUsers(token, new URLSearchParams({ role: 'student', search: accountSearch, page_size: '100' }))), retry: false })
+  const shifts = useQuery({ queryKey: ['people', 'shift-options'], enabled: canManage, queryFn: () => authorized(token => getSchoolShifts(token, new URLSearchParams({ page: '1', page_size: '100', status: 'active' }))), retry: false })
+  const formClass = classes.data?.items.find(c => c.id === form.class_id)
+  const groups = useQuery({ queryKey: ['people', 'group-options'], enabled: canManage && !!formClass?.uses_groups, queryFn: () => authorized(token => getAcademicGroups(token, new URLSearchParams({ page: '1', page_size: '100', status: 'active' }))), retry: false })
+  const formClassSubjects = useQuery({ queryKey: ['people', 'class-subject-options', form.class_id], enabled: canManage && !!form.class_id, queryFn: () => authorized(token => getClassSubjects(token, form.class_id, new URLSearchParams({ page: '1', page_size: '100' }))), retry: false })
+  const fourthOptions = (formClassSubjects.data?.items ?? []).filter(m => m.is_fourth_subject)
   const pages = Math.max(1, Math.ceil((listing.data?.total ?? 0) / 10))
-  function edit(item: Student) { setEditing(item.id); setForm({ admission_no: item.admission_no, name_en: item.name_en, name_bn: item.name_bn, date_of_birth: item.date_of_birth, status: item.status, session_id: item.session_id, class_id: item.class_id, section_id: item.section_id, roll_no: item.roll_no, user_id: item.user_id ?? '', ...Object.fromEntries(Object.keys(blankProfile).map(key => [key, item[key as keyof StudentProfileDetails] ?? ''])) as StudentProfileDetails }); setError(''); setMessage('') }
+  function edit(item: Student) { setEditing(item.id); setForm({ admission_no: item.admission_no, name_en: item.name_en, name_bn: item.name_bn, date_of_birth: item.date_of_birth, status: item.status, session_id: item.session_id, class_id: item.class_id, section_id: item.section_id, roll_no: item.roll_no, user_id: item.user_id ?? '', ...Object.fromEntries(Object.keys(blankProfile).map(key => [key, item[key as keyof StudentProfileDetails] ?? ''])) as StudentProfileDetails, shift_id: item.shift_id ?? '', medium: item.medium, group_id: item.group_id ?? '', fourth_subject_id: item.fourth_subject_id ?? '' }); setError(''); setMessage('') }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(''); setMessage('')
     try { await authorized(token => saveStudent(token, form, editing || undefined)); setEditing(''); setForm(blank); await cache.invalidateQueries({ queryKey: ['people', 'students'] }); setMessage(t('peopleSaved')) }
@@ -151,6 +158,10 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className={ui.label}>{t('idCardStudentId')}<input maxLength={64} className={peopleField} value={form.student_code} onChange={e => set('student_code', e.target.value)} /></label>
                 <label className={ui.label}>{t('profileAdmissionDate')}<input type="date" className={peopleField} value={form.admission_date} onChange={e => set('admission_date', e.target.value)} /></label>
+                {(shifts.data?.items.length ?? 0) > 0 && <label className={ui.label}>{t('profileShift')}<select className={peopleField} value={form.shift_id} onChange={e => set('shift_id', e.target.value)}><option value="">{t('profileNotProvided')}</option>{shifts.data?.items.map(s => <option key={s.id} value={s.id}>{i18n.language === 'bn' && s.name_bn ? s.name_bn : s.name_en}</option>)}</select></label>}
+                <label className={ui.label}>{t('profileMedium')}<select className={peopleField} value={form.medium} onChange={e => set('medium', e.target.value as Medium)}><option value="">{t('profileNotProvided')}</option><option value="bangla">{t('mediumBangla')}</option><option value="english">{t('mediumEnglish')}</option></select></label>
+                {formClass?.uses_groups && <label className={ui.label}>{t('profileGroup')}<select className={peopleField} value={form.group_id} onChange={e => set('group_id', e.target.value)}><option value="">{t('profileNotProvided')}</option>{groups.data?.items.map(g => <option key={g.id} value={g.id}>{i18n.language === 'bn' && g.name_bn ? g.name_bn : g.name_en}</option>)}</select></label>}
+                {fourthOptions.length > 0 && <label className={ui.label}>{t('profileFourthSubject')}<select className={peopleField} value={form.fourth_subject_id} onChange={e => set('fourth_subject_id', e.target.value)}><option value="">{t('profileNotProvided')}</option>{fourthOptions.map(m => <option key={m.subject_id} value={m.subject_id}>{i18n.language === 'bn' ? m.subject_name_bn : m.subject_name_en} ({m.subject_code})</option>)}</select></label>}
                 <label className={ui.label}>{t('profileGender')}<select className={peopleField} value={form.gender} onChange={e => set('gender', e.target.value as Gender)}><option value="">{t('profileNotProvided')}</option>{(['female', 'male', 'other'] as const).map(g => <option key={g} value={g}>{t(`gender_${g}`)}</option>)}</select></label>
                 <label className={ui.label}>{t('profileBloodGroup')}<select className={peopleField} value={form.blood_group} onChange={e => set('blood_group', e.target.value)}><option value="">{t('profileNotProvided')}</option>{bloodGroups.map(g => <option key={g} value={g}>{g}</option>)}</select></label>
                 <label className={ui.label}>{t('profileFatherEN')}<input maxLength={160} className={peopleField} value={form.father_name_en} onChange={e => set('father_name_en', e.target.value)} /></label>

@@ -6,7 +6,7 @@ import { getInbox, getPreferences, getSMSLog, markAllNotificationsRead, markNoti
 import { CardTitle, EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, Tabs, ui } from './attendanceUi'
 import { useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
 
-const categoryIcon: Record<AppNotification['category'], string> = { notice: '📢', absence: '🕒', result: '🎓', fee: '৳', diary: '📘' }
+const categoryIcon: Record<AppNotification['category'], string> = { notice: '📢', absence: '🕒', result: '🎓', fee: '৳', diary: '📘', routine: '🗓️' }
 
 // NotificationBell polls the unread count; it renders nothing until the
 // notices module answers, so disabled modules stay quiet.

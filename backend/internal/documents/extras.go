@@ -26,12 +26,15 @@ type studentExtra struct {
 	Code                                   string
 	FatherEN, FatherBN, MotherEN, MotherBN string
 	DOB                                    *string
-	Present, Working                       int
-	HasAttendance                          bool
-	PresetEN, PresetBN, Custom             string
-	TeacherEN, TeacherBN                   string
-	SignatureVersion                       string
-	Signature                              []byte
+	// Shift, medium (version) and the group chosen for the result's session;
+	// empty when not recorded (transcript v3).
+	ShiftEN, ShiftBN, Medium, GroupEN, GroupBN string
+	Present, Working                           int
+	HasAttendance                              bool
+	PresetEN, PresetBN, Custom                 string
+	TeacherEN, TeacherBN                       string
+	SignatureVersion                           string
+	Signature                                  []byte
 }
 
 type extras struct {
@@ -59,8 +62,8 @@ func (x extras) key() string {
 		if e.DOB != nil {
 			dob = *e.DOB
 		}
-		fmt.Fprintf(h, "%s|%s|%s|%s|%s|%s|%d|%d|%v|%s|%s|%s|%s|%s|%s\n", id, e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, dob, e.Present, e.Working, e.HasAttendance,
-			e.PresetEN, e.PresetBN, e.Custom, e.TeacherEN, e.TeacherBN, e.SignatureVersion)
+		fmt.Fprintf(h, "%s|%s|%s|%s|%s|%s|%d|%d|%v|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", id, e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, dob, e.Present, e.Working, e.HasAttendance,
+			e.PresetEN, e.PresetBN, e.Custom, e.TeacherEN, e.TeacherBN, e.SignatureVersion, e.ShiftEN, e.ShiftBN, e.Medium, e.GroupEN, e.GroupBN)
 	}
 	codes := make([]string, 0, len(x.subjects))
 	for id, s := range x.subjects {
@@ -87,19 +90,29 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 		return x, err
 	}
 
-	// Parents and date of birth.
+	// Parents, date of birth, shift, medium and the session's group.
 	var people []struct {
 		ID, Code                               string
 		FatherEN, FatherBN, MotherEN, MotherBN string
 		DOB                                    *string
+		ShiftEN, ShiftBN, Medium               string
+		GroupEN, GroupBN                       string
 	}
-	if err := db.Raw(`SELECT id, coalesce(student_code, '') AS code, father_name_en AS father_en, father_name_bn AS father_bn, mother_name_en AS mother_en, mother_name_bn AS mother_bn,
- to_char(date_of_birth, 'YYYY-MM-DD') AS dob FROM students WHERE id IN ?`, ids).Scan(&people).Error; err != nil {
+	if err := db.Raw(`SELECT s.id, coalesce(s.student_code, '') AS code, s.father_name_en AS father_en, s.father_name_bn AS father_bn, s.mother_name_en AS mother_en, s.mother_name_bn AS mother_bn,
+ to_char(s.date_of_birth, 'YYYY-MM-DD') AS dob,
+ coalesce(sh.name_en, '') AS shift_en, coalesce(sh.name_bn, '') AS shift_bn, s.medium,
+ coalesce(gr.name_en, '') AS group_en, coalesce(gr.name_bn, '') AS group_bn
+ FROM students s
+ LEFT JOIN school_shifts sh ON sh.id = s.shift_id
+ LEFT JOIN student_group_choices gc ON gc.student_id = s.id AND gc.session_id = ?
+ LEFT JOIN academic_groups gr ON gr.id = gc.group_id
+ WHERE s.id IN ?`, set.SessionID, ids).Scan(&people).Error; err != nil {
 		return x, err
 	}
 	for _, p := range people {
 		e := x.students[p.ID]
 		e.Code, e.FatherEN, e.FatherBN, e.MotherEN, e.MotherBN, e.DOB = strings.TrimSpace(p.Code), p.FatherEN, p.FatherBN, p.MotherEN, p.MotherBN, p.DOB
+		e.ShiftEN, e.ShiftBN, e.Medium, e.GroupEN, e.GroupBN = p.ShiftEN, p.ShiftBN, p.Medium, p.GroupEN, p.GroupBN
 	}
 
 	// The class teacher of each student's section (the section the result
@@ -189,16 +202,42 @@ func (s *Service) loadExtras(ctx context.Context, set exams.DocSet, results []ex
 func (s *Service) attendance(ctx context.Context, set exams.DocSet, ids []string, sectionOf map[string]string, x *extras) error {
 	db := s.db.WithContext(ctx)
 	var w struct{ From, To *string }
-	if set.Scope == exams.ScopeAnnual {
+	scopeID := set.ScopeID
+	if set.Scope == exams.ScopeAssessment {
+		// An exam's marksheet counts its term's attendance; an exam outside
+		// any term counts the session up to the result's publication.
+		var termID *string
+		var sessionID string
+		if err := db.Raw("SELECT term_id, session_id FROM exams WHERE id = ?", set.ScopeID).Row().Scan(&termID, &sessionID); err != nil {
+			return err
+		}
+		if termID != nil {
+			scopeID = *termID
+		} else {
+			if err := db.Raw("SELECT to_char(start_date, 'YYYY-MM-DD') FROM academic_sessions WHERE id = ?", sessionID).Row().Scan(&w.From); err != nil {
+				return err
+			}
+			if set.PublishedAt != "" {
+				if t, err := time.Parse(time.RFC3339, set.PublishedAt); err == nil {
+					d := t.In(dhaka).Format("2006-01-02")
+					w.To = &d
+				}
+			}
+		}
+	}
+	switch {
+	case w.From != nil:
+		// Already resolved (an exam outside any term).
+	case set.Scope == exams.ScopeAnnual:
 		if err := db.Raw("SELECT to_char(start_date, 'YYYY-MM-DD') AS \"from\", to_char(end_date, 'YYYY-MM-DD') AS \"to\" FROM academic_sessions WHERE id = ?", set.ScopeID).Scan(&w).Error; err != nil {
 			return err
 		}
-	} else {
+	default:
 		if err := db.Raw(`SELECT to_char(coalesce(t.starts_on,
    (SELECT p.ends_on + 1 FROM exam_terms p WHERE p.session_id = t.session_id AND p.sequence < t.sequence AND p.ends_on IS NOT NULL ORDER BY p.sequence DESC LIMIT 1),
    ses.start_date), 'YYYY-MM-DD') AS "from",
  to_char(t.ends_on, 'YYYY-MM-DD') AS "to"
- FROM exam_terms t JOIN academic_sessions ses ON ses.id = t.session_id WHERE t.id = ?`, set.ScopeID).Scan(&w).Error; err != nil {
+ FROM exam_terms t JOIN academic_sessions ses ON ses.id = t.session_id WHERE t.id = ?`, scopeID).Scan(&w).Error; err != nil {
 			return err
 		}
 		if w.To == nil && set.PublishedAt != "" {

@@ -24,13 +24,18 @@
     align(center + horizon, text(size: size * 0.36, weight: "bold", fill: accent, doc.school.initials)))
 }
 
-// School name block: main language large, the other below, then the EIIN
-// and contacts (each line only when the school set it).
+// School name block: main language large, the other below, then the
+// founding year, the EIIN and contacts (each line only when the school set it).
 #let school-lines(centered: true) = {
   set align(if centered { center } else { left })
   text(size: 15pt, weight: "bold", doc.school.name)
   if doc.school.name_alt != "" { linebreak(); text(size: 10pt, weight: "semibold", fill: muted, doc.school.name_alt) }
-  if doc.school.at("eiin", default: "") != "" { linebreak(); text(size: 7.5pt, weight: "semibold", fill: muted, doc.school.eiin) }
+  {
+    let small = ()
+    if doc.school.at("established", default: "") != "" { small.push(doc.school.established) }
+    if doc.school.at("eiin", default: "") != "" { small.push(doc.school.eiin) }
+    if small.len() > 0 { linebreak(); text(size: 7.5pt, weight: "semibold", fill: muted, small.join("  ·  ")) }
+  }
   if doc.school.contact != "" { linebreak(); text(size: 7.5pt, fill: muted, doc.school.contact) }
 }
 

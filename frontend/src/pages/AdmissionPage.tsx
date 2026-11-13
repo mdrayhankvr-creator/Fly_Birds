@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { ApiError, bloodGroups, getAcademicClasses, getAcademicSections, getAcademicSessions, type Gender } from '../api/client'
+import { ApiError, bloodGroups, getAcademicClasses, getAcademicGroups, getAcademicSections, getAcademicSessions, getClassSubjects, getSchoolShifts, type Gender, type Medium } from '../api/client'
 import { admitStudent, getAdmissionDefaults, getGuardianMatches, type AdmissionGuardian, type AdmissionResult, type GuardianMatch } from '../api/admission'
 import { Icon } from '../components/icons'
 import { peopleField, usePeopleApi } from './peopleShared'
@@ -16,15 +16,17 @@ import { admissionLoginLocalPart, newAdmissionKey, readStoredPlacement, storePla
 
 type Relation = 'Father' | 'Mother' | 'other'
 type GuardianDraft = { relation: Relation; other: string; name_en: string; name_bn: string; phone: string; email: string; primary: boolean; existing: GuardianMatch | null; matches: GuardianMatch[]; confirmNew: boolean }
-type Details = { gender: Gender; blood_group: string; student_code: string; admission_date: string; father_name_en: string; father_name_bn: string; mother_name_en: string; mother_name_bn: string; present_address: string; permanent_address: string }
+type Details = { gender: Gender; blood_group: string; student_code: string; admission_date: string; father_name_en: string; father_name_bn: string; mother_name_en: string; mother_name_bn: string; present_address: string; permanent_address: string; shift_id: string; medium: Medium }
 type FieldErrors = Partial<Record<'admission' | 'roll' | 'login' | 'guardian0' | 'guardian1' | 'form', string>>
 
 const blankGuardian = (relation: Relation, primary: boolean): GuardianDraft => ({ relation, other: '', name_en: '', name_bn: '', phone: '', email: '', primary, existing: null, matches: [], confirmNew: false })
-const blankDetails = (): Details => ({ gender: '', blood_group: '', student_code: '', admission_date: todayInDhaka(), father_name_en: '', father_name_bn: '', mother_name_en: '', mother_name_bn: '', present_address: '', permanent_address: '' })
+const blankDetails = (): Details => ({ gender: '', blood_group: '', student_code: '', admission_date: todayInDhaka(), father_name_en: '', father_name_bn: '', mother_name_en: '', mother_name_bn: '', present_address: '', permanent_address: '', shift_id: '', medium: '' })
 const digits = (v: string) => v.replace(/[০-৯]/g, d => String('০১২৩৪৫৬৭৮৯'.indexOf(d))).replace(/\D/g, '')
+const pickName = (x: { name_en: string; name_bn: string }, lang: string) => lang === 'bn' && x.name_bn ? x.name_bn : x.name_en
 
 export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManageGuardians: boolean; canCreateLogin: boolean }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = i18n.language
   const authorized = usePeopleApi()
   const cache = useQueryClient()
   const stored = useRef<Placement | null>(readStoredPlacement())
@@ -49,6 +51,13 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
   const sections = useQuery({ queryKey: ['people', 'admission', 'sections', placement.session_id], enabled: !!placement.session_id, queryFn: () => authorized(token => getAcademicSections(token, new URLSearchParams({ page: '1', page_size: '100', session_id: placement.session_id }))), retry: false })
   const defaults = useQuery({ queryKey: ['people', 'admission', 'defaults', placement.section_id], queryFn: () => authorized(token => getAdmissionDefaults(token, placement.section_id)), retry: false })
   const classSections = (sections.data?.items ?? []).filter(s => s.class_id === placement.class_id && s.is_active !== false)
+  // Group and fourth subject, only for a class that uses them (transcript v3).
+  const [groupChoice, setGroupChoice] = useState({ group_id: '', fourth_subject_id: '' })
+  const chosenClass = classes.data?.items.find(c => c.id === placement.class_id)
+  const shifts = useQuery({ queryKey: ['people', 'admission', 'shifts'], queryFn: () => authorized(token => getSchoolShifts(token, new URLSearchParams({ page: '1', page_size: '100', status: 'active' }))), retry: false })
+  const groups = useQuery({ queryKey: ['people', 'admission', 'groups'], enabled: !!chosenClass?.uses_groups, queryFn: () => authorized(token => getAcademicGroups(token, new URLSearchParams({ page: '1', page_size: '100', status: 'active' }))), retry: false })
+  const classSubjects = useQuery({ queryKey: ['people', 'admission', 'class-subjects', placement.class_id], enabled: !!placement.class_id, queryFn: () => authorized(token => getClassSubjects(token, placement.class_id, new URLSearchParams({ page: '1', page_size: '100' }))), retry: false })
+  const fourthOptions = (classSubjects.data?.items ?? []).filter(m => m.is_fourth_subject)
 
   // The session used last, else the active one.
   useEffect(() => {
@@ -103,6 +112,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
           ...details,
           father_name_en: details.father_name_en.trim() || parent(father, 'en'), father_name_bn: details.father_name_bn.trim() || parent(father, 'bn'),
           mother_name_en: details.mother_name_en.trim() || parent(mother, 'en'), mother_name_bn: details.mother_name_bn.trim() || parent(mother, 'bn'),
+          group_id: groupChoice.group_id, fourth_subject_id: groupChoice.fourth_subject_id,
         },
         account: { create: canCreateLogin && login.create, email: loginEmail.trim() },
         guardians: list,
@@ -129,7 +139,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
     } finally { setBusy(false) }
   }
   function another() {
-    setResult(null); setAttempt(newAdmissionKey()); setNameEN(''); setNameBN(''); setDob(''); setDetails(blankDetails()); setErrors({})
+    setResult(null); setAttempt(newAdmissionKey()); setNameEN(''); setNameBN(''); setDob(''); setDetails(blankDetails()); setGroupChoice({ group_id: '', fourth_subject_id: '' }); setErrors({})
     setGuardians(canManageGuardians ? [blankGuardian('Father', true)] : []); setLogin({ create: canCreateLogin, email: '', touched: false })
     // Start from the current suggestions; the refetch moves them on if they changed.
     setRoll({ value: placement.section_id && defaults.data ? String(defaults.data.next_roll) : '', touched: false })
@@ -159,7 +169,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
       <Step n={1} icon="school" title={t('c3StepPlacement')}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className={ui.label}>{t('sessionLabel')}<select required className={peopleField} value={placement.session_id} disabled={loading} onChange={e => setPlacement({ session_id: e.target.value, class_id: '', section_id: '' })}>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}{s.is_active ? ` · ${t('attnActive')}` : ''}</option>)}</select></label>
-          <label className={ui.label}>{t('classLabel')}<select required className={peopleField} value={placement.class_id} onChange={e => { setPlacement({ ...placement, class_id: e.target.value, section_id: '' }); setRoll({ value: '', touched: false }) }}><option value="">{t('selectClass')}</option>{classes.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <label className={ui.label}>{t('classLabel')}<select required className={peopleField} value={placement.class_id} onChange={e => { setPlacement({ ...placement, class_id: e.target.value, section_id: '' }); setRoll({ value: '', touched: false }); setGroupChoice({ group_id: '', fourth_subject_id: '' }) }}><option value="">{t('selectClass')}</option>{classes.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
           <label className={ui.label}>{t('sectionLabel')}<select required className={peopleField} value={placement.section_id} disabled={!placement.class_id} onChange={e => { setPlacement({ ...placement, section_id: e.target.value }); setRoll({ value: '', touched: false }) }}><option value="">{t('selectSection')}</option>{classSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
           <Field label={t('rollNo')} error={errors.roll} hint={!roll.touched && roll.value ? t('c3Suggested') : undefined}>
             <input id="admit-roll" inputMode="numeric" className={peopleField} value={roll.value} aria-invalid={!!errors.roll} onChange={e => { setRoll({ value: e.target.value, touched: true }); setErrors(x => ({ ...x, roll: undefined })) }} />
@@ -177,6 +187,10 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
           <label className={ui.label}>{t('studentNameBN')}<input maxLength={160} lang="bn" autoComplete="off" className={peopleField} value={nameBN} onChange={e => setNameBN(e.target.value)} /></label>
           <label className={ui.label}>{t('dateOfBirth')}<input type="date" max={todayInDhaka()} className={peopleField} value={dob} onChange={e => setDob(e.target.value)} /></label>
         </div>
+        {(chosenClass?.uses_groups || fourthOptions.length > 0) && <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {chosenClass?.uses_groups && <label className={ui.label}>{t('profileGroup')}<select className={peopleField} value={groupChoice.group_id} onChange={e => setGroupChoice(g => ({ ...g, group_id: e.target.value }))}><option value="">{t('profileNotProvided')}</option>{groups.data?.items.map(g => <option key={g.id} value={g.id}>{pickName(g, lang)}</option>)}</select></label>}
+          {fourthOptions.length > 0 && <label className={ui.label}>{t('profileFourthSubject')}<select className={peopleField} value={groupChoice.fourth_subject_id} onChange={e => setGroupChoice(g => ({ ...g, fourth_subject_id: e.target.value }))}><option value="">{t('profileNotProvided')}</option>{fourthOptions.map(m => <option key={m.subject_id} value={m.subject_id}>{lang === 'bn' ? m.subject_name_bn : m.subject_name_en} ({m.subject_code})</option>)}</select></label>}
+        </div>}
         <details className="group mt-4 rounded-xl border border-slate-200 bg-slate-50">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">{t('c3MoreDetails')}<Icon name="chevronDown" className="h-4 w-4 transition group-open:rotate-180" /></summary>
           <div className="grid grid-cols-1 gap-3 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -184,6 +198,8 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
             <label className={ui.label}>{t('profileBloodGroup')}<select className={peopleField} value={details.blood_group} onChange={e => setDetails({ ...details, blood_group: e.target.value })}><option value="">{t('profileNotProvided')}</option>{bloodGroups.map(g => <option key={g} value={g}>{g}</option>)}</select></label>
             <label className={ui.label}>{t('idCardStudentId')}<input maxLength={64} className={peopleField} value={details.student_code} onChange={e => setDetails({ ...details, student_code: e.target.value })} /></label>
             <label className={ui.label}>{t('profileAdmissionDate')}<input type="date" className={peopleField} value={details.admission_date} onChange={e => setDetails({ ...details, admission_date: e.target.value })} /></label>
+            {(shifts.data?.items.length ?? 0) > 0 && <label className={ui.label}>{t('profileShift')}<select className={peopleField} value={details.shift_id} onChange={e => setDetails({ ...details, shift_id: e.target.value })}><option value="">{t('profileNotProvided')}</option>{shifts.data?.items.map(s => <option key={s.id} value={s.id}>{pickName(s, lang)}</option>)}</select></label>}
+            <label className={ui.label}>{t('profileMedium')}<select className={peopleField} value={details.medium} onChange={e => setDetails({ ...details, medium: e.target.value as Medium })}><option value="">{t('profileNotProvided')}</option><option value="bangla">{t('mediumBangla')}</option><option value="english">{t('mediumEnglish')}</option></select></label>
             <label className={ui.label}>{t('profileFatherEN')}<input maxLength={160} className={peopleField} value={details.father_name_en} onChange={e => setDetails({ ...details, father_name_en: e.target.value })} /></label>
             <label className={ui.label}>{t('profileFatherBN')}<input maxLength={160} lang="bn" className={peopleField} value={details.father_name_bn} onChange={e => setDetails({ ...details, father_name_bn: e.target.value })} /></label>
             <label className={ui.label}>{t('profileMotherEN')}<input maxLength={160} className={peopleField} value={details.mother_name_en} onChange={e => setDetails({ ...details, mother_name_en: e.target.value })} /></label>

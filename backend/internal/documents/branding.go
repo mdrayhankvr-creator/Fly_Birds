@@ -40,8 +40,10 @@ func (b branding) assets(into map[string][]byte) {
 func (s *Service) branding(ctx context.Context, l lang) (branding, error) {
 	var row struct {
 		NameEN, NameBN, LogoURL, Address, AddressBN, Phone, Email, PrimaryColor, EIIN string
+		FoundedYear                                                                   *int
+		TranscriptBorder, TranscriptWatermark                                         bool
 	}
-	if err := s.db.WithContext(ctx).Raw("SELECT name_en, name_bn, logo_url, address, address_bn, phone, email, primary_color, eiin FROM school_settings WHERE id = 1").Scan(&row).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw("SELECT name_en, name_bn, logo_url, address, address_bn, phone, email, primary_color, eiin, founded_year, transcript_border, transcript_watermark FROM school_settings WHERE id = 1").Scan(&row).Error; err != nil {
 		return branding{}, err
 	}
 	var card struct {
@@ -65,6 +67,11 @@ func (s *Service) branding(ctx context.Context, l lang) (branding, error) {
 	if eiin := strings.TrimSpace(row.EIIN); eiin != "" {
 		b.school.EIIN = "EIIN: " + l.num(eiin)
 	}
+	// "Established <year>" (school settings); left out while the year is unset.
+	if row.FoundedYear != nil && *row.FoundedYear > 0 {
+		b.school.Established = fmt.Sprintf(l.t("established"), l.int(*row.FoundedYear))
+	}
+	b.school.Border, b.school.Watermark = row.TranscriptBorder, row.TranscriptWatermark
 	b.school.Signatory = l.pick(card.TitleEN, card.TitleBN)
 	if card.SignatureType != nil && len(card.Signature) > 0 {
 		b.signature = card.Signature
@@ -97,7 +104,8 @@ func (s *Service) branding(ctx context.Context, l lang) (branding, error) {
 		}
 	}
 	h := sha256.New()
-	fmt.Fprintf(h, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n", row.NameEN, row.NameBN, b.school.Contact, b.school.Accent, card.TitleEN, card.TitleBN, row.LogoURL)
+	fmt.Fprintf(h, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%v\n%v\n", row.NameEN, row.NameBN, b.school.Contact, b.school.Accent, card.TitleEN, card.TitleBN, row.LogoURL,
+		b.school.Established, row.TranscriptBorder, row.TranscriptWatermark)
 	h.Write(b.logo)
 	h.Write(b.signature)
 	b.key = hex.EncodeToString(h.Sum(nil))

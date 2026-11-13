@@ -170,6 +170,13 @@ export function SchoolSettingsPage({ permissions }: { permissions: string[] }) {
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]" checked={draft.student_photo_uploads ?? true} disabled={!canEditSettings} onChange={e => setField('student_photo_uploads', e.target.checked)} data-photo-setting />
             <span><span className="font-semibold">{t('uxPhotoSetting')}</span><span className="mt-0.5 block text-slate-600">{t('uxPhotoSettingHint')}</span></span>
           </label>
+        <fieldset className="mt-6 rounded-xl border border-slate-200 p-4 sm:p-5" aria-describedby="transcript-hint">
+          <legend className="px-1 text-base font-semibold text-slate-900">{t('transcriptSettingsTitle')}</legend>
+          <p id="transcript-hint" className="text-sm text-slate-600">{t('transcriptSettingsHint')}</p>
+          <div className="mt-3 flex flex-wrap gap-4">
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={draft.transcript_border} disabled={!canEditSettings} onChange={(event) => setField('transcript_border', event.target.checked)} />{t('transcriptBorderLabel')}</label>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" className="h-4 w-4 accent-[var(--brand-primary)]" checked={draft.transcript_watermark} disabled={!canEditSettings} onChange={(event) => setField('transcript_watermark', event.target.checked)} />{t('transcriptWatermarkLabel')}</label>
+          </div>
         </fieldset>
         <div className="mt-6 rounded-xl border border-slate-200 p-5" data-theme-preview={draft.dashboard_theme} style={previewStyle}>
           <h3 className="text-lg font-semibold">{t('preview')}</h3>

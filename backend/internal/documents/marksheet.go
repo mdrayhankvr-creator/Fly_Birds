@@ -2,6 +2,7 @@ package documents
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,15 +15,20 @@ import (
 // The data a marksheet template reads (templates/marksheet.typ).
 
 type schoolData struct {
-	Name      string `json:"name"`
-	NameAlt   string `json:"name_alt"`
-	Contact   string `json:"contact"`
-	EIIN      string `json:"eiin"` // "EIIN: …" or ""
-	Accent    string `json:"accent"`
-	Initials  string `json:"initials"`
-	Logo      string `json:"logo"`      // asset name or ""
-	Signature string `json:"signature"` // asset name or ""
-	Signatory string `json:"signatory"`
+	Name        string `json:"name"`
+	NameAlt     string `json:"name_alt"`
+	Contact     string `json:"contact"`
+	EIIN        string `json:"eiin"`        // "EIIN: …" or ""
+	Established string `json:"established"` // "Established 1985" or ""
+	Accent      string `json:"accent"`
+	Initials    string `json:"initials"`
+	Logo        string `json:"logo"`      // asset name or ""
+	Signature   string `json:"signature"` // asset name or ""
+	Signatory   string `json:"signatory"`
+	// Transcript v3 decorations (school settings, both on by default): the
+	// certificate border and the faint logo watermark.
+	Border    bool `json:"border"`
+	Watermark bool `json:"watermark"`
 }
 
 type gradeRow struct {
@@ -32,9 +38,11 @@ type gradeRow struct {
 }
 
 // sheetCell is a mark and the full marks it is out of ("" when not shown).
+// Failed marks a component below its own pass marks.
 type sheetCell struct {
-	Obt  string `json:"obt"`
-	Full string `json:"full"`
+	Obt    string `json:"obt"`
+	Full   string `json:"full"`
+	Failed bool   `json:"failed"`
 }
 
 // paperRow is one paper of a combined subject (Bangla 1st and 2nd paper …).
@@ -68,23 +76,30 @@ type signature struct {
 }
 
 type sheetStudent struct {
-	Name        string      `json:"name"`
-	NameAlt     string      `json:"name_alt"`
-	Father      string      `json:"father"`
-	Mother      string      `json:"mother"`
-	DOB         string      `json:"dob"`
-	StudentID   string      `json:"student_id"`
-	Class       string      `json:"class"`
-	Section     string      `json:"section"`
-	Roll        string      `json:"roll"`
-	Session     string      `json:"session"`
-	Exam        string      `json:"exam"`
-	Photo       string      `json:"photo"`
-	QR          string      `json:"qr"`
-	Withheld    bool        `json:"withheld"`
-	Rows        []sheetRow  `json:"rows"`
-	Optional    []sheetRow  `json:"optional"`
-	Total       string      `json:"total"`
+	Name      string     `json:"name"`
+	NameAlt   string     `json:"name_alt"`
+	Father    string     `json:"father"`
+	Mother    string     `json:"mother"`
+	DOB       string     `json:"dob"`
+	StudentID string     `json:"student_id"`
+	Class     string     `json:"class"`
+	Section   string     `json:"section"`
+	Roll      string     `json:"roll"`
+	Session   string     `json:"session"`
+	Exam      string     `json:"exam"`
+	Medium    string     `json:"medium"` // version: Bangla/English medium, "" hides the row
+	Shift     string     `json:"shift"`  // "" hides the row
+	Group     string     `json:"group"`  // "" hides the row
+	Fourth    string     `json:"fourth"` // the 4th subject's name, "" hides the row
+	Photo     string     `json:"photo"`
+	QR        string     `json:"qr"`
+	Withheld  bool       `json:"withheld"`
+	Rows      []sheetRow `json:"rows"`
+	Optional  []sheetRow `json:"optional"`
+	Total     string     `json:"total"`
+	// TotalMarks and FullMarks are the Total/GPA row's two numbers.
+	TotalMarks  string      `json:"total_marks"`
+	FullMarks   string      `json:"full_marks"`
 	GPA         string      `json:"gpa"`
 	GPAWithout  string      `json:"gpa_without"`
 	Letter      string      `json:"letter"`
@@ -93,7 +108,9 @@ type sheetStudent struct {
 	FailedCount string      `json:"failed_count"`
 	ClassPos    string      `json:"class_pos"`
 	SectionPos  string      `json:"section_pos"`
-	Attendance  string      `json:"attendance"`
+	Held        string      `json:"held"`         // classes held in the period
+	PresentDays string      `json:"present_days"` // days present
+	AbsentDays  string      `json:"absent_days"`  // days absent
 	Published   string      `json:"published"`
 	Comment     string      `json:"comment"`
 	Signatures  []signature `json:"signatures"`
@@ -188,6 +205,25 @@ func layoutOf(set exams.DocSet) layout {
 			}
 			lo.termNames = append(lo.termNames, name)
 		}
+	case set.Assessment != nil:
+		// An exam's own result: the component columns come from the
+		// published lines (an exam without components shows totals only).
+		lo.bands = set.Assessment.Bands
+		if set.Assessment.GPARounding == "truncate" {
+			lo.rounding = calc.Truncate
+		}
+		seen := map[string]bool{}
+		for _, r := range set.Results {
+			for _, line := range r.Outputs.Subjects {
+				for _, c := range line.Components {
+					if !seen[c.Key] {
+						seen[c.Key] = true
+						lo.compKeys = append(lo.compKeys, c.Key)
+					}
+				}
+			}
+		}
+		lo.compKeys = orderComponents(lo.compKeys)
 	}
 	return lo
 }
@@ -254,6 +290,10 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 	var inputs exams.TermInputs
 	if lo.scope == exams.ScopeTerm {
 		inputs, _ = exams.TermInputsOf(r.Inputs)
+	}
+	var examInputs exams.AssessmentInputs
+	if lo.scope == exams.ScopeAssessment {
+		examInputs, _ = exams.AssessmentInputsOf(r.Inputs)
 	}
 	required, optional = []sheetRow{}, []sheetRow{}
 	for _, line := range r.Outputs.Subjects {
@@ -333,6 +373,23 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 				}
 				row.Note = strings.Join(parts, " + ")
 			}
+		case exams.ScopeAssessment:
+			row.Parts = lo.componentParts(l, line.Components)
+			if line.Status == "absent" {
+				row.Note = l.t("absent")
+			}
+			if len(line.SubjectIDs) > 1 {
+				for _, in := range examInputs.Lines {
+					if !slices.Contains(line.SubjectIDs, in.SubjectID) {
+						continue
+					}
+					paper := paperRow{Code: l.code(in.Code), Subject: l.pick(in.NameEN, in.NameBN), Parts: lo.componentParts(l, in.Components)}
+					if paper.Subject == "" {
+						paper.Subject = row.Subject
+					}
+					row.Papers = append(row.Papers, paper)
+				}
+			}
 		}
 		if line.Optional {
 			optional = append(optional, row)
@@ -343,12 +400,38 @@ func (lo layout) rows(l lang, r exams.DocResult, top map[string]float64, names m
 	return required, optional
 }
 
+// componentParts lays a published line's components out over the layout's
+// component columns (assessment scope). A component below its own pass marks
+// is marked failed.
+func (lo layout) componentParts(l lang, comps []exams.OutComponent) []sheetCell {
+	parts := make([]sheetCell, len(lo.compKeys))
+	for i, key := range lo.compKeys {
+		parts[i] = sheetCell{Obt: "—"}
+		for _, c := range comps {
+			if !strings.EqualFold(c.Key, key) {
+				continue
+			}
+			parts[i].Obt = l.marks(c.Marks)
+			if c.Full != "" {
+				full := c.Full
+				parts[i].Full = l.marks(&full)
+			}
+			if c.Marks != nil && c.Pass != nil {
+				got, err1 := strconv.ParseFloat(*c.Marks, 64)
+				pass, err2 := strconv.ParseFloat(*c.Pass, 64)
+				parts[i].Failed = err1 == nil && err2 == nil && got < pass
+			}
+		}
+	}
+	return parts
+}
+
 // termParts sums each component's obtained and full marks over the given
 // papers of the term's exams. With row set, an absence is noted on it.
 func (lo layout) termParts(l lang, inputs exams.TermInputs, subjectIDs []string, row *sheetRow) []sheetCell {
 	parts := make([]sheetCell, len(lo.compKeys))
 	for i, key := range lo.compKeys {
-		sum, full, any, anyFull := 0.0, 0.0, false, false
+		sum, full, pass, any, anyFull, anyPass := 0.0, 0.0, 0.0, false, false, false
 		for _, sid := range subjectIDs {
 			for ak := range lo.examKeys {
 				m, ok := inputs.Marks[ak][sid]
@@ -361,6 +444,11 @@ func (lo layout) termParts(l lang, inputs exams.TermInputs, subjectIDs []string,
 					}
 					if v, err := strconv.ParseFloat(c.Full, 64); err == nil {
 						full, anyFull = full+v, true
+					}
+					if c.Pass != nil {
+						if v, err := strconv.ParseFloat(*c.Pass, 64); err == nil {
+							pass, anyPass = pass+v, true
+						}
 					}
 					if c.Marks != nil {
 						if v, err := strconv.ParseFloat(*c.Marks, 64); err == nil {
@@ -388,6 +476,7 @@ func (lo layout) termParts(l lang, inputs exams.TermInputs, subjectIDs []string,
 		if any {
 			s := markText(sum)
 			parts[i].Obt = l.marks(&s)
+			parts[i].Failed = anyPass && sum < pass
 		}
 		if anyFull {
 			s := markText(full)
@@ -470,15 +559,16 @@ func outcomeText(l lang, outcome string) string {
 	return l.t("incomplete")
 }
 
-// posText is a merit position, "3 of 60" when the count is known.
+// posText is a merit position in ordinal words, "3rd of 60" (in Bangla
+// "৬০ জনের মধ্যে ৩য়") when the count is known.
 func posText(l lang, p *int, of int) string {
 	if p == nil || *p <= 0 {
 		return "—"
 	}
 	if of > 0 {
-		return fmt.Sprintf(l.t("pos_of"), l.int(*p), l.int(of))
+		return fmt.Sprintf(l.t("pos_of"), l.ordinal(*p), l.int(of))
 	}
-	return l.int(*p)
+	return l.ordinal(*p)
 }
 
 func rollText(l lang, roll *int) string {

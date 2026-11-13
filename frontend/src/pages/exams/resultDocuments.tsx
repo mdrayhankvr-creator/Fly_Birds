@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
 import { saveBlob } from '../../api/admin'
-import { downloadDocument, downloadMyMarksheet, getDocument, getDocumentClasses, requestDocument, type DocumentClass, type DocumentKind, type DocumentLanguage, type DocumentRequest, type ResultDocument } from '../../api/documents'
+import { downloadDocument, downloadMyMarksheet, getDocument, getDocumentClasses, requestDocument, type DocumentClass, type DocumentKind, type DocumentLanguage, type DocumentRequest, type DocumentScope, type ResultDocument } from '../../api/documents'
 import { Icon, type IconName } from '../../components/icons'
 import { CardTitle, Notice, Skeleton, ui } from '../attendanceUi'
 import { Progress } from '../marks/examUi'
@@ -91,8 +91,9 @@ function RunStatus({ run, label }: { run: Run | null; label: string }) {
   </div>
 }
 
-// ClassDocuments is the documents of one class's term or annual result.
-export function ClassDocuments({ scope, scopeId, classId, published, provisionalAllowed }: { scope: 'term' | 'annual'; scopeId: string; classId: string; published: boolean; provisionalAllowed: boolean }) {
+// ClassDocuments is the documents of one class's term, annual or exam
+// (assessment) result. An exam's own result prints marksheets only.
+export function ClassDocuments({ scope, scopeId, classId, published, provisionalAllowed }: { scope: DocumentScope; scopeId: string; classId: string; published: boolean; provisionalAllowed: boolean }) {
   const { t } = useTranslation()
   const authorized = usePeopleApi()
   const uid = useId()
@@ -119,6 +120,7 @@ export function ClassDocuments({ scope, scopeId, classId, published, provisional
         </label>}
       </div>
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{KINDS.map(k => <li key={k.kind}>
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{(scope === 'assessment' ? KINDS.filter(k => k.kind === 'marksheets') : KINDS).map(k => <li key={k.kind}>
         <button type="button" disabled={busy} onClick={() => void start(`${k.kind}:${language}`, { ...base, kind: k.kind })}
           className="flex h-full w-full items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-60">
           <span aria-hidden="true" className="ds-soft ds-ink grid h-9 w-9 shrink-0 place-items-center rounded-xl"><Icon name={k.icon} className="h-[18px] w-[18px]" /></span>

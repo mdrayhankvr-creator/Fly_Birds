@@ -47,7 +47,7 @@ export const marksheetAdmitTranslations = {
     msVerifySupersededHint: 'The routine was amended after this card was printed. Ask the school for a new card.', msVerifyNotFound: 'This admit card could not be found.',
     msVerifyChecking: 'Checking the admit card…', msVerifyTerm: 'Examination', msVerifyClass: 'Class and section', msVerifyVersion: 'Routine version', msVerifyIssued: 'Printed', msVerifyPrivacy: 'This check shows no name or identifier.',
 
-    msMarksheetPdf: 'Marksheet (PDF)', msMarksheetLater: 'The printable marksheet is ready once this term’s result is published.',
+    msMarksheetPdf: 'Marksheet (PDF)', msMarksheetLater: 'The marksheet PDF is ready once this exam’s result is published.',
   },
   bn: {
     msNavComments: 'শ্রেণি শিক্ষকের মন্তব্য', msNavAdmit: 'প্রবেশপত্র',
@@ -95,6 +95,6 @@ export const marksheetAdmitTranslations = {
     msVerifySupersededHint: 'এই প্রবেশপত্র ছাপার পরে রুটিন সংশোধন করা হয়েছে। বিদ্যালয় থেকে নতুন প্রবেশপত্র নিন।', msVerifyNotFound: 'এই প্রবেশপত্র পাওয়া যায়নি।',
     msVerifyChecking: 'প্রবেশপত্র যাচাই হচ্ছে…', msVerifyTerm: 'পরীক্ষা', msVerifyClass: 'শ্রেণি ও শাখা', msVerifyVersion: 'রুটিন সংস্করণ', msVerifyIssued: 'ছাপা হয়েছে', msVerifyPrivacy: 'এই যাচাইয়ে কোনো নাম বা পরিচয় নম্বর দেখানো হয় না।',
 
-    msMarksheetPdf: 'ফলাফল পত্র (PDF)', msMarksheetLater: 'এই সাময়িকের ফলাফল প্রকাশিত হলে ছাপার উপযোগী ফলাফল পত্র পাওয়া যাবে।',
+    msMarksheetPdf: 'ফলাফল পত্র (PDF)', msMarksheetLater: 'এই পরীক্ষার ফলাফল প্রকাশিত হলে ফলাফল পত্রের পিডিএফ পাওয়া যাবে।',
   },
 }

@@ -97,6 +97,7 @@ var columnAliases = map[string]string{
 	"roll_no": "roll", "roll_number": "roll", "dob": "date_of_birth", "birth_date": "date_of_birth",
 	"class_name": "class", "section_name": "section", "name": "name_en", "student_name": "name_en",
 	"email": "login_email", "student_email": "login_email",
+	"version": "medium", "shift_name": "shift", "group_name": "group", "4th_subject": "fourth_subject", "optional_subject": "fourth_subject",
 }
 
 func headerKey(s string) string {
@@ -126,6 +127,9 @@ func parseBulkDate(s string) (string, bool) {
 }
 
 var genders = map[string]string{"male": "male", "m": "male", "boy": "male", "ছেলে": "male", "female": "female", "f": "female", "girl": "female", "মেয়ে": "female", "other": "other"}
+
+// mediums maps the version (medium of instruction) column's accepted values.
+var mediums = map[string]string{"bangla": "bangla", "bengali": "bangla", "বাংলা": "bangla", "bn": "bangla", "english": "english", "ইংরেজি": "english", "en": "english"}
 
 // PreviewBulk checks a spreadsheet without writing anything.
 func (s *Service) PreviewBulk(ctx context.Context, a Actor, sessionID string, data []byte) (BulkPreview, error) {
@@ -284,8 +288,11 @@ func checkBulkTx(tx *gorm.DB, sessionID string, rows [][]string) (BulkPreview, [
 	}
 
 	// What the database already holds, fetched once.
-	var classes []struct{ ID, Name string }
-	if err := tx.Table("academic_classes").Select("id, name").Scan(&classes).Error; err != nil {
+	var classes []struct {
+		ID, Name   string
+		UsesGroups bool
+	}
+	if err := tx.Table("academic_classes").Select("id, name, uses_groups").Scan(&classes).Error; err != nil {
 		return preview, nil, err
 	}
 	classByName := map[string]string{}
@@ -344,6 +351,47 @@ func checkBulkTx(tx *gorm.DB, sessionID string, rows [][]string) (BulkPreview, [
 		}
 		for _, e := range found {
 			takenEmails[e] = true
+		}
+	}
+	// Shifts, groups and fourth subjects, matched by name (English or Bangla,
+	// case-insensitively) or, for subjects, by code.
+	var shiftRows []struct{ ID, NameEN, NameBN string }
+	if err := tx.Table("school_shifts").Select("id, name_en, name_bn").Where("is_active").Scan(&shiftRows).Error; err != nil {
+		return preview, nil, err
+	}
+	shiftByName := map[string]string{}
+	for _, s := range shiftRows {
+		shiftByName[strings.ToLower(s.NameEN)] = s.ID
+		if s.NameBN != "" {
+			shiftByName[strings.ToLower(s.NameBN)] = s.ID
+		}
+	}
+	var groupRows []struct{ ID, NameEN, NameBN string }
+	if err := tx.Table("academic_groups").Select("id, name_en, name_bn").Where("is_active").Scan(&groupRows).Error; err != nil {
+		return preview, nil, err
+	}
+	groupByName := map[string]string{}
+	for _, g := range groupRows {
+		groupByName[strings.ToLower(g.NameEN)] = g.ID
+		if g.NameBN != "" {
+			groupByName[strings.ToLower(g.NameBN)] = g.ID
+		}
+	}
+	groupClasses := map[string]bool{} // class_id -> uses_groups
+	for _, c := range classes {
+		groupClasses[c.ID] = c.UsesGroups
+	}
+	var fourthRows []struct{ ClassID, SubjectID, Code, NameEN, NameBN string }
+	if err := tx.Table("academic_class_subjects AS acs").Joins("JOIN academic_subjects AS sub ON sub.id=acs.subject_id").
+		Select("acs.class_id, acs.subject_id, sub.code, sub.name_en, sub.name_bn").Where("acs.is_fourth_subject").Scan(&fourthRows).Error; err != nil {
+		return preview, nil, err
+	}
+	fourthByName := map[string]string{} // class|lower(code or name) -> subject id
+	for _, f := range fourthRows {
+		fourthByName[f.ClassID+"|"+strings.ToLower(f.Code)] = f.SubjectID
+		fourthByName[f.ClassID+"|"+strings.ToLower(f.NameEN)] = f.SubjectID
+		if f.NameBN != "" {
+			fourthByName[f.ClassID+"|"+strings.ToLower(f.NameBN)] = f.SubjectID
 		}
 	}
 
@@ -447,6 +495,38 @@ func checkBulkTx(tx *gorm.DB, sessionID string, rows [][]string) (BulkPreview, [
 		}{{&v.StudentCode, "student_id"}, {&v.FatherNameEN, "father_name_en"}, {&v.FatherNameBN, "father_name_bn"}, {&v.MotherNameEN, "mother_name_en"}, {&v.MotherNameBN, "mother_name_bn"}, {&v.PresentAddress, "present_address"}, {&v.PermanentAddress, "permanent_address"}} {
 			value := cell(row, f.key)
 			*f.field = &value
+		}
+		if shift := cell(row, "shift"); shift != "" {
+			if id, ok := shiftByName[strings.ToLower(shift)]; ok {
+				v.ShiftID = &id
+			} else {
+				fail("shift_not_found")
+			}
+		}
+		if medium := strings.ToLower(cell(row, "medium")); medium != "" {
+			if norm, ok := mediums[medium]; ok {
+				v.Medium = &norm
+			} else {
+				fail("bad_medium")
+			}
+		}
+		if group := cell(row, "group"); group != "" {
+			id, ok := groupByName[strings.ToLower(group)]
+			switch {
+			case !ok:
+				fail("group_not_found")
+			case v.ClassID != "" && !groupClasses[v.ClassID]:
+				fail("class_without_groups")
+			default:
+				v.GroupID = &id
+			}
+		}
+		if fourth := cell(row, "fourth_subject"); fourth != "" && v.ClassID != "" {
+			if id, ok := fourthByName[v.ClassID+"|"+strings.ToLower(fourth)]; ok {
+				v.FourthSubjectID = &id
+			} else {
+				fail("fourth_subject_not_found")
+			}
 		}
 		if email := strings.ToLower(cell(row, "login_email")); email != "" {
 			if e, err := auth.NormalizeEmail(email); err != nil || auth.IsPlaceholderEmail(e) {

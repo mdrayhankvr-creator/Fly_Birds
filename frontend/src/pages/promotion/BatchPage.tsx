@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
-import { ApiError, getAcademicSections } from '../../api/client'
+import { ApiError, getAcademicGroups, getAcademicSections, getClassSubjects } from '../../api/client'
 import {
   applyBatch, approveBatch, arrangeRolls, discardBatch, getBatch, refreshBatch, revertBatch, updateItem,
   type Decision, type ItemInput, type PromotionBatch, type PromotionItem, type RollPolicy,
@@ -236,7 +236,8 @@ function Students({ b, editable, onEdit }: { b: PromotionBatch; editable: boolea
     { value: 'issues', label: t('pmF_issues'), n: b.items.filter(i => blockedIds.has(i.student_id)).length },
   ]
   const place = (i: PromotionItem): ReactNode => i.target_class_name
-    ? <><span className="font-medium text-slate-900">{i.target_class_name}</span>{' · '}{i.target_section_name ?? <span className="text-rose-700">{t('pmNoSection')}</span>}{i.target_roll_no !== null && <> · {t('pmRoll', { n: num(i.target_roll_no) })}</>}</>
+    ? <><span className="font-medium text-slate-900">{i.target_class_name}</span>{' · '}{i.target_section_name ?? <span className="text-rose-700">{t('pmNoSection')}</span>}{i.target_roll_no !== null && <> · {t('pmRoll', { n: num(i.target_roll_no) })}</>}
+      {(i.target_group_name || i.target_fourth_subject_name) && <span className="block text-xs text-slate-600">{[i.target_group_name && `${t('profileGroup')}: ${i.target_group_name}`, i.target_fourth_subject_name && `${t('profileFourthSubject')}: ${i.target_fourth_subject_name}`].filter(Boolean).join(' · ')}</span>}</>
     : <span className="text-slate-500">{i.decision ? t(`pmLeaves_${i.decision}`) : '—'}</span>
   const notes = (i: PromotionItem) => <>
     {i.decision && i.decision !== i.recommendation && <span className="mt-1 block text-xs text-amber-800">{t('pmReason')}: {i.reason}</span>}
@@ -284,15 +285,27 @@ function Students({ b, editable, onEdit }: { b: PromotionBatch; editable: boolea
 function EditItem({ b, item, busy, onClose, onSave }: { b: PromotionBatch; item: PromotionItem; busy: boolean; onClose: () => void; onSave: (input: ItemInput) => Promise<void> }) {
   const { t } = useTranslation()
   const authorized = useAuthorized()
+  const { i18n } = useTranslation()
   const [decision, setDecision] = useState<Decision | ''>(item.decision ?? '')
   const [reason, setReason] = useState(item.reason)
   const [section, setSection] = useState(item.target_section_id ?? '')
   const [roll, setRoll] = useState(item.target_roll_no === null ? '' : String(item.target_roll_no))
+  const [group, setGroup] = useState(item.target_group_id ?? '')
+  const [fourth, setFourth] = useState(item.target_fourth_subject_id ?? '')
   const targetClass = decision === 'promote' ? b.next_class_id : decision === 'repeat' ? b.class_id : null
   const sections = useQuery({
     queryKey: ['pm-sections', b.to_session_id, targetClass], retry: false, enabled: !!targetClass,
     queryFn: () => authorized(token => getAcademicSections(token, new URLSearchParams({ session_id: b.to_session_id, class_id: targetClass ?? '', page: '1', page_size: '100' }))),
   })
+  const groups = useQuery({
+    queryKey: ['pm-groups'], retry: false, enabled: !!targetClass && item.target_class_uses_groups,
+    queryFn: () => authorized(token => getAcademicGroups(token, new URLSearchParams({ page: '1', page_size: '100', status: 'active' }))),
+  })
+  const targetSubjects = useQuery({
+    queryKey: ['pm-class-subjects', targetClass], retry: false, enabled: !!targetClass,
+    queryFn: () => authorized(token => getClassSubjects(token, targetClass ?? '', new URLSearchParams({ page: '1', page_size: '100' }))),
+  })
+  const fourthOptions = (targetSubjects.data?.items ?? []).filter(m => m.is_fourth_subject)
   const override = decision !== '' && decision !== item.recommendation
   const rollNo = roll.trim() === '' ? null : Number(roll)
   const rollOk = rollNo === null || (Number.isInteger(rollNo) && rollNo >= 1 && rollNo <= 999999)
@@ -307,6 +320,8 @@ function EditItem({ b, item, busy, onClose, onSave }: { b: PromotionBatch; item:
     if (reason.trim() !== item.reason) input.reason = reason.trim()
     if (targetClass && sameClass && section && section !== item.target_section_id) input.target_section_id = section
     if (targetClass && sameClass && rollNo !== null && rollNo !== item.target_roll_no) input.target_roll_no = rollNo
+    if (targetClass && sameClass && item.target_class_uses_groups && group !== (item.target_group_id ?? '')) input.target_group_id = group
+    if (targetClass && sameClass && fourth !== (item.target_fourth_subject_id ?? '')) input.target_fourth_subject_id = fourth
     if (Object.keys(input).length === 0) { onClose(); return }
     void onSave(input)
   }
@@ -333,6 +348,18 @@ function EditItem({ b, item, busy, onClose, onSave }: { b: PromotionBatch; item:
           </select></label>
         <label className={ui.label}>{t('pmTargetRoll')}
           <input className={ui.field} inputMode="numeric" value={roll} disabled={!sameClass} onChange={e => setRoll(e.target.value.replace(/[^0-9]/g, ''))} aria-invalid={!rollOk} /></label>
+        {item.target_class_uses_groups && <label className={ui.label}>{t('profileGroup')}
+          <select className={ui.field} value={group} disabled={!sameClass} onChange={e => setGroup(e.target.value)}>
+            <option value="">{t('profileNotProvided')}</option>
+            {(groups.data?.items ?? []).map(g => <option key={g.id} value={g.id}>{i18n.language === 'bn' && g.name_bn ? g.name_bn : g.name_en}</option>)}
+          </select>
+          {item.source_group_name && <span className="mt-0.5 block text-xs font-normal text-slate-500">{t('pmCarriedFrom', { value: item.source_group_name })}</span>}</label>}
+        {fourthOptions.length > 0 && <label className={ui.label}>{t('profileFourthSubject')}
+          <select className={ui.field} value={fourth} disabled={!sameClass} onChange={e => setFourth(e.target.value)}>
+            <option value="">{t('profileNotProvided')}</option>
+            {fourthOptions.map(m => <option key={m.subject_id} value={m.subject_id}>{i18n.language === 'bn' ? m.subject_name_bn : m.subject_name_en} ({m.subject_code})</option>)}
+          </select>
+          {item.source_fourth_subject_name && <span className="mt-0.5 block text-xs font-normal text-slate-500">{t('pmCarriedFrom', { value: item.source_fourth_subject_name })}</span>}</label>}
         <p className="text-xs text-slate-500 sm:col-span-2">{sameClass ? t('pmPlaceHint') : t('pmPlaceAfterSave')}</p>
       </div>}
     </div>

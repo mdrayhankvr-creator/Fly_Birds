@@ -845,6 +845,79 @@ paths:
       description: Requires academics:manage, an administrator account, and the academics module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Assignment removed }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /academic/groups:
+    get:
+      operationId: listAcademicGroups
+      tags: [academic]
+      summary: List the school's groups (Science, Humanities and so on)
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/AcademicStatus' }]
+      responses: { '200': { description: Groups, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListPageResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createAcademicGroup
+      tags: [academic]
+      summary: Create a group
+      description: Requires academics:manage, an administrator account, and the academics module. English names are case-insensitively unique.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListInput' } } } }
+      responses: { '201': { description: Created group, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { $ref: '#/components/responses/AcademicConflict' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /academic/groups/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    patch:
+      operationId: updateAcademicGroup
+      tags: [academic]
+      summary: Update a group
+      description: Requires academics:manage, an administrator account, and the academics module. All editable fields are required.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListInput' } } } }
+      responses: { '200': { description: Updated group, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /academic/shifts:
+    get:
+      operationId: listSchoolShifts
+      tags: [academic]
+      summary: List the school's shifts
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Search' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/AcademicStatus' }]
+      responses: { '200': { description: Shifts, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListPageResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: createSchoolShift
+      tags: [academic]
+      summary: Create a shift
+      description: Requires academics:manage, an administrator account, and the academics module. English names are case-insensitively unique.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListInput' } } } }
+      responses: { '201': { description: Created shift, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { $ref: '#/components/responses/AcademicConflict' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /academic/shifts/{id}:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    patch:
+      operationId: updateSchoolShift
+      tags: [academic]
+      summary: Update a shift
+      description: Requires academics:manage, an administrator account, and the academics module. All editable fields are required.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListInput' } } } }
+      responses: { '200': { description: Updated shift, content: { application/json: { schema: { $ref: '#/components/schemas/NamedListResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/AcademicConflict' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /academic/classes/{id}/groups:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    get:
+      operationId: listClassGroups
+      tags: [academic]
+      summary: List every group with its subjects in a class
+      description: Requires academics:read and the academics module.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Groups with their subject ids in the class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassGroupsResponse' } } } }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /academic/classes/{id}/groups/{groupId}/subjects:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }, { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }]
+    put:
+      operationId: setClassGroupSubjects
+      tags: [academic]
+      summary: Replace a group's subjects in a class
+      description: Requires academics:manage, an administrator account, and the academics module. Every subject must already be assigned to the class.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GroupSubjectsInput' } } } }
+      responses: { '200': { description: Groups with their subject ids in the class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassGroupsResponse' } } } }, '400': { $ref: '#/components/responses/InvalidRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /staff/employees:
     get:
       operationId: listEmployees
@@ -4479,8 +4552,12 @@ components:
         present_address: { type: string, maxLength: 500 }
         permanent_address: { type: string, maxLength: 500 }
         admission_date: { type: string, description: 'YYYY-MM-DD, not before date_of_birth and at most one year ahead. Omit to keep; empty clears.' }
+        shift_id: { type: string, nullable: true, description: 'A shift from the school''s list. Omit to keep; empty clears.' }
+        medium: { type: string, enum: ['', bangla, english], description: 'The version (medium of instruction). Omit to keep.' }
+        group_id: { type: string, nullable: true, description: 'The session''s group; the class must use groups. Omit to keep; empty clears.' }
+        fourth_subject_id: { type: string, nullable: true, description: 'The session''s fourth subject; must be a fourth subject of the class. Omit to keep; empty clears.' }
     Student:
-      allOf: [{ $ref: '#/components/schemas/StudentInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string }, section_name: { type: string }, has_photo: { type: boolean }, primary_guardian: { $ref: '#/components/schemas/GuardianSummary' } } }]
+      allOf: [{ $ref: '#/components/schemas/StudentInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid }, session_name: { type: string }, class_name: { type: string }, section_name: { type: string }, has_photo: { type: boolean }, shift_name_en: { type: string }, shift_name_bn: { type: string }, group_name_en: { type: string }, group_name_bn: { type: string }, class_uses_groups: { type: boolean }, fourth_subject_name_en: { type: string }, fourth_subject_name_bn: { type: string }, primary_guardian: { $ref: '#/components/schemas/GuardianSummary' } } }]
     GuardianSummary:
       type: object
       description: The primary guardian from the existing student-guardian link; present on single-student reads only.
@@ -4770,8 +4847,45 @@ components:
         name: { type: string, minLength: 1, maxLength: 120 }
         display_order: { type: integer, minimum: 0, maximum: 100000 }
         is_active: { type: boolean }
+        uses_groups: { type: boolean, description: 'Students of the class choose a group (Science, Humanities and so on). Omitted on update, the saved value is kept.' }
     AcademicClass:
       allOf: [{ $ref: '#/components/schemas/ClassInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid } } }]
+    NamedListInput:
+      type: object
+      required: [name_en, display_order, is_active]
+      properties:
+        name_en: { type: string, minLength: 1, maxLength: 80 }
+        name_bn: { type: string, maxLength: 80 }
+        display_order: { type: integer, minimum: 0, maximum: 100000 }
+        is_active: { type: boolean }
+    NamedListItem:
+      allOf: [{ $ref: '#/components/schemas/NamedListInput' }, { type: object, required: [id], properties: { id: { type: string, format: uuid } } }]
+    NamedListResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/NamedListItem' } } }
+    NamedListPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/NamedListItem' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
+    ClassGroupsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                required: [group_id, name_en, name_bn, is_active, subject_ids]
+                properties:
+                  group_id: { type: string, format: uuid }
+                  name_en: { type: string }
+                  name_bn: { type: string }
+                  is_active: { type: boolean }
+                  subject_ids: { type: array, items: { type: string, format: uuid } }
+    GroupSubjectsInput:
+      type: object
+      required: [subject_ids]
+      properties:
+        subject_ids: { type: array, maxItems: 100, items: { type: string, format: uuid } }
     ClassResponse: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AcademicClass' } } }
     ClassPageResponse: { type: object, required: [data], properties: { data: { type: object, required: [items, total, page, page_size], properties: { items: { type: array, items: { $ref: '#/components/schemas/AcademicClass' } }, total: { type: integer }, page: { type: integer }, page_size: { type: integer } } } } }
     SectionInput:
