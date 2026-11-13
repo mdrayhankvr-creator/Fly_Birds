@@ -91,7 +91,7 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
   return <div className="space-y-6">
     <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} actions={canManage ? <><Link to="/admin/students/admit" className={ui.primary}><Icon name="plus" className="h-4 w-4" />{t('c3AdmitButton')}</Link><Link to="/admin/students/import" className={ui.secondary}><Icon name="upload" className="h-4 w-4" />{t('c5BulkTitle')}</Link><Link to="/admin/students/cards" className={ui.secondary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintBulk')}</Link>{canCreateLogins && <Link to="/admin/students/logins" className={ui.secondary}><Icon name="lock" className="h-4 w-4" />{t('c5LoginsTitle')}</Link>}</> : undefined} />
     {error && <Notice tone="error">{error}</Notice>}{message && <Notice tone="success">{message}</Notice>}
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
+    <div className="grid grid-cols-1 min-w-0 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
       <section className={`${ui.card} min-w-0 p-4 sm:p-6`} aria-labelledby="students-list-title">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="students-list-title" className={`${ui.sectionTitle} flex items-center gap-2`}><span aria-hidden="true" className="ds-soft ds-ink grid h-9 w-9 place-items-center rounded-xl"><Icon name="users" className="h-[18px] w-[18px]" /></span>{t('studentsHeading')}</h2>
@@ -133,7 +133,7 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
               <label className={ui.label}>{t('admissionNo')}<input required maxLength={64} className={peopleField} value={form.admission_no} onChange={e => set('admission_no', e.target.value)} /></label>
               <label className={ui.label}>{t('studentNameEN')}<input required maxLength={160} className={peopleField} value={form.name_en} onChange={e => set('name_en', e.target.value)} /></label>
               <label className={ui.label}>{t('studentNameBN')}<input maxLength={160} lang="bn" className={peopleField} value={form.name_bn} onChange={e => set('name_bn', e.target.value)} /></label>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className={ui.label}>{t('dateOfBirth')}<input type="date" className={peopleField} value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} /></label>
                 <label className={ui.label}>{t('studentStatus')}<select className={peopleField} value={form.status} onChange={e => set('status', e.target.value as StudentInput['status'])}>{(['active','inactive','graduated','transferred'] as const).map(s => <option key={s} value={s}>{t(`${s}Student`)}</option>)}</select></label>
               </div>
@@ -142,8 +142,8 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
               <legend className={legend}>{t('p2FormPlacement')}</legend>
               <label className={ui.label}>{t('search')}<input type="search" className={peopleField} value={optionSearch} onChange={e => setOptionSearch(e.target.value)} /></label>
               <label className={ui.label}>{t('sessionLabel')}<select required className={peopleField} value={form.session_id} onChange={e => setForm({ ...form, session_id: e.target.value, section_id: '' })}><option value="">{t('selectSession')}</option>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className={ui.label}>{t('classLabel')}<select required className={peopleField} value={form.class_id} onChange={e => setForm({ ...form, class_id: e.target.value, section_id: '', group_id: '', fourth_subject_id: '' })}><option value="">{t('selectClass')}</option>{classes.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className={ui.label}>{t('classLabel')}<select required className={peopleField} value={form.class_id} onChange={e => setForm({ ...form, class_id: e.target.value, section_id: '' })}><option value="">{t('selectClass')}</option>{classes.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
                 <label className={ui.label}>{t('sectionLabel')}<select required className={peopleField} value={form.section_id} onChange={e => set('section_id', e.target.value)}><option value="">{t('selectSection')}</option>{sections.data?.items.filter(s => s.session_id === form.session_id && s.class_id === form.class_id).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
               </div>
               <label className={ui.label}>{t('rollNo')}<input type="number" min="1" max="999999" className={peopleField} value={form.roll_no ?? ''} onChange={e => set('roll_no', e.target.value ? Number(e.target.value) : null)} /></label>
@@ -155,7 +155,7 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
             <fieldset className="space-y-3 rounded-xl border border-slate-200 p-3">
               <legend className={legend}>{t('profileDetails')}</legend>
               <p className="text-xs text-slate-500">{t('profileDetailsHelp')}</p>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className={ui.label}>{t('idCardStudentId')}<input maxLength={64} className={peopleField} value={form.student_code} onChange={e => set('student_code', e.target.value)} /></label>
                 <label className={ui.label}>{t('profileAdmissionDate')}<input type="date" className={peopleField} value={form.admission_date} onChange={e => set('admission_date', e.target.value)} /></label>
                 {(shifts.data?.items.length ?? 0) > 0 && <label className={ui.label}>{t('profileShift')}<select className={peopleField} value={form.shift_id} onChange={e => set('shift_id', e.target.value)}><option value="">{t('profileNotProvided')}</option>{shifts.data?.items.map(s => <option key={s.id} value={s.id}>{i18n.language === 'bn' && s.name_bn ? s.name_bn : s.name_en}</option>)}</select></label>}

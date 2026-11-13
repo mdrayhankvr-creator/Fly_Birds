@@ -196,7 +196,7 @@ function Issues({ b }: { b: PromotionBatch }) {
   if (b.status !== 'draft' && b.status !== 'approved') return null
   if (!b.blockers.length && !b.warnings.length) return <Notice tone="success">{t('pmNoIssues')}</Notice>
   const list = (items: typeof b.blockers) => <ul className="mt-1 list-disc space-y-0.5 pl-5">{items.slice(0, 10).map((x, i) => <li key={i}>{issue(x)}</li>)}{items.length > 10 && <li>{t('pmAndMore', { n: items.length - 10 })}</li>}</ul>
-  return <div className="grid gap-3 lg:grid-cols-2">
+  return <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
     {b.blockers.length > 0 && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"><p className="font-semibold">{t('pmBlockersTitle', { n: b.blockers.length })}</p>{list(b.blockers)}</div>}
     {b.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><p className="font-semibold">{t('pmWarningsTitle', { n: b.warnings.length })}</p>{list(b.warnings)}</div>}
   </div>
@@ -331,7 +331,7 @@ function EditItem({ b, item, busy, onClose, onSave }: { b: PromotionBatch; item:
       <p className="text-sm text-slate-700">{t('pmAnnual')}: <OutcomePill outcome={item.annual_outcome} position={item.annual_class_position} /> · {t('pmRecommended')}: <DecisionPill value={item.recommendation} /></p>
       <fieldset>
         <legend className={ui.label}>{t('pmDecision')}</legend>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">{options.map(d => <label key={d} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium ${decision === d ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-slate-900' : 'border-slate-200 text-slate-700'}`}>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">{options.map(d => <label key={d} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium ${decision === d ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-slate-900' : 'border-slate-200 text-slate-700'}`}>
           <input type="radio" name="pm-decision" value={d} checked={decision === d} onChange={() => setDecision(d)} className="h-4 w-4 accent-[var(--brand-primary)]" />
           <span>{t(`pmDecision_${d}`)}{d === item.recommendation && <span className="ml-1 text-xs text-slate-500">({t('pmRecommendedShort')})</span>}</span></label>)}</div>
       </fieldset>
@@ -340,7 +340,7 @@ function EditItem({ b, item, busy, onClose, onSave }: { b: PromotionBatch; item:
       <label className={ui.label}>{override ? t('pmReasonRequired') : t('pmReasonOptional')}
         <textarea className={ui.field} rows={2} maxLength={500} required={override} value={reason} onChange={e => setReason(e.target.value)} aria-describedby="pm-reason-hint" /></label>
       <p id="pm-reason-hint" className="-mt-2 text-xs text-slate-500">{t('pmReasonHint')}</p>
-      {targetClass && <div className="grid gap-4 sm:grid-cols-2">
+      {targetClass && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className={ui.label}>{t('pmTargetSection')}
           <select className={ui.field} value={section} disabled={!sameClass} onChange={e => setSection(e.target.value)}>
             <option value="">{t('pmAutoSection')}</option>

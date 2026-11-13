@@ -47,7 +47,7 @@ export function ClassTeacherComments({ reviewer }: { reviewer: boolean }) {
     {sections.isPending ? <Skeleton rows={3} /> : sections.isError ? <Notice tone="error">{t('msLoadError')}</Notice> : sections.data.length === 0 ?
       <EmptyState icon="users" title={t('msNoSections')}>{t('msNoSectionsHint')}</EmptyState> : <>
         <section className={`${ui.card} p-4 sm:p-5`} aria-label={t('msCommentsTitle')}>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className={ui.label} htmlFor={`${uid}-section`}>{t('msSection')}
               <select id={`${uid}-section`} className={ui.field} value={sectionId} onChange={e => setSectionId(e.target.value)}>
                 {sections.data.map(s => <option key={s.section_id} value={s.section_id}>{s.class_name} · {s.section_name} ({s.session_name})</option>)}
@@ -113,7 +113,7 @@ function CommentTable({ scope, scopeId, sectionId, bn }: { scope: 'term' | 'annu
     {message && <div className="mt-3"><Notice tone={message.tone}>{message.text}</Notice></div>}
     <ul className="mt-4 divide-y divide-slate-100" data-testid="comment-rows">{data.students.map(c => {
       const d = draft(c)
-      return <li key={c.student_id} className="grid gap-3 py-3 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] md:items-start">
+      return <li key={c.student_id} className="grid grid-cols-1 gap-3 py-3 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">
           <p className="font-semibold text-slate-900">{c.roll_no != null && <span className="mr-1.5 tabular-nums text-slate-500">{c.roll_no}.</span>}{nameOf(c)}</p>
           <p className="text-xs text-slate-600">{c.admission_no}{c.gpa ? ` · ${t('msGpa')} ${c.gpa}` : ''}</p>
@@ -176,7 +176,7 @@ function PresetRow({ preset, onSave }: { preset?: CommentPreset; onSave: (input:
   const blank = { text_en: '', text_bn: '', display_order: 100, is_active: true }
   const [form, setForm] = useState(preset ? { text_en: preset.text_en, text_bn: preset.text_bn, display_order: preset.display_order, is_active: preset.is_active } : blank)
   const [busy, setBusy] = useState(false)
-  return <form className={`grid gap-3 rounded-xl border p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6rem_auto] md:items-end ${preset ? 'border-slate-200' : 'border-dashed border-slate-300'}`}
+  return <form className={`grid grid-cols-1 gap-3 rounded-xl border p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6rem_auto] md:items-end ${preset ? 'border-slate-200' : 'border-dashed border-slate-300'}`}
     onSubmit={async e => { e.preventDefault(); setBusy(true); const ok = await onSave(form); setBusy(false); if (ok && !preset) setForm(blank) }}>
     {!preset && <p className="text-sm font-semibold text-slate-800 md:col-span-4">{t('msPresetNew')}</p>}
     <label className={ui.label} htmlFor={`${uid}-en`}>{t('msPresetEN')}<input id={`${uid}-en`} required maxLength={300} className={ui.field} value={form.text_en} onChange={e => setForm({ ...form, text_en: e.target.value })} /></label>

@@ -213,7 +213,7 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
         <SaveIndicator autosave={autosave} canEdit={!!perms?.can_edit} />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5">
           <Progress done={entered} total={rows.length} label={t('mwProgress', { entered, students: rows.length })} />
           {counts.absent > 0 && <span className="text-xs text-slate-600">{t('mwAbsentN', { n: counts.absent })}</span>}
           {counts.incomplete > 0 && <span className="text-xs font-semibold text-amber-800">{t('mwIncompleteN', { n: counts.incomplete })}</span>}
@@ -267,7 +267,7 @@ export function MarksWorkspace({ scope }: { scope: 'teacher' | 'staff' }) {
             <button type="button" className={ui.ghost} aria-expanded={shortcuts} aria-controls="mw-shortcuts" onClick={() => setShortcuts(v => !v)}>{t('mwShortcuts')}</button>
           </div>
         </div>
-        {shortcuts && <ul id="mw-shortcuts" className="grid gap-x-6 gap-y-1 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-700 sm:grid-cols-2">
+        {shortcuts && <ul id="mw-shortcuts" className="grid grid-cols-1 gap-x-6 gap-y-1 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-700 sm:grid-cols-2">
           {['mwKeyEnter', 'mwKeyArrows', 'mwKeyTab', 'mwKeyEsc', 'mwKeyLetters', 'mwKeyPaste'].map(k => <li key={k}>{t(k)}</li>)}
         </ul>}
 

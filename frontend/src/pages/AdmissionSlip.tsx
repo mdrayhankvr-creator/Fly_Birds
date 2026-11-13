@@ -24,7 +24,7 @@ export function AdmissionSlip({ result }: { result: AdmissionResult }) {
       <div className="min-w-0 flex-1"><p className="text-base font-bold text-slate-900">{school}</p><h2 id="admission-slip-title" className="text-lg font-semibold text-slate-800">{t('c3SlipTitle')}</h2></div>
       <div className="text-right text-sm"><p className="font-mono text-base font-bold">{s.admission_no}</p><p className="text-slate-600">{date}</p></div>
     </header>
-    <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+    <dl className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
       {row(t('studentNameEN'), s.name_en)}
       {row(t('studentNameBN'), s.name_bn && <span lang="bn">{s.name_bn}</span>)}
       {row(t('sessionLabel'), s.session_name)}
@@ -37,7 +37,7 @@ export function AdmissionSlip({ result }: { result: AdmissionResult }) {
     </section>}
     {result.login && <section className="mt-5 rounded-xl border-2 border-dashed border-slate-400 p-4" aria-labelledby="admission-slip-login">
       <h3 id="admission-slip-login" className="text-sm font-bold text-slate-900">{t('c3SlipLogin')}</h3>
-      <dl className="mt-3 grid gap-4 sm:grid-cols-2">
+      <dl className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {result.login.login_id && row(t('c5SignInId'), <span className="font-mono" data-login-id>{result.login.login_id}</span>)}
         {result.login.email && row(t('c3LoginEmail'), <span className="font-mono">{result.login.email}</span>)}
         {result.login.initial_password ? row(t('c3InitialPassword'), <span className="font-mono text-lg tracking-wider" data-initial-password>{result.login.initial_password}</span>)

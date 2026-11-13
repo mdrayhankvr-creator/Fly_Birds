@@ -41,6 +41,7 @@ const VerifyCardPage = lazy(() => import('./pages/VerifyCardPage').then(m => ({ 
 const VerifyResultPage = lazy(() => import('./pages/VerifyResultPage').then(m => ({ default: m.VerifyResultPage })))
 const VerifyAdmitPage = lazy(() => import('./pages/VerifyAdmitPage').then(m => ({ default: m.VerifyAdmitPage })))
 const ClassTeacherComments = lazy(() => import('./pages/exams/ClassTeacherComments').then(m => ({ default: m.ClassTeacherComments })))
+const PhotoReviewsPage = lazy(() => import('./pages/PhotoReviewsPage').then(m => ({ default: m.PhotoReviewsPage })))
 const AdmitCardsPage = lazy(() => import('./pages/routine/AdmitCards').then(m => ({ default: m.AdmitCardsPage })))
 const RoutinePage = lazy(() => import('./pages/RoutinePage').then(m => ({ default: m.RoutinePage })))
 const ExamsPage = lazy(() => import('./pages/ExamsPage').then(m => ({ default: m.ExamsPage })))
@@ -245,6 +246,17 @@ function CommentsGate({ permissions, role, enabled, loading, error }: { permissi
   return <ClassTeacherComments reviewer={role === 'admin' || role === 'head_teacher'} />
 }
 
+// PhotoReviewsGate: students' own photos, for their class teachers, the head
+// teacher and the administrator.
+function PhotoReviewsGate({ permissions, role, enabled, loading, error }: { permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <StateScreen kind="loading" message={t('msLoading')} />
+  if (error) return <StateScreen kind="error" message={t('msLoadError')} />
+  if (!permissions?.includes('students:photo_review') || !(role === 'teacher' || role === 'head_teacher' || role === 'admin')) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" />
+  return <PhotoReviewsPage />
+}
+
 // AdmitGate: admit cards for staff who print them and the office that
 // releases students held for dues.
 function AdmitGate({ permissions, role, enabled, loading, error }: { permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
@@ -424,8 +436,8 @@ export default function App() {
   const academicEnabled = myModules.data
     ? moduleEnabled('academics')
     : !!academicNavigation.data?.navigation.some((item) => item.path.startsWith('/admin/academic/'))
-  const peopleEnabled = myModules.data ? moduleEnabled('students') : !!academicNavigation.data?.navigation.some((item) => ['/admin/students', '/admin/guardians', '/student/me', '/guardian/children'].some(path => item.path.startsWith(path)))
-  const hasModuleNavigation = !!myPermissions.data?.some(permission => ['academics:read', 'academic_sessions:read', 'students:read', 'guardians:read', 'students:read_self', 'guardians:read_children'].includes(permission))
+  const peopleEnabled = myModules.data ? moduleEnabled('students') : !!academicNavigation.data?.navigation.some((item) => ['/admin/students', '/admin/guardians', '/student/me', '/guardian/children', '/photo-reviews'].some(path => item.path.startsWith(path)))
+  const hasModuleNavigation = !!myPermissions.data?.some(permission => ['academics:read', 'academic_sessions:read', 'students:read', 'guardians:read', 'students:read_self', 'guardians:read_children', 'students:photo_review'].includes(permission))
   const academicLoading = myPermissions.isPending || (hasModuleNavigation && (myPermissions.data?.includes('modules:read') ? myModules.isPending : academicNavigation.isPending))
   const academicError = myPermissions.isError || myModules.isError || academicNavigation.isError
   const staffEnabled = myModules.data ? moduleEnabled('staff') : !!academicNavigation.data?.navigation.some((item) => item.path === '/admin/staff' || item.path === '/staff/me')
@@ -479,6 +491,7 @@ export default function App() {
         <Route path="/verify/:token" element={<VerifyCardPage />} />
         <Route path="/verify/result/:token" element={<VerifyResultPage />} />
         <Route path="/verify/admit/:token" element={<VerifyAdmitPage />} />
+        <Route path="/photo-reviews" element={<ProtectedRoute><PhotoReviewsGate permissions={myPermissions.data} role={user?.role} enabled={peopleEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/exams/comments" element={<ProtectedRoute><CommentsGate permissions={myPermissions.data} role={user?.role} enabled={examsEnabled} loading={examsLoading} error={examsError} /></ProtectedRoute>} />
         <Route path="/admit-cards" element={<ProtectedRoute><AdmitGate permissions={myPermissions.data} role={user?.role} enabled={routineEnabled} loading={routineLoading} error={routineError} /></ProtectedRoute>} />
         <Route path="/account" element={<ProtectedRoute><AccountPage permissions={myPermissions.data} /></ProtectedRoute>} />

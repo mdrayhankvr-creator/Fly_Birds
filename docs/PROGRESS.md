@@ -22,6 +22,17 @@ On `feature/phone-login`, from main after transcript v3 (PR #50). Migration 1811
 - **Unchanged by design:** the same generic error for an unknown email, number, Student ID or wrong password; the same lockout and rate limit; the number never appears on a public page.
 - **Not now (deliberately deferred):** SMS one-time passwords, email verification and Google sign-in. None of them is started; sign-in stays password-only, and the mock SMS provider is still the only SMS path.
 
+## Current Status — UX Round 2: Phone Layouts, Student Photos, Logo Upload (2026-11-12)
+
+On `feature/ux-round-2`, from `main` `3fa4564`. Migrations 1760 (student photo submissions) and 1761 (school logo). Outside the brief's M0–M13 criteria, so the completion figures above do not change.
+
+- **Narrow phones:** every page of every role (and signed out), each tab and the phone menu, checked at 320, 360 and 375 px in English and Bangla; none scrolls sideways now. Causes: responsive grids without a base column (161 get `grid-cols-1`, the Staff list among them), screen-reader chart tables that still grew, the ID card preview, toolbars and a progress line that did not wrap. `e2e/narrow-phones.mjs` repeats the check at 360 px and CI runs it.
+- **Student photos:** a student crops their own photo to a square in the browser (guidance, drag or keys, zoom) and sends it; the class teacher of their section or the administrator approves it, or rejects it with a reason the student sees. Only approval puts it into `student_photos`, which the profile, ID card, marksheet and admit card read. A school setting (on by default) turns uploads off. Every step is audited.
+- **School logo:** uploaded in School settings (or a web link as before), stored at most 512 px, PNG when transparent; `logo_url` points at `/api/school/logo?v=…`, so pages use it unchanged and PDFs read it from the database.
+- **Login slips:** an "8 per A4 page" print layout (2 × 4 cells of 95 × 67 mm).
+- **Showcase stack** (local, outside the repository): `fbshow` on port 8094 keeps its data; its `update.ps1` backs up and updates in place, `restore.ps1` rolls code and data back. Tested with a migration in between.
+- **Checks:** typecheck, build, i18n (3871 EN / 3869 BN keys), unit 20/20; `go vet` and the Go suite serially on a fresh database (30 packages ok, new photo, logo and route tests); on a freshly rebuilt `fbqa-cp1b`: `suite.mjs` 118/118, `whitelabel.mjs` 23/23, `narrow-phones.mjs` 15/15, `daily-tasks.mjs` 55/55, `profiles-safety.mjs` 47/47, `checkpoint5.mjs` 64/64, `ux-round2.mjs` 20/20 (browser: Chrome; Edge would not start headless after an update).
+
 ## Current Status — Public Page Footer, Demo Content and Dashboard Fixes (2026-11-10)
 
 On `feature/public-polish`, rebased onto marksheet v2 and admit cards (PR #46). No migration. Outside the brief's M0–M13 criteria, so the completion figures above do not change.

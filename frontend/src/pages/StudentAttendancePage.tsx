@@ -191,7 +191,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
     <PageHeader eyebrow={t('attnEyebrow')} title={t('studentAttendanceHeading')} description={t('attnDescription')} actions={canManage ? <Link to="/admin/attendance/students/quick" className={ui.primary}><Icon name="check" className="h-4 w-4" />{t('c3QuickTitle')}</Link> : undefined} />
 
     <section className={`${ui.card} p-4 sm:p-5`} aria-label={t('attnContext')}>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1.2fr_1.6fr]">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1.2fr_1.6fr]">
         <label className={ui.label}>{t('attendanceSession')}<select className={ui.field} value={sessionId} onChange={event => { const v = event.target.value; guarded(() => { setSessionId(v); setSectionId('') }) }}><option value="">—</option>{sessions.data?.items.map(item => <option key={item.id} value={item.id}>{item.name}{item.is_active ? ` · ${t('attnActive')}` : ''}</option>)}</select></label>
         <label className={ui.label}>{t('attnClassSection')}<select className={ui.field} value={sectionId} onChange={event => { const v = event.target.value; guarded(() => setSectionId(v)) }}><option value="">—</option>{sections.data?.map(item => <option key={item.id} value={item.id}>{item.class_name} · {item.name}</option>)}</select></label>
         <div className={`${ui.label} sm:col-span-2 lg:col-span-1`}><label htmlFor="attn-date">{t('attendanceDate')}</label>
@@ -360,7 +360,7 @@ function MonthlyPanel({ sessionId, sectionId, authorized }: { sessionId: string;
   const monthly = useQuery({ queryKey: ['attendance', 'student-monthly', params.toString()], queryFn: () => authorized(token => getStudentAttendanceMonthly(token, params)), enabled: !!sectionId, retry: false })
   return <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="monthly-heading">
     <div className="flex flex-wrap items-end justify-between gap-3"><CardTitle id="monthly-heading" icon="chart">{t('attendanceMonthly')}</CardTitle>
-      <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+      <div className="grid grid-cols-1 w-full gap-3 sm:w-auto sm:grid-cols-2">
         <label className={ui.label}>{t('attendanceMonth')}<input className={ui.field} type="month" value={month} onChange={event => { setMonth(event.target.value); setPage(1) }} /></label>
         <label className={ui.label}>{t('studentAttendanceSearch')}<input className={ui.field} type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
       </div></div>
@@ -423,7 +423,7 @@ export function StudentAttendanceReportPage({ guardian }: { guardian: boolean })
         <StatTile tone="late" label={t('studentAttendanceLate')} value={num(summary!.late)} />
         <StatTile tone="unmarked" label={t('attnRate')} value={rate === null ? '—' : `${num(rate)}%`} hint={t('attnRecordedDays', { count: summary!.total })} />
       </dl>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
       <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="calendar-heading">
         <CardTitle id="calendar-heading" icon="calendar">{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthIndex - 1, 1)))}</CardTitle>
         <div className="mx-auto mt-4 grid max-w-[30rem] grid-cols-7 gap-1.5 text-center" role="grid" aria-label={t('attnCalendar')}>

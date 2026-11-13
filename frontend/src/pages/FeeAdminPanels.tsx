@@ -53,7 +53,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
     <Notice error={action.error} message={action.message} />
     {access.role === 'admin' && <OnlinePaymentsPanel />}
     <section className={feeCard}><CardTitle icon="layers">{t('feeCategories')}</CardTitle>
-      {access.canManage && <form onSubmit={submitCategory} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      {access.canManage && <form onSubmit={submitCategory} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <label className={ui.label}>{t('feeCode')}<input required pattern="[A-Za-z0-9_\-]{2,20}" maxLength={20} className={`${feeField} uppercase`} value={category.code} onChange={e => setCategory({ ...category, code: e.target.value.toUpperCase() })} /></label>
         <label className={ui.label}>{t('feeNameEn')}<input required maxLength={120} className={feeField} value={category.name_en} onChange={e => setCategory({ ...category, name_en: e.target.value })} /></label>
         <label className={ui.label}>{t('feeNameBn')}<input maxLength={80} lang="bn" className={feeField} value={category.name_bn} onChange={e => setCategory({ ...category, name_bn: e.target.value })} /></label>
@@ -68,7 +68,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
     </section>
 
     <section className={feeCard}><CardTitle icon="book">{t('feeStructures')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeStructuresHint')}</p>
-      {access.canManage && <form onSubmit={submitStructure} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
+      {access.canManage && <form onSubmit={submitStructure} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-8">
         <label className={ui.label}>{t('feeSession')}<select required disabled={!!structureId} className={feeField} value={structure.session_id} onChange={e => setStructure({ ...structure, session_id: e.target.value })}><option value="">{t('feeChoose')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select required disabled={!!structureId} className={feeField} value={structure.class_id} onChange={e => setStructure({ ...structure, class_id: e.target.value })}><option value="">{t('feeChoose')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeCategory')}<select required disabled={!!structureId} className={feeField} value={structure.category_id} onChange={e => setStructure({ ...structure, category_id: e.target.value })}><option value="">{t('feeChoose')}</option>{allCategories.filter(c => c.is_active || c.id === structure.category_id).map(c => <option key={c.id} value={c.id}>{name(c.name_en, c.name_bn)}</option>)}</select></label>
@@ -89,7 +89,7 @@ export function FeeSetupPanel({ access, options }: { access: FeeAccess; options:
     <section className={feeCard}><CardTitle icon="check">{t('feeConcessions')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('feeConcessionsHint')}</p>
       {access.canManage && <div className="mt-3 space-y-3">
         {concessionStudent ? <p className="text-sm">{t('feeSelectedStudent')}: <strong>{name(concessionStudent.name_en, concessionStudent.name_bn)}</strong> · {concessionStudent.admission_no} <button type="button" className={`${ui.ghost} ml-2`} onClick={() => setConcessionStudent(null)}>{t('feeChange')}</button></p> : <StudentPicker onPick={setConcessionStudent} />}
-        {concessionStudent && <form onSubmit={submitConcession} className="grid gap-3 sm:grid-cols-4">
+        {concessionStudent && <form onSubmit={submitConcession} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <label className={ui.label}>{t('feeCategory')}<select required className={feeField} value={concession.category_id} onChange={e => setConcession({ ...concession, category_id: e.target.value })}><option value="">{t('feeChoose')}</option>{allCategories.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{name(c.name_en, c.name_bn)}</option>)}</select></label>
           <label className={ui.label}>{t('feePercent')}<input required type="number" min="0.01" max="100" step="0.01" className={feeField} value={concession.percent} onChange={e => setConcession({ ...concession, percent: e.target.value })} /></label>
           <label className={ui.label}>{t('feeReason')}<input required maxLength={240} className={feeField} value={concession.reason} onChange={e => setConcession({ ...concession, reason: e.target.value })} /></label>
@@ -141,7 +141,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
     <Notice error={action.error} message="" />
     {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
     <section className={`${feeCard} print:hidden`}><CardTitle icon="chart">{t('feeCollectionReport')}</CardTitle>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className={ui.label}>{t('feeFrom')}<input type="date" className={feeField} value={range.from} onChange={e => { setRange({ ...range, from: e.target.value }); setPaymentPage(1) }} /></label>
         <label className={ui.label}>{t('feeTo')}<input type="date" className={feeField} value={range.to} onChange={e => { setRange({ ...range, to: e.target.value }); setPaymentPage(1) }} /></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={range.class_id} onChange={e => { setRange({ ...range, class_id: e.target.value }); setPaymentPage(1) }}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
@@ -150,7 +150,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
       {collections.isPending ? <p role="status" className="mt-3">{t('feeLoading')}</p> : collections.isError ? <p role="alert" className="mt-3 text-rose-700">{t('feeErrRange')}</p> : <>
         <p className="mt-4 text-lg">{t('feeCollected')}: <strong>{money(collections.data.total)}</strong> · {t('feeReceiptCount', { count: collections.data.count })}</p>
         {collections.data.simulated_count > 0 && <p role="note" className="mt-2 flex flex-wrap items-center gap-2 text-sm text-rose-900"><SimulatedLabel />{t('feeSimulatedExcluded', { count: collections.data.simulated_count, amount: money(collections.data.simulated_total) })}</p>}
-        <div className="mt-4 grid gap-6 md:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
           <Breakdown title={t('feeByMethod')} buckets={collections.data.by_method} label={b => t(`feeMethod_${b.key}`)} />
           <Breakdown title={t('feeByCategory')} buckets={collections.data.by_category} label={b => name(b.name_en, b.name_bn)} />
           <Breakdown title={t('feeByClass')} buckets={collections.data.by_class} label={b => b.name_en} />
@@ -160,7 +160,7 @@ export function FeeReportsPanel({ options }: { options: FeeOptions }) {
     </section>
 
     <section className={`${feeCard} print:hidden`}><CardTitle icon="alert">{t('feeArrearsReport')}</CardTitle>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className={ui.label}>{t('feeSession')}<select className={feeField} value={dueFilters.session_id} onChange={e => { setDueFilters({ ...dueFilters, session_id: e.target.value }); setDuePage(1) }}><option value="">{t('feeAll')}</option>{options.sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeClass')}<select className={feeField} value={dueFilters.class_id} onChange={e => { setDueFilters({ ...dueFilters, class_id: e.target.value }); setDuePage(1) }}><option value="">{t('feeAllClasses')}</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label className={ui.label}>{t('feeSearch')}<input className={feeField} value={dueFilters.search} onChange={e => { setDueFilters({ ...dueFilters, search: e.target.value }); setDuePage(1) }} /></label>
@@ -209,7 +209,7 @@ export function LedgerPanel({ canManage }: { canManage: boolean }) {
   return <div className="space-y-5">
     <Notice error={action.error} message={action.message} />
     <section className={feeCard}><CardTitle icon="chart">{t('ledgerSummary')}</CardTitle>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className={ui.label}>{t('feeFrom')}<input type="date" className={feeField} value={range.from} onChange={e => { setRange({ ...range, from: e.target.value }); setPage(1) }} /></label>
         <label className={ui.label}>{t('feeTo')}<input type="date" className={feeField} value={range.to} onChange={e => { setRange({ ...range, to: e.target.value }); setPage(1) }} /></label>
       </div>
@@ -217,14 +217,14 @@ export function LedgerPanel({ canManage }: { canManage: boolean }) {
         <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">{([['ledgerIncome', summary.data.income, 'text-emerald-800'], ['ledgerExpense', summary.data.expense, 'text-rose-700'], ['ledgerNet', summary.data.net, summary.data.net < 0 ? 'text-rose-700' : 'text-slate-900'], ['feeOutstanding', summary.data.outstanding, ''], ['feeArrears', summary.data.arrears, 'text-rose-700']] as [string, number, string][]).map(([key, value, tone]) =>
           <div key={key} className="rounded-xl bg-slate-50 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t(key)}</dt><dd className={`mt-1 text-lg font-bold ${tone}`}>{money(value)}</dd></div>)}</dl>
         <p className="mt-2 text-xs text-slate-500">{t('ledgerOutstandingNote')}</p>
-        <div className="mt-4 grid gap-6 md:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
           <Breakdown title={t('ledgerIncomeByCategory')} buckets={summary.data.income_by_category} label={b => categoryLabel(b.key)} />
           <Breakdown title={t('ledgerExpenseByCategory')} buckets={summary.data.expense_by_category} label={b => categoryLabel(b.key)} />
         </div>
       </>}
     </section>
     {canManage && <section className={feeCard}><CardTitle icon="plus">{t('ledgerAdd')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('ledgerAddHint')}</p>
-      <form onSubmit={submit} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <form onSubmit={submit} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <label className={ui.label}>{t('ledgerType')}<select className={feeField} value={entry.entry_type} onChange={e => { const kind = e.target.value as LedgerEntryInput['entry_type']; setEntry({ ...entry, entry_type: kind, category: ledgerCategories[kind][0] }) }}><option value="expense">{t('ledgerExpense')}</option><option value="income">{t('ledgerIncome')}</option></select></label>
         <label className={ui.label}>{t('feeCategory')}<select className={feeField} value={entry.category} onChange={e => setEntry({ ...entry, category: e.target.value })}>{ledgerCategories[entry.entry_type].map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></label>
         <label className={ui.label}>{t('feeAmount')}<input required type="number" min="0.01" step="0.01" className={feeField} value={entry.amount || ''} onChange={e => setEntry({ ...entry, amount: Number(e.target.value) })} /></label>

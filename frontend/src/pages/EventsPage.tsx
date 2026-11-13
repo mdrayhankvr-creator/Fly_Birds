@@ -72,7 +72,7 @@ export function EventsPage({ canManage }: { canManage: boolean }) {
     {message && <Banner tone={message.tone}>{message.text}</Banner>}
     {editing && <form onSubmit={submit} className={`${ui.card} space-y-4 p-4 sm:p-6`} aria-labelledby="event-editor">
       <div className="flex flex-wrap items-center justify-between gap-2"><CardTitle id="event-editor" icon="calendar">{current ? t('m9EditEvent') : t('m9NewEvent')}</CardTitle>{current && <span className="text-sm text-slate-500">{t(`m9Status_${current.status}`)}</span>}</div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Field label={t('m9TitleEn')} className="lg:col-span-2"><input required maxLength={200} className={ui.field} value={form.title_en} onChange={e => setForm({ ...form, title_en: e.target.value })} /></Field>
         <Field label={t('m9TitleBn')} className="lg:col-span-2"><input lang="bn" className={ui.field} value={form.title_bn} onChange={e => setForm({ ...form, title_bn: e.target.value })} /></Field>
         <Field label={t('m9Kind')}><select className={ui.field} value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as EventKind })}>{kinds.map(k => <option key={k} value={k}>{t(`m9Kind_${k}`)}</option>)}</select></Field>
@@ -98,7 +98,7 @@ export function EventsPage({ canManage }: { canManage: boolean }) {
 
     <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="calendar-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button type="button" className={ui.secondary} aria-label={t('m9PreviousMonth')} onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
           <h2 id="calendar-title" className="min-w-40 text-center text-lg font-bold">{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-01T00:00:00Z`))}</h2>
           <button type="button" className={ui.secondary} aria-label={t('m9NextMonth')} onClick={() => setMonth(shiftMonth(month, 1))}>›</button>

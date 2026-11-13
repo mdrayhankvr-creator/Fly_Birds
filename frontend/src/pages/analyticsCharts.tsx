@@ -20,8 +20,10 @@ function useWidth<T extends HTMLElement>() {
 }
 
 function SrTable({ caption, columns, rows }: { caption: string; columns: string[]; rows: (string | number)[][] }) {
-  return <table className="sr-only"><caption>{caption}</caption><thead><tr>{columns.map(c => <th key={c} scope="col">{c}</th>)}</tr></thead>
-    <tbody>{rows.map((r, i) => <tr key={i}>{r.map((v, j) => j === 0 ? <th key={j} scope="row">{v}</th> : <td key={j}>{v}</td>)}</tr>)}</tbody></table>
+  // The wrapper, not the table, is visually hidden: a table grows to fit its
+  // cells, so an sr-only table still widened the page on narrow phones.
+  return <div className="sr-only"><table><caption>{caption}</caption><thead><tr>{columns.map(c => <th key={c} scope="col">{c}</th>)}</tr></thead>
+    <tbody>{rows.map((r, i) => <tr key={i}>{r.map((v, j) => j === 0 ? <th key={j} scope="row">{v}</th> : <td key={j}>{v}</td>)}</tr>)}</tbody></table></div>
 }
 
 function Tooltip({ x, y, width, children }: { x: number; y: number; width: number; children: ReactNode }) {

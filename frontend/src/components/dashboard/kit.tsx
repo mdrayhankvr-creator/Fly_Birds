@@ -67,7 +67,7 @@ export function DashLayout({ head, actions, main, side }: { head: ReactNode; act
     {actions}
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
       <div className={`min-w-0 space-y-4 md:space-y-5 ${side ? 'lg:col-span-8' : 'lg:col-span-12'}`}>{main}</div>
-      {side && <div className="grid min-w-0 content-start items-start gap-4 md:grid-cols-2 md:gap-5 lg:col-span-4 lg:grid-cols-1">{side}</div>}
+      {side && <div className="grid grid-cols-1 min-w-0 content-start items-start gap-4 md:grid-cols-2 md:gap-5 lg:col-span-4 lg:grid-cols-1">{side}</div>}
     </div>
   </div>
 }

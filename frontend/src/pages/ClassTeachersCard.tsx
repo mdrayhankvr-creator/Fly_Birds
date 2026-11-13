@@ -41,7 +41,7 @@ export function ClassTeachersCard({ canManage }: { canManage: boolean }) {
     </label>
     {message && <div className="mt-3"><Notice tone={message.tone}>{message.text}</Notice></div>}
     {rows.isPending ? <div className="mt-4"><Skeleton rows={3} /></div> : rows.isError ? <div className="mt-4"><Notice tone="error">{t('msLoadError')}</Notice></div> :
-      <ul className="mt-4 divide-y divide-slate-100">{rows.data.map(r => <li key={r.section_id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
+      <ul className="mt-4 divide-y divide-slate-100">{rows.data.map(r => <li key={r.section_id} className="grid grid-cols-1 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center">
         <div className="min-w-0">
           <p className="font-semibold text-slate-900">{r.class_name} · {r.section_name}</p>
           {r.employee_id && <p className="text-xs text-slate-600">{r.has_signature ? t('msSignatureReady') : t('msSignatureMissing')}</p>}

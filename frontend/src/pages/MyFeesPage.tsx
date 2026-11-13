@@ -64,7 +64,7 @@ export function MyFeesPage({ mode, canPay }: { mode: 'student' | 'guardian'; can
       <button type="button" className={`${feeSecondary} mt-3`} onClick={() => setSimulation(null)}>{t('feeClose')}</button></section>}
     {canPay && online.data?.mode === 'simulation' && balance > 0 && <section className={`${feeCard} border-2 border-rose-700 print:hidden`}><SimulatedLabel /><h2 className={`${ui.sectionTitle} mt-2`}>{t('feePayOnline')}</h2>
       <div className="mt-3"><Banner tone="warning">{t('feeSimulationModeNotice')}</Banner></div>
-      {!intent ? <form onSubmit={start} className="mt-3 grid gap-3 sm:grid-cols-3">
+      {!intent ? <form onSubmit={start} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <fieldset className="text-sm font-semibold"><legend>{t('feeProvider')}</legend><div className="mt-2 flex gap-4">{(['bkash', 'nagad'] as const).map(p => <label key={p} className="flex items-center gap-2 font-normal"><input type="radio" name="provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />{t(`feeMethod_${p}`)}</label>)}</div></fieldset>
         <label className={ui.label}>{t('feeAmount')}<input type="number" inputMode="decimal" min="0.01" max={balance} step="0.01" className={feeField} value={amount} placeholder={balance.toFixed(2)} onChange={e => setAmount(e.target.value)} /></label>
         <div className="flex items-end"><button disabled={action.busy} className={`${feeButton} w-full`}>{t('feeContinue')}</button></div>

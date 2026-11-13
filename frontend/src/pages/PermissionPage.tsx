@@ -93,7 +93,7 @@ export function PermissionPage({ canManage }: { canManage: boolean }) {
         </div>
         {reviewing && dirty && <div role="alertdialog" aria-labelledby="perm-review-title" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
           <h2 id="perm-review-title" className="font-bold">{t('m10ReviewTitle', { role: roleName(role) })}</h2>
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {added.length > 0 && <div><p className="text-sm font-semibold text-emerald-800">{t('m10Adding')}</p><ul className="mt-1 space-y-0.5 text-sm">{added.map(id => <li key={id}><code className="font-mono text-xs">+ {id}</code> <span className="text-slate-600">{describe(id)}</span></li>)}</ul></div>}
             {removed.length > 0 && <div><p className="text-sm font-semibold text-rose-800">{t('m10Removing')}</p><ul className="mt-1 space-y-0.5 text-sm">{removed.map(id => <li key={id}><code className="font-mono text-xs">− {id}</code> <span className="text-slate-600">{describe(id)}</span></li>)}</ul></div>}
           </div>
@@ -102,7 +102,7 @@ export function PermissionPage({ canManage }: { canManage: boolean }) {
             <button type="button" className={ui.secondary} onClick={() => setReviewing(false)}>{t('m10Cancel')}</button></div>
         </div>}
         {groups.length === 0 && <EmptyState title={t('m10NoMatch')} />}
-        <div className="grid gap-4 lg:grid-cols-2">{groups.map(([group, items]) => {
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{groups.map(([group, items]) => {
           const granted = items.filter(p => draft.has(p.id)).length
           return <fieldset key={group} className={`${ui.card} p-4`}>
             <legend className="sr-only">{groupName(group)}</legend>

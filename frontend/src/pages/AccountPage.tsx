@@ -37,7 +37,7 @@ export function AccountPage({ permissions }: { permissions?: string[] }) {
   const initials = name.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(part => [...part][0]).join('').toUpperCase()
   return <div className="space-y-6">
     <PageHeader eyebrow={t('uxAccountEyebrow')} title={t('accountHeading')} description={t('accountDescription')} />
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
       <SectionCard title={t('uxProfile')} id="account-profile">
         <div className="flex items-center gap-4">
           <span aria-hidden="true" className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[var(--brand-soft)] text-lg font-bold text-[var(--brand-ink)]">{initials}</span>

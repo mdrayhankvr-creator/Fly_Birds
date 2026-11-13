@@ -50,7 +50,7 @@ export function SectionLoginsPage() {
     <PageHeader eyebrow={t('m12Group_people')} title={t('c5LoginsTitle')} description={t('c5LoginsIntro')}
       actions={<Link to="/admin/students" className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t('studentsHeading')}</Link>} />
     <SectionCard title={t('c5ChooseSection')} id="logins-section" icon="users">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label className={ui.label}>{t('sessionLabel')}<select className={ui.field} value={sessionId} onChange={e => { setSessionId(e.target.value); setSectionId(''); setMade([]) }}><option value="">{t('selectOption')}</option>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className={ui.label}>{t('classLabel')}<select className={ui.field} value={classId} onChange={e => { setClassId(e.target.value); setSectionId(''); setMade([]) }}><option value="">{t('selectOption')}</option>{classes.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label className={ui.label}>{t('sectionLabel')}<select className={ui.field} value={sectionId} disabled={!sessionId || !classId} onChange={e => { setSectionId(e.target.value); setMade([]) }}><option value="">{t('selectOption')}</option>{sections.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>

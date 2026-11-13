@@ -167,7 +167,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
     {errors.form && <Notice tone="error">{errors.form}</Notice>}
     <form onSubmit={e => void submit(e)} className="space-y-5" aria-busy={busy} noValidate={false}>
       <Step n={1} icon="school" title={t('c3StepPlacement')}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className={ui.label}>{t('sessionLabel')}<select required className={peopleField} value={placement.session_id} disabled={loading} onChange={e => setPlacement({ session_id: e.target.value, class_id: '', section_id: '' })}>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}{s.is_active ? ` · ${t('attnActive')}` : ''}</option>)}</select></label>
           <label className={ui.label}>{t('classLabel')}<select required className={peopleField} value={placement.class_id} onChange={e => { setPlacement({ ...placement, class_id: e.target.value, section_id: '' }); setRoll({ value: '', touched: false }); setGroupChoice({ group_id: '', fourth_subject_id: '' }) }}><option value="">{t('selectClass')}</option>{classes.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
           <label className={ui.label}>{t('sectionLabel')}<select required className={peopleField} value={placement.section_id} disabled={!placement.class_id} onChange={e => { setPlacement({ ...placement, section_id: e.target.value }); setRoll({ value: '', touched: false }) }}><option value="">{t('selectSection')}</option>{classSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
@@ -179,7 +179,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
       </Step>
 
       <Step n={2} icon="user" title={t('c3StepStudent')}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label={t('admissionNo')} error={errors.admission} hint={!admissionNo.touched && admissionNo.value ? t('c3Suggested') : undefined}>
             <input id="admit-admission" required maxLength={64} className={peopleField} value={admissionNo.value} aria-invalid={!!errors.admission} onChange={e => { setAdmissionNo({ value: e.target.value, touched: true }); setErrors(x => ({ ...x, admission: undefined })) }} />
           </Field>
@@ -193,7 +193,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
         </div>}
         <details className="group mt-4 rounded-xl border border-slate-200 bg-slate-50">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold text-slate-700 [&::-webkit-details-marker]:hidden">{t('c3MoreDetails')}<Icon name="chevronDown" className="h-4 w-4 transition group-open:rotate-180" /></summary>
-          <div className="grid gap-3 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className={ui.label}>{t('profileGender')}<select className={peopleField} value={details.gender} onChange={e => setDetails({ ...details, gender: e.target.value as Gender })}><option value="">{t('profileNotProvided')}</option>{(['female', 'male', 'other'] as const).map(g => <option key={g} value={g}>{t(`gender_${g}`)}</option>)}</select></label>
             <label className={ui.label}>{t('profileBloodGroup')}<select className={peopleField} value={details.blood_group} onChange={e => setDetails({ ...details, blood_group: e.target.value })}><option value="">{t('profileNotProvided')}</option>{bloodGroups.map(g => <option key={g} value={g}>{g}</option>)}</select></label>
             <label className={ui.label}>{t('idCardStudentId')}<input maxLength={64} className={peopleField} value={details.student_code} onChange={e => setDetails({ ...details, student_code: e.target.value })} /></label>
@@ -212,7 +212,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
       </Step>
 
       {canManageGuardians && <Step n={3} icon="users" title={t('c3StepGuardians')} help={t('c3GuardiansHelp')}>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {guardians.map((g, i) => <GuardianCard key={i} index={i} draft={g} error={errors[`guardian${i}` as 'guardian0']} onChange={patch => setGuardian(i, patch)} onRemove={i > 0 ? () => setGuardians(list => list.filter((_, j) => j !== i).map((x, j) => j === 0 && !list.some((y, k) => k !== i && y.primary) ? { ...x, primary: true } : x)) : undefined} />)}
         </div>
         {guardians.length < 2 && <button type="button" className={`${ui.secondary} mt-4`} onClick={() => setGuardians(list => [...list, blankGuardian(list[0]?.relation === 'Mother' ? 'Father' : 'Mother', list.length === 0)])}><Icon name="plus" className="h-4 w-4" />{t(guardians.length ? 'c3AddSecondGuardian' : 'c3AddGuardian')}</button>}
@@ -220,7 +220,7 @@ export function AdmissionPage({ canManageGuardians, canCreateLogin }: { canManag
 
       {canCreateLogin && <Step n={canManageGuardians ? 4 : 3} icon="lock" title={t('c3StepLogin')}>
         <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-slate-800"><input type="checkbox" className="h-5 w-5 accent-[var(--brand-primary)]" checked={login.create} onChange={e => setLogin({ ...login, create: e.target.checked })} />{t('c3CreateLogin')}</label>
-        {login.create && <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {login.create && <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label={t('c5LoginEmailOptional')} error={errors.login} hint={!login.touched && loginEmail ? t('c3Suggested') : t('c5EmailOptionalHint', { id: studentCodeOrAdmission })}>
             <input id="admit-login" type="email" maxLength={254} autoComplete="off" className={peopleField} value={loginEmail} aria-invalid={!!errors.login} onChange={e => { setLogin({ ...login, email: e.target.value, touched: true }); setErrors(x => ({ ...x, login: undefined })) }} />
           </Field>
@@ -281,7 +281,7 @@ function GuardianCard({ index, draft, error, onChange, onRemove }: { index: numb
     {draft.existing ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
       <span className="min-w-0"><strong>{draft.existing.name_en}</strong>{draft.existing.phone && <> · {draft.existing.phone}</>}<span className="block text-xs">{t('c3LinkingExisting')}</span></span>
       <button type="button" className={ui.secondary} onClick={() => onChange({ existing: null, matches: [] })}>{t('c3Change')}</button>
-    </div> : <div className="mt-3 grid gap-3 sm:grid-cols-2">
+    </div> : <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label className={ui.label}>{t('guardianNameEN')}<input maxLength={160} autoComplete="off" className={peopleField} value={draft.name_en} required={!!(draft.phone || draft.email || draft.name_bn)} onChange={e => onChange({ name_en: e.target.value })} /></label>
       <label className={ui.label}>{t('guardianNameBN')}<input maxLength={160} lang="bn" autoComplete="off" className={peopleField} value={draft.name_bn} onChange={e => onChange({ name_bn: e.target.value })} /></label>
       <label className={ui.label}>{t('phoneLabel')}<input type="tel" inputMode="tel" maxLength={32} autoComplete="off" className={peopleField} value={draft.phone} onChange={e => onChange({ phone: e.target.value, matches: [], confirmNew: false })} /></label>

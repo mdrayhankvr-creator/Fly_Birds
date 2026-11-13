@@ -107,7 +107,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
         current.isError ? <p role="alert" className="mt-2 text-rose-700">{current.error instanceof ApiError && current.error.code === 'module_disabled' ? t('academicModuleDisabled') : t('loadSessionsError')}</p> :
           <p className="mt-2 text-slate-700">{current.data?.name ?? t('noCurrentSession')}</p>}
     </section>
-    {(canCreate || (canUpdate && editing)) && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
+    {(canCreate || (canUpdate && editing)) && <form onSubmit={submit} className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
       <CardTitle icon="calendar" className="sm:col-span-3">{t(editing ? 'editSession' : 'createSession')}</CardTitle>
       <label className={ui.label}>{t('sessionName')}<input className={fieldClass} required maxLength={9} placeholder="2026–2027" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
       <label className={ui.label}>{t('startDate')}<input className={fieldClass} type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></label>
@@ -121,7 +121,7 @@ export function AcademicSessionsPage({ permissions }: { permissions: string[] })
       {sessions.isPending ? <p role="status" className="mt-5">{t('loadingSessions')}</p> :
         sessions.isError ? <p role="alert" className="mt-5 text-rose-700">{sessions.error instanceof ApiError && sessions.error.code === 'module_disabled' ? t('academicModuleDisabled') : t('loadSessionsError')}</p> :
           sessions.data.items.length === 0 ? <p className="mt-5 text-slate-600">{t('noSessions')}</p> :
-            <div className="mt-5 grid gap-3 md:grid-cols-2">{sessions.data.items.map((session) => <article key={session.id} className="min-w-0 rounded-xl border border-slate-200 p-4">
+            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">{sessions.data.items.map((session) => <article key={session.id} className="min-w-0 rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold text-slate-900">{session.name}</h3>{session.is_active && <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{t('active')}</span>}</div>
               <p className="mt-2 text-sm text-slate-600">{session.start_date} → {session.end_date}</p>
               <div className="mt-4 flex flex-wrap gap-2">{canUpdate && <button type="button" onClick={() => edit(session)} className={`${ui.secondary} btn-sm`}>{t('editSession')}</button>}{canActivate && <button type="button" disabled={busy} onClick={() => activation(session)} className={`${ui.secondary} btn-sm`}>{t(session.is_active ? 'deactivate' : 'activate')}</button>}</div>

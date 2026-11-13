@@ -42,7 +42,7 @@ export function ResultsCentre() {
 function Cells({ cells, link, annual = false }: { cells: ResultOverviewCell[]; link: (c: ResultOverviewCell) => string; annual?: boolean }) {
   const { t } = useTranslation()
   const when = useWhen()
-  return <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">{cells.map(c => <li key={c.class_id} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_auto] sm:items-center">
+  return <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">{cells.map(c => <li key={c.class_id} className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_auto] sm:items-center">
     <div className="min-w-0"><p className="font-semibold text-slate-900">{c.class_name}</p>
       {!annual && c.sheets > 0 && <Progress done={c.approved} total={c.sheets} label={t('rvSheetsApproved', { approved: c.approved, sheets: c.sheets })} />}
     </div>

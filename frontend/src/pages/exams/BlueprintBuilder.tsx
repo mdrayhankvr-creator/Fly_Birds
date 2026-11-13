@@ -147,7 +147,7 @@ export function BlueprintBuilder({ canManage }: { canManage: boolean }) {
     {editable && <QuickSetup v={v} def={def} termId={activeTerm} termName={v.terms.find(term => term.id === activeTerm)?.name ?? ''} change={change} onDone={(text, tone) => setNotice({ tone, text })} />}
 
     <div className="lg:hidden"><Tabs label={t('bpBuilder')} value={pane} onChange={setPane} items={[{ value: 'structure', label: t('bpPaneStructure') }, { value: 'rules', label: t('bpPaneRules') }, { value: 'check', label: t('bpPaneCheck'), badge: issues.length ? <span className="rounded-full bg-rose-600 px-1.5 text-xs text-white">{issues.length}</span> : undefined }]} /></div>
-    <div className="grid gap-5 lg:grid-cols-[19rem_minmax(0,1fr)_21rem] lg:items-start">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[19rem_minmax(0,1fr)_21rem] lg:items-start">
       <div className={`${pane === 'structure' ? '' : 'hidden'} space-y-5 lg:block`}>
         <Structure v={v} def={def} editable={editable} change={change} onVisibility={visibility} canChangeVisibility={canManage && v.status === 'active'} />
         <SubjectList v={v} def={def} issues={issues} selected={subjectIndex} onSelect={i => { setSubjectIndex(i); setPane('rules') }} editable={editable} change={change} />
@@ -281,7 +281,7 @@ function SubjectRules({ v, def, index, name, fourth, editable, change, terms, te
       <div className="min-w-0"><h2 id="bp-rules" className="text-lg font-bold text-slate-900">{name}</h2><p className="text-sm text-slate-600">{t('bpRulesIntro')}</p></div>
       {editable && subject.role !== 'non_graded' && rule && <button type="button" className={ui.secondary} onClick={() => void (async () => { if (await confirmAction(t('bpApplyAllConfirm', { name }), { tone: 'default' })) change(applyToAll(def, subject.subject_id, termId)) })()}>{t('bpApplyAll')}</button>}
     </div>
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label className={ui.label}>{t('bpRole')}
         <select disabled={!editable} className={ui.field} value={subject.role} onChange={e => {
           const role = e.target.value as SubjectRole
@@ -300,7 +300,7 @@ function SubjectRules({ v, def, index, name, fourth, editable, change, terms, te
       {terms.length > 1 && <div className="mt-4"><Tabs label={t('bpTerm')} value={termId} onChange={onTerm} items={terms.map(term => ({ value: term.id, label: term.name }))} /></div>}
       <fieldset className="mt-4">
         <legend className={ui.label}>{t('bpTermMark')}</legend>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {(['final_only', 'ct_final', 'best_ct_final', 'custom'] as const).map(p => {
             const possible = p === 'custom' || presetRule(def, termId, p, options) !== null
             return <label key={p} className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-sm transition ${preset === p ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200 hover:border-slate-300'} ${!possible || !editable ? 'cursor-not-allowed opacity-60' : ''}`}>
@@ -348,7 +348,7 @@ function Contributions({ def, rule, editable, termAssessments, onChange }: {
   const name = (key: string) => def.assessments.find(a => a.key === key)?.name || key
   return <div className="mt-4 rounded-xl border border-slate-200">
     <ul className="divide-y divide-slate-100">
-      {rule.contributions.map((c, i) => <li key={i} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_9rem_6rem_auto] sm:items-end">
+      {rule.contributions.map((c, i) => <li key={i} className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_9rem_6rem_auto] sm:items-end">
         {editable
           ? <fieldset><legend className="text-xs font-semibold text-slate-600">{t('bpFrom')}</legend><div className="mt-1 flex flex-wrap gap-2">{termAssessments.map(a => <label key={a.key} className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={c.from.includes(a.key)} onChange={e => set(i, { ...c, from: e.target.checked ? [...c.from, a.key] : c.from.filter(f => f !== a.key) })} />{a.name}</label>)}</div></fieldset>
           : <p className="text-sm"><span className="font-semibold text-slate-900">{c.from.map(name).join(', ')}</span><span className="block text-xs text-slate-600">{t(`bpCombine_${c.combine}`, { n: c.best })}</span></p>}

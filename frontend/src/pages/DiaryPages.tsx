@@ -60,7 +60,7 @@ export function TeacherDiaryPage() {
     <section className={`${ui.card} p-4 sm:p-5`} aria-labelledby="diary-day">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><CardTitle id="diary-day" icon="notebook">{fmt.date(date)}</CardTitle>{assignments.data && <p className="text-sm text-slate-600">{t('m9DiaryProgress', { published: fmt.number(published), total: fmt.number(assignments.data.length) })}</p>}</div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button type="button" className={ui.secondary} aria-label={t('m9PreviousDay')} onClick={() => { setDate(shiftDay(date, -1)); setSelected(null) }}>‹</button>
           <label><span className="sr-only">{t('m9Date')}</span><input type="date" className={`${ui.field} mt-0`} max={shiftDay(todayDhaka(), 7)} value={date} onChange={e => { if (e.target.value) { setDate(e.target.value); setSelected(null) } }} /></label>
           <button type="button" className={ui.secondary} aria-label={t('m9NextDay')} disabled={date >= shiftDay(todayDhaka(), 7)} onClick={() => { setDate(shiftDay(date, 1)); setSelected(null) }}>›</button>
@@ -68,7 +68,7 @@ export function TeacherDiaryPage() {
         </div>
       </div>
       {assignments.isPending ? <div className="mt-4"><Skeleton rows={3} /></div> : assignments.isError ? <div className="mt-4"><Banner tone="error">{t('m9ErrGeneric')}</Banner></div> : assignments.data.length === 0 ? <div className="mt-4"><EmptyState title={t('m9NoAssignments')}>{t('m9NoAssignmentsHint')}</EmptyState></div> :
-        <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{assignments.data.map(a => {
+        <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{assignments.data.map(a => {
           const active = selected?.section_id === a.section_id && selected.subject_id === a.subject_id
           return <li key={`${a.section_id}-${a.subject_id}`}><button type="button" aria-pressed={active} onClick={() => setSelected(a)} className={`w-full rounded-xl border p-3 text-left transition ${active ? 'border-[var(--brand-primary)] ring-2 ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]' : 'border-slate-200 hover:border-slate-300'}`}>
             <span className="flex items-start justify-between gap-2"><span className="font-semibold text-slate-900">{local(a.subject_name_en, a.subject_name_bn)}</span><DiaryStatus status={a.diary_status} /></span>
@@ -119,7 +119,7 @@ function DiaryEditor({ assignment, date, onSaved }: { assignment: DiaryAssignmen
     <form onSubmit={save} className={`${ui.card} space-y-4 p-4 sm:p-6`} aria-labelledby="diary-editor">
       <div className="flex flex-wrap items-center justify-between gap-2"><div><CardTitle id="diary-editor" icon="notebook">{local(assignment.subject_name_en, assignment.subject_name_bn)} · {assignment.class_name} {assignment.section_name}</CardTitle><p className="text-sm text-slate-600">{assignment.session_name}</p></div><DiaryStatus status={diary?.status ?? null} /></div>
       {message && <Banner tone={message.tone}>{message.text}</Banner>}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {sections.map(s => <Field key={s.key} label={t(s.label)}><textarea rows={s.key === 'class_notes' ? 5 : 3} className={ui.field} value={form[s.key]} placeholder={t(`${s.label}Hint`)} onChange={e => setForm({ ...form, [s.key]: e.target.value })} /></Field>)}
       </div>
       <div><p className={ui.label}>{t('m9Attachments')}</p><AttachmentList items={files} pathFor={f => diaryId && diary?.attachments.some(a => a.id === f.id) ? `/diary/${diaryId}/files/${f.id}` : ''} onRemove={id => setFiles(files.filter(f => f.id !== id))} />
@@ -197,7 +197,7 @@ export function DiaryFeedPage({ mode }: { mode: 'student' | 'guardian' }) {
   return <div className="space-y-6">
     <PageHeader eyebrow={t('m9DiaryEyebrow')} title={t(mode === 'student' ? 'm9MyDiary' : 'm9ChildDiary')} description={t('m9DiaryFeedIntro')} />
     <section className={`${ui.card} p-4 sm:p-5`} aria-label={t('m9Filters')}>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Field label={t('m9Search')} className="sm:col-span-2 xl:col-span-1"><span className="relative mt-1.5 block">
           <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input type="search" className={searchField} placeholder={t('m9DiarySearchHint')} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></span></Field>

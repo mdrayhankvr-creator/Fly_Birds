@@ -372,7 +372,13 @@ main table tbody tr:hover { background-color: #f8fafc; }
   .login-slips-print { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; padding: 6mm; }
   .login-slips-print .login-slip { break-inside: avoid; padding: 3.5mm; }
   .login-slips-print, .login-slips-print * { color: #0f172a !important; background: #ffffff !important; border-color: #64748b !important; }
+  /* Compact: exactly eight to an A4 page, 2 x 4 cells of 95 x 67 mm. */
+  .login-slips-print.login-slips-eight { display: block; padding: 0; page: login-slips-eight; }
+  .login-slips-eight .login-slips-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, 67mm); gap: 4mm; break-after: page; break-inside: avoid; }
+  .login-slips-eight .login-slips-page:last-child { break-after: auto; }
+  .login-slips-eight .login-slip { padding: 3mm 3.5mm; height: 67mm; }
 }
+@page login-slips-eight { size: A4 portrait; margin: 8mm; }
 .idcard-print-root { display: none; }
 @media print {
   /* display: none (not visibility) so the app adds no blank pages. */

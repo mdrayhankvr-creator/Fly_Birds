@@ -149,11 +149,27 @@ async function connect(state, base, shots, timeoutMs) {
     async viewport(width, height, mobile = false) { await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }) },
     async shot(name, full = true) { const r = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: full }); writeFileSync(join(shots, name + '.png'), Buffer.from(r.data, 'base64')) },
     overflow: () => b.evaluate('document.documentElement.scrollWidth > window.innerWidth + 1'),
-    async login(email, password, lang = 'en') {
+    // The web server allows 30 sign-ins a minute from one address (nginx
+    // limit_req on /api/auth/login, answered with a bare 429 and no
+    // Retry-After). A machine that runs several suites one after another
+    // reaches that, and a suite that signs in inside a loop reaches it on
+    // its own, so wait for the bucket to refill and try again rather than
+    // failing the run. Only a 429 is retried; the endpoint answers every
+    // bad or locked account with 401, so nothing real is waited out.
+    async login(email, password, lang = 'en', attempts = 6) {
       await b.go('/login')
       await b.evaluate(`(async () => { localStorage.setItem('flybirds.language', '${lang}'); const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1] || ''); if (csrf) await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } }).catch(() => null); return true })()`)
-      const status = await b.evaluate(`fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: ${JSON.stringify(email)}, password: ${JSON.stringify(password)} }) }).then(r => r.status)`)
-      if (status !== 200) throw new Error(`login ${email}: ${status}`)
+      for (let attempt = 1, wait = 4000; ; attempt++, wait = Math.min(wait * 2, 30000)) {
+        const res = await b.evaluate(`(async () => {
+          const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: ${JSON.stringify(email)}, password: ${JSON.stringify(password)} }) })
+          let code = ''
+          try { const body = await r.json(); code = (body && body.error && body.error.code) || '' } catch { /* the web server answers 429 with HTML */ }
+          return { status: r.status, after: Number(r.headers.get('Retry-After')) || 0, code }
+        })()`)
+        if (res.status === 200) return
+        if (res.status !== 429 || attempt >= attempts) throw new Error(`login ${email}: ${res.status}${res.code ? ' ' + res.code : ''}`)
+        await sleep(res.after > 0 ? Math.min(res.after * 1000, 60000) : wait)
+      }
     },
     async api(path, init = {}) {
       return b.evaluate(`(async () => { const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1]); const r = await fetch('/api/auth/refresh', { method: 'POST', headers: { 'X-CSRF-Token': csrf } }); const tok = (await r.json()).data.access_token; const init = ${JSON.stringify(init)}; init.headers = { ...(init.headers || {}), Authorization: 'Bearer ' + tok }; const x = await fetch('/api${path}', init); return { status: x.status, body: (x.headers.get('content-type') || '').includes('json') ? await x.json() : await x.text() } })()`)

@@ -42,7 +42,7 @@ export function ExamCorrections({ exam, canManage, students }: { exam: ResultExa
       <Link to={review} className={ui.secondary}>{t('rvReviewCorrections')}</Link>
     </div>
     {(error || message) && <div className="mt-3"><Notice tone={error ? 'error' : 'success'}>{error || message}</Notice></div>}
-    {canManage && <form className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:items-end" onSubmit={e => { e.preventDefault(); void run(async () => { await authorized(token => openResultCorrection(token, exam.id, student, reason.trim())); setStudent(''); setReason('') }, t('rvCorrectionOpened')) }}>
+    {canManage && <form className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:items-end" onSubmit={e => { e.preventDefault(); void run(async () => { await authorized(token => openResultCorrection(token, exam.id, student, reason.trim())); setStudent(''); setReason('') }, t('rvCorrectionOpened')) }}>
       <label className={ui.label}>{t('rvStudent')}<select required className={ui.field} value={student} onChange={e => setStudent(e.target.value)}>
         <option value="">{t('rvChooseStudent')}</option>{students.filter(s => !open.some(c => c.student_id === s.id)).map(s => <option key={s.id} value={s.id}>{s.name} · {s.admission_no}</option>)}
       </select></label>

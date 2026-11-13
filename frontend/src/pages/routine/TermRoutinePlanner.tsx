@@ -86,7 +86,7 @@ function RoomsPanel({ canManage }: { canManage: boolean }) {
       <div className="mt-3 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('e8RoomsTitle')}><table className={`${ui.table} min-w-[30rem]`}><thead><tr><th className={ui.th}>{t('e8RoomName')}</th><th className={ui.th}>{t('e8RoomKind')}</th><th className={ui.th}>{t('e8Capacity')}</th><th className={ui.th}>{t('e8RoomActive')}</th>{canManage && <th className={ui.th}><span className="sr-only">{t('e8EditRoom')}</span></th>}</tr></thead>
         <tbody>{rooms.data.map(r => <tr key={r.id} className={r.is_active ? '' : 'text-slate-500'}><td className={`${ui.td} font-semibold`}>{name(r.name, r.name_bn)}</td><td className={ui.td}>{t(`e8RoomKind_${r.kind}`)}</td><td className={`${ui.td} tabular-nums`}>{r.capacity ? num(r.capacity) : t('e8NotSet')}</td><td className={ui.td}>{r.is_active ? '✓' : '—'}</td>
           {canManage && <td className={ui.td}><button type="button" className={ui.ghost} onClick={() => edit(r)}>{t('e8EditRoom')}</button></td>}</tr>)}</tbody></table></div>)}
-    {canManage && <form className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-5" onSubmit={save}>
+    {canManage && <form className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-5" onSubmit={save}>
       <label className={ui.label}>{t('e8RoomName')}<input className={field} required maxLength={80} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
       <label className={ui.label}>{t('e8NameBn')}<input className={field} maxLength={80} value={form.name_bn} onChange={e => setForm({ ...form, name_bn: e.target.value })} /></label>
       <label className={ui.label}>{t('e8RoomKind')}<select className={field} value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as RoomKind })}>{(['classroom', 'lab', 'hall'] as const).map(k => <option key={k} value={k}>{t(`e8RoomKind_${k}`)}</option>)}</select></label>
@@ -172,14 +172,14 @@ export function TermRoutinePlanner({ canManage, canApprove }: { canManage: boole
       <CardTitle id="e8-planner" icon="calendar">{t('e8Tab')}</CardTitle>
       <p className="mt-1 max-w-3xl text-sm text-slate-600">{t('e8Intro')}</p>
       {terms.data.length === 0 ? <div className="mt-4"><EmptyState title={t('e8NoTerms')} icon="calendar">{t('e8NoTermsHint')}</EmptyState></div> : <>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className={ui.label}>{t('e8Term')}<select className={field} value={termId} onChange={e => { setTermId(e.target.value); setVersionId(''); setReport(null); runner.setFeedback({}) }}>
             {terms.data.map(x => <option key={x.term_id} value={x.term_id}>{x.session_name} · {x.term_name}</option>)}</select></label>
           {term && term.versions.length > 0 && <div><p className={ui.label}>{t('e8Versions')}</p><div className="mt-1.5 flex flex-wrap gap-2">{term.versions.map(x =>
             <button key={x.id} type="button" aria-pressed={x.id === versionId} onClick={() => { setVersionId(x.id); setReport(null); runner.setFeedback({}) }}
               className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${x.id === versionId ? 'border-[var(--brand-primary)] ds-softer' : 'border-slate-200 bg-white'}`}>{t('e8Version', { n: num(x.version) })}<StatusPill status={x.status} /></button>)}</div></div>}
         </div>
-        {term && term.versions.length === 0 && (canManage ? <form className="mt-4 grid gap-3 rounded-xl border border-dashed border-slate-300 p-4 sm:grid-cols-3" onSubmit={startRoutine}>
+        {term && term.versions.length === 0 && (canManage ? <form className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-dashed border-slate-300 p-4 sm:grid-cols-3" onSubmit={startRoutine}>
           <p className="text-sm text-slate-700 sm:col-span-3">{t('e8NoRoutine')} {t('e8StartHint')}</p>
           <label className={ui.label}>{t('e8From')}<input type="date" className={field} required value={start.from} onChange={e => setStart({ ...start, from: e.target.value })} /></label>
           <label className={ui.label}>{t('e8To')}<input type="date" className={field} required min={start.from} value={start.to} onChange={e => setStart({ ...start, to: e.target.value })} /></label>
@@ -282,17 +282,17 @@ function SettingsPanel({ version }: { version: RoutineVersion }) {
   return <section className={card} aria-labelledby="e8-settings">
     <CardTitle id="e8-settings" icon="settings">{t('e8Dates')} · {t('e8Sittings')}</CardTitle>
     <div className="mt-3"><FeedbackNotice feedback={runner.feedback} version={version} /></div>
-    <form className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={e => { e.preventDefault(); void runner.run(() => authorized(token => updateRoutineVersion(token, version.id, dates)), 'e8Saved') }}>
+    <form className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={e => { e.preventDefault(); void runner.run(() => authorized(token => updateRoutineVersion(token, version.id, dates)), 'e8Saved') }}>
       <label className={ui.label}>{t('e8From')}<input type="date" className={field} required min={version.term_starts_on ?? undefined} max={version.term_ends_on ?? undefined} value={dates.starts_on} onChange={e => setDates({ ...dates, starts_on: e.target.value })} /></label>
       <label className={ui.label}>{t('e8To')}<input type="date" className={field} required min={dates.starts_on} max={version.term_ends_on ?? undefined} value={dates.ends_on} onChange={e => setDates({ ...dates, ends_on: e.target.value })} /></label>
       <label className={`${ui.label} sm:col-span-2`}>{t('e8Instructions')}<textarea className={field} rows={2} maxLength={4000} value={dates.instructions} onChange={e => setDates({ ...dates, instructions: e.target.value })} /></label>
       <div className="sm:col-span-2 lg:col-span-4"><button className={ui.secondary} disabled={runner.busy}>{t('e8SaveSettings')}</button></div>
     </form>
-    <ul className="mt-5 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">{version.sittings.map(s => <li key={s.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
+    <ul className="mt-5 grid grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">{version.sittings.map(s => <li key={s.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
       <span><span className="font-semibold">{name(s.name, s.name_bn)}</span> <span className="tabular-nums text-sm text-slate-600">{num(s.start_time)}–{num(s.end_time)} · {t('e8Minutes', { n: num(s.minutes) })}</span></span>
       <span className="flex gap-1"><button type="button" className={ui.ghost} onClick={() => setSitting({ id: s.id, name: s.name, name_bn: s.name_bn, start_time: s.start_time, end_time: s.end_time })}>{t('edit')}</button>
         <button type="button" className={`${ui.ghost} text-rose-700`} aria-label={`${t('e8RemoveSitting')} ${s.name}`} disabled={runner.busy} onClick={() => void runner.run(() => authorized(token => deleteRoutineSitting(token, version.id, s.id)), 'e8Saved')}>{t('delete')}</button></span></li>)}</ul>
-    <form className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={saveSitting}>
+    <form className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={saveSitting}>
       <label className={ui.label}>{t('e8SittingName')}<input className={field} required maxLength={60} value={sitting.name} onChange={e => setSitting({ ...sitting, name: e.target.value })} /></label>
       <label className={ui.label}>{t('e8NameBn')}<input className={field} maxLength={60} value={sitting.name_bn} onChange={e => setSitting({ ...sitting, name_bn: e.target.value })} /></label>
       <label className={ui.label}>{t('e8SittingStart')}<input type="time" className={field} required value={sitting.start_time} onChange={e => setSitting({ ...sitting, start_time: e.target.value })} /></label>
@@ -373,7 +373,7 @@ function PapersPanel({ version, editable }: { version: RoutineVersion; editable:
             {editable && <td className={`${ui.td} whitespace-nowrap text-right`}><button type="button" className={ui.ghost} aria-expanded={open === p.id} onClick={() => open === p.id ? setOpen('') : edit(p)}>{t('e8Place')}</button></td>}
           </tr>
           {editable && open === p.id && draft && <tr><td colSpan={4} className="border-b border-slate-200 bg-slate-50 px-3 py-4">
-            <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={e => void save(p, e)} aria-label={t('e8PlaceTitle', { paper: `${c.name} ${paperName(p)}` })}>
+            <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={e => void save(p, e)} aria-label={t('e8PlaceTitle', { paper: `${c.name} ${paperName(p)}` })}>
               <label className={ui.label}>{t('e8Date')}<select className={field} value={draft.date} onChange={e => setDraft({ ...draft, date: e.target.value })}><option value="">{t('e8NotPlaced')}</option>
                 {[...new Set([...(p.exam_date ? [p.exam_date] : []), ...version.dates])].sort().map(d => <option key={d} value={d}>{day(d)}</option>)}</select></label>
               <label className={ui.label}>{t('e8Sitting')}<select className={field} disabled={!draft.date} value={draft.sitting} onChange={e => setDraft({ ...draft, sitting: e.target.value })}>{version.sittings.map(s => <option key={s.id} value={s.id}>{name(s.name, s.name_bn)} {s.start_time}–{s.end_time}</option>)}</select></label>
@@ -396,7 +396,7 @@ function PapersPanel({ version, editable }: { version: RoutineVersion; editable:
             </form></td></tr>}
         </PaperRows>)}</tbody></table></div>
     </div>)}
-    {editable && <form className="mt-5 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3 lg:grid-cols-6" onSubmit={e => { e.preventDefault(); void runner.run(() => authorized(token => addRoutinePaper(token, version.id, adding)), 'e8Saved') }}>
+    {editable && <form className="mt-5 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3 lg:grid-cols-6" onSubmit={e => { e.preventDefault(); void runner.run(() => authorized(token => addRoutinePaper(token, version.id, adding)), 'e8Saved') }}>
       <p className="text-sm font-semibold text-slate-800 sm:col-span-3 lg:col-span-6">{t('e8AddPaper')} <span className="font-normal text-slate-500">· {t('e8AddPaperHint')}</span></p>
       <label className={ui.label}>{t('e8Class')}<select className={field} required value={adding.class_id} onChange={e => setAdding({ ...adding, class_id: e.target.value, subject_id: '' })}><option value="">{t('selectOption')}</option>{version.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
       <label className={ui.label}>{t('e8Subject')}<select className={field} required value={adding.subject_id} onChange={e => setAdding({ ...adding, subject_id: e.target.value })}><option value="">{t('selectOption')}</option>{subjectsOf(adding.class_id).map(p => <option key={p.subject_id} value={p.subject_id}>{name(p.subject_name, p.subject_name_bn)}</option>)}</select></label>
@@ -428,7 +428,7 @@ function DutiesPanel({ version, editable }: { version: RoutineVersion; editable:
       <div className="mt-3 max-h-96 overflow-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('e8Duties')}><table className={`${ui.table} min-w-[34rem]`}><thead><tr><th className={ui.th}>{t('e8Date')}</th><th className={ui.th}>{t('e8Sitting')}</th><th className={ui.th}>{t('e8Room')}</th><th className={ui.th}>{t('e8Teacher')}</th>{editable && <th className={ui.th}><span className="sr-only">{t('e8RemoveDuty')}</span></th>}</tr></thead>
         <tbody>{version.duties.map(d => <tr key={d.id}><td className={ui.td}>{day(d.exam_date)}</td><td className={ui.td}>{sittingName(d.sitting_id)}</td><td className={ui.td}>{name(d.room_name, d.room_name_bn)}</td><td className={`${ui.td} font-semibold`}>{name(d.employee_name, d.employee_name_bn)}</td>
           {editable && <td className={ui.td}><button type="button" className={`${ui.ghost} text-rose-700`} aria-label={`${t('e8RemoveDuty')}: ${d.employee_name}`} disabled={runner.busy} onClick={() => void runner.run(() => authorized(token => deleteRoutineDuty(token, version.id, d.id)), 'e8Saved')}>{t('delete')}</button></td>}</tr>)}</tbody></table></div>}
-    {editable && <form className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-5" onSubmit={e => { e.preventDefault(); void runner.run(() => authorized(token => addRoutineDuty(token, version.id, form)), 'e8Saved') }}>
+    {editable && <form className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-5" onSubmit={e => { e.preventDefault(); void runner.run(() => authorized(token => addRoutineDuty(token, version.id, form)), 'e8Saved') }}>
       <label className={ui.label}>{t('e8Date')}<select className={field} required value={form.exam_date} onChange={e => setForm({ ...form, exam_date: e.target.value })}><option value="">{t('selectOption')}</option>{usedDates.map(d => <option key={d} value={d}>{day(d)}</option>)}</select></label>
       <label className={ui.label}>{t('e8Sitting')}<select className={field} required value={form.sitting_id} onChange={e => setForm({ ...form, sitting_id: e.target.value })}><option value="">{t('selectOption')}</option>{version.sittings.map(s => <option key={s.id} value={s.id}>{sittingName(s.id)}</option>)}</select></label>
       <label className={ui.label}>{t('e8Room')}<select className={field} required value={form.room_id} onChange={e => setForm({ ...form, room_id: e.target.value })}><option value="">{t('selectOption')}</option>{version.rooms.filter(r => r.is_active).map(r => <option key={r.id} value={r.id}>{name(r.name, r.name_bn)}</option>)}</select></label>
@@ -453,7 +453,7 @@ function DocumentsPanel({ version }: { version: RoutineVersion }) {
     <CardTitle id="e8-docs" icon="download">{t('e8Documents')}</CardTitle>
     <p className="mt-1 max-w-3xl text-sm text-slate-600">{t('e8DocumentsHint')}</p>
     {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
-    <div className="mt-3 grid gap-3 sm:grid-cols-3">{(['class', 'room', 'invigilation'] as const).map(kind => <div key={kind} className="rounded-xl border border-slate-200 p-3">
+    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">{(['class', 'room', 'invigilation'] as const).map(kind => <div key={kind} className="rounded-xl border border-slate-200 p-3">
       <p className="font-semibold text-slate-900">{t(`e8Doc_${kind}`)}</p>
       <div className="mt-2 flex flex-wrap gap-2">{(['en', 'bn'] as const).map(lang => <button key={lang} type="button" className={ui.secondary} disabled={!!busy} onClick={() => void download(kind, lang)}>
         <Icon name="download" className="h-4 w-4" />{t(lang === 'en' ? 'e8English' : 'e8Bangla')}</button>)}</div>

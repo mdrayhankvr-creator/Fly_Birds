@@ -101,7 +101,7 @@ function TermsPanel({ sessionId, canManage }: { sessionId: string; canManage: bo
           </div>
         </li>)}
       </ol>}
-    {canManage && <form onSubmit={submit} className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+    {canManage && <form onSubmit={submit} className="mt-5 grid grid-cols-1 gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
       <label className={ui.label}>{t('bpTermName')}<input required maxLength={120} className={ui.field} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
       <label className={ui.label}>{t('bpTermKind')}<select className={ui.field} value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as ExamTerm['kind'] })}><option value="term">{t('bpKindTerm')}</option><option value="annual">{t('bpKindAnnual')}</option></select></label>
       <label className={ui.label}>{t('bpStarts')}<input type="date" className={ui.field} value={form.starts_on} onChange={e => setForm({ ...form, starts_on: e.target.value })} /></label>

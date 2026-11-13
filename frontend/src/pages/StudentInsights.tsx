@@ -73,7 +73,7 @@ function Attendance({ data, num }: { data: StudentSummary; num: (n: number) => s
   const month = a.months.find(m => m.period === data.today.slice(0, 7))
   const tiles: [string, Counts | undefined][] = [['c4ThisMonthRate', month], ['c4ThisYearRate', a.session]]
   return <div>
-    <dl className="grid gap-3 sm:grid-cols-2">{tiles.map(([key, c]) => {
+    <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">{tiles.map(([key, c]) => {
       const pct = rate(c)
       return <div key={key} className="ds-stat px-4 py-3"><dt className="text-xs font-semibold text-slate-600">{t(key)}</dt>
         <dd className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900">{pct == null ? '—' : `${num(pct)}%`}</dd>

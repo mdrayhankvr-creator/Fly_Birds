@@ -124,7 +124,7 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
       {count > 1 && <SlideControls {...controls} placement="phone" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 lg:hidden" />}
     </section>
 
-    <div className="relative mx-auto grid max-w-6xl gap-6 px-4 sm:px-6 lg:min-h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,25rem)] lg:items-center lg:gap-12 lg:py-12">
+    <div className="relative mx-auto grid grid-cols-1 max-w-6xl gap-6 px-4 sm:px-6 lg:min-h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,25rem)] lg:items-center lg:gap-12 lg:py-12">
       <div className="flex h-[17rem] min-w-0 flex-col justify-end pb-14 text-white sm:h-[21rem] lg:h-auto lg:pb-0">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           {branding?.logo_url

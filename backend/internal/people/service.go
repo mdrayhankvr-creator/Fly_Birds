@@ -198,7 +198,12 @@ type Repository interface {
 	AdmissionDefaults(context.Context, Actor, string) (AdmissionDefaults, error)
 	FindAdmission(context.Context, Actor, string) (admissionRecord, bool, error)
 }
-type Service struct{ repo Repository }
+type Service struct {
+	repo Repository
+	// Photos handles students' own photo uploads and their review; nil when
+	// the service runs without a database (unit tests).
+	Photos *PhotoSubmissions
+}
 
 func NewService(repo Repository) *Service { return &Service{repo: repo} }
 func validID(s string) bool               { return uuid.MatchString(s) }

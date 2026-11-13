@@ -68,7 +68,7 @@ export function IdCardPrintPage({ mode }: { mode: 'single' | 'bulk' }) {
       actions={<Link to={mode === 'single' && id ? `/admin/students/${id}` : '/admin/students'} className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t(mode === 'single' ? 'profileHeading' : 'studentsHeading')}</Link>} />
     {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
     <SectionCard title={t('idCardPrintOptions')} id="card-options" icon="print">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {mode === 'bulk' && <>
           <label className={ui.label}>{t('sessionLabel')}<select className={ui.field} value={sessionId} onChange={e => { setSessionId(e.target.value); setSectionId('') }}><option value="">{t('selectOption')}</option>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
           <label className={ui.label}>{t('classLabel')}<select className={ui.field} value={classId} onChange={e => { setClassId(e.target.value); setSectionId('') }}><option value="">{t('selectOption')}</option>{classes.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
@@ -77,7 +77,7 @@ export function IdCardPrintPage({ mode }: { mode: 'single' | 'bulk' }) {
         <label className={ui.label}>{t('idCardLanguage')}<select className={ui.field} value={lang} onChange={e => setLang(e.target.value as CardLanguage)}><option value="en">English</option><option value="bn">বাংলা</option></select></label>
       </div>
       <fieldset className="mt-5"><legend className={ui.label}>{t('idCardLayout')}</legend>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(['cr80', 'a4'] as const).map(value => <label key={value} className={`flex cursor-pointer gap-3 rounded-xl border p-3 ${layout === value ? 'border-[var(--brand-primary)] bg-[var(--brand-soft)]' : 'border-slate-200'}`}>
             <input type="radio" name="card-layout" className="mt-1 accent-[var(--brand-primary)]" checked={layout === value} onChange={() => setLayout(value)} />
             <span><span className="block text-sm font-semibold text-slate-900">{t(value === 'cr80' ? 'idCardLayoutCr80' : 'idCardLayoutA4')}</span><span className="block text-sm text-slate-600">{t(value === 'cr80' ? 'idCardLayoutCr80Help' : 'idCardLayoutA4Help')}</span></span>
@@ -98,8 +98,9 @@ export function IdCardPrintPage({ mode }: { mode: 'single' | 'bulk' }) {
         : deck.isPending ? <Skeleton rows={4} />
         : deck.isError ? <Notice tone="error">{deck.error instanceof ApiError && deck.error.status === 403 ? t('permissionDenied') : t('peopleLoadError')}</Notice>
         : cards.length === 0 ? <EmptyState icon="users" title={t('idCardNoStudents')} />
-        : <div className="flex flex-wrap gap-8">{cards.map(card => <figure key={card.student.id} className="m-0">
-            <div className="flex gap-3" style={{ zoom: 1.3 }}>
+        : <div className="flex flex-wrap gap-8">{cards.map(card => <figure key={card.student.id} className="m-0 min-w-0 max-w-full">
+            {/* A card is 85.6 mm wide: on phones the two faces stack at a smaller zoom, in their own scroll box. */}
+            <div className="flex flex-wrap gap-3 overflow-x-auto [zoom:0.8] min-[480px]:[zoom:1] sm:flex-nowrap sm:[zoom:1.3]">
               <div className="rounded-[3mm] shadow-[0_8px_24px_rgb(15_23_42/0.18)]"><CardFront card={card} school={deck.data.school} settings={deck.data.settings} lang={lang} photoUrl={assets.photos[card.student.id]} signatureUrl={assets.signature} /></div>
               <div className="rounded-[3mm] shadow-[0_8px_24px_rgb(15_23_42/0.18)]"><CardBack card={card} school={deck.data.school} settings={deck.data.settings} lang={lang} /></div>
             </div>
@@ -222,7 +223,7 @@ function CardSettingsPanel({ authorized, onSaved }: { authorized: Authorized; on
   if (settings.isError) return <SectionCard title={t('idCardSettings')}><StateScreen kind="error" message={t('peopleLoadError')} /></SectionCard>
   return <SectionCard title={t('idCardSettings')} description={t('idCardSettingsHelp')} id="card-settings" icon="settings">
     {message && <div className="mb-4"><Notice tone={message.tone}>{message.text}</Notice></div>}
-    <form className="grid gap-4 sm:grid-cols-2" onSubmit={save}>
+    <form className="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={save}>
       <label className={ui.label}>{t('idCardValidUntilSetting')}<input type="date" className={ui.field} value={form.valid_until} onChange={e => set('valid_until')(e.target.value)} /><span className="mt-1 block text-xs font-normal normal-case text-slate-500">{t('idCardValidUntilHelp')}</span></label>
       <label className={ui.label}>{t('idCardEmergency')}<input className={ui.field} inputMode="tel" maxLength={32} pattern="[+0-9() \-]*" value={form.emergency_phone} onChange={e => set('emergency_phone')(e.target.value)} /></label>
       {text.map(([key, max]) => <label key={key} className={ui.label}>{t(key === 'signatory_title_en' ? 'idCardSignatoryEN' : 'idCardSignatoryBN')}<input className={ui.field} maxLength={max} value={form[key]} placeholder={t(key === 'signatory_title_en' ? 'idCardDefaultSignatory' : 'idCardDefaultSignatoryBn')} onChange={e => set(key)(e.target.value)} /></label>)}
