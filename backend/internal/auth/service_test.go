@@ -36,6 +36,14 @@ func (r *memoryRepository) FindUserByLoginID(_ context.Context, loginID string) 
 	}
 	return r.user, nil
 }
+func (r *memoryRepository) FindUsersByLoginPhone(_ context.Context, phone string) ([]User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.user.LoginPhone == nil || *r.user.LoginPhone != phone {
+		return nil, nil
+	}
+	return []User{r.user}, nil
+}
 func (r *memoryRepository) RecordLoginFailure(_ context.Context, _ string, now time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

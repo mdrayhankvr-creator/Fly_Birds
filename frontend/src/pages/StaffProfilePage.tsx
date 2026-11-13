@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { LoginPhoneCard } from './LoginPhoneCard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
@@ -171,6 +172,7 @@ function OfficialCard({ profile: p, busy, onSave, onRemoveNID }: { profile: Staf
           <span className="block w-full text-xs text-slate-500">{t('c4NIDPrivate')}</span>
         </dd>
       </div>}
+      {p.can_edit_official && p.user_id && <div className="min-w-0 border-t border-slate-100 pt-4 sm:col-span-2"><LoginPhoneCard userId={p.user_id} current={p.login_phone ?? ''} kind="staff" /></div>}
     </dl>}
   </section>
 }

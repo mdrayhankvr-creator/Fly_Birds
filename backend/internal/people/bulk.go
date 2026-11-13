@@ -90,6 +90,7 @@ type bulkEntry struct {
 	sameAs       int    // index of the earlier entry whose new guardian to share; -1 if none
 	relationship string
 	loginEmail   string
+	loginPhone   string
 }
 
 var columnAliases = map[string]string{
@@ -97,6 +98,7 @@ var columnAliases = map[string]string{
 	"roll_no": "roll", "roll_number": "roll", "dob": "date_of_birth", "birth_date": "date_of_birth",
 	"class_name": "class", "section_name": "section", "name": "name_en", "student_name": "name_en",
 	"email": "login_email", "student_email": "login_email",
+	"phone": "login_phone", "guardian_login_phone": "login_phone", "mobile": "login_phone",
 	"version": "medium", "shift_name": "shift", "group_name": "group", "4th_subject": "fourth_subject", "optional_subject": "fourth_subject",
 }
 
@@ -542,7 +544,17 @@ func checkBulkTx(tx *gorm.DB, sessionID string, rows [][]string) (BulkPreview, [
 				}
 			}
 		}
-		entry := bulkEntry{student: v, sameAs: -1, loginEmail: out.LoginEmail}
+		// The login phone (usually the guardian's); siblings may share it.
+		loginPhone := ""
+		if raw := cell(row, "login_phone"); raw != "" {
+			normalized, ok := auth.NormalizePhone(raw)
+			if !ok {
+				fail("bad_login_phone")
+			} else {
+				loginPhone = normalized
+			}
+		}
+		entry := bulkEntry{student: v, sameAs: -1, loginEmail: out.LoginEmail, loginPhone: loginPhone}
 		// Guardian: new, an existing match, or shared with an earlier row.
 		gName, gPhone, gEmail := cell(row, "guardian_name"), cell(row, "guardian_phone"), strings.ToLower(cell(row, "guardian_email"))
 		if gName != "" || gPhone != "" || gEmail != "" || cell(row, "guardian_name_bn") != "" {
@@ -730,7 +742,7 @@ func (r *GormRepository) AdmitBulk(ctx context.Context, a Actor, in bulkRequest)
 			}
 			if len(in.logins) > 0 {
 				one := in.logins[i]
-				one.StudentID, one.Email = studentID, e.loginEmail
+				one.StudentID, one.Email, one.Phone = studentID, e.loginEmail, e.loginPhone
 				login, err := createStudentLoginTx(tx, a.ID, one, "import")
 				if err != nil {
 					return err

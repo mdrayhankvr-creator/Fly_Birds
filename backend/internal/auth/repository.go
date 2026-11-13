@@ -14,6 +14,7 @@ import (
 type Repository interface {
 	FindUserByEmail(context.Context, string) (User, error)
 	FindUserByLoginID(context.Context, string) (User, error)
+	FindUsersByLoginPhone(context.Context, string) ([]User, error)
 	RecordLoginFailure(context.Context, string, time.Time) error
 	ClearLoginFailures(context.Context, string, time.Time) error
 	CreateSession(context.Context, *Session) error
@@ -38,6 +39,15 @@ func (r *GormRepository) FindUserByEmail(ctx context.Context, email string) (Use
 		return User{}, ErrNotFound
 	}
 	return user, err
+}
+
+// FindUsersByLoginPhone finds every account that signs in with a number,
+// oldest first. A staff number matches one account; a guardian's number may
+// match several children of one family.
+func (r *GormRepository) FindUsersByLoginPhone(ctx context.Context, phone string) ([]User, error) {
+	var users []User
+	err := r.db.WithContext(ctx).Where("login_phone = ?", phone).Order("created_at, id").Find(&users).Error
+	return users, err
 }
 
 // FindUserByLoginID finds a student login by its sign-in ID, ignoring case.

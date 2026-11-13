@@ -47,7 +47,7 @@ func (r *GormRepository) Create(ctx context.Context, actor string, user User, ha
 			"must_change_password": true, "temporary_password_expires_at": expires}).Error; err != nil {
 			return err
 		}
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("email=?", user.Email).Take(&user).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("email=?", user.Email).Take(&user).Error; err != nil {
 			return err
 		}
 		return audit.Record(tx, &actor, "user.created", "user", user.ID, map[string]any{"role": user.Role})
@@ -70,12 +70,12 @@ func (r *GormRepository) List(ctx context.Context, q Query) (Page, error) {
 	if err := base.Count(&page.Total).Error; err != nil {
 		return Page{}, err
 	}
-	err := base.Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Order("email ASC,id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
+	err := base.Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Order("email ASC,id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
 	return page, err
 }
 func (r *GormRepository) Get(ctx context.Context, id string) (User, error) {
 	var user User
-	err := r.db.WithContext(ctx).Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&user).Error
+	err := r.db.WithContext(ctx).Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("id=?", id).Take(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return User{}, ErrNotFound
 	}
@@ -88,7 +88,7 @@ func (r *GormRepository) Update(ctx context.Context, actor, id string, input Upd
 			return err
 		}
 		var before User
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&before).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("id=?", id).Take(&before).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
@@ -123,7 +123,7 @@ func (r *GormRepository) ResetPassword(ctx context.Context, actor, id, hash stri
 		if err := require(tx, actor, "users:update"); err != nil {
 			return err
 		}
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&user).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("id=?", id).Take(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
@@ -143,6 +143,43 @@ func (r *GormRepository) ResetPassword(ctx context.Context, actor, id, hash stri
 	})
 	return user, revoked, expires, mapError(err)
 }
+
+// SetLoginPhone stores the number an account signs in with; "" clears it.
+// A number already used by another staff account is refused by the unique
+// index (ErrDuplicate), while student accounts may share one.
+func (r *GormRepository) SetLoginPhone(ctx context.Context, actor, id, phone string) (User, error) {
+	var user User
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := require(tx, actor, "users:update"); err != nil {
+			return err
+		}
+		var before User
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("id=?", id).Take(&before).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if before.LoginPhone == phone {
+			user = before
+			return nil
+		}
+		var value any
+		if phone != "" {
+			value = phone
+		}
+		if err := tx.Table("users").Where("id=?", id).Updates(map[string]any{"login_phone": value, "updated_at": time.Now().UTC()}).Error; err != nil {
+			return err
+		}
+		// The number itself is not written to the audit log; that it changed is.
+		if err := audit.Record(tx, &actor, "user.login_phone_changed", "user", id, map[string]any{"had_phone": before.LoginPhone != "", "has_phone": phone != ""}); err != nil {
+			return err
+		}
+		return tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("id=?", id).Take(&user).Error
+	})
+	return user, mapError(err)
+}
+
 func (r *GormRepository) SetStatus(ctx context.Context, actor, id string, active bool) (User, error) {
 	var user User
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -152,7 +189,7 @@ func (r *GormRepository) SetStatus(ctx context.Context, actor, id string, active
 		if err := require(tx, actor, "users:update"); err != nil {
 			return err
 		}
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id").Where("id=?", id).Take(&user).Error; err != nil {
+		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("id=?", id).Take(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}

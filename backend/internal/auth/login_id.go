@@ -18,12 +18,16 @@ var loginIDPattern = regexp.MustCompile(`^[^\s@]{1,64}$`)
 // characters, no spaces and no "@" (which marks an email address).
 func ValidLoginID(s string) bool { return loginIDPattern.MatchString(s) }
 
-// ValidIdentifier reports whether s is an email address or a sign-in ID.
+// ValidIdentifier reports whether s is an email address, a Bangladeshi
+// mobile number or a sign-in ID.
 func ValidIdentifier(s string) bool {
 	s = strings.TrimSpace(s)
 	if strings.Contains(s, "@") {
 		_, err := NormalizeEmail(s)
 		return err == nil
+	}
+	if ValidPhone(s) {
+		return true
 	}
 	return ValidLoginID(s)
 }

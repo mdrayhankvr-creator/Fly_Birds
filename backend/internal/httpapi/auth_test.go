@@ -29,6 +29,9 @@ func (r *handlerRepository) FindUserByEmail(_ context.Context, email string) (au
 func (r *handlerRepository) FindUserByLoginID(context.Context, string) (auth.User, error) {
 	return auth.User{}, auth.ErrNotFound
 }
+func (r *handlerRepository) FindUsersByLoginPhone(context.Context, string) ([]auth.User, error) {
+	return nil, nil
+}
 func (r *handlerRepository) RecordLoginFailure(context.Context, string, time.Time) error { return nil }
 func (r *handlerRepository) ClearLoginFailures(context.Context, string, time.Time) error { return nil }
 func (r *handlerRepository) CreateSession(_ context.Context, session *auth.Session) error {
