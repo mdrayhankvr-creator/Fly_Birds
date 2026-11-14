@@ -25,7 +25,7 @@ import (
 
 // templateVersion changes whenever a template's output changes, so cached
 // documents are rebuilt.
-const templateVersion = "ms3-1"
+const templateVersion = "ms3-2"
 
 var (
 	ErrInvalid      = errors.New("invalid document request")
@@ -761,6 +761,11 @@ func (s *Service) sheetData(ctx context.Context, l lang, set exams.DocSet, resul
 			teacher.Image = name
 		}
 		head := signature{Title: l.t("sig_head"), Name: l.pick(ex.headEN, ex.headBN), Image: brand.school.Signature}
+		if head.Image == "" && len(ex.headSig) > 0 {
+			name := "headsig-" + ex.headSigVersion + ".png"
+			assets[name] = ex.headSig
+			head.Image = name
+		}
 		if brand.school.Signatory != "" {
 			head.Title = brand.school.Signatory
 		}

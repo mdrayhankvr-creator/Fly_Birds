@@ -30,6 +30,7 @@ type tabRow struct {
 	Cells    []tabCell `json:"cells"`
 	Total    string    `json:"total"`
 	GPA      string    `json:"gpa"`
+	Letter   string    `json:"letter"`
 	Position string    `json:"position"`
 	Result   string    `json:"result"`
 	Failed   bool      `json:"failed"`
@@ -98,6 +99,9 @@ type classData struct {
 	Tabulation  struct {
 		Subjects []tabSubject `json:"subjects"`
 		Rows     []tabRow     `json:"rows"`
+		// Totals is the strip under the sheet: how many appeared, passed and
+		// failed, how many reached the top grade, and the pass rate.
+		Totals []summaryTile `json:"totals"`
 	} `json:"tabulation"`
 	Merit   []meritRow  `json:"merit"`
 	Failed  []failedRow `json:"failed"`
@@ -168,12 +172,17 @@ func (s *Service) classData(l lang, kind string, set exams.DocSet, results []exa
 	switch kind {
 	case "tabulation":
 		subjects := subjectsOf(l, ordered)
+		passed, failed, top := 0, 0, 0
+		topGrade := ""
+		if bands := sortedBands(lo); len(bands) > 0 {
+			topGrade = bands[0]
+		}
 		if len(subjects) > 10 {
 			d.Paper = "a3"
 		}
 		d.Tabulation.Subjects = subjects
 		for _, r := range ordered {
-			row := tabRow{Roll: rollText(l, r.Student.RollNo), Name: l.pick(r.Student.NameEN, r.Student.NameBN), Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", Total: "—", GPA: "—", Position: "—"}
+			row := tabRow{Roll: rollText(l, r.Student.RollNo), Name: l.pick(r.Student.NameEN, r.Student.NameBN), Result: outcomeText(l, r.Outcome), Failed: r.Outcome == "failed", Total: "—", GPA: "—", Letter: "—", Position: "—"}
 			if section == "" {
 				row.Section = r.Student.SectionName
 			}
@@ -200,6 +209,7 @@ func (s *Service) classData(l lang, kind string, set exams.DocSet, results []exa
 			if r.Outcome == "passed" || r.Outcome == "failed" {
 				row.Total = l.marks(r.Outputs.Total)
 				row.GPA = l.points(r.Outputs.GPA)
+				row.Letter = lo.letter(r.Outputs)
 				pos := r.Outputs.ClassPosition
 				if section != "" {
 					pos = r.Outputs.SectionPosition
@@ -207,7 +217,27 @@ func (s *Service) classData(l lang, kind string, set exams.DocSet, results []exa
 				row.Position = posText(l, pos, 0)
 			}
 			d.Tabulation.Rows = append(d.Tabulation.Rows, row)
+			switch r.Outcome {
+			case "passed":
+				passed++
+			case "failed":
+				failed++
+			}
+			if topGrade != "" && (r.Outcome == "passed" || r.Outcome == "failed") && lo.letter(r.Outputs) == topGrade {
+				top++
+			}
 		}
+		// A withheld or absent student is on the sheet but did not appear.
+		appeared := passed + failed
+		d.Tabulation.Totals = []summaryTile{
+			{Label: l.t("tab_appeared"), Value: l.int(appeared)},
+			{Label: l.t("passed"), Value: l.int(passed)},
+			{Label: l.t("failed"), Value: l.int(failed)},
+		}
+		if topGrade != "" {
+			d.Tabulation.Totals = append(d.Tabulation.Totals, summaryTile{Label: topGrade, Value: l.int(top)})
+		}
+		d.Tabulation.Totals = append(d.Tabulation.Totals, summaryTile{Label: l.t("pass_rate"), Value: percent(l, passed, appeared), Strong: true})
 	case "merit_list":
 		ranked := append([]exams.DocResult{}, ordered...)
 		pos := func(r exams.DocResult) int {

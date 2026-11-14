@@ -39,21 +39,34 @@
   let n = T.subjects.len()
   set text(size: if n > 10 { 7pt } else { 7.5pt })
   table(
-    columns: (9mm, 38mm, ..T.subjects.map(_ => 1fr), 14mm, 11mm, 10mm, 15mm),
+    columns: (9mm, 38mm, ..T.subjects.map(_ => 1fr), 14mm, 11mm, 10mm, 10mm, 15mm),
     stroke: lines, fill: zebra, inset: (x: 1mm, y: 1.2mm),
     align: (x, y) => if x == 1 { left + horizon } else { center + horizon },
     table.header(th(L.roll), th(L.name), ..T.subjects.map(s => th({ s.name; if s.code != "" { linebreak(); text(fill: faint, s.code) } })),
-      th(L.total), th(L.gpa), th(L.position), th(L.result)),
+      th(L.total), th(L.gpa), th(L.letter), th(L.position), th(L.result)),
     ..T.rows.map(r => (
       r.roll,
       { text(weight: "semibold", r.name); if r.section != "" { linebreak(); text(size: 6pt, fill: muted, r.section) } },
       ..r.cells.map(c => if c.marks == "" { text(fill: faint, "—") } else {
         text(fill: if c.failed { fail-red } else { ink }, { c.marks; linebreak(); text(size: 6pt, weight: "bold", c.grade) })
       }),
-      text(weight: "bold", r.total), text(weight: "bold", r.gpa), r.position,
+      text(weight: "bold", r.total), text(weight: "bold", r.gpa), text(weight: "semibold", r.letter), r.position,
       text(weight: "semibold", fill: if r.failed { fail-red } else { ink }, r.result),
     )).flatten(),
   )
+  // The strip under the sheet: appeared, passed, failed, the top grade
+  // and the pass rate.
+  if T.totals.len() > 0 {
+    v(3mm)
+    let cell(t) = block(width: 100%, inset: (x: 3mm, y: 2mm), radius: 2pt,
+      stroke: if t.strong { 1pt + accent } else { 0.5pt + rule }, fill: if t.strong { tint } else { none },
+      { text(size: 7pt, fill: muted, t.label); linebreak(); text(size: 12pt, weight: "bold", t.value) })
+    block(breakable: false, {
+      text(size: 8pt, weight: "bold", L.summary)
+      v(1.5mm)
+      grid(columns: (1fr,) * T.totals.len(), column-gutter: 2.5mm, ..T.totals.map(cell))
+    })
+  }
 } else if doc.kind == "merit_list" {
   table(
     columns: (16mm, 14mm, 1fr, 26mm, 22mm, 18mm, 18mm),

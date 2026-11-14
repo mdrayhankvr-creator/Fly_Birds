@@ -362,8 +362,26 @@ func TestPostgresResultDocuments(t *testing.T) {
 	if _, err := svc.Request(ctx, teacher, Request{Kind: "tabulation", Scope: exams.ScopeTerm, ScopeID: s.term, ClassID: s.classID, Language: "bn"}); err != nil {
 		t.Fatalf("the class's teacher: %v", err)
 	}
-	if tab := fake.last().Data.(classData); tab.Kind != "tabulation" || len(tab.Tabulation.Rows) != 3 || tab.Labels["tabulation"] != "টেবুলেশন শিট" || tab.Tabulation.Rows[0].Roll != "১" {
+	if tab := fake.last().Data.(classData); tab.Kind != "tabulation" || len(tab.Tabulation.Rows) != 3 || tab.Labels["tabulation"] != "টেবুলেশন শিট" || tab.Tabulation.Rows[0].Roll != "১" || tab.Tabulation.Rows[0].Letter == "" {
 		t.Fatalf("tabulation: %+v", tab.Tabulation.Rows)
+	}
+	// The strip under the sheet, in Bangla: how many appeared, passed and
+	// failed, how many reached the top grade, and the pass rate. All three
+	// of this class's students sat the exam; a withheld or absent one would
+	// be on the sheet without being counted as having appeared.
+	totals := fake.last().Data.(classData).Tabulation.Totals
+	if len(totals) != 5 {
+		t.Fatalf("the tabulation strip: %+v", totals)
+	}
+	got := map[string]string{}
+	for _, tile := range totals {
+		got[tile.Label] = tile.Value
+	}
+	if got["অংশগ্রহণকারী"] != "৩" || got["উত্তীর্ণ"] != "২" || got["অকৃতকার্য"] != "১" || got["পাসের হার"] != "৬৬.৭%" || got["A+"] != "১" {
+		t.Fatalf("the tabulation strip: %+v", got)
+	}
+	if !totals[len(totals)-1].Strong {
+		t.Fatalf("the pass rate should stand out: %+v", totals[len(totals)-1])
 	}
 	for name, a := range map[string]Actor{"outsider": outsider, "accountant": accountant, "student": studentActor} {
 		if _, err := svc.Request(ctx, a, bulk); !errors.Is(err, ErrForbidden) {

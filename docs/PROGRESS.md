@@ -10,6 +10,20 @@ Each bullet under M0–M13 in [PROJECT_BRIEF.md](PROJECT_BRIEF.md) is one provis
 
 M0–M12 are merged into main (M12 through PR #18). M13 is complete locally on `feature/m13-release-readiness`, which is not pushed.
 
+## Current Status — Result Pack (2026-11-14)
+
+On `feature/result-pack`, from main after UX round 2 (PR #49) and phone sign-in (PR #51). No migration: the highest is still 1811, because everything here is template and mapping work. Outside the brief's M0–M13 criteria, so the completion figures above do not change.
+
+**Already built, confirmed before writing anything:** the automatic signatures (each member of staff uploads one; the transcript places the class teacher's and the head teacher's and leaves the guardian's box to be signed by hand), the admit cards (two per A4 with a cut line, photo, ID, class, section, roll, the student's own papers from the published routine, rules, the head teacher's signature and a QR check, a whole section in one PDF), the merit list (rank, roll, name, section, total, GPA, letter) and the tabulation sheet itself (landscape, one class with an optional section, every student's subject marks and grades, total, GPA, position and outcome).
+
+**What this branch adds:**
+- **The tabulation sheet's summary:** a strip under the sheet with how many appeared, passed and failed, how many reached the school's top grade, and the pass rate. A withheld or absent student is listed on the sheet but is not counted as having appeared. Each row also carries the student's overall letter grade, which the sheet did not show before.
+- **The head teacher's own signature:** uploaded once under their own account like every other member of staff, and printed in their box on the transcript when the ID-card settings carry no signature. A school that has set the ID-card signature keeps printing that one, so nothing already in print changes. The signature's version is part of the document's cache key, so a replaced signature makes a new transcript.
+- **The demo head teacher is a member of staff** (`DEMO-H01`), since a signature hangs on a staff record and the demo school's head had none; `seed-demo` stays idempotent.
+- `templateVersion` is `ms3-2`, so sheets cached under the old template are rebuilt.
+
+**Checks:** `go build`, `go vet` and gofmt clean; `go test ./... -p 1 -count=1` on a fresh database, 30 of 30 packages. New Go assertions: the summary strip's five figures in Bangla and the letter-grade column (`TestPostgresResultDocuments`), and the head teacher's own signature filling their box with the guardian's left blank (`TestPostgresMarksheetV2`). Frontend typecheck, build, i18n (3,918 English and 3,916 Bangla keys) and unit tests 20 of 20 — no frontend change was needed, the summary is inside the PDF. On `m15b1` rebuilt from the branch: `suite.mjs` 118 of 118, `result-publication.mjs` and the new `e2e/result-pack.mjs` 27 of 27, which proves the signature is on the page (the signed transcript carries the image and its mask and is larger than the unsigned one) and reads the sheet's landscape page size out of the PDF. Samples (English and Bangla of each): `Fly_Birds_QA_env\pdf-result-pack\`.
+
 ## Current Status — Settings GET/PUT Round-Trip (2026-11-14)
 
 On `feature/public-modern-bold`, a fresh demo school's `GET /school/settings` response was rejected by an unchanged `PUT /school/settings` with `400 invalid_request`. The response includes the read-only `logo_palette_primary`, `logo_palette_accent`, and `updated_at` fields, while the strict request decoder did not recognize them. The input now accepts these fields for compatibility; the repository still derives the palette from the uploaded logo and owns the update timestamp. Optional settings omitted by older clients retain their saved values. A database-backed HTTP regression covers both the unchanged round-trip and a legacy payload with the new optional fields omitted.

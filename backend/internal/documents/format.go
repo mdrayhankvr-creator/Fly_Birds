@@ -163,7 +163,7 @@ var labelsEN = map[string]string{
 	// Class documents.
 	"tabulation": "Tabulation sheet", "merit_list": "Merit list", "failed_list": "Failed subjects", "summary": "Result summary",
 	"all_sections": "All sections", "students": "Students", "position": "Position", "subjects_failed": "Failed subjects", "no_failures": "No student failed a subject.",
-	"appeared": "Results", "pass_rate": "Pass rate", "grade_distribution": "Grade distribution (by GPA)", "subject_distribution": "Grades by subject",
+	"appeared": "Results", "tab_appeared": "Appeared", "pass_rate": "Pass rate", "grade_distribution": "Grade distribution (by GPA)", "subject_distribution": "Grades by subject",
 	"page": "Page", "generated": "Generated", "count": "Count", "share": "Share", "by_section": "By section", "overall": "Overall",
 }
 
@@ -192,7 +192,7 @@ var labelsBN = map[string]string{
 	"comp_CQ": "সৃজনশীল", "comp_MCQ": "বহুনির্বাচনী", "comp_PRAC": "ব্যবহারিক", "comp_PRACTICAL": "ব্যবহারিক", "comp_TOTAL": "পরীক্ষা", "comp_WRITTEN": "লিখিত", "comp_ORAL": "মৌখিক", "comp_VIVA": "মৌখিক",
 	"tabulation": "টেবুলেশন শিট", "merit_list": "মেধা তালিকা", "failed_list": "অকৃতকার্য বিষয়ের তালিকা", "summary": "ফলাফলের সারসংক্ষেপ",
 	"all_sections": "সব শাখা", "students": "শিক্ষার্থী", "position": "অবস্থান", "subjects_failed": "অকৃতকার্য বিষয়", "no_failures": "কোনো শিক্ষার্থী কোনো বিষয়ে অকৃতকার্য হয়নি।",
-	"appeared": "ফলাফল", "pass_rate": "পাসের হার", "grade_distribution": "গ্রেড বণ্টন (জিপিএ অনুযায়ী)", "subject_distribution": "বিষয়ভিত্তিক গ্রেড",
+	"appeared": "ফলাফল", "tab_appeared": "অংশগ্রহণকারী", "pass_rate": "পাসের হার", "grade_distribution": "গ্রেড বণ্টন (জিপিএ অনুযায়ী)", "subject_distribution": "বিষয়ভিত্তিক গ্রেড",
 	"page": "পৃষ্ঠা", "generated": "প্রস্তুত", "count": "সংখ্যা", "share": "হার", "by_section": "শাখাভিত্তিক", "overall": "সার্বিক",
 }
 
