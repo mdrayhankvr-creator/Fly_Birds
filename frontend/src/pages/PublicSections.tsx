@@ -161,7 +161,7 @@ function ModernSections({ view: v, bn }: { view: PublicView; bn: boolean }) {
       </figure>
     </ModernSection>}
     <ModernSection id="public-results" title={t('pdNavResults')}>
-      <div className="pd-results-card"><Icon name="report" className="h-9 w-9" /><p>{t('pdResultsPrivate')}</p><a href="/#public-sign-in" className="pd-pill">{t('pdHeroSignIn')} <Icon name="arrowRight" className="h-4 w-4" /></a></div>
+      <div className="pd-results-card"><Icon name="report" className="h-9 w-9" /><p>{t('pdResultsPrivate')}</p><a href="/login" className="pd-pill">{t('pdHeroSignIn')} <Icon name="arrowRight" className="h-4 w-4" /></a></div>
     </ModernSection>
     {v.notices.length > 0 && <ModernSection id="public-notices" title={t('c5NoticesTitle')} action={v.notices.length > 3 ? <button type="button" className="pd-pill" onClick={() => setNoticesAll(x => !x)} aria-expanded={noticesAll}>{t(noticesAll ? 'pdShowLess' : 'pdSeeAll')} <Icon name="arrowRight" className="h-4 w-4" /></button> : undefined}>
       <ul className="pd-notice-grid">{v.notices.slice(0, noticesAll ? undefined : 3).map(notice => <li key={notice.id} className="pd-notice-card">

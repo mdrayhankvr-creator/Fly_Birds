@@ -45,7 +45,7 @@ function DemoQuickLogin({ disabled }: { disabled: boolean }) {
   </section>
 }
 
-// The sign-in form, shown on the school's landing page.
+// The shared sign-in form, shown in Modern Bold's dialog and older layouts.
 export function SignInForm() {
   const { t } = useTranslation()
   const { expired, signIn } = useAuth()

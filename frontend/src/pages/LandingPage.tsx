@@ -1,7 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type KeyboardEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Navigate } from 'react-router'
+import { Navigate, useLocation, useNavigate } from 'react-router'
 import { getSchoolSlides, slideImageUrl, type SchoolBranding, type SchoolSlide } from '../api/client'
 import { getPublicPage } from '../api/publicPage'
 import { useAuth } from '../auth/AuthProvider'
@@ -9,11 +9,11 @@ import { Icon } from '../components/icons'
 import { SignInForm } from './LoginPage'
 
 const SLIDE_MS = 7000
-// The public school page below the sign-in form loads as its own chunk.
+// The public school sections below the hero load as their own chunk.
 const PublicSections = lazy(() => import('./PublicSections').then(m => ({ default: m.PublicSections })))
 
 // True once the browser is idle after the first paint, so the sections below
-// the fold never compete with the sign-in form on a slow connection.
+// the fold never compete with the first screen on a slow connection.
 function useAfterFirstPaint() {
   const [ready, setReady] = useState(false)
   useEffect(() => {
@@ -38,7 +38,7 @@ function useReducedMotion() {
   return reduced
 }
 
-// The school's photos, cross-fading behind the identity and sign-in form.
+// The school's photos cross-fade behind its identity.
 // Only the first photo loads up front; each later one loads just before it
 // is shown, so a slow connection gets a picture quickly.
 function Slideshow({ slides, index, reduced }: { slides: SchoolSlide[]; index: number; reduced: boolean }) {
@@ -86,8 +86,63 @@ function SlideControls({ slides, index, onIndex, playing, onPlaying, reduced, on
   </div>
 }
 
+function SlideDots({ slides, index, onIndex }: { slides: SchoolSlide[]; index: number; onIndex: (index: number) => void }) {
+  const { t } = useTranslation()
+  return <div data-slide-dots role="group" aria-label={t('p3Slides')} className="absolute inset-x-0 bottom-5 z-10 flex justify-center gap-1.5 sm:bottom-8">
+    {slides.map((slide, i) => <button key={slide.id} type="button" onClick={() => onIndex(i)}
+      aria-label={t('p3SlideGo', { n: i + 1, total: slides.length })} aria-current={i === index ? 'true' : undefined}
+      className="grid h-9 w-9 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-white">
+      <span className={`block h-2 rounded-full bg-white shadow-sm ${i === index ? 'w-5' : 'w-2 opacity-60'}`} />
+    </button>)}
+  </div>
+}
+
+function SignInOverlay() {
+  const { t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const dialog = useRef<HTMLDivElement>(null)
+  const returnTo = location.state?.modalReturnTo
+  const close = useCallback(() => {
+    if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) navigate(-1)
+    else navigate('/', { replace: true })
+  }, [navigate, returnTo])
+
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const oldOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialog.current?.querySelector<HTMLInputElement>('#login-email')?.focus()
+    return () => { document.body.style.overflow = oldOverflow; previous?.focus() }
+  }, [])
+
+  function key(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') { event.preventDefault(); close(); return }
+    if (event.key !== 'Tab') return
+    const focusable = [...(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])') ?? [])]
+      .filter(element => element.getClientRects().length > 0)
+    if (!focusable.length) return
+    const first = focusable[0], last = focusable[focusable.length - 1]
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+  }
+
+  return <div data-sign-in-overlay className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" onKeyDown={key}>
+    <button type="button" aria-label={t('pdCloseSignIn')} className="absolute inset-0 cursor-default bg-slate-950/60 backdrop-blur-[3px]" onClick={close} tabIndex={-1} />
+    <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="sign-in-title"
+      className="pd-sign-in-sheet relative z-10 w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-3 shadow-2xl sm:rounded-2xl">
+      <button type="button" onClick={close} aria-label={t('pdCloseSignIn')}
+        className="absolute right-5 top-5 z-10 grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-[var(--public-primary)]">
+        <Icon name="close" className="h-5 w-5" />
+      </button>
+      <SignInForm />
+    </div>
+  </div>
+}
+
 export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const { t, i18n } = useTranslation()
+  const location = useLocation()
   const { user, ready } = useAuth()
   const slides = useQuery({ queryKey: ['school', 'slides'], queryFn: ({ signal }) => getSchoolSlides(signal), staleTime: 60_000, retry: 1 })
   const publicPage = useQuery({ queryKey: ['school', 'public-page'], queryFn: ({ signal }) => getPublicPage(signal), staleTime: 60_000, retry: 1 })
@@ -96,6 +151,7 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
   const [hold, setHold] = useState(false) // hover or keyboard focus inside the slideshow
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
   const list = slides.data ?? []
   const count = list.length
   useEffect(() => { if (index >= count && count > 0) setIndex(0) }, [count, index])
@@ -115,40 +171,44 @@ export function LandingPage({ branding }: { branding?: SchoolBranding }) {
   const current = Math.min(index, Math.max(0, count - 1))
   const controls = { slides: list, index: current, onIndex: setIndex, playing, onPlaying: setPlaying, reduced, onHold: setHold }
   const design = publicPage.data?.design_style || 'modern_bold'
+  const modern = design === 'modern_bold'
   const exploreTarget = publicPage.data?.about ? '#public-about' : publicPage.data?.gallery.length ? '#public-gallery' : '#public-sign-in'
 
   return <><div id="public-home" className="landing relative isolate" data-public-style={design}>
     {/* Banner: the photos on phones, the whole first screen on large screens. */}
     <section aria-label={t('p3Slides')} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}
       onFocus={() => setHold(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHold(false) }}
-      className={`landing-hero absolute inset-x-0 top-0 h-[17rem] overflow-hidden sm:h-[21rem] lg:h-full ${hasPhotos ? 'bg-slate-900' : 'landing-plain'}`}>
+      onTouchStart={modern ? e => { touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } } : undefined}
+      onTouchEnd={modern ? e => { const start = touchStart.current; touchStart.current = null; if (!start || count < 2) return; const dx = e.changedTouches[0].clientX - start.x; const dy = e.changedTouches[0].clientY - start.y; if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) setIndex(i => (i + (dx < 0 ? 1 : count - 1)) % count) } : undefined}
+      className={`landing-hero absolute inset-x-0 top-0 overflow-hidden ${modern ? 'h-full' : 'h-[17rem] sm:h-[21rem] lg:h-full'} ${hasPhotos ? 'bg-slate-900' : 'landing-plain'}`}>
       {hasPhotos ? <Slideshow slides={list} index={current} reduced={reduced} />
         : branding?.logo_url && <img src={branding.logo_url} alt="" aria-hidden="true" referrerPolicy="no-referrer" className="absolute -right-16 top-1/2 h-[28rem] w-[28rem] -translate-y-1/2 object-contain opacity-[0.08] lg:right-[8%]" />}
       <div aria-hidden="true" className={`absolute inset-0 ${hasPhotos ? 'landing-overlay' : 'landing-plain-overlay'}`} />
-      {count > 1 && <SlideControls {...controls} placement="phone" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 lg:hidden" />}
+      {count > 1 && (modern ? <SlideDots slides={list} index={current} onIndex={setIndex} /> : <SlideControls {...controls} placement="phone" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 lg:hidden" />)}
     </section>
 
-    <div className="relative mx-auto grid grid-cols-1 max-w-6xl gap-6 px-4 sm:px-6 lg:min-h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,25rem)] lg:items-center lg:gap-12 lg:py-12">
-      <div className="pd-hero-copy flex h-[17rem] min-w-0 flex-col justify-end pb-14 text-white sm:h-[21rem] lg:h-auto lg:pb-0">
+    <div className={`relative mx-auto grid grid-cols-1 max-w-6xl gap-6 px-4 sm:px-6 ${modern ? 'min-h-[calc(100svh-4rem)] items-end pb-24 pt-20 sm:pb-28 lg:pb-24' : 'lg:min-h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,25rem)] lg:items-center lg:gap-12 lg:py-12'}`}>
+      <div className={`pd-hero-copy flex min-w-0 flex-col justify-end text-white ${modern ? 'max-w-4xl' : 'h-[17rem] pb-14 sm:h-[21rem] lg:h-auto lg:pb-0'}`}>
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           {branding?.logo_url
-            ? <img src={branding.logo_url} alt="" referrerPolicy="no-referrer" className="h-14 w-14 shrink-0 rounded-2xl bg-white object-contain p-1.5 shadow-lg ring-1 ring-white/40 sm:h-20 sm:w-20" />
-            : <span aria-hidden="true" className="landing-mark grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-xl font-bold shadow-lg sm:h-20 sm:w-20 sm:text-2xl">{[...name.replace(/\s+/g, '')][0] ?? ''}</span>}
+            ? <img src={branding.logo_url} alt="" referrerPolicy="no-referrer" className={`${modern ? 'h-11 w-11 sm:h-20 sm:w-20' : 'h-14 w-14 sm:h-20 sm:w-20'} shrink-0 rounded-2xl bg-white object-contain p-1.5 shadow-lg ring-1 ring-white/40`} />
+            : <span aria-hidden="true" className={`landing-mark grid shrink-0 place-items-center rounded-2xl font-bold shadow-lg ${modern ? 'h-11 w-11 text-lg sm:h-20 sm:w-20 sm:text-2xl' : 'h-14 w-14 text-xl sm:h-20 sm:w-20 sm:text-2xl'}`}>{[...name.replace(/\s+/g, '')][0] ?? ''}</span>}
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold leading-tight tracking-tight [text-wrap:balance] sm:text-4xl lg:text-5xl" style={{ overflowWrap: 'anywhere' }}>{name}</h1>
+            <h1 className={`font-bold leading-tight tracking-tight [text-wrap:balance] ${modern ? 'pd-modern-hero-name' : 'text-2xl sm:text-4xl lg:text-5xl'}`} style={{ overflowWrap: 'anywhere' }}>{name}</h1>
             {otherName && otherName !== name && <p className="mt-1 text-sm font-medium text-white/80 sm:text-base" lang={bn ? 'en' : 'bn'}>{otherName}</p>}
           </div>
         </div>
         {tagline && <p className="mt-3 max-w-xl text-sm leading-6 text-white/90 sm:mt-5 sm:text-lg sm:leading-8">{tagline}</p>}
-        {design !== 'classic' && <div className="pd-hero-actions mt-5 flex flex-wrap gap-3 sm:mt-8">
+        {design === 'minimal' && <div className="pd-hero-actions mt-5 flex flex-wrap gap-3 sm:mt-8">
           <a href={exploreTarget} className="pd-hero-button pd-hero-button-primary">{t('pdHeroExplore')} <span aria-hidden="true">↗</span></a>
           <a href="#public-sign-in" className="pd-hero-button pd-hero-button-secondary">{t('pdHeroSignIn')}</a>
         </div>}
-        {count > 1 && <SlideControls {...controls} placement="desktop" showCaption className="mt-10 hidden max-w-xl lg:flex" />}
+        {count > 1 && !modern && <SlideControls {...controls} placement="desktop" showCaption className="mt-10 hidden max-w-xl lg:flex" />}
       </div>
-      <div id="public-sign-in" className="min-w-0 pb-10 lg:pb-0"><SignInForm /></div>
+      {!modern && <div id="public-sign-in" className="min-w-0 pb-10 lg:pb-0"><SignInForm /></div>}
     </div>
   </div>
+  {modern && location.pathname === '/login' && <SignInOverlay />}
   {showPublic && <Suspense fallback={null}><PublicSections /></Suspense>}
   </>
 }

@@ -10,7 +10,7 @@ import { Icon } from './icons'
 // The footer of every public page: who the school is, how to reach it, a few
 // links, the copyright and a small credit. Anything the school has not filled
 // in is left out. The public page is read after the first paint, so the
-// footer never slows the sign-in form; it shares its cache with the sections
+// footer never slows the first screen; it shares its cache with the sections
 // on the landing page.
 
 function useIdle() {
@@ -83,7 +83,7 @@ export function PublicFooter({ branding }: { branding?: SchoolBranding }) {
   const year = new Intl.NumberFormat(bn ? 'bn-BD' : 'en-US', { useGrouping: false }).format(Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date())))
   const landing = pathname === '/' || pathname === '/login'
 
-  // On the landing page the sign-in form and the sections are already there.
+  // Older public layouts keep an inline form; Modern Bold follows /login.
   function signIn(event: MouseEvent) {
     const field = document.getElementById('login-email') as HTMLInputElement | null
     if (!field) return

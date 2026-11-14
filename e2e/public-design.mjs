@@ -17,7 +17,7 @@ const axeSource = readFileSync(join(here, '..', 'frontend', 'node_modules', 'axe
 const styles = ['modern_bold', 'classic', 'minimal']
 const labels = { modern_bold: 'Modern Bold', classic: 'Classic', minimal: 'Minimal' }
 const headings = ['# Public school page design screenshots', '', 'QA stack: fbqa-cp1b at 127.0.0.1:8092.', 'Each image is a full-page capture at the named viewport width.', '']
-let originalPage, originalSettings, originalLogo, addedSlideId, addedGalleryId
+let originalPage, originalSettings, originalLogo, addedSlideIds = [], addedGalleryId
 const editable = page => { const { head_photo_version: _photo, ...input } = page; return input }
 
 async function admin() { await b.login('demo.admin@demo.flybirds.test', pw); await b.go('/admin/school-settings') }
@@ -70,8 +70,8 @@ try {
   const branding = (await b.api('/school/branding')).body.data
   check('two logo colours are stored', /^#[\da-f]{6}$/i.test(branding.logo_palette_primary) && /^#[\da-f]{6}$/i.test(branding.logo_palette_accent) && branding.logo_palette_primary !== branding.logo_palette_accent)
 
-  // A newly seeded demo school has gallery art but no slideshow. Use its own
-  // school-building image temporarily so the captures exercise the photo hero.
+  // A newly seeded demo school has gallery art but no slideshow. Use two of
+  // its own photos temporarily so the captures exercise the full photo hero.
   const slides = (await b.api('/school/slides')).body.data
   const gallery = (await b.api('/school/public-page/edit')).body.data.gallery
   // A plain CI seed has four photos, exactly the preview limit. Add one
@@ -91,16 +91,16 @@ try {
     if (result.status === 201) addedGalleryId = result.id
     if (result.status !== 201 || result.captionStatus !== 200) throw new Error(`could not prepare fifth gallery photo: ${result.status}/${result.captionStatus}`)
   }
-  if (!slides.length && gallery.length) {
+  for (let i = slides.length; i < 2 && i < gallery.length; i++) {
     const result = await b.evaluate(`(async () => {
-      const image = await (await fetch('/api/school/gallery/${gallery[0].id}/image')).blob()
+      const image = await (await fetch('/api/school/gallery/${gallery[i].id}/image')).blob()
       const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1])
       const token = (await (await fetch('/api/auth/refresh', { method: 'POST', headers: { 'X-CSRF-Token': csrf } })).json()).data.access_token
       const response = await fetch('/api/school/slides', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': image.type }, body: image })
       return { status: response.status, body: await response.json() }
     })()`)
-    if (result.status === 201) addedSlideId = result.body.data.id
-    check('school slideshow photo is used in the hero', !!addedSlideId, String(result.status))
+    if (result.status === 201) addedSlideIds.push(result.body.data.id)
+    check('school slideshow photo is used in the hero', result.status === 201, String(result.status))
   }
 
   for (const style of styles) await saveStyle(style, true)
@@ -150,6 +150,16 @@ try {
     check(`${labels[style]} public API excludes private fields`, !/("[^\"]*(?:phone|nid|guardian|marks)[^\"]*"\s*:)/i.test(serialized))
     check(`${labels[style]} page excludes phone and private records`, await b.evaluate(`!document.querySelector('[data-public-page] a[href^="tel:"], [data-public-footer] a[href^="tel:"]') && !/\\+880\\s*1[3-9]\\d/.test(document.body.innerText)`))
     if (style === 'modern_bold') {
+      await b.evaluate(`localStorage.setItem('flybirds.language', 'en')`)
+      await b.go('/')
+      await b.waitFor(`!!document.querySelector('[data-public-page]')`, 15000)
+      check('Modern Bold keeps sign-in off the landing page and removes hero buttons', await b.evaluate(`!document.querySelector('#login-email, .pd-hero-actions') && !!document.querySelector('[data-public-sign-in]')`))
+      check('Modern Bold photo fills the first screen with only dot controls', await b.evaluate(`(() => { const hero = document.querySelector('.landing-hero').getBoundingClientRect(); return hero.height >= innerHeight - 70 && document.querySelectorAll('[data-slide-dots] button').length >= 2 && !document.querySelector('[data-slide-controls]') })()`))
+      await b.evaluate(`document.querySelector('[data-public-sign-in]').click()`)
+      check('header sign-in opens a modal with the full identifier field', await b.waitFor(`!!document.querySelector('[data-sign-in-overlay] [role="dialog"] #login-email') && document.querySelector('label[for="login-email"]')?.innerText.trim() === 'Email, phone or Student ID'`))
+      check('sign-in modal focuses the identifier field', await b.evaluate(`document.activeElement?.id === 'login-email'`))
+      await b.key('Escape', 'Escape', 27)
+      check('Escape closes sign-in', await b.waitFor(`!document.querySelector('[data-sign-in-overlay]') && location.pathname === '/'`))
       check('Modern Bold has sticky navigation and four feature cards', await b.evaluate(`(() => { const h = document.querySelector('[data-public-header]'); return h && getComputedStyle(h).position === 'sticky' && document.querySelectorAll('.pd-feature-card').length === 4 && !!document.querySelector('#public-results') })()`))
       check('About uses two uploaded gallery photos and editable activities', await b.evaluate(`document.querySelectorAll('.pd-about-photos img').length === 2 && document.querySelectorAll('.pd-activities li').length === 2`))
       check('four-column footer uses only the filled social link and hides phone and payment methods', await b.evaluate(`document.querySelectorAll('.pd-modern-footer > div:first-child > section, .pd-modern-footer > div:first-child > nav').length === 4 && document.querySelectorAll('.pd-social').length === 1 && !document.querySelector('.pd-modern-footer a[href^="tel:"], [data-payment-methods]')`))
@@ -171,6 +181,9 @@ try {
       await b.waitFor(`!!document.querySelector('[data-public-page]')`, 15000)
       const motion = await b.evaluate(`(() => { const el = document.querySelector('#public-gallery img') || document.querySelector('[data-public-page]'); return { reduced: matchMedia('(prefers-reduced-motion: reduce)').matches, duration: parseFloat(getComputedStyle(el).transitionDuration), hidden: getComputedStyle(document.querySelector('[data-public-page] .public-section')).opacity === '0' } })()`)
       check('reduced motion disables reveal and transitions', motion.reduced && motion.duration < 0.01 && !motion.hidden, JSON.stringify(motion))
+      const slideBefore = await b.evaluate(`document.querySelector('[data-slide-dots] [aria-current="true"]')?.getAttribute('aria-label')`)
+      await sleep(7300)
+      check('reduced motion disables slideshow auto-slide', await b.evaluate(`document.querySelector('[data-slide-dots] [aria-current="true"]')?.getAttribute('aria-label')`) === slideBefore)
       const applied = await b.evaluate(`(() => ({ raw: document.documentElement.dataset.logoPalette, primary: getComputedStyle(document.documentElement).getPropertyValue('--public-primary').trim() }))()`)
       check('uploaded logo palette is applied to the public design', applied.raw?.toLowerCase() === branding.logo_palette_primary.toLowerCase() && applied.primary !== originalSettings.primary_color)
       const ratios = await b.evaluate(`(() => {
@@ -188,7 +201,7 @@ try {
     if (originalPage) {
       await admin()
       await b.api('/school/public-page', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editable(originalPage)) })
-      if (addedSlideId) await b.api(`/school/slides/${addedSlideId}`, { method: 'DELETE' })
+      for (const id of addedSlideIds) await b.api(`/school/slides/${id}`, { method: 'DELETE' })
       if (addedGalleryId && (await b.api(`/school/gallery/${addedGalleryId}`, { method: 'DELETE' })).status !== 200) throw new Error('could not remove the temporary gallery photo')
       if (originalLogo) {
         await b.evaluate(`(async () => { const bytes = Uint8Array.from(atob(${JSON.stringify(originalLogo.bytes)}), c => c.charCodeAt(0)); const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1]); const token = (await (await fetch('/api/auth/refresh', { method: 'POST', headers: { 'X-CSRF-Token': csrf } })).json()).data.access_token; return fetch('/api/school/logo', { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': ${JSON.stringify(originalLogo.kind)} }, body: bytes }).then(r => r.status) })()`)
