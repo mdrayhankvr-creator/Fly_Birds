@@ -252,6 +252,13 @@ WHERE id = 1 AND name_en = 'School'`).Error; err != nil {
 		}
 		employees = append(employees, id)
 	}
+	// The head teacher is a member of staff too, so the signature they upload
+	// once is placed on the transcripts they sign.
+	if _, err := s.ensure("employee", "DEMO-H01", func(tx *gorm.DB) (string, error) {
+		return scan(tx, "INSERT INTO employees (employee_code, user_id, kind, name_en, name_bn, designation, phone, joined_on) VALUES ('DEMO-H01', ?, 'teacher', 'Shahana Begum', 'শাহানা বেগম', 'Head Teacher', '01700000000', '2015-01-05') RETURNING id", head)
+	}); err != nil {
+		return err
+	}
 	if _, err := s.ensure("employee", "DEMO-S01", func(tx *gorm.DB) (string, error) {
 		return scan(tx, "INSERT INTO employees (employee_code, kind, name_en, name_bn, designation, joined_on) VALUES ('DEMO-S01', 'non_teaching', 'Abul Kalam', 'আবুল কালাম', 'Office Assistant', '2019-03-01') RETURNING id")
 	}); err != nil {

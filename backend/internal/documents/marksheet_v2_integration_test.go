@@ -260,6 +260,25 @@ func TestPostgresMarksheetV2(t *testing.T) {
 		t.Fatalf("a new signature kept the document: %s %+v", doc2.ID, st2.Signatures[0])
 	}
 
+	// The head teacher's own signature, uploaded once under their own
+	// account, fills the head's box while the ID-card settings carry none,
+	// and the guardian's box stays blank with its date line.
+	before, _ := request(0, "en")
+	var headEmp string
+	if err := tx.Raw(`INSERT INTO employees (employee_code, user_id, kind, name_en, designation, joined_on)
+ VALUES (?, ?, 'teacher', 'Head Master', 'Head Teacher', '2020-01-01') RETURNING id`, "EH-"+s.stamp, s.head).Row().Scan(&headEmp); err != nil {
+		t.Fatal(err)
+	}
+	headSig, headVersion := signaturePNG(t, 40)
+	exec("INSERT INTO employee_signatures (employee_id, content, version) VALUES (?, ?, ?)", headEmp, headSig, headVersion)
+	docH, stH := request(0, "en")
+	if docH.ID == before.ID || stH.Signatures[2].Image != "headsig-"+headVersion+".png" {
+		t.Fatalf("the head teacher's own signature: %s vs %s, %+v", docH.ID, before.ID, stH.Signatures[2])
+	}
+	if stH.Signatures[1].Image != "" || !stH.Signatures[1].Date {
+		t.Fatalf("the guardian's box must stay blank: %+v", stH.Signatures[1])
+	}
+
 	// Without a class teacher the slot stays blank; the comment is still
 	// printed.
 	if _, err := ct.Assign(ctx, classteacher.Actor{ID: s.admin, Role: "admin"}, s.section, ""); err != nil {
