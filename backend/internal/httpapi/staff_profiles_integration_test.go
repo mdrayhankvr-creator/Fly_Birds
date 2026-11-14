@@ -147,7 +147,7 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 			}
 		}
 		leader := who == "admin" || who == "head" || who == "owner"
-		expectFields(who, p, map[string]bool{"phone": leader, "email": leader, "qualifications": leader, "joined_on": leader, "attendance": leader, "mpo_index": leader, "nid_masked": who == "admin" || who == "owner", "visibility": who == "admin" || who == "owner"})
+		expectFields(who, p, map[string]bool{"phone": leader, "email": leader, "qualifications": leader, "joined_on": leader, "attendance": leader, "mpo_index": leader, "nid_masked": who == "admin" || who == "owner", "visibility": who == "admin" || who == "owner", "employee_code": leader})
 		if who == "admin" || who == "owner" {
 			if p["nid_masked"] != "••••••••••789" || p["can_reveal_nid"] != true {
 				t.Errorf("%s: nid_masked %v, can_reveal %v", who, p["nid_masked"], p["can_reveal_nid"])

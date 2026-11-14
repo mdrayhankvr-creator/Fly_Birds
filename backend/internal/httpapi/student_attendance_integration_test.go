@@ -227,6 +227,10 @@ func TestPostgresStudentAttendance(t *testing.T) {
 		t.Fatalf("self report %+v %v", self, err)
 	}
 	check("GET", "/attendance/guardians/children/"+studentID+"/report?month=2026-04", "", guardianH, 200)
+	check("GET", "/attendance/students/"+studentID+"/report?month=2026-04", "", teacherH, 200)
+	check("GET", "/attendance/students/"+studentID+"/report?month=2026-04", "", adminH, 200)
+	check("GET", "/attendance/students/"+studentID+"/report?month=2026-04", "", otherH, 404)
+	check("GET", "/attendance/students/"+studentID+"/report?month=2026-04", "", studentH, 403)
 	check("GET", "/attendance/guardians/children/"+studentID+"/report?month=2026-04", "", otherGuardianH, 404)
 	if err = db.Exec("DELETE FROM student_guardians WHERE student_id=? AND guardian_id=?", studentID, guardianID).Error; err != nil {
 		t.Fatal(err)

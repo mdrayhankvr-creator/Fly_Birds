@@ -58,6 +58,7 @@ type Teaching struct {
 	SubjectEN string `json:"subject_en"`
 	SubjectBN string `json:"subject_bn"`
 	ClassName string `json:"class_name"`
+	Sections  string `json:"sections"`
 }
 type Period struct {
 	StartMinute int    `json:"start_minute"`
@@ -82,6 +83,7 @@ type StaffAttendance struct {
 // omitted field is one the viewer may not see.
 type Profile struct {
 	ID           string `json:"id"`
+	EmployeeCode string `json:"employee_code,omitempty"`
 	Kind         string `json:"kind"`
 	NameEN       string `json:"name_en"`
 	NameBN       string `json:"name_bn"`
@@ -127,6 +129,7 @@ type OfficialInput struct {
 // profileRow is everything stored about an employee for a profile.
 type profileRow struct {
 	ID                       string  `gorm:"column:id"`
+	EmployeeCode             string  `gorm:"column:employee_code"`
 	Kind                     string  `gorm:"column:kind"`
 	NameEN                   string  `gorm:"column:name_en"`
 	NameBN                   string  `gorm:"column:name_bn"`
@@ -234,6 +237,9 @@ func (s *Service) Profile(ctx context.Context, v Viewer, id string) (Profile, er
 	_ = json.Unmarshal([]byte(row.Qualifications), &qualifications)
 	visibility := Visibility{Phone: Audience{row.PhoneToStaff, row.PhoneToFamilies}, Email: Audience{row.EmailToStaff, row.EmailToFamilies}, Qualifications: Audience{row.QualificationsToStaff, row.QualificationsToFamilies}}
 	full := admin || head || self
+	if full {
+		p.EmployeeCode = row.EmployeeCode
+	}
 	if full || shared(visibility.Phone, v) {
 		p.Phone = &row.Phone
 	}
@@ -450,7 +456,7 @@ func (s *Service) Photo(ctx context.Context, v Viewer, id string) ([]byte, strin
 
 func (r *GormRepository) ProfileRow(ctx context.Context, id string) (profileRow, error) {
 	var row profileRow
-	err := r.db.WithContext(ctx).Raw(`SELECT e.id, e.kind, e.name_en, e.name_bn, e.designation, e.phone, e.email, to_char(e.joined_on,'YYYY-MM-DD') AS joined_on, e.user_id, e.is_active,
+	err := r.db.WithContext(ctx).Raw(`SELECT e.id, e.employee_code, e.kind, e.name_en, e.name_bn, e.designation, e.phone, e.email, to_char(e.joined_on,'YYYY-MM-DD') AS joined_on, e.user_id, e.is_active,
   e.qualifications::text AS qualifications, e.phone_to_staff, e.phone_to_families, e.email_to_staff, e.email_to_families, e.qualifications_to_staff, e.qualifications_to_families,
   COALESCE(i.mpo_index,'') AS mpo_index, COALESCE(i.nid,'') AS nid, COALESCE(p.version,'') AS photo_version, COALESCE(u.login_phone,'') AS login_phone
 FROM employees e LEFT JOIN employee_identity i ON i.employee_id = e.id LEFT JOIN employee_photos p ON p.employee_id = e.id LEFT JOIN users u ON u.id = e.user_id WHERE e.id = ?`, id).Scan(&row).Error
@@ -477,7 +483,8 @@ func (r *GormRepository) OwnEmployeeID(ctx context.Context, user string) (string
 // Teaching lists the subjects and classes taught in the active session.
 func (r *GormRepository) Teaching(ctx context.Context, id string) ([]Teaching, error) {
 	out := []Teaching{}
-	err := r.db.WithContext(ctx).Raw(`SELECT DISTINCT sub.name_en AS subject_en, sub.name_bn AS subject_bn, c.name AS class_name, c.display_order
+	err := r.db.WithContext(ctx).Raw(`SELECT DISTINCT sub.name_en AS subject_en, sub.name_bn AS subject_bn, c.name AS class_name, c.display_order,
+  COALESCE((SELECT string_agg(sec.name, ', ' ORDER BY sec.name) FROM academic_sections sec WHERE sec.class_id=a.class_id AND sec.session_id=a.session_id),'') AS sections
 FROM teacher_assignments a JOIN academic_sessions se ON se.id = a.session_id AND se.is_active JOIN academic_subjects sub ON sub.id = a.subject_id JOIN academic_classes c ON c.id = a.class_id
 WHERE a.employee_id = ? ORDER BY c.display_order, c.name, sub.name_en`, id).Scan(&out).Error
 	return out, err

@@ -182,7 +182,8 @@ function PeopleGate({ kind, permissions, role, enabled, loading, error }: { kind
   const canManageStudents = role === 'admin' && !!permissions?.includes('students:manage')
   const canManageGuardians = role === 'admin' && !!permissions?.includes('guardians:manage')
   const canCreateLogins = canManageStudents && !!permissions?.includes('users:create')
-  const permitted = kind === 'logins' ? canCreateLogins : kind === 'cards' || kind === 'card' || kind === 'admit' || kind === 'import' ? canManageStudents : kind === 'students' || kind === 'profile' ? canStudents : role === 'student' && !!permissions?.includes('students:read_self')
+  const assignedTeacher = role === 'teacher' && !!permissions?.includes('analytics:read_assigned')
+  const permitted = kind === 'logins' ? canCreateLogins : kind === 'cards' || kind === 'card' || kind === 'admit' || kind === 'import' ? canManageStudents : kind === 'profile' ? canStudents || assignedTeacher : kind === 'students' ? canStudents : role === 'student' && !!permissions?.includes('students:read_self')
   // Permission first: someone without access learns that, not the module state.
   if (!permitted) return <StateScreen kind="denied" message={t('permissionDenied')} />
   if (!enabled) return <StateScreen kind="disabled" message={t('peopleModuleDisabled')} />
@@ -191,7 +192,7 @@ function PeopleGate({ kind, permissions, role, enabled, loading, error }: { kind
   if (kind === 'logins' && canCreateLogins) return <SectionLoginsPage />
   if (kind === 'import' && canManageStudents) return <BulkAdmissionPage canCreateLogins={canCreateLogins} />
   if ((kind === 'cards' || kind === 'card') && canManageStudents) return <IdCardPrintPage mode={kind === 'card' ? 'single' : 'bulk'} />
-  if (kind === 'profile' && canStudents) return <StudentProfilePage mode="staff" canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians} canReadHistory={!!permissions?.includes('students:history_read')} canCreateLogin={canCreateLogins} insights={{ mode: 'staff', analytics: !!permissions?.some(p => p === 'analytics:read' || p === 'analytics:read_assigned'), fees: !!permissions?.includes('fees:read') }} />
+  if (kind === 'profile' && (canStudents || assignedTeacher)) return <StudentProfilePage mode="staff" isAssignedTeacher={assignedTeacher} canManagePhoto={canManageStudents} canManageLinks={canManageGuardians} canReadGuardians={canGuardians || assignedTeacher} canReadHistory={!!permissions?.includes('students:history_read')} canCreateLogin={canCreateLogins} insights={{ mode: 'staff', analytics: !!permissions?.some(p => p === 'analytics:read' || p === 'analytics:read_assigned'), fees: !assignedTeacher && (!!permissions?.includes('fees:read') || role === 'head_teacher') }} />
   if (kind === 'self' && role === 'student' && permissions?.includes('students:read_self')) return <StudentProfilePage mode="self" canManagePhoto={false} canManageLinks={false} canReadGuardians={false} insights={{ mode: 'self', analytics: !!permissions?.includes('analytics:read_self'), fees: !!permissions?.includes('fees:read_self') }} />
   return <StateScreen kind="denied" message={t('permissionDenied')} />
 }

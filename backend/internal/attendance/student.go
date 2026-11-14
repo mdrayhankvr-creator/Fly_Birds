@@ -225,7 +225,7 @@ func (s *StudentService) Monthly(ctx context.Context, actor string, q StudentQue
 	return s.repo.StudentMonthly(ctx, actor, q)
 }
 func (s *StudentService) Report(ctx context.Context, actor, studentID, month, scope string) (StudentReport, error) {
-	if !uuid.MatchString(actor) || (studentID != "" && !uuid.MatchString(studentID)) || !monthPattern.MatchString(month) || (scope != "self" && scope != "guardian") {
+	if !uuid.MatchString(actor) || (studentID != "" && !uuid.MatchString(studentID)) || !monthPattern.MatchString(month) || (scope != "self" && scope != "guardian" && scope != "staff") || (scope == "staff" && studentID == "") {
 		return StudentReport{}, ErrInvalid
 	}
 	return s.repo.StudentReport(ctx, actor, studentID, month, scope)

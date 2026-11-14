@@ -76,6 +76,13 @@ type Student struct {
 	FourthSubjectNameBN string  `json:"fourth_subject_name_bn"`
 	// Primary guardian from the existing relationship; only on single-student reads.
 	PrimaryGuardian *GuardianSummary `json:"primary_guardian,omitempty" gorm:"-"`
+	Subjects        []StudentSubject `json:"subjects" gorm:"-"`
+}
+type StudentSubject struct {
+	ID              string `json:"id"`
+	NameEN          string `json:"name_en"`
+	NameBN          string `json:"name_bn"`
+	IsFourthSubject bool   `json:"is_fourth_subject"`
 }
 type GuardianSummary struct {
 	NameEN       string `json:"name_en"`
@@ -299,7 +306,19 @@ func (s *Service) GetStudent(ctx context.Context, a Actor, id string) (Student, 
 	if !validID(id) {
 		return Student{}, ErrInvalid
 	}
-	return s.repo.GetStudent(ctx, a, id)
+	v, err := s.repo.GetStudent(ctx, a, id)
+	if err != nil {
+		return v, err
+	}
+	if a.Role == "teacher" {
+		// The assigned-class view contains school placement and guardian contact,
+		// never the student's personal record or sign-in information.
+		v.UserID, v.LoginID, v.LoginPhone = nil, "", ""
+		v.DateOfBirth, v.Gender, v.BloodGroup, v.AdmissionDate = "", "", "", ""
+		v.FatherNameEN, v.FatherNameBN, v.MotherNameEN, v.MotherNameBN = "", "", "", ""
+		v.PresentAddress, v.PermanentAddress = "", ""
+	}
+	return v, nil
 }
 
 // Enrolments returns a student's year-by-year history.

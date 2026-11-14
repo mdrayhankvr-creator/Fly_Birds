@@ -10,12 +10,16 @@ import { Icon } from '../components/icons'
 import { StateScreen } from '../components/StateScreen'
 import { AcademicHistory } from './AcademicHistory'
 import { StudentInsights, type InsightAccess } from './StudentInsights'
-import { Fact, ProfilePhoto } from './profileUi'
+import { StudentSummaryStats } from './StudentInsights'
+import { ProfileAttendanceCalendar } from './ProfileAttendanceCalendar'
+import { PublishedResults } from './exams/PublishedResults'
+import { MyAdmitCards } from './routine/AdmitCards'
+import { Fact, ProfilePhoto, ProfileTabs, Chip } from './profileUi'
 import { LoginPhoneCard } from './LoginPhoneCard'
 import { createStudentLogin, type StudentLogin } from '../api/studentLogins'
 import { LoginSlipSheet } from './LoginSlips'
 import { MyPhotoCard } from './MyPhotoCard'
-import { Avatar, EmptyState, Notice as Banner, PageHeader, SectionCard, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
+import { Avatar, EmptyState, Notice as Banner, SectionCard, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 
 function formatDate(value: string, lang: string) {
   if (!value) return ''
@@ -38,7 +42,7 @@ function Field({ label, children, wide = false }: { label: string; children: Rea
   </div>
 }
 
-export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canReadGuardians, canReadHistory = mode === 'self', canCreateLogin = false, insights }: { mode: 'staff' | 'self' | 'child'; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean; canReadHistory?: boolean; canCreateLogin?: boolean; insights?: InsightAccess }) {
+export function StudentProfilePage({ mode, isAssignedTeacher = false, canManagePhoto, canManageLinks, canReadGuardians, canReadHistory = mode === 'self', canCreateLogin = false, insights }: { mode: 'staff' | 'self' | 'child'; isAssignedTeacher?: boolean; canManagePhoto: boolean; canManageLinks: boolean; canReadGuardians: boolean; canReadHistory?: boolean; canCreateLogin?: boolean; insights?: InsightAccess }) {
   const { id } = useParams()
   const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
@@ -57,9 +61,10 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
   const [message, setMessage] = useState('')
   const [cardLang, setCardLang] = useState<CardLanguage>(i18n.language === 'bn' ? 'bn' : 'en')
   const [newLogin, setNewLogin] = useState<StudentLogin | null>(null)
+  const [tab, setTab] = useState('overview')
   const student = useQuery({ queryKey: ['people', 'profile', mode, id], queryFn: () => authorized(token => mode === 'self' ? getMyStudent(token) : getStudent(token, id!)), enabled: mode === 'self' || !!id, retry: false })
   const studentID = student.data?.id
-  const card = useQuery({ queryKey: ['people', 'card', studentID], queryFn: () => authorized(token => getStudentCard(token, studentID!)), enabled: !!studentID, retry: false })
+  const card = useQuery({ queryKey: ['people', 'card', studentID], queryFn: () => authorized(token => getStudentCard(token, studentID!)), enabled: !!studentID && !isAssignedTeacher, retry: false })
   const photo = useQuery({ queryKey: ['people', 'photo', studentID], queryFn: () => authorized(token => getStudentPhoto(token, studentID!)), enabled: !!studentID && !!student.data?.has_photo, retry: false })
   // A student (the family's account) reads its own guardians through the self
   // route, which takes no ID; staff read any student's links.
@@ -116,7 +121,7 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
   async function makeLogin() {
     if (!studentID) return
     setBusy(true); setError(''); setMessage(''); setNewLogin(null)
-    try { setNewLogin(await authorized(token => createStudentLogin(token, studentID))); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }) }
+    try { setNewLogin(await authorized(token => createStudentLogin(token, studentID))); setTab('documents'); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }) }
     catch (cause) { setError(t(cause instanceof ApiError && cause.code === 'student_has_login' ? 'c5AlreadyHasLogin' : cause instanceof ApiError && cause.code === 'no_login_id' ? 'c5NoLoginId' : 'c5LoginsFailed')) }
     finally { setBusy(false) }
   }
@@ -128,115 +133,79 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
   const name = pick(value.name_en, value.name_bn)
   const statusTone = value.status === 'active' ? 'present' : value.status === 'inactive' ? 'unmarked' : 'leave'
   const guardian = value.primary_guardian
-  // The sections this viewer has, for the jump bar.
-  const sections: [string, string][] = [['profile-personal', 'c4SectionPersonal'], ['profile-academic', 'c4SectionAcademic'],
-    ...(canReadGuardians || mode === 'self' ? [['student-guardians', 'c4SectionGuardians'] as [string, string]] : []),
-    ...(insights?.analytics ? [['student-attendance', 'c4SectionAttendance'], ['student-results', 'c4SectionResults']] as [string, string][] : []),
-    ...(insights?.fees ? [['student-fees', 'c4SectionFees'] as [string, string]] : []),
-    ['student-card', 'c4SectionCard']]
+  const restrictedTeacher = isAssignedTeacher
+  const tabs = [
+    { id: 'overview', label: t('prOverview') }, { id: 'academics', label: t('prAcademics') },
+    ...(insights?.analytics ? [{ id: 'attendance', label: t('prAttendance') }] : []),
+    ...(insights?.fees ? [{ id: 'fees', label: t('prFees') }] : []),
+    ...(!restrictedTeacher ? [{ id: 'documents', label: t('prDocuments') }] : []),
+  ]
   return <div className="space-y-6">
-    <PageHeader eyebrow={t(mode === 'self' ? 'myStudentProfile' : 'profileHeading')} title={name}
-      description={`${t('admissionNo')}: ${value.admission_no} · ${value.class_name} · ${value.section_name}`}
-      actions={mode === 'staff' ? <div className="flex flex-wrap gap-2">
-        {canCreateLogin && !value.user_id && <button type="button" className={ui.primary} disabled={busy} onClick={() => void makeLogin()}><Icon name="lock" className="h-4 w-4" />{t('c5CreateLogin')}</button>}
-        {canManagePhoto && <Link to={`/admin/students/${value.id}/card`} className={ui.primary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintOne')}</Link>}
-        <Link to="/admin/students" className={ui.secondary}><Icon name="chevronLeft" className="h-4 w-4" />{t('studentsHeading')}</Link></div> : undefined} />
     {error && <Banner tone="error">{error}</Banner>}{message && <Banner tone="success">{message}</Banner>}
-    {newLogin && <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('c5LoginCreated')}><Banner tone="success">{t('c5LoginCreated')}</Banner><div className="mt-4"><LoginSlipSheet logins={[newLogin]} /></div></section>}
-
-    <section className={`${ui.card} overflow-hidden`} aria-labelledby="profile-identity">
-      <div className="ds-page-head rounded-none border-0 p-5 sm:p-7">
+    <section className="pr-hero" aria-labelledby="profile-identity">
+      <div className="pr-cover" />
+      <div className="pr-hero-content">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          {photoUrl ? <img src={photoUrl} alt={t('idCardPhotoAlt', { name })} className="h-36 w-28 shrink-0 rounded-3xl object-cover shadow-md ring-4 ring-white sm:h-44 sm:w-36" />
-            : <span role="img" aria-label={t('noPhoto')}><ProfilePhoto name={value.name_en} size="h-36 w-28 sm:h-44 sm:w-36" /></span>}
-          <div className="min-w-0 flex-1">
-            <h2 id="profile-identity" className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl" style={{ overflowWrap: 'anywhere' }}>{value.name_en}</h2>
-            {value.name_bn && <p lang="bn" className="text-xl font-bold text-slate-700">{value.name_bn}</p>}
+          <ProfilePhoto url={photoUrl} name={value.name_en} size="h-28 w-28 sm:h-36 sm:w-36" />
+          <div className="pr-identity min-w-0 flex-1">
+            <p className="pr-eyebrow">{t('prStudentProfile')}</p>
+            <h1 id="profile-identity" className="pr-name">{name}</h1>
+            {value.name_bn && !bn && <p lang="bn" className="pr-other-name">{value.name_bn}</p>}
+            {bn && value.name_en !== name && <p className="pr-other-name">{value.name_en}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge tone={statusTone}>{t(`${value.status}Student`)}</StatusBadge>
-              {value.blood_group && <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-800">{t('profileBloodGroup')}: {value.blood_group}</span>}
+              <Chip>{value.class_name} · {value.section_name}</Chip>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3 xl:grid-cols-6">
+            <dl className="pr-facts">
               <Fact label={t('idCardStudentId')}>{value.student_code || value.admission_no}</Fact>
-              <Fact label={t('admissionNo')}>{value.admission_no}</Fact>
               <Fact label={t('classLabel')}>{value.class_name}</Fact>
               <Fact label={t('sectionLabel')}>{value.section_name}</Fact>
-              <Fact label={t('rollNo')}>{value.roll_no == null ? '—' : num(value.roll_no)}</Fact>
+              <Fact label={t('rollNo')}>{value.roll_no == null ? t('profileNotProvided') : num(value.roll_no)}</Fact>
               <Fact label={t('sessionLabel')}>{value.session_name}</Fact>
-              {value.login_id && <Fact label={t('c5SignInId')}><span className="font-mono">{value.login_id}</span></Fact>}
+              {value.group_id && <Fact label={t('profileGroup')}>{pick(value.group_name_en, value.group_name_bn)}</Fact>}
+              {value.shift_id && <Fact label={t('profileShift')}>{pick(value.shift_name_en, value.shift_name_bn)}</Fact>}
             </dl>
           </div>
         </div>
+        {mode === 'staff' && (canCreateLogin || canManagePhoto) && <div className="mt-5 flex flex-wrap gap-2">
+          {canCreateLogin && !value.user_id && <button type="button" className={ui.primary} disabled={busy} onClick={() => void makeLogin()}><Icon name="lock" className="h-4 w-4" />{t('c5CreateLogin')}</button>}
+          {canManagePhoto && <Link to={`/admin/students/${value.id}/card`} className={ui.secondary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintOne')}</Link>}
+        </div>}
       </div>
       {canManagePhoto && <form className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-end sm:px-6" onSubmit={e => void upload(e)}>
         <label className={`${ui.label} flex-1`}>{t('selectPhoto')}<input type="file" required accept="image/jpeg,image/png" className={ui.field} onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} /></label>
         <button disabled={busy || !photoFile} className={ui.primary}>{t('uploadPhoto')}</button></form>}
     </section>
+    {insights && <StudentSummaryStats studentId={value.id} access={insights} />}
+    <ProfileTabs items={tabs} active={tab} onChange={setTab} prefix="student-profile" label={t('prProfileTabs')} />
+    {tab === 'overview' && <div id="student-profile-panel-overview" role="tabpanel" aria-labelledby="student-profile-tab-overview" className="space-y-6">
     {mode === 'self' && <MyPhotoCard />}
-
-    <nav aria-label={t('c4ProfileSections')} className="ds-sunken sticky top-16 z-10 -mx-1 flex gap-1.5 overflow-x-auto px-2 py-2 print:hidden lg:top-20">
-      {sections.map(([target, label]) => <a key={target} href={`#${target}`} className="btn btn-quiet btn-sm shrink-0" onClick={event => { event.preventDefault(); document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{t(label)}</a>)}
-    </nav>
-
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <SectionCard title={t('profilePersonal')} id="profile-personal" icon="user">
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t('studentNameEN')}>{value.name_en}</Field>
           <Field label={t('studentNameBN')}>{value.name_bn}</Field>
-          <Field label={t('dateOfBirth')}>{formatDate(value.date_of_birth, i18n.language)}</Field>
+          {!restrictedTeacher && <><Field label={t('dateOfBirth')}>{formatDate(value.date_of_birth, i18n.language)}</Field>
           <Field label={t('profileGender')}>{value.gender ? t(`gender_${value.gender}`) : ''}</Field>
-          <Field label={t('profileBloodGroup')}>{value.blood_group}</Field>
+          <Field label={t('profileBloodGroup')}>{value.blood_group}</Field></>}
         </dl>
       </SectionCard>
       <SectionCard title={t('profileFamily')} id="profile-family" icon="users">
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label={t('profileFather')}>{pick(value.father_name_en, value.father_name_bn)}</Field>
-          <Field label={t('profileMother')}>{pick(value.mother_name_en, value.mother_name_bn)}</Field>
+          {!restrictedTeacher && <><Field label={t('profileFather')}>{pick(value.father_name_en, value.father_name_bn)}</Field>
+          <Field label={t('profileMother')}>{pick(value.mother_name_en, value.mother_name_bn)}</Field></>}
           <Field label={t('profileGuardian')}>{guardian ? pick(guardian.name_en, guardian.name_bn) : ''}</Field>
           <Field label={t('relationshipLabel')}>{guardian?.relationship ?? ''}</Field>
-          <Field label={t('profileGuardianPhone')}>{guardian?.phone ? <a className="text-[var(--brand-ink)] underline-offset-2 hover:underline" href={`tel:${guardian.phone.replace(/[^+0-9]/g, '')}`}>{guardian.phone}</a> : ''}</Field>
+          <Field label={t('profileGuardianPhone')}>{guardian?.phone ? <span className="flex flex-wrap gap-2"><a className={ui.link} href={`tel:${guardian.phone.replace(/[^+0-9]/g, '')}`}>{t('prCall')}</a><a className={ui.link} href={`https://wa.me/${guardian.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">{t('prWhatsApp')}</a></span> : ''}</Field>
         </dl>
       </SectionCard>
-      <SectionCard title={t('profileAddress')} id="profile-address" icon="home">
+      {!restrictedTeacher && <SectionCard title={t('profileAddress')} id="profile-address" icon="home">
         <dl className="grid gap-4">
           <Field label={t('profilePresentAddress')}>{value.present_address}</Field>
           <Field label={t('profilePermanentAddress')}>{value.permanent_address}</Field>
         </dl>
-      </SectionCard>
-      <SectionCard title={t('profileAcademic')} id="profile-academic" icon="book">
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label={t('idCardStudentId')}>{value.student_code}</Field>
-          <Field label={t('admissionNo')}>{value.admission_no}</Field>
-          <Field label={t('classLabel')}>{value.class_name}</Field>
-          <Field label={t('sectionLabel')}>{value.section_name}</Field>
-          <Field label={t('rollNo')}>{value.roll_no == null ? '' : num(value.roll_no)}</Field>
-          <Field label={t('sessionLabel')}>{value.session_name}</Field>
-          <Field label={t('profileAdmissionDate')}>{formatDate(value.admission_date, i18n.language)}</Field>
-          <Field label={t('profileShift')}>{value.shift_id ? pick(value.shift_name_en, value.shift_name_bn) : ''}</Field>
-          <Field label={t('profileMedium')}>{value.medium ? t(value.medium === 'bangla' ? 'mediumBangla' : 'mediumEnglish') : ''}</Field>
-          {value.class_uses_groups && <Field label={t('profileGroup')}>{value.group_id ? pick(value.group_name_en, value.group_name_bn) : ''}</Field>}
-          <Field label={t('profileFourthSubject')}>{value.fourth_subject_id ? pick(value.fourth_subject_name_en, value.fourth_subject_name_bn) : ''}</Field>
-          <Field label={t('phLoginPhone')}>{value.login_phone || ''}</Field>
-        </dl>
-        {mode === 'staff' && canManageLinks && value.user_id && <div className="mt-4 border-t border-slate-100 pt-4"><LoginPhoneCard userId={value.user_id} current={value.login_phone ?? ''} kind="student" /></div>}
-      </SectionCard>
+      </SectionCard>}
     </div>
-
-    {canReadHistory && <AcademicHistory studentId={value.id} />}
-
-    {insights && <StudentInsights studentId={value.id} access={insights} />}
-
-    <SectionCard title={t('studentCard')} description={t('idCardPreviewHelp')} id="student-card" icon="card"
-      actions={<label className="flex items-center gap-2 text-sm font-semibold text-slate-700">{t('idCardLanguage')}<select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={cardLang} onChange={e => setCardLang(e.target.value as CardLanguage)}><option value="en">English</option><option value="bn">বাংলা</option></select></label>}>
-      {card.isPending ? <Skeleton rows={3} /> : card.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> :
-        // Focusable so keyboard users can scroll the preview on narrow screens.
-        <div className="overflow-x-auto pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('idCardPreview')}>
-          <div className="flex w-max gap-6" style={{ zoom: 1.25 }}>
-            <figure className="m-0"><div className="rounded-[3mm] shadow-[0_8px_24px_rgb(15_23_42/0.18)]"><CardFront card={card.data} school={card.data.school} settings={card.data.settings} lang={cardLang} photoUrl={photoUrl} /></div><figcaption className="mt-1 text-center text-xs text-slate-500">{t('idCardFront')}</figcaption></figure>
-            <figure className="m-0"><div className="rounded-[3mm] shadow-[0_8px_24px_rgb(15_23_42/0.18)]"><CardBack card={card.data} school={card.data.school} settings={card.data.settings} lang={cardLang} /></div><figcaption className="mt-1 text-center text-xs text-slate-500">{t('idCardBack')}</figcaption></figure>
-          </div>
-        </div>}
-    </SectionCard>
 
     {(canReadGuardians || mode === 'self') && <SectionCard title={t('guardiansForStudent')} description={t(mode === 'self' ? 'p1GuardiansOwnHelp' : 'linkHelp')} id="student-guardians" icon="users">
       {guardianLinks.isPending ? <Skeleton rows={2} /> : guardianLinks.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> : guardianLinks.data.length === 0 ? <EmptyState icon="users" title={t('noGuardians')} /> :
@@ -244,7 +213,8 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
           const guardianName = pick(item.guardian_name, item.guardian_name_bn ?? '')
           return <li key={item.guardian_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="flex min-w-0 flex-wrap items-center gap-3"><Avatar name={guardianName} /><div className="min-w-0"><p className="font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{guardianName}</p>
-              <p className="text-sm text-slate-600">{item.relationship}{item.phone && <> · <a className="text-[var(--brand-ink)] underline-offset-2 hover:underline" href={`tel:${item.phone.replace(/[^+0-9]/g, '')}`}>{item.phone}</a></>}</p></div>
+              <p className="text-sm text-slate-600">{item.relationship}</p>
+              {item.phone && <div className="mt-2 flex gap-2"><a className={ui.link} href={`tel:${item.phone.replace(/[^+0-9]/g, '')}`}>{t('prCall')}</a><a className={ui.link} href={`https://wa.me/${item.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">{t('prWhatsApp')}</a></div>}</div>
               {item.is_primary && <StatusBadge tone="present">{t('primaryGuardian')}</StatusBadge>}</div>
             {canManageLinks && <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy} className={ui.secondary} aria-label={`${t('p1GuardianEdit')} · ${guardianName}`} onClick={() => void startEdit(item)}>{t('p1GuardianEdit')}</button>
@@ -273,5 +243,48 @@ export function StudentProfilePage({ mode, canManagePhoto, canManageLinks, canRe
         </form>}
       </div>}
     </SectionCard>}
+    </div>}
+
+    {tab === 'academics' && <div id="student-profile-panel-academics" role="tabpanel" aria-labelledby="student-profile-tab-academics" className="space-y-6">
+      <SectionCard title={t('profileAcademic')} id="profile-academic" icon="book">
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label={t('idCardStudentId')}>{value.student_code}</Field>
+          <Field label={t('admissionNo')}>{value.admission_no}</Field>
+          <Field label={t('classLabel')}>{value.class_name}</Field>
+          <Field label={t('sectionLabel')}>{value.section_name}</Field>
+          <Field label={t('rollNo')}>{value.roll_no == null ? '' : num(value.roll_no)}</Field>
+          <Field label={t('sessionLabel')}>{value.session_name}</Field>
+          <Field label={t('profileAdmissionDate')}>{formatDate(value.admission_date, i18n.language)}</Field>
+          <Field label={t('profileShift')}>{value.shift_id ? pick(value.shift_name_en, value.shift_name_bn) : ''}</Field>
+          <Field label={t('profileMedium')}>{value.medium ? t(value.medium === 'bangla' ? 'mediumBangla' : 'mediumEnglish') : ''}</Field>
+          {value.class_uses_groups && <Field label={t('profileGroup')}>{value.group_id ? pick(value.group_name_en, value.group_name_bn) : ''}</Field>}
+          <Field label={t('profileFourthSubject')}>{value.fourth_subject_id ? pick(value.fourth_subject_name_en, value.fourth_subject_name_bn) : ''}</Field>
+          {!restrictedTeacher && <Field label={t('phLoginPhone')}>{value.login_phone || ''}</Field>}
+        </dl>
+        {mode === 'staff' && canManageLinks && value.user_id && <div className="mt-4 border-t border-slate-100 pt-4"><LoginPhoneCard userId={value.user_id} current={value.login_phone ?? ''} kind="student" /></div>}
+      </SectionCard>
+      <SectionCard title={t('prCurrentSubjects')} icon="book">{value.subjects?.length ? <ul className="grid gap-2 sm:grid-cols-2">{value.subjects.map(subject => <li key={subject.id} className="pr-subject"><span>{pick(subject.name_en, subject.name_bn)}</span>{subject.is_fourth_subject && <Chip>{t('profileFourthSubject')}</Chip>}</li>)}</ul> : <EmptyState icon="book" title={t('prNoSubjects')} />}</SectionCard>
+    {canReadHistory && <AcademicHistory studentId={value.id} />}
+    {insights?.analytics && <StudentInsights studentId={value.id} access={insights} section="results" />}
+    {mode === 'self' && <PublishedResults />}
+    </div>}
+
+    {tab === 'attendance' && insights?.analytics && <div id="student-profile-panel-attendance" role="tabpanel" aria-labelledby="student-profile-tab-attendance" className="space-y-6"><StudentInsights studentId={value.id} access={insights} section="attendance" /><ProfileAttendanceCalendar studentId={value.id} self={mode === 'self'} /></div>}
+    {tab === 'fees' && insights?.fees && <div id="student-profile-panel-fees" role="tabpanel" aria-labelledby="student-profile-tab-fees"><StudentInsights studentId={value.id} access={insights} section="fees" /></div>}
+    {tab === 'documents' && !restrictedTeacher && <div id="student-profile-panel-documents" role="tabpanel" aria-labelledby="student-profile-tab-documents" className="space-y-6">
+    {newLogin && <section className={`${ui.card} p-4 sm:p-6`} aria-label={t('c5LoginCreated')}><Banner tone="success">{t('c5LoginCreated')}</Banner><div className="mt-4"><LoginSlipSheet logins={[newLogin]} /></div></section>}
+    <SectionCard title={t('studentCard')} description={t('idCardPreviewHelp')} id="student-card" icon="card"
+      actions={<label className="flex items-center gap-2 text-sm font-semibold text-slate-700">{t('idCardLanguage')}<select className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm" value={cardLang} onChange={e => setCardLang(e.target.value as CardLanguage)}><option value="en">English</option><option value="bn">বাংলা</option></select></label>}>
+      {card.isPending ? <Skeleton rows={3} /> : card.isError ? <Banner tone="error">{t('peopleLoadError')}</Banner> :
+        // Focusable so keyboard users can scroll the preview on narrow screens.
+        <div className="overflow-x-auto pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]" tabIndex={0} role="region" aria-label={t('idCardPreview')}>
+          <div className="flex w-max gap-6" style={{ zoom: 1.25 }}>
+            <figure className="m-0"><div className="rounded-[3mm] shadow-[0_8px_24px_rgb(15_23_42/0.18)]"><CardFront card={card.data} school={card.data.school} settings={card.data.settings} lang={cardLang} photoUrl={photoUrl} /></div><figcaption className="mt-1 text-center text-xs text-slate-500">{t('idCardFront')}</figcaption></figure>
+            <figure className="m-0"><div className="rounded-[3mm] shadow-[0_8px_24px_rgb(15_23_42/0.18)]"><CardBack card={card.data} school={card.data.school} settings={card.data.settings} lang={cardLang} /></div><figcaption className="mt-1 text-center text-xs text-slate-500">{t('idCardBack')}</figcaption></figure>
+          </div>
+        </div>}
+    </SectionCard>
+    {mode === 'self' && <MyAdmitCards />}
+    </div>}
   </div>
 }

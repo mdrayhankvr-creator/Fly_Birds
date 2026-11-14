@@ -14,16 +14,16 @@ import { EmptyState, SectionCard, Skeleton, StatusBadge, ui, useNumber } from '.
 // left out.
 
 export type InsightAccess = { mode: 'staff' | 'self' | 'child'; analytics: boolean; fees: boolean }
+type InsightSection = 'attendance' | 'results' | 'fees'
 
 // Hidden, not an error: no grant, module off or no record for this viewer.
 const hidden = (e: unknown) => e instanceof ApiError && [401, 403, 404].includes(e.status)
 
 const rate = (c: Counts | undefined | null) => c && c.marked > 0 ? Math.round(((c.present + c.late) / c.marked) * 100) : null
 
-export function StudentInsights({ studentId, access }: { studentId: string; access: InsightAccess }) {
-  const { t, i18n } = useTranslation()
+function useProfileInsights(studentId: string, access: InsightAccess) {
+  const { i18n } = useTranslation()
   const authorized = usePeopleApi()
-  const num = useNumber()
   const bn = i18n.language === 'bn'
   const summary = useQuery({
     queryKey: ['profile-insights', 'summary', access.mode, studentId], enabled: access.analytics, retry: false,
@@ -43,17 +43,42 @@ export function StudentInsights({ studentId, access }: { studentId: string; acce
   const money = (n: number) => `৳ ${new Intl.NumberFormat(bn ? 'bn-BD' : 'en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`
   const showSummary = access.analytics && !(summary.isError && hidden(summary.error))
   const showFees = access.fees && !(fees.isError && hidden(fees.error))
+  return { summary, fees, money, showSummary, showFees }
+}
+
+export function StudentSummaryStats({ studentId, access }: { studentId: string; access: InsightAccess }) {
+  const { t } = useTranslation()
+  const num = useNumber()
+  const { summary, fees, money, showSummary, showFees } = useProfileInsights(studentId, access)
+  const latest = [...(summary.data?.results ?? [])].sort((a, b) => b.published_on.localeCompare(a.published_on))[0]
+  const pct = rate(summary.data?.attendance?.last_30_days)
+  const items = [
+    ...(showSummary ? [
+      { key: 'attendance', label: t('prLast30'), value: pct == null ? '—' : `${num(pct)}%` },
+      { key: 'gpa', label: t('prLatestGpa'), value: latest ? num(latest.gpa) : '—' },
+      { key: 'position', label: t('prClassPosition'), value: latest?.class_position ? num(latest.class_position) : '—' },
+    ] : []),
+    ...(showFees ? [{ key: 'fees', label: t('prFeesDue'), value: fees.data ? money(fees.data.totals.balance) : '—' }] : []),
+  ]
+  if (!items.length) return null
+  return <dl className="pr-stats grid grid-cols-2 gap-3 lg:grid-cols-4">{items.map(item => <div key={item.key} className="pr-stat min-w-0"><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
+}
+
+export function StudentInsights({ studentId, access, section }: { studentId: string; access: InsightAccess; section: InsightSection }) {
+  const { t } = useTranslation()
+  const num = useNumber()
+  const { summary, fees, money, showSummary, showFees } = useProfileInsights(studentId, access)
   const cardLink = (examId: string) => access.mode === 'staff' ? `/admin/exams?exam=${encodeURIComponent(examId)}&student=${encodeURIComponent(studentId)}` : access.mode === 'self' ? `/student/results?exam=${encodeURIComponent(examId)}` : ''
 
   return <>
-    {showSummary && <SectionCard title={t('c4AttendanceSummary')} id="student-attendance" icon="check">
+    {section === 'attendance' && showSummary && <SectionCard title={t('c4AttendanceSummary')} id="student-attendance" icon="check">
       {summary.isPending ? <Skeleton rows={2} /> : summary.isError ? <p role="alert" className="text-sm text-rose-700">{t('peopleLoadError')}</p> : !summary.data.attendance ? <EmptyState icon="check" title={t('c4NoAttendance')} /> :
         <Attendance data={summary.data} num={num} />}
     </SectionCard>}
 
-    {showSummary && <SectionCard title={t('c4LatestResults')} id="student-results" icon="grade">
+    {section === 'results' && showSummary && <SectionCard title={t('c4LatestResults')} id="student-results" icon="grade">
       {summary.isPending ? <Skeleton rows={2} /> : summary.isError ? <p role="alert" className="text-sm text-rose-700">{t('peopleLoadError')}</p> : summary.data.results.length === 0 ? <EmptyState icon="grade" title={t('c4NoResults')} /> :
-        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">{summary.data.results.slice(0, 5).map(r => <li key={r.exam_id} className="flex flex-wrap items-center gap-3 px-3 py-3">
+        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">{[...summary.data.results].sort((a, b) => b.published_on.localeCompare(a.published_on)).slice(0, 5).map(r => <li key={r.exam_id} className="flex flex-wrap items-center gap-3 px-3 py-3">
           <span className="w-full min-w-0 sm:w-auto sm:flex-1"><strong className="block text-slate-900">{r.name}</strong><span className="block text-xs text-slate-600">{r.published_on}{r.class_position > 0 && ` · ${t('c4Position', { n: num(r.class_position) })}`}</span></span>
           <span className="mr-auto sm:mr-0 sm:text-right"><span className="block text-lg font-extrabold tabular-nums text-slate-900">{r.grade} · {num(Number(r.gpa.toFixed(2)))}</span><span className="block text-xs text-slate-600">{num(r.total_marks)}/{num(r.full_marks)}</span></span>
           <StatusBadge tone={r.passed ? 'present' : 'absent'}>{t(r.passed ? 'c4Passed' : 'c4Failed')}</StatusBadge>
@@ -61,7 +86,7 @@ export function StudentInsights({ studentId, access }: { studentId: string; acce
         </li>)}</ul>}
     </SectionCard>}
 
-    {showFees && <SectionCard title={t('c4Fees')} id="student-fees" icon="money">
+    {section === 'fees' && showFees && <SectionCard title={t('c4Fees')} id="student-fees" icon="money">
       {fees.isPending ? <Skeleton rows={2} /> : fees.isError ? <p role="alert" className="text-sm text-rose-700">{t('peopleLoadError')}</p> : <Fees data={fees.data} money={money} staff={access.mode === 'staff'} />}
     </SectionCard>}
   </>

@@ -45,6 +45,8 @@ func requireScopedGrant(tx *gorm.DB, a Actor) error {
 		permission = "students:read"
 	case "student":
 		permission = "students:read_self"
+	case "teacher":
+		permission = "analytics:read_assigned"
 	case "guardian":
 		permission = "guardians:read_children"
 	default:
@@ -107,6 +109,9 @@ func scopedStudent(tx *gorm.DB, a Actor) *gorm.DB {
 		return base
 	case "student":
 		return base.Where("s.user_id=?", a.ID)
+	case "teacher":
+		return base.Where(`EXISTS (SELECT 1 FROM teacher_assignments ta JOIN employees em ON em.id=ta.employee_id
+			WHERE ta.session_id=s.session_id AND ta.class_id=s.class_id AND em.user_id=? AND em.is_active)`, a.ID)
 	case "guardian":
 		return base.Joins("JOIN student_guardians AS sg ON sg.student_id=s.id").Joins("JOIN guardians AS g ON g.id=sg.guardian_id").Where("g.user_id=?", a.ID)
 	default:
@@ -125,7 +130,10 @@ func (r *GormRepository) GetStudent(ctx context.Context, a Actor, id string) (St
 	if err != nil {
 		return Student{}, err
 	}
-	return v, withPrimaryGuardian(r.db.WithContext(ctx), &v)
+	if err := withPrimaryGuardian(r.db.WithContext(ctx), &v); err != nil {
+		return Student{}, err
+	}
+	return v, withSubjects(r.db.WithContext(ctx), &v)
 }
 func (r *GormRepository) OwnStudent(ctx context.Context, a Actor) (Student, error) {
 	if a.Role != "student" {
@@ -142,7 +150,21 @@ func (r *GormRepository) OwnStudent(ctx context.Context, a Actor) (Student, erro
 	if err != nil {
 		return Student{}, err
 	}
-	return v, withPrimaryGuardian(r.db.WithContext(ctx), &v)
+	if err := withPrimaryGuardian(r.db.WithContext(ctx), &v); err != nil {
+		return Student{}, err
+	}
+	return v, withSubjects(r.db.WithContext(ctx), &v)
+}
+
+func withSubjects(tx *gorm.DB, v *Student) error {
+	v.Subjects = []StudentSubject{}
+	return tx.Raw(`SELECT m.subject_id AS id, sub.name_en, sub.name_bn, m.is_fourth_subject
+FROM academic_class_subjects m JOIN academic_subjects sub ON sub.id=m.subject_id
+WHERE m.class_id=? AND ((m.is_required AND (NOT EXISTS
+  (SELECT 1 FROM class_group_subjects gs WHERE gs.class_id=m.class_id AND gs.subject_id=m.subject_id)
+  OR EXISTS (SELECT 1 FROM class_group_subjects gs WHERE gs.class_id=m.class_id AND gs.subject_id=m.subject_id AND gs.group_id=?)))
+  OR (m.is_fourth_subject AND m.subject_id=?))
+ORDER BY sub.name_en,sub.id`, v.ClassID, v.GroupID, v.FourthSubjectID).Scan(&v.Subjects).Error
 }
 
 // withPrimaryGuardian attaches the student's primary guardian, if one is
