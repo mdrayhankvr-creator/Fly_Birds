@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { ApiError } from '../../api/client'
 import { ui } from '../../pages/attendanceUi'
 import { Icon, type IconName } from '../icons'
+import { OwnAvatar } from '../PersonAvatar'
 
 // Shared building blocks for dashboards and module screens. Colours come from
 // the design tokens in styles.css, so every part follows the school's brand
@@ -111,8 +112,7 @@ export function RoleHead({ accent, eyebrow, title, sub, lead, top, stats, action
 }
 
 export function Avatar({ name, className = 'h-11 w-11 text-sm' }: { name: string; className?: string }) {
-  const letters = name.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(part => [...part][0]).join('').toUpperCase()
-  return <span aria-hidden="true" className={`ds-fill grid shrink-0 place-items-center rounded-2xl font-bold ${className}`}>{letters}</span>
+  return <OwnAvatar name={name} className={`rounded-2xl ${className}`} fallbackClassName="ds-fill" />
 }
 
 export type QuickAction = { key: string; to: string; icon: IconName; label: string; module: Module }

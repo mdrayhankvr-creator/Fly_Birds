@@ -63,7 +63,7 @@ func requireScopedGrant(tx *gorm.DB, a Actor) error {
 	return nil
 }
 
-const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo,s.student_code,s.gender,s.blood_group,s.father_name_en,s.father_name_bn,s.mother_name_en,s.mother_name_bn,s.present_address,s.permanent_address,COALESCE(to_char(s.admission_date,'YYYY-MM-DD'),'') AS admission_date,COALESCE(lu.login_id,'') AS login_id,COALESCE(lu.login_phone,'') AS login_phone," +
+const studentColumns = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE(to_char(s.date_of_birth,'YYYY-MM-DD'),'') AS date_of_birth,s.status,s.session_id,s.class_id,s.section_id,s.roll_no,s.user_id,a.name AS session_name,c.name AS class_name,sec.name AS section_name,(p.student_id IS NOT NULL) AS has_photo,COALESCE(to_char(p.updated_at,'YYYYMMDDHH24MISSUS'),'') AS photo_version,s.student_code,s.gender,s.blood_group,s.father_name_en,s.father_name_bn,s.mother_name_en,s.mother_name_bn,s.present_address,s.permanent_address,COALESCE(to_char(s.admission_date,'YYYY-MM-DD'),'') AS admission_date,COALESCE(lu.login_id,'') AS login_id,COALESCE(lu.login_phone,'') AS login_phone," +
 	"s.shift_id,COALESCE(sh.name_en,'') AS shift_name_en,COALESCE(sh.name_bn,'') AS shift_name_bn,s.medium,c.uses_groups AS class_uses_groups," +
 	"gc.group_id,COALESCE(gr.name_en,'') AS group_name_en,COALESCE(gr.name_bn,'') AS group_name_bn," +
 	"ssc.subject_id AS fourth_subject_id,COALESCE(fsub.name_en,'') AS fourth_subject_name_en,COALESCE(fsub.name_bn,'') AS fourth_subject_name_bn"
@@ -330,7 +330,12 @@ func (r *GormRepository) SavePhoto(ctx context.Context, a Actor, id string, p Ph
 }
 func (r *GormRepository) GetPhoto(ctx context.Context, a Actor, id string) (Photo, error) {
 	if _, err := r.GetStudent(ctx, a, id); err != nil {
-		return Photo{}, err
+		// A family account may view an approved sibling photo in the child switcher.
+		// This grants only the image, never the sibling's profile or other data.
+		if !(a.Role == "student" && r.isSiblingPhoto(ctx, a.ID, id)) &&
+			!(a.Role == "accountant" && r.isEnrolledStudent(ctx, id)) {
+			return Photo{}, err
+		}
 	}
 	var p Photo
 	err := r.db.WithContext(ctx).Table("student_photos").Select("content_type,content").Where("student_id=?", id).Take(&p).Error
@@ -338,6 +343,23 @@ func (r *GormRepository) GetPhoto(ctx context.Context, a Actor, id string) (Phot
 		return Photo{}, ErrNotFound
 	}
 	return p, err
+}
+
+func (r *GormRepository) isEnrolledStudent(ctx context.Context, studentID string) bool {
+	var allowed bool
+	err := r.db.WithContext(ctx).Raw("SELECT EXISTS (SELECT 1 FROM students WHERE id = ?)", studentID).Scan(&allowed).Error
+	return err == nil && allowed
+}
+
+func (r *GormRepository) isSiblingPhoto(ctx context.Context, viewerID, studentID string) bool {
+	var allowed bool
+	err := r.db.WithContext(ctx).Raw(`SELECT EXISTS (
+		SELECT 1 FROM users viewer JOIN users sibling ON sibling.login_phone=viewer.login_phone
+		JOIN students student ON student.user_id=sibling.id
+		WHERE viewer.id=? AND student.id=? AND viewer.role='student' AND sibling.role='student'
+		AND viewer.is_active AND sibling.is_active AND viewer.login_phone IS NOT NULL
+	)`, viewerID, studentID).Scan(&allowed).Error
+	return err == nil && allowed
 }
 func (r *GormRepository) ListGuardians(ctx context.Context, q Query) (Page[Guardian], error) {
 	base := r.db.WithContext(ctx).Table("guardians")

@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, deleteGuardian, getGuardian, getGuardians, getMyStudent, getMyStudentGuardians, getStudent, getStudentCard, getStudentGuardians, getStudentPhoto, linkStudentGuardian, saveGuardian, saveStudentPhoto, unlinkStudentGuardian, type GuardianInput, type Student, type StudentGuardian } from '../api/client'
+import { ApiError, deleteGuardian, getGuardian, getGuardians, getMyStudent, getMyStudentGuardians, getStudent, getStudentCard, getStudentGuardians, linkStudentGuardian, saveGuardian, saveStudentPhoto, unlinkStudentGuardian, type GuardianInput, type Student, type StudentGuardian } from '../api/client'
+import { usePersonPhoto } from '../components/PersonAvatar'
 import { confirmAction } from '../components/ConfirmDialog'
 import { usePeopleApi } from './peopleShared'
 import { CardBack, CardFront, type CardLanguage } from '../components/IdCard'
@@ -48,7 +49,6 @@ export function StudentProfilePage({ mode, isAssignedTeacher = false, canManageP
   const authorized = usePeopleApi()
   const num = useNumber()
   const cache = useQueryClient()
-  const [photoUrl, setPhotoUrl] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [guardianID, setGuardianID] = useState('')
   const [guardianSearch, setGuardianSearch] = useState('')
@@ -62,18 +62,17 @@ export function StudentProfilePage({ mode, isAssignedTeacher = false, canManageP
   const [cardLang, setCardLang] = useState<CardLanguage>(i18n.language === 'bn' ? 'bn' : 'en')
   const [newLogin, setNewLogin] = useState<StudentLogin | null>(null)
   const [tab, setTab] = useState('overview')
-  const student = useQuery({ queryKey: ['people', 'profile', mode, id], queryFn: () => authorized(token => mode === 'self' ? getMyStudent(token) : getStudent(token, id!)), enabled: mode === 'self' || !!id, retry: false })
+  const student = useQuery({ queryKey: ['people', 'profile', mode, id], queryFn: () => authorized(token => mode === 'self' ? getMyStudent(token) : getStudent(token, id!)), enabled: mode === 'self' || !!id, retry: false, refetchInterval: mode === 'self' ? 20000 : false })
   const studentID = student.data?.id
   const card = useQuery({ queryKey: ['people', 'card', studentID], queryFn: () => authorized(token => getStudentCard(token, studentID!)), enabled: !!studentID && !isAssignedTeacher, retry: false })
-  const photo = useQuery({ queryKey: ['people', 'photo', studentID], queryFn: () => authorized(token => getStudentPhoto(token, studentID!)), enabled: !!studentID && !!student.data?.has_photo, retry: false })
+  const photoUrl = usePersonPhoto('student', studentID, student.data?.photo_version)
   // A student (the family's account) reads its own guardians through the self
   // route, which takes no ID; staff read any student's links.
   const guardianLinks = useQuery({ queryKey: ['people', 'links', studentID], queryFn: () => authorized(token => mode === 'self' ? getMyStudentGuardians(token) : getStudentGuardians(token, studentID!)), enabled: !!studentID && (canReadGuardians || mode === 'self'), retry: false })
   const guardians = useQuery({ queryKey: ['people', 'guardian-options', guardianSearch], queryFn: () => authorized(token => getGuardians(token, new URLSearchParams({ search: guardianSearch, page_size: '100' }))), enabled: canManageLinks, retry: false })
-  useEffect(() => { if (!photo.data) { setPhotoUrl(''); return }; const url = URL.createObjectURL(photo.data); setPhotoUrl(url); return () => URL.revokeObjectURL(url) }, [photo.data])
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!photoFile || !studentID) return; setBusy(true); setError(''); setMessage('')
-    try { if (photoFile.size > 2097152) throw new Error('too large'); await authorized(token => saveStudentPhoto(token, studentID, photoFile)); await cache.invalidateQueries({ queryKey: ['people', 'photo', studentID] }); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }); setMessage(t('peopleSaved')); setPhotoFile(null) }
+    try { if (photoFile.size > 2097152) throw new Error('too large'); await authorized(token => saveStudentPhoto(token, studentID, photoFile)); await cache.invalidateQueries({ queryKey: ['people', 'profile'] }); await cache.invalidateQueries({ queryKey: ['avatar'] }); setMessage(t('peopleSaved')); setPhotoFile(null) }
     catch { setError(t('peopleSaveError')) } finally { setBusy(false) }
   }
   function openEditor(next: Editor) {

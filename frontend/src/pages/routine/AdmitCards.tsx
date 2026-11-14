@@ -5,6 +5,7 @@ import { ApiError } from '../../api/client'
 import { saveBlob } from '../../api/admin'
 import { downloadMyAdmitCard, getAdmitSettings, getAdmitTerms, getHeldStudents, getMyAdmitCards, printAdmitCards, releaseAdmitCard, saveAdmitSettings, unreleaseAdmitCard, type AdmitStudent, type AdmitTerm } from '../../api/marksheetAdmit'
 import { Icon } from '../../components/icons'
+import { sectionDisplayName } from '../../components/sectionName'
 import { CardTitle, EmptyState, Notice, PageHeader, Skeleton, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 import { useDay, useNum } from './routineShared'
@@ -57,7 +58,7 @@ export function AdmitCardsPage({ canPrint, canRelease, canSettings }: { canPrint
 }
 
 function PrintCard({ term }: { term: AdmitTerm }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
   const explain = useAdmitError()
   const num = useNum()
@@ -88,7 +89,7 @@ function PrintCard({ term }: { term: AdmitTerm }) {
       </div>
       <ul className="divide-y divide-slate-100">{term.sections.filter(s => s.class_id === classId).map(s => <li key={s.section_id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
         <div className="min-w-0 text-sm">
-          <p className="font-semibold text-slate-900">{t('msSection')} {s.section_name}</p>
+          <p className="font-semibold text-slate-900">{sectionDisplayName(s.section_name, i18n.language)}</p>
           <p className="text-slate-600">{t('msAdmitStudents')}: {num(String(s.students))}{s.held > 0 && <span className="ml-2 font-semibold text-amber-900">{t('msAdmitHeldCol')}: {num(String(s.held))}</span>}</p>
         </div>
         <div className="flex flex-wrap gap-2">{langs.map(l => <button key={l} type="button" className={`${ui.primary} btn-sm`} disabled={!!busy} aria-busy={busy === `${s.section_id}-${l}`}

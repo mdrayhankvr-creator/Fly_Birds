@@ -2,6 +2,7 @@ import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation } from 'react-router'
 import { Icon, type IconName } from '../components/icons'
+import { PersonAvatar } from '../components/PersonAvatar'
 import { navModule, tone, type Module } from '../components/modules'
 import { useNavGroups } from '../components/navContext'
 import { activeItem } from '../components/navigation'
@@ -193,7 +194,6 @@ export function useNumber() {
   return (n: number) => nf.format(n)
 }
 
-export function Avatar({ name }: { name: string }) {
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => [...part][0]).join('').toUpperCase()
-  return <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-sm font-bold text-[var(--brand-ink)]">{initials}</span>
+export function Avatar({ name, studentId, staffId, photoVersion }: { name: string; studentId?: string; staffId?: string; photoVersion?: string }) {
+  return <PersonAvatar name={name} kind={staffId ? 'staff' : 'student'} id={staffId || studentId} version={photoVersion} tryWithoutVersion={!!(staffId || studentId) && !photoVersion} />
 }

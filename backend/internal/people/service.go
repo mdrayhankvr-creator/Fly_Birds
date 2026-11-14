@@ -42,11 +42,12 @@ type Student struct {
 	LoginID string `json:"login_id,omitempty"`
 	// LoginPhone is the number that login signs in with (+8801XXXXXXXXX),
 	// usually the guardian's; siblings may share it.
-	LoginPhone  string `json:"login_phone,omitempty"`
-	SessionName string `json:"session_name"`
-	ClassName   string `json:"class_name"`
-	SectionName string `json:"section_name"`
-	HasPhoto    bool   `json:"has_photo"`
+	LoginPhone   string `json:"login_phone,omitempty"`
+	SessionName  string `json:"session_name"`
+	ClassName    string `json:"class_name"`
+	SectionName  string `json:"section_name"`
+	HasPhoto     bool   `json:"has_photo"`
+	PhotoVersion string `json:"photo_version"`
 	// Profile details (migration 1601); empty when not recorded.
 	StudentCode      string `json:"student_code"`
 	Gender           string `json:"gender"`

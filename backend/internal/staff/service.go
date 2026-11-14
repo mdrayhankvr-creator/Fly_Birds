@@ -32,6 +32,7 @@ type Employee struct {
 	JoinedOn     string  `json:"joined_on"`
 	LeftOn       *string `json:"left_on"`
 	IsActive     bool    `json:"is_active"`
+	PhotoVersion string  `json:"photo_version" gorm:"->"`
 }
 type EmployeeInput struct {
 	EmployeeCode string  `json:"employee_code"`

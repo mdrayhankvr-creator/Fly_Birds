@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { ApiError, getSalaryRecords } from '../api/client'
-import { deleteStaffPhoto, getStaffPhoto, getStaffProfile, removeStaffNID, revealStaffNID, saveOwnStaffProfile, saveStaffOfficial, saveStaffPhoto, type Audience, type StaffProfile, type StaffVisibility } from '../api/staffProfile'
+import { deleteStaffPhoto, getStaffProfile, removeStaffNID, revealStaffNID, saveOwnStaffProfile, saveStaffOfficial, saveStaffPhoto, type Audience, type StaffProfile, type StaffVisibility } from '../api/staffProfile'
+import { usePersonPhoto } from '../components/PersonAvatar'
 import { confirmAction } from '../components/ConfirmDialog'
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
@@ -30,16 +31,14 @@ export function StaffProfilePage() {
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [tab, setTab] = useState('overview')
-  const profile = useQuery({ queryKey: ['staff-profile', id], queryFn: () => authorized(token => getStaffProfile(token, id)), retry: false })
+  const profile = useQuery({ queryKey: ['staff-profile', id], queryFn: () => authorized(token => getStaffProfile(token, id)), retry: false, refetchInterval: id === 'me' ? 20000 : false })
   const p = profile.data
-  const photo = useQuery({ queryKey: ['staff-profile', 'photo', p?.id, p?.photo_version], enabled: !!p?.photo_version, queryFn: () => authorized(token => getStaffPhoto(token, p!.id, p!.photo_version)), retry: false, staleTime: Infinity })
-  const [photoUrl, setPhotoUrl] = useState('')
-  useEffect(() => { if (!photo.data || !p?.photo_version) { setPhotoUrl(''); return }; const url = URL.createObjectURL(photo.data); setPhotoUrl(url); return () => URL.revokeObjectURL(url) }, [photo.data, p?.photo_version])
+  const photoUrl = usePersonPhoto('staff', p?.id, p?.photo_version)
   const salaries = useQuery({ queryKey: ['staff-profile', 'salaries', p?.id], enabled: !!p?.can_see_salary, queryFn: () => authorized(token => getSalaryRecords(token, p!.id, new URLSearchParams({ page: '1', page_size: '3' }))), retry: false })
 
   async function run(task: () => Promise<StaffProfile | unknown>, done: string) {
     setBusy(true); setMessage(null)
-    try { await task(); await cache.invalidateQueries({ queryKey: ['staff-profile'] }); setMessage({ tone: 'success', text: done }) }
+    try { await task(); await cache.invalidateQueries({ queryKey: ['staff-profile'] }); await cache.invalidateQueries({ queryKey: ['staff', 'employees'] }); await cache.invalidateQueries({ queryKey: ['avatar'] }); setMessage({ tone: 'success', text: done }) }
     catch (cause) { setMessage({ tone: 'error', text: t(cause instanceof ApiError && cause.status === 400 ? 'c4ProfileInvalid' : cause instanceof ApiError && cause.status === 403 ? 'permissionDenied' : 'c4ProfileFailed') }) }
     finally { setBusy(false) }
   }

@@ -14,6 +14,16 @@ const r = reporter(), check = r.check
 const b = await launch({ base, shots })
 const imageList = ['# Profile redesign screenshots', '', 'Fresh fbqa-cp1b demo school. Full-page captures.', '']
 const email = who => `demo.${who}@demo.flybirds.test`
+const roleTokens = new Map()
+async function as(role, method, path, body, contentType = 'application/json') {
+  if (!roleTokens.has(role)) {
+    const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email(role), password: pw }) })
+    if (!login.ok) throw new Error(`API sign-in for ${role}: ${login.status}`)
+    roleTokens.set(role, (await login.json()).data.access_token)
+  }
+  const response = await fetch(`${base}/api${path}`, { method, headers: { Authorization: `Bearer ${roleTokens.get(role)}`, ...(body ? { 'Content-Type': contentType } : {}) }, body: body ? Buffer.isBuffer(body) ? body : JSON.stringify(body) : undefined })
+  return { status: response.status, data: (await response.json().catch(() => ({}))).data }
+}
 const visibleTabs = () => b.evaluate(`[...document.querySelectorAll('main [role=tab]')].map(e => e.innerText.trim())`)
 const choose = id => b.evaluate(`document.querySelector('main [role=tab][id$="-${id}"]')?.click()`)
 const setLanguage = async lang => { await b.evaluate(`localStorage.setItem('flybirds.language', ${JSON.stringify(lang)})`); await b.go(locationPath) }
@@ -22,6 +32,7 @@ async function open(path) { locationPath = path; await b.go(path); return b.wait
 async function shot(kind, lang, width) {
   await b.viewport(width, width === 375 ? 812 : 900, true)
   await setLanguage(lang)
+  await b.waitFor(`!!document.querySelector('main .pr-hero h1') && !!document.querySelector('main .pr-cover')`, 15000)
   await sleep(350)
   const label = `${kind}-${lang}-${width}`
   check(`${label}: no horizontal page scroll`, !(await b.overflow()))
@@ -70,6 +81,63 @@ try {
   const headTabs = await visibleTabs()
   check('head can review student fees and documents', headTabs.includes('Fees') && headTabs.includes('Documents'))
   check('head fee statement is available', (await b.api(`/fees/students/${student.id}/statement`)).status === 200)
+
+  // An approval in another session updates the open student's shell and
+  // greeting through the photo version; no page reload or navigation occurs.
+  await b.login(email('student'), pw)
+  const own = (await b.api('/students/me')).body.data
+  await b.go('/')
+  check('student dashboard loads', await b.waitFor(`!!document.querySelector('.ds-role-head')`, 15000))
+  const before = (await as('student', 'GET', '/students/me')).data.photo_version
+  const portrait = Buffer.from(await b.evaluate(`(() => { const c = document.createElement('canvas'); c.width = c.height = 800; const x = c.getContext('2d'); x.fillStyle = '#dbeafe'; x.fillRect(0,0,800,800); x.fillStyle = '#334155'; x.beginPath(); x.arc(400,330,170,0,Math.PI*2); x.fill(); return c.toDataURL('image/jpeg', .85).split(',')[1] })()`), 'base64')
+  const submitted = await as('student', 'PUT', '/students/me/photo-submission', portrait, 'image/jpeg')
+  check('student photo awaits approval', submitted.status === 200 && submitted.data?.status === 'pending')
+  const approved = await as('admin', 'POST', `/students/${own.id}/photo-submission/approve`)
+  check('administrator approves the photo', approved.status === 200)
+  const updated = (await as('student', 'GET', '/students/me')).data
+  check('approved student photo has a new version', !!updated.photo_version && updated.photo_version !== before)
+  check('open header and greeting update without reload', await b.waitFor(`!!document.querySelector('header .shell-avatar img') && !!document.querySelector('.ds-role-head img')`, 30000))
+  for (const lang of ['en', 'bn']) {
+    await b.evaluate(`localStorage.setItem('flybirds.language', ${JSON.stringify(lang)})`)
+    await b.go('/')
+    await b.waitFor(`(document.querySelector('.ds-role-head')?.innerText || '').includes(${JSON.stringify(own.section_name)})`, 15000)
+    const text = await b.evaluate(`document.querySelector('.ds-role-head')?.innerText || ''`)
+    check(`${lang}: section label appears once`, text.includes(own.section_name) && !/Section\s+Section\b/i.test(text) && !/শাখা\s+শাখা/u.test(text) && !/শাখা\s+Section\b/iu.test(text), text.slice(0, 140))
+  }
+  await open('/student/me')
+  check('student profile banner uses approved photo', await b.waitFor(`!!document.querySelector('.pr-hero img')`, 15000))
+  await b.login(email('admin'), pw)
+  await b.go('/admin/students')
+  check('student people list uses approved photo', await b.waitFor(`!![...document.querySelectorAll('main li')].find(e => e.innerText.includes(${JSON.stringify(own.name_en)}))?.querySelector('img')`, 15000))
+
+  // A staff photo appears in the same three surfaces and in the staff list.
+  const staffPhoto = await as('teacher', 'PUT', '/staff/me/photo', portrait, 'image/jpeg')
+  check('staff photo is saved with a version', staffPhoto.status === 200 && !!staffPhoto.data?.photo_version)
+  await b.login(email('teacher'), pw)
+  await b.go('/')
+  check('teacher header and greeting use staff photo', await b.waitFor(`!!document.querySelector('header .shell-avatar img') && !!document.querySelector('.ds-role-head img')`, 15000))
+  await open(`/staff/profiles/${staff.id}`)
+  check('staff profile banner uses photo', await b.waitFor(`!!document.querySelector('.pr-hero img')`, 15000))
+  await b.login(email('admin'), pw)
+  await b.go('/admin/staff')
+  check('staff people list uses photo', await b.waitFor(`!![...document.querySelectorAll('main button')].find(e => e.innerText.includes(${JSON.stringify(staff.name_en)}))?.querySelector('img')`, 15000))
+
+  const roster = (await as('admin', 'GET', '/students?page=1&page_size=100&status=active')).data.items
+  const available = roster.find(s => !s.user_id) || roster.find(s => s.user_id && s.user_id !== own.user_id)
+  if (available) {
+    const newLogin = available.user_id ? { status: 200, data: { user_id: available.user_id } } : await as('admin', 'POST', `/students/${available.id}/login`, {})
+    check('a second child account is available', (newLogin.status === 201 || newLogin.status === 200) && !!newLogin.data?.user_id)
+    const familyPhone = `+88017${String(Date.now()).slice(-8)}`
+    await as('admin', 'PATCH', `/users/${own.user_id}/login-phone`, { login_phone: familyPhone })
+    await as('admin', 'PATCH', `/users/${newLogin.data.user_id}/login-phone`, { login_phone: familyPhone })
+    await as('admin', 'PUT', `/students/${available.id}/photo`, portrait, 'image/jpeg')
+    await b.login(email('student'), pw)
+    await b.go('/')
+    await b.evaluate(`document.querySelector('header button[aria-haspopup="menu"]')?.click()`)
+    check('switch-child menu uses approved photo', await b.waitFor(`!![...document.querySelectorAll('[role="menu"] [role="menuitem"]')].find(e => e.innerText.includes(${JSON.stringify(available.name_en)}))?.querySelector('img')`, 15000))
+    await as('admin', 'PATCH', `/users/${own.user_id}/login-phone`, { login_phone: own.login_phone || '' })
+    await as('admin', 'PATCH', `/users/${newLogin.data.user_id}/login-phone`, { login_phone: available.login_phone || '' })
+  } else check('an unlinked second child exists for switcher test', false)
 } catch (error) { check('script error', false, error.stack) } finally {
   check('no browser JavaScript errors', b.errors.length === 0, b.errors.slice(0, 3).join(' | '))
   writeFileSync(join(shots, 'index.md'), imageList.join('\n') + '\n')

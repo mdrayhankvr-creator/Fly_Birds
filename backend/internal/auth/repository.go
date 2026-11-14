@@ -15,6 +15,7 @@ type Repository interface {
 	FindUserByEmail(context.Context, string) (User, error)
 	FindUserByLoginID(context.Context, string) (User, error)
 	FindUsersByLoginPhone(context.Context, string) ([]User, error)
+	StudentAvatar(context.Context, string) (string, string, error)
 	RecordLoginFailure(context.Context, string, time.Time) error
 	ClearLoginFailures(context.Context, string, time.Time) error
 	CreateSession(context.Context, *Session) error
@@ -48,6 +49,20 @@ func (r *GormRepository) FindUsersByLoginPhone(ctx context.Context, phone string
 	var users []User
 	err := r.db.WithContext(ctx).Where("login_phone = ?", phone).Order("created_at, id").Find(&users).Error
 	return users, err
+}
+
+// StudentAvatar returns only the student ID and approved photo version for a
+// linked login. The caller checks family membership before exposing it.
+func (r *GormRepository) StudentAvatar(ctx context.Context, userID string) (string, string, error) {
+	var row struct{ ID, PhotoVersion string }
+	err := r.db.WithContext(ctx).Table("students AS s").
+		Joins("LEFT JOIN student_photos AS p ON p.student_id=s.id").
+		Select("s.id,COALESCE(to_char(p.updated_at,'YYYYMMDDHH24MISSUS'),'') AS photo_version").
+		Where("s.user_id=? AND s.status='active'", userID).Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", "", nil
+	}
+	return row.ID, row.PhotoVersion, err
 }
 
 // FindUserByLoginID finds a student login by its sign-in ID, ignoring case.

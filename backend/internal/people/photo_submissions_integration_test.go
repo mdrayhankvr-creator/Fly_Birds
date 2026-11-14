@@ -203,6 +203,22 @@ func TestPostgresStudentPhotoSubmissions(t *testing.T) {
 	if err := p.Approve(ctx, adm, bStudent); err != nil || !inUse(bStudent) {
 		t.Fatalf("admin approve: %v", err)
 	}
+	// The family account can read a sibling's approved image for the switcher,
+	// while the sibling's profile and unrelated accounts remain private.
+	exec("UPDATE users SET login_phone=? WHERE id IN (?,?)", "+8801712345678", aUser, bUser)
+	repo := NewRepository(tx)
+	if _, err := repo.GetPhoto(ctx, studentA, bStudent); err != nil {
+		t.Fatalf("same-phone sibling photo: %v", err)
+	}
+	if _, err := repo.GetStudent(ctx, studentA, bStudent); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("sibling profile must stay private: %v", err)
+	}
+	if _, err := repo.GetPhoto(ctx, Actor{ID: stranger, Role: "student"}, bStudent); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("other-family photo must stay private: %v", err)
+	}
+	if got, err := repo.GetStudent(ctx, studentB, bStudent); err != nil || got.PhotoVersion == "" {
+		t.Fatalf("approved photo version: %+v %v", got, err)
+	}
 
 	// Turned off: no new uploads, and the state says so.
 	exec("UPDATE school_settings SET student_photo_uploads = false WHERE id = 1")

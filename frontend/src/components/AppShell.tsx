@@ -9,6 +9,7 @@ import { activeItem, type NavGroup, type NavItem } from './navigation'
 import { navModule, tone } from './dashboard/kit'
 import { NavGroupsContext } from './navContext'
 import { useCardTables } from './cardTables'
+import { OwnAvatar, PersonAvatar } from './PersonAvatar'
 import { currentTheme, setThemePreference, type Theme } from './theme'
 
 type ShellUser = { email: string; role: string; display_name?: string }
@@ -64,7 +65,7 @@ function UserMenu({ user, onSignOut }: { user: ShellUser; onSignOut: () => void 
   return <div className="relative" ref={ref}>
     <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(v => !v)}
       className="flex items-center gap-2 rounded-xl p-1 pr-2 text-left hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)]">
-      <span aria-hidden="true" className="shell-avatar flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold">{initials(name)}</span>
+      <OwnAvatar name={name} className="shell-avatar h-8 w-8 rounded-full text-xs" />
       {/* On phones only the initials show, so give the button a name. */}
       <span className="sr-only md:hidden">{t('c5AccountMenu', { name })}</span>
       <span className="hidden min-w-0 md:block"><span className="block max-w-[11rem] truncate text-sm font-semibold text-slate-900">{name}</span><span className="block text-xs text-slate-500">{t(`role_${user.role}`)}</span></span>
@@ -104,7 +105,7 @@ function SwitchChild({ onDone }: { onDone: () => void }) {
         catch { setFailed(true) } finally { setBusy('') }
       }}
       className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-slate-50 disabled:hover:bg-transparent ${child.current ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
-      <Icon name={child.current ? 'check' : 'user'} className="h-4 w-4 shrink-0" />
+      <PersonAvatar name={child.display_name} kind="student" id={child.student_id} version={child.photo_version} className="h-7 w-7 rounded-full text-xs" />
       <span className="min-w-0 truncate">{child.display_name}</span>
     </button>)}
     {failed && <p role="alert" className="px-4 pb-2 text-xs text-rose-700">{t('phSwitchFailed')}</p>}

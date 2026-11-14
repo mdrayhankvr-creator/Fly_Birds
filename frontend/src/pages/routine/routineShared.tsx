@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
 import type { PaperKind, RoutineIssue, RoutineVersion } from '../../api/routinePlanner'
+import { sectionDisplayName } from '../../components/sectionName'
 
 // Shared wording for the term exam routine (E8).
 
@@ -46,7 +47,7 @@ export function usePaperName() {
 // useIssueText words a rule check finding from its code and the version's
 // names, in the page's language.
 export function useIssueText(version: RoutineVersion | undefined) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const day = useDay()
   const num = useNum()
   const name = useName()
@@ -65,7 +66,7 @@ export function useIssueText(version: RoutineVersion | undefined) {
     const ids = issue.paper_ids ?? []
     const values = {
       paper: ids.length ? paper(ids[0]) : '', papers: ids.map(id => { const p = version.papers.find(x => x.id === id); return p ? paperName(p) : '' }).filter(Boolean).join(', '),
-      class: cls?.name ?? '', section: section?.name ?? '', room: room ? name(room.name, room.name_bn) : '', teacher: teacher ? name(teacher.name, teacher.name_bn) : '',
+      class: cls?.name ?? '', section: sectionDisplayName(section?.name ?? '', i18n.language), room: room ? name(room.name, room.name_bn) : '', teacher: teacher ? name(teacher.name, teacher.name_bn) : '',
       sitting: sitting ? name(sitting.name, sitting.name_bn) : '', date: issue.date ? day(issue.date) : '', holiday: issue.holiday ?? '',
       when: [issue.date ? day(issue.date) : '', sitting ? name(sitting.name, sitting.name_bn) : ''].filter(Boolean).join(', '),
       count: num(issue.count ?? 0), limit: num(issue.limit ?? 0),

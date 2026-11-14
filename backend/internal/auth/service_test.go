@@ -44,6 +44,9 @@ func (r *memoryRepository) FindUsersByLoginPhone(_ context.Context, phone string
 	}
 	return []User{r.user}, nil
 }
+func (r *memoryRepository) StudentAvatar(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
 func (r *memoryRepository) RecordLoginFailure(_ context.Context, _ string, now time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

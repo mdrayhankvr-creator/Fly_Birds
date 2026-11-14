@@ -265,7 +265,7 @@ export function StudentAttendancePage({ permissions }: { permissions: string[] }
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="w-9 shrink-0 text-center font-mono text-lg font-bold tabular-nums text-slate-500" aria-label={t('attnRoll', { roll: item.roll_no ?? '—' })}>{item.roll_no == null ? '—' : num(item.roll_no)}</span>
-                    <Avatar name={item.name_en} />
+                    <Avatar name={item.name_en} studentId={item.student_id} />
                     <div className="min-w-0"><p className="truncate font-semibold text-slate-900"><StudentName id={item.student_id}>{display}</StudentName></p>
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span>{item.admission_no}</span>
                         {item.status && !draft && <StatusBadge tone={item.status}>{t('attnSaved')}{item.source === 'qr' ? ' · QR' : ''}</StatusBadge>}
@@ -389,7 +389,7 @@ function AlertsPanel({ authorized }: { authorized: Authorized }) {
     <CardTitle id="alerts-heading" icon="alert">{t('studentAttendanceAlerts')}</CardTitle><p className="mt-1 text-sm text-slate-600">{t('attnAlertsHint')}</p>
     {alerts.isPending ? <div className="mt-4"><Skeleton rows={3} /></div> : alerts.isError ? <p role="alert" className="mt-4 text-rose-700">{t('attendanceLoadError')}</p> : !alerts.data.items.length ? <div className="mt-4"><EmptyState title={t('attnNoAlerts')} /></div> : <>
       <ul className="mt-4 divide-y divide-slate-100">{alerts.data.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-        <div className="flex items-center gap-3"><Avatar name={item.name_en} /><div><p className="font-semibold text-slate-900">{item.name_en}</p><p className="text-xs text-slate-500">{item.attendance_date}</p></div></div>
+        <div className="flex items-center gap-3"><Avatar name={item.name_en} studentId={item.student_id} /><div><p className="font-semibold text-slate-900">{item.name_en}</p><p className="text-xs text-slate-500">{item.attendance_date}</p></div></div>
         <div className="flex items-center gap-2"><StatusBadge tone="absent">{t('studentAttendanceAbsent')}</StatusBadge><span className="text-xs text-slate-600">{t('studentAttendanceLinkedGuardians')}: {item.guardian_count}</span></div>
       </li>)}</ul>
       <Pager page={page} total={alerts.data.total} size={20} onPage={setPage} previous={t('attendancePrevious')} next={t('attendanceNext')} label={t('studentAttendanceAlerts')} />
