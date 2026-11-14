@@ -433,6 +433,38 @@ func TestPostgresM9NoticesNotificationsAndDiary(t *testing.T) {
 	call("PATCH", "/diary/"+diaryID, diaryBody(sectionA, subjectID, today, true, pdf, img), otherTeacher, 404)
 	call("POST", "/diary/"+diaryID+"/publish", "", teacher, 200)
 	call("POST", "/diary/"+diaryID+"/publish", "", teacher, 409)
+	// Publication is immediate; edits reuse the same notification and only
+	// reopen it after ten minutes, while respecting the student's preference.
+	diaryKey := "diary:" + diaryID + ":" + studentA
+	db.Table("notifications").Where("user_id=? AND source_key=?", stuA.user.ID, diaryKey).Count(&count)
+	if count != 1 {
+		t.Fatalf("published diary notifications=%d", count)
+	}
+	if err := db.Exec("UPDATE notifications SET read_at=now() WHERE user_id=? AND source_key=?", stuA.user.ID, diaryKey).Error; err != nil {
+		t.Fatal(err)
+	}
+	call("PATCH", "/diary/"+diaryID, diaryBody(sectionA, subjectID, today, true, pdf, img), teacher, 200)
+	var stillRead bool
+	db.Raw("SELECT read_at IS NOT NULL FROM notifications WHERE user_id=? AND source_key=?", stuA.user.ID, diaryKey).Scan(&stillRead)
+	if !stillRead {
+		t.Fatal("edit inside ten minutes reopened diary notification")
+	}
+	if err := db.Exec("UPDATE notifications SET created_at=now()-interval '11 minutes' WHERE user_id=? AND source_key=?", stuA.user.ID, diaryKey).Error; err != nil {
+		t.Fatal(err)
+	}
+	call("PUT", "/notifications/preferences", `{"items":[{"category":"diary","in_app":false,"sms":false}]}`, stuA, 200)
+	call("PATCH", "/diary/"+diaryID, diaryBody(sectionA, subjectID, today, true, pdf, img), teacher, 200)
+	db.Raw("SELECT read_at IS NOT NULL FROM notifications WHERE user_id=? AND source_key=?", stuA.user.ID, diaryKey).Scan(&stillRead)
+	if !stillRead {
+		t.Fatal("diary edit ignored notification preference")
+	}
+	call("PUT", "/notifications/preferences", `{"items":[{"category":"diary","in_app":true,"sms":false}]}`, stuA, 200)
+	call("PATCH", "/diary/"+diaryID, diaryBody(sectionA, subjectID, today, true, pdf, img), teacher, 200)
+	db.Raw("SELECT read_at IS NOT NULL FROM notifications WHERE user_id=? AND source_key=?", stuA.user.ID, diaryKey).Scan(&stillRead)
+	db.Table("notifications").Where("user_id=? AND source_key=?", stuA.user.ID, diaryKey).Count(&count)
+	if stillRead || count != 1 {
+		t.Fatalf("diary edit did not reopen one notification: read=%t count=%d", stillRead, count)
+	}
 	if len(items(call("GET", "/diary/me", "", stuA, 200))) != 1 || len(items(call("GET", "/diary/me", "", stuB, 200))) != 0 {
 		t.Fatal("published diary visibility by section")
 	}
@@ -447,6 +479,74 @@ func TestPostgresM9NoticesNotificationsAndDiary(t *testing.T) {
 	call("GET", "/diary/"+diaryID+"/files/"+img, "", stuB, 404)
 	call("GET", "/diary/"+diaryID, "", guardB, 404)
 	call("GET", "/diary/"+diaryID+"?student_id="+studentA, "", guardA, 200)
+
+	// Section-scoped questions, class-teacher replies, moderation and expiry.
+	call("GET", "/diary/"+diaryID+"/comments", "", stuB, 404)
+	call("POST", "/diary/"+diaryID+"/comments", `{"body":"Wrong section"}`, stuB, 404)
+	call("GET", "/diary/"+diaryID+"/comments", "", guardA, 403)
+	call("POST", "/diary/"+diaryID+"/comments", `{"body":"   "}`, stuA, 400)
+	call("POST", "/diary/"+diaryID+"/comments", fmt.Sprintf(`{"body":%q}`, strings.Repeat("x", 501)), stuA, 400)
+	question := data(call("POST", "/diary/"+diaryID+"/comments", `{"body":"Please explain exercise 3.2"}`, stuA, 201))
+	questionID := question["id"].(string)
+	if !strings.Contains(strings.Join(inboxKeys(teacher), ","), "diary_comment:"+questionID) {
+		t.Fatal("student question did not notify teacher")
+	}
+	assignments = call("GET", "/diary/assignments", "", teacher, 200)["data"].([]any)
+	if assignments[0].(map[string]any)["unread_comments"].(float64) < 1 {
+		t.Fatal("teacher unread comment badge missing")
+	}
+	call("GET", "/diary/"+diaryID+"/comments", "", teacher, 200)
+	assignments = call("GET", "/diary/assignments", "", teacher, 200)["data"].([]any)
+	if assignments[0].(map[string]any)["unread_comments"].(float64) != 0 {
+		t.Fatal("teacher unread badge did not clear")
+	}
+	call("POST", "/diary/"+diaryID+"/comments/"+questionID+"/replies", `{"body":"No"}`, stuA, 403)
+	call("POST", "/diary/"+diaryID+"/comments/"+questionID+"/replies", `{"body":"No"}`, otherTeacher, 404)
+	if err := db.Exec("INSERT INTO section_class_teachers(section_id,class_id,session_id,employee_id) VALUES (?,?,?,?)", sectionA, classID, sessionID, employeeIDs[1]).Error; err != nil {
+		t.Fatal(err)
+	}
+	call("GET", "/diary/"+diaryID+"/comments", "", otherTeacher, 200)
+	teaching := items(call("GET", "/diary/teaching?status=published", "", otherTeacher, 200))
+	if len(teaching) == 0 {
+		t.Fatal("class teacher cannot see section diary")
+	}
+	draftForClassTeacher := data(call("POST", "/diary", diaryBody(sectionA, subjectID, time.Now().In(diary.Dhaka).AddDate(0, 0, -2).Format(time.DateOnly), false), teacher, 201))["id"].(string)
+	call("GET", "/diary/"+draftForClassTeacher, "", otherTeacher, 404)
+	if len(items(call("GET", "/diary/teaching?status=draft", "", otherTeacher, 200))) != 0 {
+		t.Fatal("class teacher list exposed another teacher's draft")
+	}
+	reply := data(call("POST", "/diary/"+diaryID+"/comments/"+questionID+"/replies", `{"body":"Start with the first fraction."}`, otherTeacher, 201))
+	if !strings.Contains(strings.Join(inboxKeys(stuA), ","), "diary_reply:"+reply["id"].(string)) {
+		t.Fatal("teacher reply did not notify student")
+	}
+	call("PATCH", "/diary/"+diaryID+"/comments/"+questionID+"/hide", `{"reason":"Off topic"}`, stuA, 403)
+	call("PATCH", "/diary/"+diaryID+"/comments/"+questionID+"/hide", `{"reason":"Off topic"}`, teacher, 200)
+	studentComments := call("GET", "/diary/"+diaryID+"/comments", "", stuA, 200)["data"].([]any)
+	if studentComments[0].(map[string]any)["body"] != "" || studentComments[0].(map[string]any)["hidden"] != true {
+		t.Fatal("hidden comment body leaked")
+	}
+	var hideAudit int64
+	db.Table("audit_events").Where("action=? AND target_id=?", "diary.comment_hidden", questionID).Count(&hideAudit)
+	if hideAudit != 1 {
+		t.Fatal("hide reason not audited")
+	}
+	mine := data(call("POST", "/diary/"+diaryID+"/comments", `{"body":"Another question"}`, stuA, 201))
+	mineID := mine["id"].(string)
+	call("DELETE", "/diary/"+diaryID+"/comments/"+mineID, "", stuB, 404)
+	call("DELETE", "/diary/"+diaryID+"/comments/"+mineID, "", stuA, 200)
+	late := data(call("POST", "/diary/"+diaryID+"/comments", `{"body":"Too late to delete later"}`, stuA, 201))["id"].(string)
+	if err := db.Exec("UPDATE diary_comments SET created_at=now()-interval '11 minutes' WHERE id=?", late).Error; err != nil {
+		t.Fatal(err)
+	}
+	call("DELETE", "/diary/"+diaryID+"/comments/"+late, "", stuA, 409)
+	if err := db.Exec("UPDATE class_diaries SET diary_date=(now() AT TIME ZONE 'Asia/Dhaka')::date-31 WHERE id=?", diaryID).Error; err != nil {
+		t.Fatal(err)
+	}
+	call("POST", "/diary/"+diaryID+"/comments", `{"body":"Too old"}`, stuA, 409)
+	call("POST", "/diary/"+diaryID+"/comments/"+late+"/replies", `{"body":"Too old"}`, teacher, 409)
+	if err := db.Exec("UPDATE class_diaries SET diary_date=?::date WHERE id=?", today, diaryID).Error; err != nil {
+		t.Fatal(err)
+	}
 
 	// Optional homework.
 	if r := upload("/diary/homework/files", "fake.png", append([]byte("\x89PNG\r\n\x1a\n"), []byte("junk")...), stuA); r.Code != 415 {
@@ -489,9 +589,7 @@ func TestPostgresM9NoticesNotificationsAndDiary(t *testing.T) {
 	call("PUT", "/diary/settings", `{"daily_required":true,"reminder_time":"25:00"}`, admin, 400)
 	call("PUT", "/diary/settings", `{"daily_required":true,"reminder_time":"00:00"}`, admin, 200)
 	result := dispatch()
-	if result.Created["diary"] < 2 {
-		t.Fatalf("diary notifications %+v", result)
-	}
+	_ = result // publication notifications were checked before dispatch above.
 	keys := strings.Join(inboxKeys(teacher), ",")
 	if time.Now().In(diary.Dhaka).Weekday() != time.Friday && !strings.Contains(keys, "diary_reminder:"+today) {
 		t.Fatalf("teacher reminder missing: %s", keys)

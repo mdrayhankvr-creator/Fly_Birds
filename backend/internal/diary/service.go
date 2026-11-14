@@ -31,6 +31,10 @@ type Repository interface {
 	Settings(context.Context) (Settings, error)
 	SaveSettings(context.Context, string, Settings) (Settings, error)
 	Compliance(context.Context, string) ([]ComplianceRow, error)
+	Comments(context.Context, Viewer, string) ([]Comment, error)
+	PostComment(context.Context, Viewer, string, string, string) (Comment, error)
+	HideComment(context.Context, Viewer, string, string, string) (Comment, error)
+	DeleteComment(context.Context, Viewer, string, string) error
 }
 
 type Service struct {
@@ -224,4 +228,34 @@ func (s *Service) Compliance(ctx context.Context, date string) ([]ComplianceRow,
 		return nil, ErrInvalid
 	}
 	return s.repo.Compliance(ctx, date)
+}
+
+func (s *Service) Comments(ctx context.Context, v Viewer, diaryID string) ([]Comment, error) {
+	if !validID(v.UserID) || !validID(diaryID) {
+		return nil, ErrNotFound
+	}
+	return s.repo.Comments(ctx, v, diaryID)
+}
+
+func (s *Service) PostComment(ctx context.Context, v Viewer, diaryID, parentID, body string) (Comment, error) {
+	body = strings.TrimSpace(body)
+	if !validID(v.UserID) || !validID(diaryID) || (parentID != "" && !validID(parentID)) || !utf8.ValidString(body) || utf8.RuneCountInString(body) < 1 || utf8.RuneCountInString(body) > 500 {
+		return Comment{}, ErrInvalid
+	}
+	return s.repo.PostComment(ctx, v, diaryID, parentID, body)
+}
+
+func (s *Service) HideComment(ctx context.Context, v Viewer, diaryID, commentID, reason string) (Comment, error) {
+	reason = strings.TrimSpace(reason)
+	if !validID(v.UserID) || !validID(diaryID) || !validID(commentID) || !utf8.ValidString(reason) || utf8.RuneCountInString(reason) < 1 || utf8.RuneCountInString(reason) > 500 {
+		return Comment{}, ErrInvalid
+	}
+	return s.repo.HideComment(ctx, v, diaryID, commentID, reason)
+}
+
+func (s *Service) DeleteComment(ctx context.Context, v Viewer, diaryID, commentID string) error {
+	if !validID(v.UserID) || !validID(diaryID) || !validID(commentID) {
+		return ErrNotFound
+	}
+	return s.repo.DeleteComment(ctx, v, diaryID, commentID)
 }

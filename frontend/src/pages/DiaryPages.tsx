@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
-import { deleteDiary, getAllDiaries, getDiary, getDiaryAssignments, getDiaryCompliance, getDiaryFeed, getDiarySettings, getMySubmission, getSubmissions, publishDiary, reviewSubmission, saveDiary, saveDiarySettings, submitHomework, type Attachment, type Diary, type DiaryAssignment, type DiaryInput, type Submission } from '../api/communication'
+import { deleteDiary, deleteDiaryComment, getAllDiaries, getDiary, getDiaryAssignments, getDiaryComments, getDiaryCompliance, getDiaryFeed, getDiarySettings, getMySubmission, getSubmissions, getTeachingDiaries, hideDiaryComment, postDiaryComment, publishDiary, reviewSubmission, saveDiary, saveDiarySettings, submitHomework, type Attachment, type Diary, type DiaryAssignment, type DiaryComment, type DiaryInput, type Submission } from '../api/communication'
 import { ApiError } from '../api/client'
 import { CardTitle, EmptyState, Notice as Banner, PageHeader, Pager, Skeleton, StatusBadge, ui } from './attendanceUi'
 import { AttachmentList, Field, FileUploader, isoToLocal, localToIso, shiftDay, todayDhaka, useApi, useDhakaFormat, useErrorText, useLocal } from './commShared'
@@ -72,10 +72,12 @@ export function TeacherDiaryPage() {
           const active = selected?.section_id === a.section_id && selected.subject_id === a.subject_id
           return <li key={`${a.section_id}-${a.subject_id}`}><button type="button" aria-pressed={active} onClick={() => setSelected(a)} className={`w-full rounded-xl border p-3 text-left transition ${active ? 'border-[var(--brand-primary)] ring-2 ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]' : 'border-slate-200 hover:border-slate-300'}`}>
             <span className="flex items-start justify-between gap-2"><span className="font-semibold text-slate-900">{local(a.subject_name_en, a.subject_name_bn)}</span><DiaryStatus status={a.diary_status} /></span>
+            {a.unread_comments > 0 && <span className="mt-1 inline-block rounded-full bg-[var(--brand-soft)] px-2 py-0.5 text-xs font-bold text-[var(--brand-ink)]">{t('diaryUnread', { count: a.unread_comments })}</span>}
             <span className="mt-1 block text-sm text-slate-600">{a.class_name} · {a.section_name}</span></button></li>
         })}</ul>}
     </section>
     {selected && <DiaryEditor key={`${selected.section_id}-${selected.subject_id}-${date}`} assignment={selected} date={date} onSaved={() => void assignments.refetch()} />}
+    <RecentDiaryThreads excludeId={selected?.diary_id ?? undefined} />
   </div>
 }
 
@@ -135,6 +137,7 @@ function DiaryEditor({ assignment, date, onSaved }: { assignment: DiaryAssignmen
       </div>
       {empty && diary?.status !== 'published' && <p className="text-xs text-slate-500">{t('m9PublishNeedsContent')}</p>}
     </form>
+    {diary?.status === 'published' && <DiaryComments diary={diary} role="teacher" />}
     {diary && (diary.submission_enabled || diary.submission_count > 0) && diary.status === 'published' && <SubmissionsPanel diaryId={diary.id} />}
   </>
 }
@@ -260,8 +263,81 @@ function DiaryCard({ diary: d, mode, filePath }: { diary: Diary; mode: 'student'
       </div>
     </header>
     <div className="px-4 pb-4 sm:px-6 sm:pb-5"><DiaryBody diary={d} filePath={filePath} /></div>
+    {mode === 'student' && <DiaryComments diary={d} role="student" />}
     {d.submission_enabled && mode === 'student' && <HomeworkPanel diary={d} />}
   </article>
+}
+
+function RecentDiaryThreads({ excludeId }: { excludeId?: string }) {
+  const { t } = useTranslation()
+  const authorized = useApi()
+  const local = useLocal()
+  const fmt = useDhakaFormat()
+  const from = shiftDay(todayDhaka(), -29)
+  const [page, setPage] = useState(1)
+  const diaries = useQuery({ queryKey: ['m9', 'diary-teaching-threads', from, page], queryFn: () => authorized(token => getTeachingDiaries(token, new URLSearchParams({ from, status: 'published', page: String(page), page_size: '20' }))), retry: false })
+  return <section className={`${ui.card} min-w-0 p-4 sm:p-5`} aria-label={t('diaryRecentThreads')}>
+    <CardTitle icon="notebook">{t('diaryRecentThreads')}</CardTitle>
+    {diaries.isPending ? <Skeleton rows={2} /> : diaries.isError ? <Banner tone="error">{t('m9ErrGeneric')}</Banner> : <>
+      <ul className="mt-3 space-y-3">{diaries.data.items.filter(d => d.id !== excludeId).map(d => <li key={d.id} data-diary-thread={d.id} className="min-w-0 rounded-xl border border-slate-200 p-3 sm:p-4">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2"><div className="min-w-0"><h3 className="break-words font-bold">{local(d.subject_name_en, d.subject_name_bn)} · {d.class_name} {d.section_name}</h3><p className="text-xs text-slate-600">{fmt.date(d.diary_date)}</p></div>{d.unread_comments > 0 && <span className="rounded-full bg-[var(--brand-soft)] px-2 py-1 text-xs font-bold text-[var(--brand-ink)]">{t('diaryUnread', { count: d.unread_comments })}</span>}</div>
+        <div className="mt-3"><DiaryBody diary={d} filePath={f => `/diary/${d.id}/files/${f.id}`} /></div>
+        <DiaryComments diary={d} role="teacher" />
+      </li>)}</ul>
+      <Pager page={page} total={diaries.data.total} size={20} onPage={setPage} previous={t('m9Previous')} next={t('m9Next')} label={t('diaryRecentThreads')} />
+    </>}
+  </section>
+}
+
+function DiaryComments({ diary, role }: { diary: Diary; role: 'student' | 'teacher' }) {
+  const { t } = useTranslation()
+  const authorized = useApi()
+  const client = useQueryClient()
+  const fmt = useDhakaFormat()
+  const errorText = useErrorText()
+  const [open, setOpen] = useState(false)
+  const [body, setBody] = useState('')
+  const [replyTo, setReplyTo] = useState<string | null>(null)
+  const [hideId, setHideId] = useState<string | null>(null)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const comments = useQuery({ queryKey: ['m9', 'diary-comments', diary.id], enabled: open, queryFn: () => authorized(token => getDiaryComments(token, diary.id)), retry: false })
+  useEffect(() => { if (role === 'teacher' && open && comments.data) {
+    void client.invalidateQueries({ queryKey: ['m9', 'diary-assignments'] })
+    void client.invalidateQueries({ queryKey: ['m9', 'diary-teaching-threads'] })
+  } }, [role, open, comments.data, client])
+  const canPost = diary.status === 'published' && diary.diary_date >= shiftDay(todayDhaka(), -30)
+  async function act(task: () => Promise<unknown>) {
+    setBusy(true); setError('')
+    try { await task(); await comments.refetch(); setBody(''); setReplyTo(null); setHideId(null); setReason('') }
+    catch (cause) { setError(errorText(cause) || t('diaryCommentError')) }
+    finally { setBusy(false) }
+  }
+  const all = comments.data ?? []
+  const roots = all.filter(c => !c.parent_id)
+  const replies = (id: string) => all.filter(c => c.parent_id === id)
+  const row = (c: DiaryComment) => <li key={c.id} className={`min-w-0 rounded-xl border border-slate-200 p-3 ${c.parent_id ? 'ml-4 sm:ml-8' : ''}`}>
+    <div className="flex flex-wrap items-center justify-between gap-1 text-xs"><strong className="break-words text-slate-800">{c.author_name}</strong><time className="text-slate-500" dateTime={c.created_at}>{fmt.dateTime(c.created_at)}</time></div>
+    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{c.deleted ? t('diaryDeleted') : c.hidden ? t('diaryHidden') : c.body}</p>
+    {c.hidden && c.hidden_reason && <p className="mt-1 break-words text-xs text-slate-500">{c.hidden_reason}</p>}
+    {!c.hidden && !c.deleted && <div className="mt-2 flex flex-wrap gap-2">
+      {role === 'teacher' && !c.parent_id && canPost && <button type="button" className={ui.ghost} onClick={() => { setReplyTo(c.id); setHideId(null) }}>{t('diaryReply')}</button>}
+      {role === 'teacher' && !c.parent_id && <button type="button" className={ui.ghost} onClick={() => { setHideId(c.id); setReplyTo(null) }}>{t('diaryHide')}</button>}
+      {role === 'student' && c.can_delete && <button type="button" className={ui.ghost} disabled={busy} onClick={() => void act(() => authorized(token => deleteDiaryComment(token, diary.id, c.id)))}>{t('diaryDeleteMine')}</button>}
+    </div>}
+    {role === 'teacher' && hideId === c.id && <form className="mt-2 flex flex-col gap-2 sm:flex-row" onSubmit={e => { e.preventDefault(); if (reason.trim()) void act(() => authorized(token => hideDiaryComment(token, diary.id, c.id, reason))) }}><label className="min-w-0 flex-1"><span className="sr-only">{t('diaryHideReason')}</span><input className={ui.field} maxLength={500} required value={reason} placeholder={t('diaryHideReason')} onChange={e => setReason(e.target.value)} /></label><button className={ui.secondary} disabled={busy || !reason.trim()}>{t('diaryConfirmHide')}</button></form>}
+    {role === 'teacher' && replyTo === c.id && <form className="mt-2 space-y-2" onSubmit={e => { e.preventDefault(); if (body.trim()) void act(() => authorized(token => postDiaryComment(token, diary.id, body, c.id))) }}><label className="block text-sm font-semibold">{t('diaryReplyTo', { name: c.author_name })}<textarea className={ui.field} rows={2} maxLength={500} required value={body} onChange={e => setBody(e.target.value)} /></label><button className={ui.primary} disabled={busy || !body.trim()}>{t('diarySend')}</button></form>}
+  </li>
+  return <details data-diary-comments={diary.id} className="border-t border-slate-200 px-4 py-3 sm:px-6" onToggle={e => setOpen(e.currentTarget.open)}>
+    <summary className="cursor-pointer font-semibold text-[var(--brand-ink)]">{t('diaryComments')}{role === 'teacher' && diary.unread_comments > 0 ? ` · ${t('diaryUnread', { count: diary.unread_comments })}` : ''}</summary>
+    <div className="mt-3 space-y-3">
+      {error && <Banner tone="error">{error}</Banner>}
+      {comments.isPending ? <Skeleton rows={2} /> : comments.isError ? <Banner tone="error">{t('diaryCommentError')}</Banner> : roots.length === 0 ? <p className="text-sm text-slate-600">{t('diaryNoComments')}</p> : <ul className="space-y-3">{roots.map(c => <li key={c.id} className="space-y-2"><ul>{row(c)}</ul>{replies(c.id).length > 0 && <ul className="space-y-2">{replies(c.id).map(row)}</ul>}</li>)}</ul>}
+      {!canPost && <p className="text-xs text-slate-500">{t('diaryCommentClosed')}</p>}
+      {role === 'student' && canPost && <form className="space-y-2" onSubmit={e => { e.preventDefault(); if (body.trim()) void act(() => authorized(token => postDiaryComment(token, diary.id, body))) }}><label className="block text-sm font-semibold">{t('diaryAsk')}<textarea className={ui.field} rows={2} maxLength={500} required value={body} onChange={e => setBody(e.target.value)} /></label><p className="text-xs text-slate-500">{t('diaryCommentLimit')}</p><button className={ui.primary} disabled={busy || !body.trim()}>{t('diarySend')}</button></form>}
+    </div>
+  </details>
 }
 
 function HomeworkPanel({ diary }: { diary: Diary }) {

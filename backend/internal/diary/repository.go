@@ -47,6 +47,10 @@ const diarySelect = "d.id,d.session_id,d.class_id,d.section_id,d.subject_id,c.na
 	"(d.status = 'published' AND d.submission_enabled AND (d.submission_due_at IS NULL OR d.submission_due_at > now())) AS submission_open," +
 	"(SELECT count(*) FROM homework_submissions hs WHERE hs.diary_id = d.id) AS submission_count"
 
+const unreadSelect = `,(SELECT count(*) FROM diary_comments cm WHERE cm.diary_id = d.id
+AND cm.author_role = 'student' AND cm.hidden_at IS NULL AND cm.deleted_at IS NULL
+AND cm.created_at > COALESCE((SELECT last_read_at FROM diary_comment_reads cr WHERE cr.diary_id = d.id AND cr.user_id = ?::uuid),'epoch'::timestamptz)) AS unread_comments`
+
 func diaryBase(db *gorm.DB) *gorm.DB {
 	return db.Table("class_diaries d").Joins("JOIN academic_classes c ON c.id = d.class_id").Joins("JOIN academic_sections sec ON sec.id = d.section_id").
 		Joins("JOIN academic_subjects sub ON sub.id = d.subject_id").Joins("JOIN users tu ON tu.id = d.teacher_user_id")
@@ -128,7 +132,9 @@ func assigned(tx *gorm.DB, actor, sessionID, classID, subjectID string) (bool, e
 func (r *GormRepository) Assignments(ctx context.Context, actor, date string) ([]Assignment, error) {
 	out := []Assignment{}
 	err := r.db.WithContext(ctx).Raw(`SELECT se.id AS session_id, se.name AS session_name, c.id AS class_id, c.name AS class_name, sec.id AS section_id, sec.name AS section_name,
-  sub.id AS subject_id, sub.name_en AS subject_name_en, sub.name_bn AS subject_name_bn, d.id AS diary_id, d.status AS diary_status
+  sub.id AS subject_id, sub.name_en AS subject_name_en, sub.name_bn AS subject_name_bn, d.id AS diary_id, d.status AS diary_status,
+  (SELECT count(*) FROM diary_comments cm WHERE cm.diary_id = d.id AND cm.author_role = 'student' AND cm.hidden_at IS NULL AND cm.deleted_at IS NULL
+   AND cm.created_at > COALESCE((SELECT last_read_at FROM diary_comment_reads cr WHERE cr.diary_id = d.id AND cr.user_id = ?::uuid),'epoch'::timestamptz)) AS unread_comments
 FROM teacher_assignments a
 JOIN employees e ON e.id = a.employee_id AND e.is_active AND e.user_id = ?
 JOIN academic_sessions se ON se.id = a.session_id AND ?::date BETWEEN se.start_date AND se.end_date
@@ -136,13 +142,16 @@ JOIN academic_classes c ON c.id = a.class_id
 JOIN academic_sections sec ON sec.session_id = a.session_id AND sec.class_id = a.class_id AND sec.is_active
 JOIN academic_subjects sub ON sub.id = a.subject_id
 LEFT JOIN class_diaries d ON d.section_id = sec.id AND d.subject_id = a.subject_id AND d.diary_date = ?::date
-ORDER BY c.display_order, c.name, sec.display_order, sec.name, sub.code`, actor, date, date).Scan(&out).Error
+ORDER BY c.display_order, c.name, sec.display_order, sec.name, sub.code`, actor, actor, date, date).Scan(&out).Error
 	return out, err
 }
 
 func (r *GormRepository) Teaching(ctx context.Context, actor string, q Query) (Page[Diary], error) {
 	db := r.db.WithContext(ctx)
-	return list(db, filter(diaryBase(db).Where("d.teacher_user_id = ?", actor), q), q, diarySelect)
+	base := diaryBase(db).Where(`(d.teacher_user_id = ? OR (d.status = 'published' AND EXISTS (
+SELECT 1 FROM section_class_teachers ct JOIN employees e ON e.id = ct.employee_id AND e.is_active
+WHERE ct.section_id = d.section_id AND e.user_id = ?)))`, actor, actor)
+	return list(db, filter(base, q), q, diarySelect+unreadSelect, actor)
 }
 
 type member struct {
@@ -204,6 +213,15 @@ func canView(tx *gorm.DB, v Viewer, id string) (string, error) {
 	}
 	if strings.EqualFold(d.TeacherUserID, v.UserID) || v.Oversight {
 		return "", nil
+	}
+	if d.Status == "published" && (v.Role == "teacher" || v.Role == "head_teacher") {
+		allowed, err := isClassTeacher(tx, v.UserID, d.SectionID)
+		if err != nil {
+			return "", err
+		}
+		if allowed {
+			return "", nil
+		}
 	}
 	if d.Status != "published" {
 		return "", ErrNotFound
@@ -311,6 +329,7 @@ func lockOwn(tx *gorm.DB, actor, id string) (owned, error) {
 func (r *GormRepository) Save(ctx context.Context, actor, id string, in DiaryInput) (Diary, error) {
 	var out Diary
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		published := false
 		if id == "" {
 			var sec struct {
 				SessionID string
@@ -337,9 +356,11 @@ VALUES (?,?,?,?,?,?::date,?,?,?,?,?,?) RETURNING id`, sec.SessionID, sec.ClassID
 				return dbErr(err)
 			}
 		} else {
-			if _, err := lockOwn(tx, actor, id); err != nil {
+			owned, err := lockOwn(tx, actor, id)
+			if err != nil {
 				return err
 			}
+			published = owned.Status == "published"
 			if err := tx.Exec(`UPDATE class_diaries SET lesson_topics=?,class_notes=?,homework=?,instructions=?,submission_enabled=?,submission_due_at=?,updated_at=now() WHERE id=?`,
 				in.LessonTopics, in.ClassNotes, in.Homework, in.Instructions, in.SubmissionEnabled, in.SubmissionDueAt, id).Error; err != nil {
 				return dbErr(err)
@@ -347,6 +368,11 @@ VALUES (?,?,?,?,?,?::date,?,?,?,?,?,?) RETURNING id`, sec.SessionID, sec.ClassID
 		}
 		if err := replaceFiles(tx, "diary_attachments", "diary_id", id, actor, "diary", in.FileIDs); err != nil {
 			return err
+		}
+		if published {
+			if err := notifyDiary(tx, id, true); err != nil {
+				return err
+			}
 		}
 		var err error
 		if out, err = r.get(tx, Viewer{UserID: actor, Role: "teacher"}, id); err != nil {
@@ -369,6 +395,9 @@ func (r *GormRepository) Publish(ctx context.Context, actor, id string) (Diary, 
 		}
 		if err := tx.Exec("UPDATE class_diaries SET status='published',published_at=now(),updated_at=now() WHERE id=?", id).Error; err != nil {
 			return dbErr(err)
+		}
+		if err := notifyDiary(tx, id, false); err != nil {
+			return err
 		}
 		if out, err = r.get(tx, Viewer{UserID: actor, Role: "teacher"}, id); err != nil {
 			return err
