@@ -121,13 +121,14 @@ check("the account menu offers the family's children", children.every(c => menu.
 // ---------------------------------------------------------------------------
 // The sign-in page, in both languages at phone width.
 
-// Signed out, so the form itself is on screen.
+// Signed out, so /login opens the floating card over the public page.
 await b.evaluate(`(async () => { const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1] || ''); if (csrf) await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } }).catch(() => null); return true })()`)
 for (const lang of ['en', 'bn']) {
   await b.evaluate(`localStorage.setItem('flybirds.language', '${lang}')`)
   await b.viewport(375, 760, true)
   await b.go('/login')
-  await b.waitFor(`document.querySelector('#login-email')`, 15000)
+  await b.waitFor(`document.querySelector('[data-sign-in-overlay] [role="dialog"] #login-email')`, 15000)
+  check(`the ${lang} sign-in card is a phone bottom sheet`, await b.evaluate(`(() => { const sheet = document.querySelector('.pd-sign-in-sheet').getBoundingClientRect(); return sheet.bottom >= innerHeight - 2 && sheet.width <= innerWidth && document.activeElement?.id === 'login-email' })()`))
   const label = await b.evaluate(`document.querySelector('label[for="login-email"]').innerText.trim()`)
   check(`the ${lang} field names email, phone and Student ID`, lang === 'en' ? label === 'Email, phone or Student ID' : label.includes('ফোন'), label)
   await b.shot(`sign-in-${lang}-375`)

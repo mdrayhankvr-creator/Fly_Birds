@@ -473,6 +473,21 @@ main table tbody tr:hover { background-color: #f8fafc; }
   font-size: clamp(2.65rem, 8vw, 5.75rem); line-height: 1.04; font-weight: 800;
   letter-spacing: -.045em; max-width: 17ch;
 }
+.landing[data-public-style="modern_bold"] .pd-hero-copy {
+  height: auto; min-height: 0; padding: 0;
+}
+.pd-sign-in-sheet { max-height: min(90dvh, 46rem); }
+.pd-sign-in-sheet .landing-card { border: 0; box-shadow: none; padding: 1.25rem; }
+@media (max-width: 639px) {
+  .landing[data-public-style="modern_bold"] .pd-hero-copy { min-height: 0; padding: 0; }
+  .landing[data-public-style="modern_bold"] .pd-modern-hero-name {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+    overflow: hidden; font-size: clamp(1.7rem, 7vw, 2.25rem); line-height: 1.16;
+    letter-spacing: -.035em;
+  }
+  .landing[data-public-style="modern_bold"] .pd-hero-copy [lang="bn"] { font-size: .85rem; line-height: 1.5; }
+  .pd-sign-in-sheet { max-height: 92dvh; padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+}
 .landing[data-public-style="modern_bold"] .landing-plain {
   background: radial-gradient(circle at 85% 15%, var(--public-accent), transparent 55%),
     linear-gradient(135deg, var(--public-primary), #101827);
