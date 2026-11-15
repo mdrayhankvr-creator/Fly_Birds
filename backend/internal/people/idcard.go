@@ -144,6 +144,9 @@ func (s *Service) StudentCard(ctx context.Context, a Actor, id string) (Card, er
 	if !validID(a.ID) || !validID(id) {
 		return Card{}, ErrInvalid
 	}
+	if a.Role == "teacher" {
+		return Card{}, ErrForbidden
+	}
 	return s.repo.StudentCard(ctx, a, id)
 }
 func (s *Service) SectionCards(ctx context.Context, a Actor, sectionID string) ([]Card, error) {

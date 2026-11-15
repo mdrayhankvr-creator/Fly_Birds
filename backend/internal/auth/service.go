@@ -168,10 +168,12 @@ func (s *Service) loginByPhone(ctx context.Context, phone, password string) (Cre
 // Sibling is another child of the same family, as the header's child switch
 // lists them.
 type Sibling struct {
-	UserID      string `json:"user_id"`
-	DisplayName string `json:"display_name"`
-	LoginID     string `json:"login_id,omitempty"`
-	Current     bool   `json:"current"`
+	UserID       string `json:"user_id"`
+	DisplayName  string `json:"display_name"`
+	LoginID      string `json:"login_id,omitempty"`
+	StudentID    string `json:"student_id,omitempty"`
+	PhotoVersion string `json:"photo_version,omitempty"`
+	Current      bool   `json:"current"`
 }
 
 // Siblings lists the student accounts that share this account's login phone,
@@ -195,6 +197,10 @@ func (s *Service) Siblings(ctx context.Context, userID string) ([]Sibling, error
 			continue
 		}
 		sib := Sibling{UserID: others[i].ID, DisplayName: others[i].DisplayName, Current: others[i].ID == user.ID}
+		sib.StudentID, sib.PhotoVersion, err = s.repo.StudentAvatar(ctx, others[i].ID)
+		if err != nil {
+			return nil, err
+		}
 		if others[i].LoginID != nil {
 			sib.LoginID = *others[i].LoginID
 		}

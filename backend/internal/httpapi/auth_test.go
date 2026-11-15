@@ -32,6 +32,9 @@ func (r *handlerRepository) FindUserByLoginID(context.Context, string) (auth.Use
 func (r *handlerRepository) FindUsersByLoginPhone(context.Context, string) ([]auth.User, error) {
 	return nil, nil
 }
+func (r *handlerRepository) StudentAvatar(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
 func (r *handlerRepository) RecordLoginFailure(context.Context, string, time.Time) error { return nil }
 func (r *handlerRepository) ClearLoginFailures(context.Context, string, time.Time) error { return nil }
 func (r *handlerRepository) CreateSession(_ context.Context, session *auth.Session) error {

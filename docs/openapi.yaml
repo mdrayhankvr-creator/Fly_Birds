@@ -1992,6 +1992,15 @@ paths:
       description: Requires attendance:students_read_self and enabled Attendance module.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Own linked student report }, '404': { description: No linked student }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /attendance/students/{id}/report:
+    get:
+      operationId: getStaffStudentAttendanceReport
+      tags: [attendance]
+      summary: Monthly attendance calendar for an authorized student
+      description: Requires attendance:students_read and enabled Attendance module. Administrators and head teachers may read any student; teachers may read only students in an assigned class. Other students return 404.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: month, in: query, required: true, schema: { type: string, pattern: '^\\d{4}-\\d{2}$' } }]
+      responses: { '200': { description: Student attendance report }, '404': { description: Student not in assigned class }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /attendance/guardians/children/{id}/report:
     get:
       operationId: getGuardianChildAttendanceReport

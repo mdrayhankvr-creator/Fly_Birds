@@ -225,6 +225,13 @@ func TestPostgresFeeRoutesEnforceAccessAndMoneyRules(t *testing.T) {
 	if own["student"].(map[string]any)["id"] != student || own["totals"].(map[string]any)["balance"].(float64) != 600 {
 		t.Fatalf("own statement %+v", own["totals"])
 	}
+	// The head may review a student's profile balance, but teachers still
+	// cannot open financial statements even for classes they teach.
+	headStatement := data(call("GET", "/fees/students/"+student+"/statement", "", headTeacher, 200))
+	if headStatement["totals"].(map[string]any)["balance"].(float64) != 600 {
+		t.Fatalf("head profile statement %+v", headStatement["totals"])
+	}
+	call("GET", "/fees/students/"+student+"/statement", "", teacher, 403)
 	paymentID := first["payment"].(map[string]any)["id"].(string)
 	call("GET", "/fees/me/payments/"+paymentID, "", studentAuth, 200)
 	call("GET", "/fees/children/"+student, "", guardianAuth, 404)

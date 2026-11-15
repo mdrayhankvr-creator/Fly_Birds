@@ -6,8 +6,8 @@ export type Audience = { staff: boolean; families: boolean }
 export type StaffVisibility = { phone: Audience; email: Audience; qualifications: Audience }
 export type StaffCounts = { present: number; absent: number; leave: number }
 export type StaffProfile = {
-  id: string; kind: 'teacher' | 'non_teaching'; name_en: string; name_bn: string; designation: string; is_active: boolean; photo_version: string
-  teaching: { subject_en: string; subject_bn: string; class_name: string }[]
+  id: string; kind: 'teacher' | 'non_teaching'; name_en: string; name_bn: string; designation: string; is_active: boolean; photo_version: string; employee_code?: string
+  teaching: { subject_en: string; subject_bn: string; class_name: string; sections?: string }[]
   today: { start_minute: number; end_minute: number; subject_en: string; subject_bn: string; class_name: string; section_name: string; room: string }[]
   phone?: string; email?: string; qualifications?: string[]; joined_on?: string; mpo_index?: string; nid_masked?: string
   attendance?: { month: StaffCounts; session: StaffCounts }; leaves?: EmployeeLeave[]; visibility?: StaffVisibility

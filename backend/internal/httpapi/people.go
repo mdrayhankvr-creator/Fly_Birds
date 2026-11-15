@@ -285,6 +285,10 @@ func (h *peopleHandler) relationships(c *gin.Context) {
 	if !h.available(c) {
 		return
 	}
+	if _, err := h.service.GetStudent(c.Request.Context(), actorFrom(c), c.Param("id")); err != nil {
+		peopleError(c, err)
+		return
+	}
 	v, err := h.service.ListRelationships(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		peopleError(c, err)

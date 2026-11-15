@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { Icon, type IconName } from '../components/icons'
 
 // Shared pieces of the student and staff profiles (checkpoint 4).
@@ -8,8 +8,8 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
 // ProfilePhoto is the large portrait in a profile header: the photo when
 // there is one, otherwise the initials on the module's colour.
 export function ProfilePhoto({ url, name, size = 'h-28 w-28 sm:h-36 sm:w-36' }: { url?: string; name: string; size?: string }) {
-  if (url) return <img src={url} alt="" className={`${size} shrink-0 rounded-3xl object-cover shadow-md ring-4 ring-white`} />
-  return <span aria-hidden="true" className={`${size} ds-fill relative grid shrink-0 place-items-center overflow-hidden rounded-3xl text-3xl font-extrabold tracking-tight shadow-md ring-4 ring-white sm:text-4xl`}>
+  if (url) return <img src={url} alt="" className={`${size} shrink-0 rounded-full object-cover shadow-md ring-4 ring-white`} />
+  return <span aria-hidden="true" className={`${size} ds-fill relative grid shrink-0 place-items-center overflow-hidden rounded-full text-3xl font-extrabold tracking-tight shadow-md ring-4 ring-white sm:text-4xl`}>
     <Icon name="user" className="absolute -bottom-3 -right-3 h-20 w-20 opacity-15" />
     <span className="relative">{initials(name) || '?'}</span>
   </span>
@@ -26,6 +26,25 @@ export function Fact({ label, children, icon }: { label: ReactNode; children: Re
 // Chip is a small rounded label, for subjects, classes and audiences.
 export function Chip({ children }: { children: ReactNode }) {
   return <span className="ds-soft ds-ink inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold">{children}</span>
+}
+
+export function ProfileTabs({ items, active, onChange, prefix, label }: { items: { id: string; label: string }[]; active: string; onChange: (id: string) => void; prefix: string; label: string }) {
+  function key(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let next = index
+    if (event.key === 'ArrowRight') next = (index + 1) % items.length
+    else if (event.key === 'ArrowLeft') next = (index + items.length - 1) % items.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = items.length - 1
+    else return
+    event.preventDefault()
+    onChange(items[next].id)
+    document.getElementById(`${prefix}-tab-${items[next].id}`)?.focus()
+  }
+  return <nav aria-label={label} className="pr-tabs overflow-x-auto" role="tablist">
+    {items.map((item, index) => <button key={item.id} id={`${prefix}-tab-${item.id}`} type="button" role="tab" aria-selected={active === item.id}
+      aria-controls={active === item.id ? `${prefix}-panel-${item.id}` : undefined} tabIndex={active === item.id ? 0 : -1} onClick={() => onChange(item.id)} onKeyDown={event => key(event, index)}
+      className="pr-tab shrink-0">{item.label}</button>)}
+  </nav>
 }
 
 // minutes → "09:30" (Bangla digits in Bangla).

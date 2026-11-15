@@ -80,6 +80,10 @@ export function PhotoReviewsPage() {
   async function done(text: string) {
     setMessage(text)
     await cache.invalidateQueries({ queryKey: ['people', 'photo-reviews'] })
+    await cache.invalidateQueries({ queryKey: ['people', 'profile'] })
+    await cache.invalidateQueries({ queryKey: ['people', 'students'] })
+    await cache.invalidateQueries({ queryKey: ['auth', 'siblings'] })
+    await cache.invalidateQueries({ queryKey: ['avatar'] })
   }
   return <div className="space-y-5">
     <PageHeader eyebrow={t('m12Group_people')} title={t('uxReviewTitle')} description={t('uxReviewIntro')} icon="camera" />

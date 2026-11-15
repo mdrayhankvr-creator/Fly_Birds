@@ -103,6 +103,17 @@ func (h *studentAttendanceHandler) self(c *gin.Context) {
 	}
 	success(c, 200, v)
 }
+func (h *studentAttendanceHandler) staffReport(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	v, err := h.service.Report(c.Request.Context(), attendanceActor(c), c.Param("id"), c.Query("month"), "staff")
+	if err != nil {
+		attendanceError(c, err)
+		return
+	}
+	success(c, 200, v)
+}
 func (h *studentAttendanceHandler) child(c *gin.Context) {
 	if !h.available(c) {
 		return

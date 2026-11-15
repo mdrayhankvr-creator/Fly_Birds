@@ -265,9 +265,9 @@ export type Medium = '' | 'bangla' | 'english'
 export type StudentChoiceDetails = { shift_id: string | null; medium: Medium; group_id: string | null; fourth_subject_id: string | null }
 export type StudentChoiceNames = { shift_name_en: string; shift_name_bn: string; group_name_en: string; group_name_bn: string; class_uses_groups: boolean; fourth_subject_name_en: string; fourth_subject_name_bn: string }
 export type GuardianSummary = { name_en: string; name_bn: string; relationship: string; phone: string }
-export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; login_id?: string; session_name: string; class_name: string; section_name: string; has_photo: boolean; login_phone?: string; primary_guardian?: GuardianSummary } & StudentProfileDetails & StudentChoiceDetails & StudentChoiceNames
+export type Student = { id: string; admission_no: string; name_en: string; name_bn: string; date_of_birth: string; status: 'active' | 'inactive' | 'graduated' | 'transferred'; session_id: string; class_id: string; section_id: string; roll_no: number | null; user_id: string | null; login_id?: string; session_name: string; class_name: string; section_name: string; has_photo: boolean; photo_version: string; login_phone?: string; primary_guardian?: GuardianSummary; subjects?: { id: string; name_en: string; name_bn: string; is_fourth_subject: boolean }[] } & StudentProfileDetails & StudentChoiceDetails & StudentChoiceNames
 // Profile details are optional on input: an omitted detail keeps its stored value.
-export type StudentInput = Omit<Student, 'id' | 'login_id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'primary_guardian' | keyof StudentProfileDetails | keyof StudentChoiceDetails | keyof StudentChoiceNames> & Partial<StudentProfileDetails> & { shift_id?: string; medium?: Medium; group_id?: string; fourth_subject_id?: string }
+export type StudentInput = Omit<Student, 'id' | 'login_id' | 'session_name' | 'class_name' | 'section_name' | 'has_photo' | 'photo_version' | 'primary_guardian' | 'subjects' | keyof StudentProfileDetails | keyof StudentChoiceDetails | keyof StudentChoiceNames> & Partial<StudentProfileDetails> & { shift_id?: string; medium?: Medium; group_id?: string; fourth_subject_id?: string }
 export type Guardian = { id: string; name_en: string; name_bn: string; phone: string; email: string; address: string; user_id: string | null }
 export type GuardianInput = Omit<Guardian, 'id'>
 // One school year of a student (M15): where they were and how the year ended.
@@ -309,7 +309,7 @@ export const getMyStudent = (token: string) => bearerRequest<Student>('/students
 // student and the staff profile. An empty number removes it.
 // Children of one family that share a login phone, and moving between them
 // without the password again (the guardian already gave it).
-export type Sibling = { user_id: string; display_name: string; login_id?: string; current: boolean }
+export type Sibling = { user_id: string; display_name: string; login_id?: string; student_id?: string; photo_version?: string; current: boolean }
 export const getSiblings = (token: string) => bearerRequest<Sibling[]>('/auth/siblings', token)
 export async function switchChild(token: string, userId: string): Promise<AuthSession> {
   const session = await bearerRequest<AuthSession>('/auth/switch', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId }) })
@@ -323,8 +323,8 @@ export const deleteStudent = (token: string, id: string) => bearerRequest<{ dele
 export const importStudents = (token: string, params: URLSearchParams, csv: string) => bearerRequest<{ imported: number }>(`/students/import?${params}`, token, { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv })
 export const getStudentCard = (token: string, id: string) => bearerRequest<StudentCard>(`/students/${encodeURIComponent(id)}/card?origin=${cardOrigin()}`, token)
 export const saveStudentPhoto = (token: string, id: string, file: File) => bearerRequest<{ saved: boolean }>(`/students/${encodeURIComponent(id)}/photo`, token, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-export async function getStudentPhoto(token: string, id: string): Promise<Blob> {
-  const response = await authRequest(`/students/${encodeURIComponent(id)}/photo`, { headers: { Authorization: `Bearer ${token}` } })
+export async function getStudentPhoto(token: string, id: string, version = ''): Promise<Blob> {
+  const response = await authRequest(`/students/${encodeURIComponent(id)}/photo?v=${encodeURIComponent(version)}`, { headers: { Authorization: `Bearer ${token}` } })
   return response.blob()
 }
 export const getGuardians = (token: string, params: URLSearchParams) => bearerRequest<Page<Guardian>>(`/guardians?${params}`, token)
@@ -358,8 +358,8 @@ export const setAcademicSessionActive = (token: string, id: string, is_active: b
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active }),
 })
 
-export type Employee = { id: string; employee_code: string; user_id: string | null; kind: 'teacher' | 'non_teaching'; name_en: string; name_bn: string; designation: string; phone: string; joined_on: string; left_on: string | null; is_active: boolean }
-export type EmployeeInput = Omit<Employee, 'id'>
+export type Employee = { id: string; employee_code: string; user_id: string | null; kind: 'teacher' | 'non_teaching'; name_en: string; name_bn: string; designation: string; phone: string; joined_on: string; left_on: string | null; is_active: boolean; photo_version: string }
+export type EmployeeInput = Omit<Employee, 'id' | 'photo_version'>
 export type TeacherAssignment = { id: string; employee_id: string; session_id: string; class_id: string; subject_id: string; session_name: string; class_name: string; subject_name_en: string; subject_name_bn: string }
 export type EmployeeLeave = { id: string; employee_id: string; starts_on: string; ends_on: string; leave_type: string; reason: string; status: string; reviewed_by: string | null }
 export type LeaveInput = Pick<EmployeeLeave, 'starts_on' | 'ends_on' | 'leave_type' | 'reason'>
@@ -446,6 +446,7 @@ export const scanStudentAttendance = (token: string, input: { payload: string; a
 export const correctStudentAttendance = (token: string, id: string, input: { status: StudentAttendanceRecord['status']; note: string }) => bearerRequest<StudentAttendanceRecord>(`/attendance/students/${encodeURIComponent(id)}`, token, json('PATCH', input))
 export const getStudentAttendanceMonthly = (token: string, params: URLSearchParams) => bearerRequest<Page<StudentAttendanceSummary>>(`/attendance/students/monthly?${params}`, token)
 export const getOwnStudentAttendanceReport = (token: string, month: string) => bearerRequest<StudentAttendanceReport>(`/attendance/students/me/report?month=${encodeURIComponent(month)}`, token)
+export const getStaffStudentAttendanceReport = (token: string, id: string, month: string) => bearerRequest<StudentAttendanceReport>(`/attendance/students/${encodeURIComponent(id)}/report?month=${encodeURIComponent(month)}`, token)
 export const getGuardianStudentAttendanceReport = (token: string, id: string, month: string) => bearerRequest<StudentAttendanceReport>(`/attendance/guardians/children/${encodeURIComponent(id)}/report?month=${encodeURIComponent(month)}`, token)
 export const getAbsenceEvents = (token: string, params: URLSearchParams) => bearerRequest<Page<AbsenceEvent>>(`/attendance/alerts?${params}`, token)
 

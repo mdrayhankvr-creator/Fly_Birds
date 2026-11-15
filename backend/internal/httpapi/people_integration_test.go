@@ -67,10 +67,11 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 		}
 		return u
 	}
-	admin, head, studentUser, otherStudent, guardianUser, otherGuardian := makeUser("admin", "admin"), makeUser("head_teacher", "head"), makeUser("student", "student"), makeUser("student", "other-student"), makeUser("guardian", "guardian"), makeUser("guardian", "other-guardian")
+	admin, head, studentUser, otherStudent, guardianUser, otherGuardian, teacherUser, otherTeacher := makeUser("admin", "admin"), makeUser("head_teacher", "head"), makeUser("student", "student"), makeUser("student", "other-student"), makeUser("guardian", "guardian"), makeUser("guardian", "other-guardian"), makeUser("teacher", "teacher"), makeUser("teacher", "other-teacher")
 	t.Cleanup(func() {
-		_ = db.Exec("DELETE FROM auth_sessions WHERE user_id IN (?,?,?,?,?,?)", admin.ID, head.ID, studentUser.ID, otherStudent.ID, guardianUser.ID, otherGuardian.ID).Error
-		_ = db.Exec("DELETE FROM users WHERE id IN (?,?,?,?,?,?)", admin.ID, head.ID, studentUser.ID, otherStudent.ID, guardianUser.ID, otherGuardian.ID).Error
+		ids := []string{admin.ID, head.ID, studentUser.ID, otherStudent.ID, guardianUser.ID, otherGuardian.ID, teacherUser.ID, otherTeacher.ID}
+		_ = db.Exec("DELETE FROM auth_sessions WHERE user_id IN ?", ids).Error
+		_ = db.Exec("DELETE FROM users WHERE id IN ?", ids).Error
 	})
 	var old bool
 	if err := db.Table("school_modules").Select("enabled").Where("school_id=? AND module_key='students'", school.SingleSchoolID).Scan(&old).Error; err != nil {
@@ -82,15 +83,19 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 	t.Cleanup(func() {
 		_ = db.Table("school_modules").Where("school_id=? AND module_key='students'", school.SingleSchoolID).Update("enabled", old).Error
 	})
-	var sessionID, classID, otherClass, sectionID string
+	var sessionID, classID, otherClass, sectionID, subjectID, employeeID string
 	if err := db.Raw("INSERT INTO academic_sessions (name,start_date,end_date) VALUES ('2191','2191-01-01','2191-12-31') RETURNING id").Scan(&sessionID).Error; err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
+		_ = db.Exec("DELETE FROM teacher_assignments WHERE session_id=?", sessionID).Error
 		_ = db.Exec("DELETE FROM student_guardians WHERE student_id IN (SELECT id FROM students WHERE session_id=?)", sessionID).Error
 		_ = db.Exec("DELETE FROM students WHERE session_id=?", sessionID).Error
 		_ = db.Exec("DELETE FROM guardians WHERE name_en LIKE ?", "M3 Guardian "+suffix+"%").Error
+		_ = db.Exec("DELETE FROM employees WHERE id=?", employeeID).Error
 		_ = db.Exec("DELETE FROM academic_sections WHERE session_id=?", sessionID).Error
+		_ = db.Exec("DELETE FROM academic_class_subjects WHERE class_id=?", classID).Error
+		_ = db.Exec("DELETE FROM academic_subjects WHERE id=?", subjectID).Error
 		_ = db.Exec("DELETE FROM academic_classes WHERE id IN (?,?)", classID, otherClass).Error
 		_ = db.Exec("DELETE FROM academic_sessions WHERE id=?", sessionID).Error
 	})
@@ -111,7 +116,7 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 		}
 		return map[string]string{"Authorization": "Bearer " + v.AccessToken}
 	}
-	adminH, headH, studentH, otherStudentH, guardianH, otherGuardianH := token(admin), token(head), token(studentUser), token(otherStudent), token(guardianUser), token(otherGuardian)
+	adminH, headH, studentH, otherStudentH, guardianH, otherGuardianH, teacherH, otherTeacherH := token(admin), token(head), token(studentUser), token(otherStudent), token(guardianUser), token(otherGuardian), token(teacherUser), token(otherTeacher)
 	check := func(method, path, body string, headers map[string]string, want int) []byte {
 		t.Helper()
 		res := perform(router, method, path, body, nil, headers)
@@ -182,6 +187,34 @@ func TestPostgresStudentsGuardiansLifecycle(t *testing.T) {
 	check("GET", "/students/me/guardians", "", headH, 403)
 	check("GET", "/students/"+studentID, "", guardianH, 200)
 	check("GET", "/students/"+studentID+"/card", "", guardianH, 200)
+	if err := db.Exec("INSERT INTO role_permissions(role_id,permission_id) VALUES ('teacher','analytics:read_assigned'),('teacher','attendance:students_read') ON CONFLICT DO NOTHING").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Raw("INSERT INTO academic_subjects(name_en,name_bn,code) VALUES (?,?,?) RETURNING id", "M3 Subject "+suffix, "বিষয়", "M3"+strings.ToUpper(suffix)).Scan(&subjectID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("INSERT INTO academic_class_subjects(class_id,subject_id,is_required,is_fourth_subject) VALUES (?,?,true,false)", classID, subjectID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Raw("INSERT INTO employees(employee_code,user_id,kind,name_en,designation,joined_on) VALUES (?,?,'teacher','Assigned Teacher','Teacher','2026-01-01') RETURNING id", "M3E"+strings.ToUpper(suffix), teacherUser.ID).Scan(&employeeID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("INSERT INTO teacher_assignments(employee_id,session_id,class_id,subject_id) VALUES (?,?,?,?)", employeeID, sessionID, classID, subjectID).Error; err != nil {
+		t.Fatal(err)
+	}
+	var teacherProfile struct {
+		Data people.Student `json:"data"`
+	}
+	if err := json.Unmarshal(check("GET", "/students/"+studentID, "", teacherH, 200), &teacherProfile); err != nil {
+		t.Fatal(err)
+	}
+	if teacherProfile.Data.PrimaryGuardian == nil || teacherProfile.Data.PrimaryGuardian.Phone != "01800000000" || teacherProfile.Data.DateOfBirth != "" || teacherProfile.Data.UserID != nil || teacherProfile.Data.LoginID != "" || teacherProfile.Data.PresentAddress != "" {
+		t.Fatalf("assigned teacher profile scope: %+v", teacherProfile.Data)
+	}
+	check("GET", "/students/"+studentID+"/guardians", "", teacherH, 200)
+	check("GET", "/students/"+studentID+"/card", "", teacherH, 403)
+	check("GET", "/students/"+studentID, "", otherTeacherH, 404)
+	check("GET", "/students/"+studentID+"/guardians", "", otherTeacherH, 404)
 
 	// M15: enrolment history follows the student's record scope; who made a
 	// change is shown to staff only. A section change is logged.

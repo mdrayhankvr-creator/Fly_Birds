@@ -39,7 +39,7 @@ func (r *GormRepository) allowed(tx *gorm.DB, actor, permission string) error {
 	return nil
 }
 
-const employeeSelect = "id,employee_code,user_id,kind,name_en,name_bn,designation,phone,to_char(joined_on,'YYYY-MM-DD') AS joined_on,to_char(left_on,'YYYY-MM-DD') AS left_on,is_active"
+const employeeSelect = "id,employee_code,user_id,kind,name_en,name_bn,designation,phone,to_char(joined_on,'YYYY-MM-DD') AS joined_on,to_char(left_on,'YYYY-MM-DD') AS left_on,is_active,COALESCE((SELECT p.version FROM employee_photos p WHERE p.employee_id=employees.id),'') AS photo_version"
 
 func (r *GormRepository) employee(tx *gorm.DB, id string) (Employee, error) {
 	var item Employee

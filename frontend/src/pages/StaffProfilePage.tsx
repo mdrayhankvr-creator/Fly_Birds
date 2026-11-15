@@ -4,13 +4,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { ApiError, getSalaryRecords } from '../api/client'
-import { deleteStaffPhoto, getStaffPhoto, getStaffProfile, removeStaffNID, revealStaffNID, saveOwnStaffProfile, saveStaffOfficial, saveStaffPhoto, type Audience, type StaffProfile, type StaffVisibility } from '../api/staffProfile'
+import { deleteStaffPhoto, getStaffProfile, removeStaffNID, revealStaffNID, saveOwnStaffProfile, saveStaffOfficial, saveStaffPhoto, type Audience, type StaffProfile, type StaffVisibility } from '../api/staffProfile'
+import { usePersonPhoto } from '../components/PersonAvatar'
 import { confirmAction } from '../components/ConfirmDialog'
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
 import { SignatureCard } from './SignatureCard'
 import { CardTitle, EmptyState, Notice, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
-import { Chip, Fact, ProfilePhoto, clock } from './profileUi'
+import { Chip, Fact, ProfilePhoto, ProfileTabs, clock } from './profileUi'
 
 // Staff profile (checkpoint 4). The server sends only what this viewer may
 // see; a section appears when its data does. Teachers edit their own photo,
@@ -29,16 +30,15 @@ export function StaffProfilePage() {
   const bn = i18n.language === 'bn'
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
-  const profile = useQuery({ queryKey: ['staff-profile', id], queryFn: () => authorized(token => getStaffProfile(token, id)), retry: false })
+  const [tab, setTab] = useState('overview')
+  const profile = useQuery({ queryKey: ['staff-profile', id], queryFn: () => authorized(token => getStaffProfile(token, id)), retry: false, refetchInterval: id === 'me' ? 20000 : false })
   const p = profile.data
-  const photo = useQuery({ queryKey: ['staff-profile', 'photo', p?.id, p?.photo_version], enabled: !!p?.photo_version, queryFn: () => authorized(token => getStaffPhoto(token, p!.id, p!.photo_version)), retry: false, staleTime: Infinity })
-  const [photoUrl, setPhotoUrl] = useState('')
-  useEffect(() => { if (!photo.data || !p?.photo_version) { setPhotoUrl(''); return }; const url = URL.createObjectURL(photo.data); setPhotoUrl(url); return () => URL.revokeObjectURL(url) }, [photo.data, p?.photo_version])
+  const photoUrl = usePersonPhoto('staff', p?.id, p?.photo_version)
   const salaries = useQuery({ queryKey: ['staff-profile', 'salaries', p?.id], enabled: !!p?.can_see_salary, queryFn: () => authorized(token => getSalaryRecords(token, p!.id, new URLSearchParams({ page: '1', page_size: '3' }))), retry: false })
 
   async function run(task: () => Promise<StaffProfile | unknown>, done: string) {
     setBusy(true); setMessage(null)
-    try { await task(); await cache.invalidateQueries({ queryKey: ['staff-profile'] }); setMessage({ tone: 'success', text: done }) }
+    try { await task(); await cache.invalidateQueries({ queryKey: ['staff-profile'] }); await cache.invalidateQueries({ queryKey: ['staff', 'employees'] }); await cache.invalidateQueries({ queryKey: ['avatar'] }); setMessage({ tone: 'success', text: done }) }
     catch (cause) { setMessage({ tone: 'error', text: t(cause instanceof ApiError && cause.status === 400 ? 'c4ProfileInvalid' : cause instanceof ApiError && cause.status === 403 ? 'permissionDenied' : 'c4ProfileFailed') }) }
     finally { setBusy(false) }
   }
@@ -49,28 +49,47 @@ export function StaffProfilePage() {
   const local = (en: string, b: string) => (bn && b ? b : en)
   const editPhotoFor = p.self ? undefined : p.id
   const canPhoto = p.self || p.can_edit_official
+  const classCount = new Set(p.teaching.map(item => item.class_name)).size
+  const subjectCount = new Set(p.teaching.map(item => item.subject_en)).size
+  const attendanceTotal = p.attendance ? p.attendance.month.present + p.attendance.month.absent + p.attendance.month.leave : 0
+  const attendanceRate = attendanceTotal ? Math.round((p.attendance!.month.present / attendanceTotal) * 100) : null
+  const tabs = [{ id: 'overview', label: t('prOverview') }, { id: 'classes', label: t('prClassesRoutine') }, { id: 'attendance', label: t('prAttendance') }, { id: 'documents', label: t('prDocuments') }]
 
   return <div className="space-y-5">
     {message && <Notice tone={message.tone}>{message.text}</Notice>}
-    <section className="ds-page-head ds-rise p-5 sm:p-7" aria-labelledby="staff-name">
+    <section className="pr-hero" aria-labelledby="staff-name">
+      <div className="pr-cover" />
+      <div className="pr-hero-content">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <ProfilePhoto url={photoUrl} name={p.name_en} />
-        <div className="min-w-0 flex-1">
-          <p className="ds-eyebrow ds-ink">{t(p.kind === 'teacher' ? 'c4KindTeacher' : 'c4KindStaff')}</p>
-          <h1 id="staff-name" className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl" style={{ overflowWrap: 'anywhere' }}>{name}</h1>
+        <div className="pr-identity min-w-0 flex-1">
+          <p className="pr-eyebrow">{t(p.kind === 'teacher' ? 'c4KindTeacher' : 'c4KindStaff')}</p>
+          <h1 id="staff-name" className="pr-name">{name}</h1>
           {p.name_bn && !bn && <p lang="bn" className="text-lg font-semibold text-slate-700">{p.name_bn}</p>}
           {bn && p.name_en !== name && <p className="text-lg font-semibold text-slate-700">{p.name_en}</p>}
-          <p className="mt-1 text-base font-semibold text-slate-700">{p.designation}</p>
+          <p className="mt-1 text-base font-semibold text-slate-700">{p.designation || t('profileNotProvided')}</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {!p.is_active && <StatusBadge tone="unmarked">{t('inactive')}</StatusBadge>}
-            {p.teaching.map(item => <Chip key={`${item.subject_en}-${item.class_name}`}>{local(item.subject_en, item.subject_bn)} · {item.class_name}</Chip>)}
+            <StatusBadge tone={p.is_active ? 'present' : 'unmarked'}>{t(p.is_active ? 'active' : 'inactive')}</StatusBadge>
+            <Chip>{p.kind === 'teacher' ? t('c4KindTeacher') : t('c4KindStaff')}</Chip>
           </div>
+          <dl className="pr-facts"><Fact label={t('prDesignation')}>{p.designation || t('profileNotProvided')}</Fact>
+            <Fact label={t('prDepartment')}>{p.kind === 'teacher' ? t('c4KindTeacher') : t('c4KindStaff')}</Fact>
+            {p.employee_code && <Fact label={t('prEmployeeId')}>{p.employee_code}</Fact>}</dl>
         </div>
         {canPhoto && <PhotoActions hasPhoto={!!p.photo_version} busy={busy} onUpload={file => void run(() => authorized(token => saveStaffPhoto(token, file, editPhotoFor)), t('c4PhotoSaved'))} onRemove={() => void run(() => authorized(token => deleteStaffPhoto(token, editPhotoFor)), t('c4PhotoRemoved'))} />}
       </div>
+      </div>
     </section>
 
-    <div className="grid grid-cols-1 min-w-0 gap-5 lg:grid-cols-2">
+    <div className="pr-stats" aria-label={t('prAtGlance')}>
+      <div className="pr-stat"><span>{t('prClassesTaught')}</span><strong>{num(classCount)}</strong></div>
+      <div className="pr-stat"><span>{t('prSubjects')}</span><strong>{num(subjectCount)}</strong></div>
+      <div className="pr-stat"><span>{t('prTodayPeriods')}</span><strong>{num(p.today.length)}</strong></div>
+      <div className="pr-stat"><span>{t('prAttendanceRate')}</span><strong>{attendanceRate === null ? t('profileNotProvided') : `${num(attendanceRate)}%`}</strong></div>
+    </div>
+    <ProfileTabs items={tabs} active={tab} onChange={setTab} prefix="staff-profile" label={t('prProfileTabs')} />
+
+    {tab === 'classes' && <div id="staff-profile-panel-classes" role="tabpanel" aria-labelledby="staff-profile-tab-classes" className="grid min-w-0 gap-5 lg:grid-cols-2">
       <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-today">
         <CardTitle id="staff-today" icon="clock">{t('c4TodayRoutine')}</CardTitle>
         {p.today.length === 0 ? <div className="mt-3"><EmptyState icon="calendar" title={t('c4NoPeriodsToday')} /></div> :
@@ -79,6 +98,13 @@ export function StaffProfilePage() {
             <span className="min-w-0 flex-1"><strong className="block text-slate-900">{local(period.subject_en, period.subject_bn)}</strong><span className="block text-xs text-slate-600">{period.class_name} · {period.section_name} · {period.room}</span></span>
           </li>)}</ol>}
       </section>
+
+      <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-assignments"><CardTitle id="staff-assignments" icon="book">{t('prAssignedClasses')}</CardTitle>
+        {p.teaching.length ? <ul className="mt-4 grid gap-2">{p.teaching.map((item, index) => <li key={`${item.class_name}-${item.subject_en}-${index}`} className="pr-subject"><span><strong>{local(item.subject_en, item.subject_bn)}</strong><small className="block text-slate-500">{item.class_name}{item.sections ? ` · ${item.sections}` : ''}</small></span></li>)}</ul> : <EmptyState icon="book" title={t('prNoAssignments')} />}
+      </section>
+    </div>}
+
+    {tab === 'overview' && <div id="staff-profile-panel-overview" role="tabpanel" aria-labelledby="staff-profile-tab-overview" className="grid min-w-0 gap-5 lg:grid-cols-2">
 
       {(p.phone !== undefined || p.email !== undefined || p.qualifications !== undefined) && <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-contact">
         <CardTitle id="staff-contact" icon="user">{t('c4ContactAndQualifications')}</CardTitle>
@@ -92,15 +118,6 @@ export function StaffProfilePage() {
 
       {(p.joined_on !== undefined || p.mpo_index !== undefined || p.nid_masked !== undefined) && <OfficialCard profile={p} busy={busy} onSave={input => run(() => authorized(token => saveStaffOfficial(token, p.id, input)), t('c4OfficialSaved'))} onRemoveNID={() => run(() => authorized(token => removeStaffNID(token, p.id)), t('c4NIDRemoved'))} />}
 
-      {p.attendance && <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-attendance">
-        <CardTitle id="staff-attendance" icon="check">{t('c4AttendanceAndLeave')}</CardTitle>
-        <dl className="mt-4 grid grid-cols-3 gap-2">
-          {(['present', 'absent', 'leave'] as const).map(k => <div key={k} className="ds-stat px-3 py-2.5"><dt className="text-xs font-semibold text-slate-600">{t(`c4Att_${k}`)}</dt><dd className="mt-0.5 text-xl font-extrabold tabular-nums text-slate-900">{num(p.attendance!.month[k])}</dd><dd className="text-xs text-slate-500">{t('c4ThisYearN', { n: num(p.attendance!.session[k]) })}</dd></div>)}
-        </dl>
-        <p className="mt-1 text-xs text-slate-500">{t('c4ThisMonth')}</p>
-        {p.leaves && p.leaves.length > 0 && <ul className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200">{p.leaves.map(l => <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span>{l.starts_on} → {l.ends_on} · {t(`leave_${l.leave_type}`, { defaultValue: l.leave_type })}</span><StatusBadge tone={l.status === 'approved' ? 'present' : l.status === 'rejected' ? 'absent' : 'unmarked'}>{t(`leaveStatus_${l.status}`, { defaultValue: l.status })}</StatusBadge></li>)}</ul>}
-      </section>}
-
       {p.can_see_salary && <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-salary">
         <CardTitle id="staff-salary" icon="money">{t('c4Salary')}</CardTitle>
         <p className="mt-1 text-xs text-slate-500">{t('c4SalaryPrivate')}</p>
@@ -108,10 +125,21 @@ export function StaffProfilePage() {
           <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">{salaries.data.items.map(s => <li key={s.id} className="flex flex-wrap justify-between gap-2 px-3 py-2 text-sm"><span>{t('c4SalaryFrom', { date: s.effective_on })}</span><span className="font-semibold tabular-nums">৳ {(Number(s.basic_bdt) + Number(s.allowance_bdt) - Number(s.deduction_bdt)).toFixed(2)}</span></li>)}</ul>}
         <Link to="/admin/staff" className={`${ui.link} mt-3 inline-block text-sm`}>{t('c4ManageInStaff')}</Link>
       </section>}
-    </div>
+    </div>}
+    {tab === 'overview' && p.self && p.visibility && <OwnSettings key={JSON.stringify([p.qualifications, p.visibility])} qualifications={p.qualifications ?? []} visibility={p.visibility} busy={busy} onSave={input => run(() => authorized(token => saveOwnStaffProfile(token, input)), t('c4OwnSaved'))} />}
 
-    {p.self && <SignatureCard />}
-    {p.self && p.visibility && <OwnSettings key={JSON.stringify([p.qualifications, p.visibility])} qualifications={p.qualifications ?? []} visibility={p.visibility} busy={busy} onSave={input => run(() => authorized(token => saveOwnStaffProfile(token, input)), t('c4OwnSaved'))} />}
+    {tab === 'attendance' && <div id="staff-profile-panel-attendance" role="tabpanel" aria-labelledby="staff-profile-tab-attendance">
+      {p.attendance ? <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-attendance">
+        <CardTitle id="staff-attendance" icon="check">{t('c4AttendanceAndLeave')}</CardTitle>
+        <dl className="mt-4 grid grid-cols-3 gap-2">
+          {(['present', 'absent', 'leave'] as const).map(k => <div key={k} className="ds-stat px-3 py-2.5"><dt className="text-xs font-semibold text-slate-600">{t(`c4Att_${k}`)}</dt><dd className="mt-0.5 text-xl font-extrabold tabular-nums text-slate-900">{num(p.attendance!.month[k])}</dd><dd className="text-xs text-slate-500">{t('c4ThisYearN', { n: num(p.attendance!.session[k]) })}</dd></div>)}
+        </dl>
+        <p className="mt-1 text-xs text-slate-500">{t('c4ThisMonth')}</p>
+        {p.leaves && p.leaves.length > 0 && <ul className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200">{p.leaves.map(l => <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span>{l.starts_on} → {l.ends_on} · {t(`leave_${l.leave_type}`, { defaultValue: l.leave_type })}</span><StatusBadge tone={l.status === 'approved' ? 'present' : l.status === 'rejected' ? 'absent' : 'unmarked'}>{t(`leaveStatus_${l.status}`, { defaultValue: l.status })}</StatusBadge></li>)}</ul>}
+      </section> : <EmptyState icon="calendar" title={t('prNoAttendance')} />}
+    </div>}
+
+    {tab === 'documents' && <div id="staff-profile-panel-documents" role="tabpanel" aria-labelledby="staff-profile-tab-documents">{p.self ? <SignatureCard /> : <EmptyState icon="card" title={t('prNoDocuments')} />}</div>}
   </div>
 }
 

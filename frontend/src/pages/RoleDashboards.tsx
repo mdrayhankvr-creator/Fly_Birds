@@ -13,6 +13,7 @@ import { Avatar, DashLayout, Empty, Lines, Panel, QuickActions, Ring, RoleHead, 
 import { useNavGroups } from '../components/navContext'
 import { LineChart } from './analyticsCharts'
 import { useFmt } from './AnalyticsPages'
+import { sectionDisplayName } from '../components/sectionName'
 import { StatusBadge, ui } from './attendanceUi'
 import { useApi, useLocal } from './commShared'
 import { DutiesCard, NextExamCard } from './routine/ExamRoutineViews'
@@ -353,12 +354,12 @@ function RiskAlert({ data }: { data: StudentSummary }) {
     <Icon name="alert" className="mt-0.5 h-5 w-5 shrink-0" /><span><strong className="font-semibold">{t(`m11AlertTitle_${data.alert.level}`)}</strong> — {data.alert.reasons.map(r => t(`m11Reason_${r}`)).join(', ')}</span></div>
 }
 
-function studentLine(s: StudentSummary['student'], t: (key: string, o?: Record<string, unknown>) => string, f: ReturnType<typeof useFmt>) {
-  return [t('p1StudentSub', { class: s.class_name, section: s.section_name }), s.roll_no != null ? t('p1StudentRoll', { roll: f.num(s.roll_no) }) : ''].filter(Boolean).join(' · ')
+function studentLine(s: StudentSummary['student'], t: (key: string, o?: Record<string, unknown>) => string, f: ReturnType<typeof useFmt>, language: string) {
+  return [t('p1StudentSub', { class: s.class_name, section: sectionDisplayName(s.section_name, language) }), s.roll_no != null ? t('p1StudentRoll', { roll: f.num(s.roll_no) }) : ''].filter(Boolean).join(' · ')
 }
 
 function StudentDashboard({ ctx }: { ctx: Ctx }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const f = useFmt()
   const api = useApi()
   const g = useGreeting(ctx.user, ctx.branding)
@@ -367,7 +368,7 @@ function StudentDashboard({ ctx }: { ctx: Ctx }) {
   return <DashLayout
     head={<>
       <RoleHead accent={ACCENT.student} eyebrow={g.eyebrow} title={g.title} lead={<Avatar name={g.name} />}
-        sub={q.data ? studentLine(q.data.student, t, f) : t('m12RoleIntro_student')} stats={q.data ? studentStats(q.data, t, f) : undefined}
+        sub={q.data ? studentLine(q.data.student, t, f, i18n.language) : t('m12RoleIntro_student')} stats={q.data ? studentStats(q.data, t, f) : undefined}
         actions={<>
           {ctx.nav.has('exam_student') && <Link to="/student/results" className={ui.secondary}><Icon name="grade" className="h-4 w-4" />{t('m12ViewResults')}</Link>}
           {analytics && <Link to="/student/progress" className={ui.primary}><Icon name="trend" className="h-4 w-4" />{t('m12MyProgress')}</Link>}

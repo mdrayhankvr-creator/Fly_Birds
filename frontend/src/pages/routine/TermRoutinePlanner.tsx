@@ -9,6 +9,7 @@ import {
 } from '../../api/routinePlanner'
 import { confirmAction } from '../../components/ConfirmDialog'
 import { Icon } from '../../components/icons'
+import { sectionDisplayName } from '../../components/sectionName'
 import { usePeopleApi } from '../peopleShared'
 import { CardTitle, EmptyState, Notice, ui } from '../attendanceUi'
 import { StatusPill, routineErrorOf, useDay, useIssueText, useName, useNum, usePaperName } from './routineShared'
@@ -329,7 +330,7 @@ function CalendarPanel({ version }: { version: RoutineVersion }) {
 type Draft = { duration: number; needs_lab: boolean; date: string; sitting: string; pinned: boolean; rooms: Record<string, string> }
 
 function PapersPanel({ version, editable }: { version: RoutineVersion; editable: boolean }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const authorized = usePeopleApi()
   const client = useQueryClient()
   const day = useDay()
@@ -382,7 +383,7 @@ function PapersPanel({ version, editable }: { version: RoutineVersion; editable:
                 <label className="flex items-center gap-2"><input type="checkbox" checked={draft.needs_lab} onChange={e => setDraft({ ...draft, needs_lab: e.target.checked })} />{t('e8NeedsLab')}</label>
                 <label className="flex items-center gap-2" title={t('e8PinnedHint')}><input type="checkbox" disabled={!draft.date} checked={draft.pinned} onChange={e => setDraft({ ...draft, pinned: e.target.checked })} />{t('e8Pinned')}</label>
               </div>
-              {draft.date && c.sections.map(s => <label key={s.id} className={ui.label}>{t('e8SectionRoom', { section: s.name, n: num(s.students) })}
+              {draft.date && c.sections.map(s => <label key={s.id} className={ui.label}>{t('e8SectionRoom', { section: sectionDisplayName(s.name, i18n.language), n: num(s.students) })}
                 <select className={field} value={draft.rooms[s.id] ?? ''} onChange={e => setDraft({ ...draft, rooms: { ...draft.rooms, [s.id]: e.target.value } })}><option value="">{t('e8ChooseRoom')}</option>
                   {activeRooms.filter(r => !draft.needs_lab || r.kind === 'lab').map(r => <option key={r.id} value={r.id}>{name(r.name, r.name_bn)} · {t(`e8RoomKind_${r.kind}`)}{r.capacity ? ` · ${num(r.capacity)}` : ''}</option>)}</select></label>)}
               <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-4">

@@ -42,11 +42,12 @@ type Student struct {
 	LoginID string `json:"login_id,omitempty"`
 	// LoginPhone is the number that login signs in with (+8801XXXXXXXXX),
 	// usually the guardian's; siblings may share it.
-	LoginPhone  string `json:"login_phone,omitempty"`
-	SessionName string `json:"session_name"`
-	ClassName   string `json:"class_name"`
-	SectionName string `json:"section_name"`
-	HasPhoto    bool   `json:"has_photo"`
+	LoginPhone   string `json:"login_phone,omitempty"`
+	SessionName  string `json:"session_name"`
+	ClassName    string `json:"class_name"`
+	SectionName  string `json:"section_name"`
+	HasPhoto     bool   `json:"has_photo"`
+	PhotoVersion string `json:"photo_version"`
 	// Profile details (migration 1601); empty when not recorded.
 	StudentCode      string `json:"student_code"`
 	Gender           string `json:"gender"`
@@ -76,6 +77,13 @@ type Student struct {
 	FourthSubjectNameBN string  `json:"fourth_subject_name_bn"`
 	// Primary guardian from the existing relationship; only on single-student reads.
 	PrimaryGuardian *GuardianSummary `json:"primary_guardian,omitempty" gorm:"-"`
+	Subjects        []StudentSubject `json:"subjects" gorm:"-"`
+}
+type StudentSubject struct {
+	ID              string `json:"id"`
+	NameEN          string `json:"name_en"`
+	NameBN          string `json:"name_bn"`
+	IsFourthSubject bool   `json:"is_fourth_subject"`
 }
 type GuardianSummary struct {
 	NameEN       string `json:"name_en"`
@@ -299,7 +307,19 @@ func (s *Service) GetStudent(ctx context.Context, a Actor, id string) (Student, 
 	if !validID(id) {
 		return Student{}, ErrInvalid
 	}
-	return s.repo.GetStudent(ctx, a, id)
+	v, err := s.repo.GetStudent(ctx, a, id)
+	if err != nil {
+		return v, err
+	}
+	if a.Role == "teacher" {
+		// The assigned-class view contains school placement and guardian contact,
+		// never the student's personal record or sign-in information.
+		v.UserID, v.LoginID, v.LoginPhone = nil, "", ""
+		v.DateOfBirth, v.Gender, v.BloodGroup, v.AdmissionDate = "", "", "", ""
+		v.FatherNameEN, v.FatherNameBN, v.MotherNameEN, v.MotherNameBN = "", "", "", ""
+		v.PresentAddress, v.PermanentAddress = "", ""
+	}
+	return v, nil
 }
 
 // Enrolments returns a student's year-by-year history.

@@ -257,8 +257,22 @@ func (r *StudentGormRepository) StudentReport(ctx context.Context, actor, studen
 	var err error
 	if scope == "self" {
 		err = db.Table("students AS s").Joins("JOIN users AS u ON u.id=s.user_id").Select("s.id").Where("s.user_id=? AND u.is_active=true AND u.role='student'", actor).Take(&id).Error
-	} else {
+	} else if scope == "guardian" {
 		err = db.Table("student_guardians AS sg").Joins("JOIN guardians AS g ON g.id=sg.guardian_id").Joins("JOIN users AS u ON u.id=g.user_id").Select("sg.student_id").Where("sg.student_id=? AND g.user_id=? AND u.is_active=true AND u.role='guardian'", studentID, actor).Take(&id).Error
+	} else {
+		role, roleErr := activeAttendanceRole(db, actor)
+		if roleErr != nil {
+			return StudentReport{}, roleErr
+		}
+		if role != "admin" && role != "head_teacher" && role != "teacher" {
+			return StudentReport{}, ErrForbidden
+		}
+		query := db.Table("students AS s").Select("s.id").Where("s.id=?", studentID)
+		if role == "teacher" {
+			query = query.Where(`EXISTS (SELECT 1 FROM teacher_assignments ta JOIN employees e ON e.id=ta.employee_id
+				WHERE ta.session_id=s.session_id AND ta.class_id=s.class_id AND e.user_id=? AND e.is_active)`, actor)
+		}
+		err = query.Take(&id).Error
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return StudentReport{}, ErrNotFound

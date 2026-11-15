@@ -45,10 +45,13 @@ try {
   const student = (await b.api('/students?page=1&page_size=1&search=DEMO-001')).body.data.items[0]
   await b.go(`/admin/students/${student.id}`)
   check('the profile header shows both names and the placement', await b.waitFor(`(() => { const t = document.querySelector('main').innerText; return t.includes(${js(student.name_en)}) && t.includes(${js(student.name_bn)}) && t.includes(${js(student.class_name)}) && t.includes(${js(student.section_name)}) && t.includes(${js(student.session_name)}) })()`))
-  const sectionBar = await b.evaluate(`[...document.querySelectorAll('main nav[aria-label] a')].map(a => a.innerText.trim())`)
-  check('a section bar lists the sections the admin can read', ['Personal', 'Academic', 'Guardians', 'Attendance', 'Results', 'Fees', 'ID card'].every(s => sectionBar.includes(s)), sectionBar.join(','))
+  const sectionBar = await b.evaluate(`[...document.querySelectorAll('main [role=tablist] [role=tab]')].map(a => a.innerText.trim())`)
+  check('profile tabs list the sections the admin can read', ['Overview', 'Academics', 'Attendance', 'Fees', 'Documents'].every(s => sectionBar.includes(s)), sectionBar.join(','))
+  await click('Attendance')
   check('attendance shows this month and this year', await b.waitFor(`/This month/.test(document.querySelector('main').innerText) && /This year\\s+\\d+%/.test(document.querySelector('main').innerText)`))
+  await click('Fees')
   check('fees show the total due and recent payments', await b.waitFor(`/Total due/.test(document.querySelector('main').innerText) && /Last payments/i.test(document.querySelector('main').innerText)`))
+  await click('Academics')
   const resultLink = await b.evaluate(`[...document.querySelectorAll('main a')].find(a => a.innerText.trim() === 'Report card')?.getAttribute('href') ?? ''`)
   check('results link to their report cards', resultLink.startsWith('/admin/exams?exam=') && resultLink.includes(student.id), resultLink)
   await b.shot('student-profile-admin', true)
@@ -64,7 +67,15 @@ try {
   await b.viewport(1366, 900)
   await b.login(email('student'), pw)
   await b.go('/student/me')
-  check('the student sees their own attendance, results and fees', await b.waitFor(`(() => { const t = document.querySelector('main').innerText; return t.includes('Latest results') && t.includes('Total due') && /This year/.test(t) })()`, 15000))
+  await b.waitFor(`!!document.querySelector('#student-profile-tab-attendance')`, 15000)
+  const studentTabs = await b.evaluate(`[...document.querySelectorAll('main [role=tablist] [role=tab]')].map(a => a.innerText.trim())`)
+  check('the student sees their own attendance, results and fees tabs', ['Attendance', 'Academics', 'Fees'].every(s => studentTabs.includes(s)))
+  await click('Attendance')
+  check('the student sees attendance', await b.waitFor(`/This year/.test(document.querySelector('main').innerText)`))
+  await click('Fees')
+  check('the student sees fees', await b.waitFor(`/Total due/.test(document.querySelector('main').innerText)`))
+  await click('Academics')
+  check('the student sees results', await b.waitFor(`/Latest results/.test(document.querySelector('main').innerText)`))
   check('the student\'s report-card link stays in their own results', (await b.evaluate(`[...document.querySelectorAll('main a')].find(a => a.innerText.trim() === 'Report card')?.getAttribute('href') ?? ''`)).startsWith('/student/results?exam='))
 
   // ---------- 2. staff profile ----------
@@ -74,7 +85,9 @@ try {
   await click('My profile')
   check('the teacher opens their profile', await b.waitFor(`!!document.querySelector('#staff-own')`, 15000))
   const own = (await b.api('/staff/me/profile')).body.data
+  await click('Classes & routine')
   check('today\'s classes and subjects are shown', own.teaching.length > 0 && (await mainText()).includes("Today's classes"))
+  await click('Overview')
   // Photo upload from the profile header.
   const { root } = await b.send('DOM.getDocument', { depth: -1, pierce: true })
   const { nodeId } = await b.send('DOM.querySelector', { nodeId: root.nodeId, selector: 'main input[type=file]' })

@@ -110,7 +110,7 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
               : <ul className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">{listing.data.items.map(item => {
                 const name = i18n.language === 'bn' && item.name_bn ? item.name_bn : item.name_en
                 return <li key={item.id} className={`flex flex-wrap items-center gap-3 px-3 py-3 sm:flex-nowrap sm:px-4 ${editing === item.id ? 'ds-softer' : ''}`}>
-                  <Avatar name={name} />
+                  <Avatar name={name} studentId={item.id} photoVersion={item.photo_version} />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name}</p>
                     <p className="text-sm text-slate-600">{item.admission_no} · {item.class_name} / {item.section_name}{item.roll_no != null && <> · {t('p2HistoryRoll', { roll: num(item.roll_no) })}</>}</p>
