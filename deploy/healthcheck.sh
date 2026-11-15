@@ -67,11 +67,14 @@ else
             fail "containers: $service is not running"
         fi
     done
-    if echo "$state" | grep -q '^backend running healthy'; then
-        pass "containers: backend is healthy"
-    else
-        fail "containers: backend is not healthy yet"
-    fi
+    # Older Compose versions print no health column; /readyz below is the real
+    # verdict, so an unknown state is reported without failing the run.
+    health="$(echo "$state" | sed -n 's/^backend running *//p')"
+    case "$health" in
+        healthy) pass "containers: backend is healthy" ;;
+        '')      echo "        backend health: not reported by this Docker Compose" ;;
+        *)       fail "containers: backend is $health, not healthy" ;;
+    esac
 fi
 
 # 2. HTTPS from outside, certificate included. curl fails on an expired or
