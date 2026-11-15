@@ -204,6 +204,68 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { description: account_locked after too many incorrect passwords, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /auth/password/forgot:
+    get:
+      operationId: forgotPasswordAvailability
+      summary: Report whether the school can email a password reset link
+      description: Public. True only when a mail relay is configured for this installation (SMTP_HOST). When false the sign-in page offers nothing and keeps telling people to ask the school office, which can still reset a password.
+      tags: [authentication]
+      security: []
+      responses:
+        '200': { description: Whether "forgot password" is available, content: { application/json: { schema: { $ref: '#/components/schemas/ForgotPasswordAvailabilityResponse' } } } }
+    post:
+      operationId: requestPasswordReset
+      summary: Email a time-limited, single-use password reset link
+      description: Public. The answer is the same whether or not the address has an account, so the endpoint cannot be used to find out who has one; only the mailbox owner receives anything. The link works once and expires an hour after it is issued. Requests are counted per address in the database (three an hour) and per client in the web server, and user.password_reset_requested is audited without the address or the link. 503 means no mail relay is configured.
+      tags: [authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ForgotPasswordInput' }
+      responses:
+        '202':
+          description: Accepted; a link was sent if the address has an account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ForgotPasswordResponse' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { description: reset_rate_limited; attempts for addresses without an account are counted too, so this reveals nothing about which addresses exist, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '503': { description: reset_unavailable; this installation sends no email, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /auth/password/reset:
+    get:
+      operationId: checkPasswordResetToken
+      summary: Check an emailed reset link before showing the form
+      description: Public. Reports whether the link is still usable and whose account it belongs to, without using it up. An unknown, expired or already used link is one error, so a guess learns nothing from the answer.
+      tags: [authentication]
+      security: []
+      parameters: [{ name: token, in: query, required: true, schema: { type: string, maxLength: 64 }, description: The token from the emailed link }]
+      responses:
+        '200': { description: The link is usable, content: { application/json: { schema: { $ref: '#/components/schemas/PasswordResetTokenResponse' } } } }
+        '400': { description: invalid_reset_token; unknown, expired or already used, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '503': { description: reset_unavailable; this installation sends no email, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    post:
+      operationId: completePasswordReset
+      summary: Set a new password with an emailed reset link
+      description: Public. The link works once, because using it marks it used, and the account's other outstanding links with it. The new password must be 12 to 72 UTF-8 bytes. Any login lockout and any forced password change are cleared, every session of the account is revoked, and user.password_reset is audited without password material.
+      tags: [authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetInput' }
+      responses:
+        '200':
+          description: Password set; the account must sign in again
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordChangeResponse' }
+        '400': { description: 'invalid_request, weak_password or invalid_reset_token', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '503': { description: reset_unavailable; this installation sends no email, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /roles:
     get:
       operationId: listRoles
@@ -5370,6 +5432,48 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/AuthUser' }
+    ForgotPasswordAvailabilityResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [enabled]
+          properties:
+            enabled: { type: boolean, description: Whether a mail relay is configured }
+    ForgotPasswordInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        language: { type: string, enum: [en, bn], description: Language of the email; anything else is sent in English }
+    ForgotPasswordResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [sent]
+          properties:
+            sent: { type: boolean, description: Always true; it does not say whether the address has an account }
+    PasswordResetTokenResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [valid, display_name]
+          properties:
+            valid: { type: boolean }
+            display_name: { type: string, description: Whose account the link belongs to }
+    PasswordResetInput:
+      type: object
+      additionalProperties: false
+      required: [token, new_password]
+      properties:
+        token: { type: string, maxLength: 64, description: The token from the emailed link }
+        new_password: { type: string, format: password, minLength: 12, maxLength: 72, description: 12 to 72 UTF-8 bytes }
     PasswordChangeInput:
       type: object
       additionalProperties: false

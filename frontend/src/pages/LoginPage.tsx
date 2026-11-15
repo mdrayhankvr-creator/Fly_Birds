@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router'
-import { ApiError, getDemoQuickLogin, type DemoRole } from '../api/client'
+import { Link, useLocation, useNavigate } from 'react-router'
+import { ApiError, getDemoQuickLogin, getPasswordResetAvailable, type DemoRole } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { ui } from './attendanceUi'
 
@@ -43,6 +43,16 @@ function DemoQuickLogin({ disabled }: { disabled: boolean }) {
         {pending === role ? t('signingIn') : t('p3QuickLoginAs', { role: t(`role_${role}`) })}</button>)}
     </div>
   </section>
+}
+
+// "Forgot your password?" appears only when the school has a mail relay
+// configured. Without one the help line below it stands alone, as before:
+// the school office is then the only way to get a new password.
+function ForgotPasswordLink() {
+  const { t } = useTranslation()
+  const available = useQuery({ queryKey: ['auth', 'password-reset-available'], queryFn: ({ signal }) => getPasswordResetAvailable(signal), staleTime: Infinity, retry: false })
+  if (!available.data) return null
+  return <p className="mt-5 text-sm"><Link to="/forgot-password" className="font-semibold text-[var(--brand-ink)] underline decoration-2 underline-offset-4 hover:decoration-current">{t('fpLink')}</Link></p>
 }
 
 // The shared sign-in form, shown in Modern Bold's dialog and older layouts.
@@ -98,7 +108,8 @@ export function SignInForm() {
       <button type="submit" disabled={pending} className={`${ui.primary} mt-7 w-full py-3 text-[15px]`}>
         {pending ? t('signingIn') : t('signIn')}
       </button>
-      <p className="mt-5 text-xs leading-5 text-slate-500">{t('m12LoginHelp')}</p>
+      <ForgotPasswordLink />
+      <p className="mt-3 text-xs leading-5 text-slate-500">{t('m12LoginHelp')}</p>
     </form>
     <DemoQuickLogin disabled={pending} />
   </div>

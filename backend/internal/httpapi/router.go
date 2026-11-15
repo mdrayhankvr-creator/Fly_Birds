@@ -150,6 +150,16 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	// Demo quick login: 404 unless DEMO_QUICK_LOGIN=true; localhost only.
 	authRoutes.GET("/demo-login", handler.demoLoginInfo)
 	authRoutes.POST("/demo-login", handler.demoLogin)
+	// "Forgot password" is public and answered only when a mail relay is
+	// configured (SMTP_HOST); otherwise the GET reports it off and the page
+	// keeps telling people to ask the school office. The limit on how often
+	// one address may be asked for is in the database; the limit per client
+	// is in the web container (nginx), which is where the real client
+	// address is known.
+	authRoutes.GET("/password/forgot", handler.forgotPasswordAvailable)
+	authRoutes.POST("/password/forgot", handler.forgotPassword)
+	authRoutes.GET("/password/reset", handler.resetPasswordTarget)
+	authRoutes.POST("/password/reset", handler.resetPassword)
 	authRoutes.GET("/me", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("authentication"), handler.me)
 	authRoutes.GET("/permissions", RequireAuth(service), RequirePermission(service, "auth:read_self"), moduleGuard("permissions"), handler.permissions)
 	authRoutes.POST("/password", RequireAuth(service), RequirePermission(service, "auth:password_change_self"), moduleGuard("authentication"), handler.changePassword)
