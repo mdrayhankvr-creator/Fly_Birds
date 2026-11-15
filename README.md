@@ -66,6 +66,7 @@ flowchart LR
 |---|---|
 | [Bangla user guide](docs/USER_GUIDE_BN.md) | For school staff, one chapter per role: setup, school details and public page, admission, logins and slips, attendance, fees, exams, promotion, password reset, backups |
 | [Hosting guide](docs/HOSTING_GUIDE.md) | The short path to host one school: server size, domain and HTTPS, environment file, first start, first administrator, daily encrypted off-server backups, restore drill, updates, monthly disk cleanup |
+| [Free hosting guide](docs/HOSTING_FREE.md) | Putting one school online at no cost, in English and Bangla: an always-free ARM cloud machine, Docker, the firewall, HTTPS with a free subdomain now and the school's own domain later, the "forgot password" relay, a nightly backup with a tested restore, a one-command health check, and moving an existing school's data to the server |
 | [Deployment guide](docs/DEPLOYMENT.md) | Installing a school on a server, HTTPS, environment variables, upgrades and rollback |
 | [Operations guide](docs/OPERATIONS.md) | First administrator, school setup, password resets, backups and recovery, troubleshooting, release validation |
 | [API reference (OpenAPI 3)](docs/openapi.yaml) | Every endpoint, with permissions, request and response schemas |
@@ -202,10 +203,14 @@ compose.yaml    Development stack
   payments and their receipts are real records.
 - **SMS:** messages use a **mock** provider. They are recorded and marked sent
   but never reach a phone.
-- **Passwords:** there is no self-service password reset. An administrator
-  resets a password in **Admin → Users** and hands over a printed slip; the
-  temporary password works for 14 days. Everyone can change their own
-  password under **Account** (see the [operations guide](docs/OPERATIONS.md)).
+- **Passwords:** self-service reset by email is off unless the installation
+  has a mail relay (`SMTP_HOST`); the sign-in page then offers **Forgot your
+  password?** and sends a single-use link that expires after an hour. Without
+  one, an administrator resets a password in **Admin → Users** and hands over
+  a printed slip; the temporary password works for 14 days. Students who sign
+  in with a Student ID or a phone number have no address on file either way.
+  Everyone can change their own password under **Account** (see the
+  [operations guide](docs/OPERATIONS.md)).
 - One installation serves one school. Several schools on one server need one
   Compose project each.
 
