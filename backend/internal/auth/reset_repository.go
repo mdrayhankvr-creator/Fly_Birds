@@ -74,11 +74,29 @@ func (r *GormRepository) RecentResetAttempts(ctx context.Context, emailDigest []
 	return counts, nil
 }
 
+// ResetRequestRetention is how long a row is kept. The rate limit only looks
+// an hour back, and the lasting record of a reset is the audit event, so a
+// week is generous; pruning on each write keeps a table that is otherwise
+// written on every attempt, including refused ones, from growing for years.
+// It needs no index of its own: the limits above cap the table at a size a
+// scan of a few hundred rows covers.
+const ResetRequestRetention = 7 * 24 * time.Hour
+
+// pruneResetRequests drops rows past the retention period.
+func pruneResetRequests(tx *gorm.DB, now time.Time) error {
+	return tx.Where("created_at < ?", now.Add(-ResetRequestRetention)).Delete(&ResetRequest{}).Error
+}
+
 // LogResetAttempt records a request that issued no link.
 func (r *GormRepository) LogResetAttempt(ctx context.Context, emailDigest []byte, ip string, now time.Time) error {
-	return r.db.WithContext(ctx).Create(&ResetRequest{
-		EmailSHA256: emailDigest, RequesterIP: resetIPColumn(ip), CreatedAt: now,
-	}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&ResetRequest{
+			EmailSHA256: emailDigest, RequesterIP: resetIPColumn(ip), CreatedAt: now,
+		}).Error; err != nil {
+			return err
+		}
+		return pruneResetRequests(tx, now)
+	})
 }
 
 // CreateResetToken records an issued link and audits it in the same
@@ -94,8 +112,11 @@ func (r *GormRepository) CreateResetToken(ctx context.Context, emailDigest []byt
 		}).Error; err != nil {
 			return err
 		}
-		return audit.Record(tx, nil, "user.password_reset_requested", "user", userID,
-			map[string]any{"source": "email_link", "expires_at": expires.UTC().Format(time.RFC3339)})
+		if err := audit.Record(tx, nil, "user.password_reset_requested", "user", userID,
+			map[string]any{"source": "email_link", "expires_at": expires.UTC().Format(time.RFC3339)}); err != nil {
+			return err
+		}
+		return pruneResetRequests(tx, now)
 	})
 }
 

@@ -11,6 +11,11 @@
 -- Setting a password through a link marks its row used, so the link stops
 -- working, and the handler revokes the account's other outstanding links in
 -- the same transaction.
+--
+-- Rows are pruned a week after they were made (auth.ResetRequestRetention):
+-- the rate limit only looks an hour back and the lasting record of a reset is
+-- the audit event, so nothing needs them longer. There is no index on
+-- created_at for that: the limits keep the table small enough to scan.
 
 CREATE TABLE password_reset_requests (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
