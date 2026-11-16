@@ -50,14 +50,19 @@ requirement but cannot schedule it without an approved start time. It also
 lists other missing timetable inputs. The report never proposes a teacher to
 account link.
 
-For a disposable integration test, set `AUTH_TEST_DATABASE_URL` to a **new,
-local** PostgreSQL database whose name starts with
-`school_setup_preview_test_`, then run:
+For a disposable integration test, set `SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL`
+to a **new, local** PostgreSQL database named
+`school_setup_preview_test_` followed by a 10–32 character lowercase hex
+suffix (or a numeric CI run ID and attempt), then run:
 
 ```powershell
 go test -p 1 ./internal/schoolsetup ./cmd/preview-school-setup -count=1
 ```
 
-The integration test refuses other database names or a nonempty database
-before migration and leaves its fixture in that disposable database. Never point this test variable at
-fbshow or any school database.
+The integration test refuses other database names, remote hosts, and a
+nonempty database before migration. It leaves its fixture in the disposable
+database. If the shared `AUTH_TEST_DATABASE_URL` is set without the dedicated
+variable, the test fails instead of silently skipping. Never point either test
+variable at fbshow or any school database. CI creates a separate, run-specific
+database inside its PostgreSQL service and runs this test alongside the full
+backend suite.

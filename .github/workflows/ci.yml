@@ -34,6 +34,34 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: Create isolated school setup preview test database
+        env:
+          PREVIEW_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          from urllib.parse import urlsplit, urlunsplit
+
+          source = urlsplit(os.environ["AUTH_TEST_DATABASE_URL"])
+          container = os.environ["PREVIEW_POSTGRES_CONTAINER"]
+          run_id = os.environ["GITHUB_RUN_ID"]
+          attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+          if (os.environ.get("GITHUB_ACTIONS") != "true"
+                  or source.hostname not in ("localhost", "127.0.0.1")
+                  or source.path != "/flybirds_ci"
+                  or source.username != "flybirds_ci"
+                  or not re.fullmatch(r"[0-9a-f]{12,64}", container)
+                  or not run_id.isdecimal() or not attempt.isdecimal()):
+              raise SystemExit("refusing to create a test database outside the CI PostgreSQL service")
+          name = f"school_setup_preview_test_{run_id}_{attempt}"
+          subprocess.run(["docker", "exec", container, "createdb", "-U", "flybirds_ci", name], check=True)
+          dedicated = urlunsplit(source._replace(path="/" + name))
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL={dedicated}\n")
+          print(f"Created disposable preview test database {name}")
+          PY
       - name: Format
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: Vet

@@ -40,3 +40,26 @@ The command also produced the expected JSON on an isolated fixture database:
 three fixture sections, 44 additions, 14 teacher additions, two protected
 admins excluded, read-only true, credentials-generated false. No browser or
 frontend tests were needed because this milestone adds no UI.
+
+## CI isolation fix
+
+PR #62 exposed a mismatch: the backend job sets `AUTH_TEST_DATABASE_URL` to
+its shared `flybirds_ci` database, while the preview integration test requires
+a fresh database named `school_setup_preview_test_*`. The test guard is
+intentional. The backend job now creates a separate, run-specific database in
+its own PostgreSQL service and passes its URL through
+`SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL`. The preview test refuses the shared
+URL, unsafe names or hosts, and any database with existing user relations or
+functions before migration. Frontend and release-stack jobs are unchanged.
+
+Local CI reproduction: `go test ./... -p 1 -count=1` passed with
+`AUTH_TEST_DATABASE_URL` pointed at newly created disposable
+`flybirds_ci_local_714edb12b3` and
+`SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL` pointed at separate fresh
+`school_setup_preview_test_714edb12b3` on `m15-testdb`. The focused preview
+and command tests passed again on fresh
+`school_setup_preview_test_8fad67512665` after tightening the name guard.
+`go vet ./...` passed. The workflow parsed as YAML with all three jobs, and
+the frontend and release-stack job text was byte-for-byte unchanged after
+normalizing line endings. Remote PR CI has not been rerun because this branch
+was not pushed.

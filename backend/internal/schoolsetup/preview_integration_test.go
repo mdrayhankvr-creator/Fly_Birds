@@ -2,7 +2,10 @@ package schoolsetup
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -11,16 +14,71 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
 )
 
+var disposablePreviewDatabase = regexp.MustCompile(`^school_setup_preview_test_([0-9]+_[0-9]+|[0-9a-f]{10,32})$`)
+
+func validatePreviewTestDSN(dsn string) error {
+	config, err := pgconn.ParseConfig(dsn)
+	if err != nil || !disposablePreviewDatabase.MatchString(config.Database) || (config.Host != "127.0.0.1" && config.Host != "localhost") {
+		return fmt.Errorf("use a fresh local school_setup_preview_test_ database")
+	}
+	return nil
+}
+
+// Check every user schema before migrations; a nonempty public or custom
+// schema is not an acceptable fixture database even if its name looks safe.
+func requireEmptyPreviewTestDatabase(ctx context.Context, db *sql.DB) error {
+	const query = `SELECT
+ (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%'
+    AND c.relkind IN ('r','p','f','v','m','S'))
+ +(SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%')
+ +(SELECT count(*) FROM pg_namespace
+  WHERE nspname NOT IN ('pg_catalog','information_schema','public') AND nspname NOT LIKE 'pg_toast%')`
+	var count int
+	if err := db.QueryRowContext(ctx, query).Scan(&count); err != nil {
+		return err
+	}
+	if count != 0 {
+		return fmt.Errorf("refusing migrations: disposable test database is not empty")
+	}
+	return nil
+}
+
+func TestPreviewDatabaseGuard(t *testing.T) {
+	for _, tc := range []struct {
+		name, dsn string
+		wantOK    bool
+	}{
+		{"shared CI database", "postgres://fixture@localhost/flybirds_ci?sslmode=disable", false},
+		{"fbshow database", "postgres://fixture@localhost/fbshow?sslmode=disable", false},
+		{"Joy database", "postgres://fixture@localhost/fbqa_cp1b?sslmode=disable", false},
+		{"remote with safe-looking name", "postgres://fixture@production.example/school_setup_preview_test_1234?sslmode=disable", false},
+		{"prefix without unique suffix", "postgres://fixture@localhost/school_setup_preview_test_?sslmode=disable", false},
+		{"safe-looking production suffix", "postgres://fixture@localhost/school_setup_preview_test_fbshow?sslmode=disable", false},
+		{"fresh disposable name", "postgres://fixture@127.0.0.1/school_setup_preview_test_1234567890?sslmode=disable", true},
+		{"CI run name", "postgres://fixture@localhost/school_setup_preview_test_1234567890_1?sslmode=disable", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if gotOK := validatePreviewTestDSN(tc.dsn) == nil; gotOK != tc.wantOK {
+				t.Fatalf("guard accepted=%t, want %t", gotOK, tc.wantOK)
+			}
+		})
+	}
+}
+
 // The harness must supply a newly created, disposable database with this
 // prefix. The test refuses any other database before it runs migrations.
 func TestPostgresPreviewSchoolSetup(t *testing.T) {
-	dsn := os.Getenv("AUTH_TEST_DATABASE_URL")
+	dsn := os.Getenv("SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL")
 	if dsn == "" {
-		t.Skip("AUTH_TEST_DATABASE_URL is unset")
+		if os.Getenv("AUTH_TEST_DATABASE_URL") != "" {
+			t.Fatal("SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL is required; shared AUTH_TEST_DATABASE_URL is unsafe for this fixture")
+		}
+		t.Skip("SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL is unset")
 	}
-	config, err := pgconn.ParseConfig(dsn)
-	if err != nil || !strings.HasPrefix(config.Database, "school_setup_preview_test_") || (config.Host != "127.0.0.1" && config.Host != "localhost") {
-		t.Fatal("refusing test: use a fresh local school_setup_preview_test_ database")
+	if err := validatePreviewTestDSN(dsn); err != nil {
+		t.Fatal("refusing test:", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -33,16 +91,16 @@ func TestPostgresPreviewSchoolSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sqlDB.Close()
-	var count int
-	if err := sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM pg_tables WHERE schemaname='public'").Scan(&count); err != nil {
+	if err := requireEmptyPreviewTestDatabase(ctx, sqlDB); err != nil {
 		t.Fatal(err)
-	}
-	if count != 0 {
-		t.Fatal("refusing migrations: disposable test database is not empty")
 	}
 	if err := database.Migrate(ctx, gormDB); err != nil {
 		t.Fatal(err)
 	}
+	if err := requireEmptyPreviewTestDatabase(ctx, sqlDB); err == nil {
+		t.Fatal("nonempty migrated database passed the disposable database guard")
+	}
+	var count int
 	if err := sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM academic_sessions").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
