@@ -9,6 +9,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/reset-password ./cmd/reset-password \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/create-backup ./cmd/create-backup \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/restore-backup ./cmd/restore-backup \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/reset-school-data ./cmd/reset-school-data \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/seed-demo ./cmd/seed-demo \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/exam-verify ./cmd/exam-verify \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/suspend-leaver-logins ./cmd/suspend-leaver-logins
@@ -24,6 +25,7 @@ COPY --from=build /out/create-user /app/create-user
 COPY --from=build /out/reset-password /app/reset-password
 COPY --from=build /out/create-backup /app/create-backup
 COPY --from=build /out/restore-backup /app/restore-backup
+COPY --from=build /out/reset-school-data /app/reset-school-data
 COPY --from=build /out/seed-demo /app/seed-demo
 COPY --from=build /out/exam-verify /app/exam-verify
 COPY --from=build /out/suspend-leaver-logins /app/suspend-leaver-logins
