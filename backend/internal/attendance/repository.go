@@ -132,7 +132,7 @@ func (r *GormRepository) Roster(ctx context.Context, q Query) (Page[RosterItem],
 	if err := base.Count(&page.Total).Error; err != nil {
 		return Page[RosterItem]{}, err
 	}
-	err := base.Select("e.id AS employee_id,e.employee_code,e.name_en,e.name_bn,a.id AS record_id,a.status,a.note").Order("e.name_en ASC,e.id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
+	err := base.Select("e.id AS employee_id,e.employee_code,e.name_en,e.name_bn,COALESCE((SELECT p.version FROM employee_photos p WHERE p.employee_id=e.id),'') AS photo_version,a.id AS record_id,a.status,a.note").Order("e.name_en ASC,e.id ASC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&page.Items).Error
 	return page, err
 }
 func (r *GormRepository) Record(ctx context.Context, actor string, value Record) (Record, error) {

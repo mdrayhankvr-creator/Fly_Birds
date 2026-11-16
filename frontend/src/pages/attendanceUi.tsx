@@ -105,9 +105,9 @@ export function SegmentedStatus<T extends string>({ name, value, options, onChan
 }
 
 export function Tabs<T extends string>({ label, value, items, onChange }: { label: string; value: T; items: { value: T; label: string; badge?: ReactNode }[]; onChange: (value: T) => void }) {
-  return <div role="tablist" aria-label={label} className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 print:hidden">
+  return <div role="tablist" aria-label={label} className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 print:hidden sm:flex-nowrap sm:overflow-x-auto">
     {items.map(item => <button key={item.value} role="tab" type="button" aria-selected={value === item.value} onClick={() => onChange(item.value)}
-      className={`ds-tab-btn flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] ${value === item.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{item.label}{item.badge}</button>)}
+      className={`ds-tab-btn flex min-h-10 min-w-[7.5rem] flex-1 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-center text-sm font-semibold leading-tight transition focus-visible:outline-2 focus-visible:outline-[var(--brand-primary)] sm:min-w-0 sm:flex-none sm:shrink-0 sm:leading-normal ${value === item.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{item.label}{item.badge}</button>)}
   </div>
 }
 
@@ -195,5 +195,5 @@ export function useNumber() {
 }
 
 export function Avatar({ name, studentId, staffId, photoVersion }: { name: string; studentId?: string; staffId?: string; photoVersion?: string }) {
-  return <PersonAvatar name={name} kind={staffId ? 'staff' : 'student'} id={staffId || studentId} version={photoVersion} tryWithoutVersion={!!(staffId || studentId) && !photoVersion} />
+  return <PersonAvatar name={name} kind={staffId ? 'staff' : 'student'} id={staffId || studentId} version={photoVersion} />
 }

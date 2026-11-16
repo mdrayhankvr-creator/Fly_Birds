@@ -400,7 +400,7 @@ export const saveExamRoutineSlot = (token: string, id: string, input: ExamRoutin
 export const deleteExamRoutineSlot = (token: string, id: string, slotId: string) => bearerRequest<{ deleted: boolean }>(`/routines/exams/${encodeURIComponent(id)}/slots/${encodeURIComponent(slotId)}`, token, { method: 'DELETE' })
 
 export type AttendanceSession = { id: string; name: string; start_date: string; end_date: string; is_active: boolean }
-export type TeacherRosterItem = { employee_id: string; employee_code: string; name_en: string; name_bn: string; record_id: string | null; status: 'present' | 'absent' | 'leave' | null; note: string | null }
+export type TeacherRosterItem = { employee_id: string; employee_code: string; name_en: string; name_bn: string; photo_version: string; record_id: string | null; status: 'present' | 'absent' | 'leave' | null; note: string | null }
 export type TeacherAttendanceRecord = { id: string; session_id: string; employee_id: string; attendance_date: string; status: 'present' | 'absent' | 'leave'; note: string; recorded_by: string; updated_by: string; created_at: string; updated_at: string; session_name: string; employee_code: string; employee_name_en: string; employee_name_bn: string }
 export type TeacherMonthlySummary = { employee_id: string; employee_code: string; name_en: string; name_bn: string; present: number; absent: number; leave: number; total: number }
 export type TeacherAttendanceInput = Pick<TeacherAttendanceRecord, 'session_id' | 'employee_id' | 'attendance_date' | 'status' | 'note'>
@@ -431,10 +431,10 @@ export async function getHealth(signal?: AbortSignal): Promise<string> {
   return body.data.status
 }
 export type StudentAttendanceRecord = { id: string; student_id: string; session_id: string; class_id: string; section_id: string; attendance_date: string; status: 'present' | 'absent' | 'late'; source: 'manual' | 'qr'; note: string; name_en: string; name_bn: string; admission_no: string }
-export type StudentAttendanceRosterItem = { student_id: string; admission_no: string; name_en: string; name_bn: string; roll_no: number | null; record_id: string | null; status: StudentAttendanceRecord['status'] | null; source: StudentAttendanceRecord['source'] | null; note: string | null; version: string | null }
+export type StudentAttendanceRosterItem = { student_id: string; admission_no: string; name_en: string; name_bn: string; photo_version: string; roll_no: number | null; record_id: string | null; status: StudentAttendanceRecord['status'] | null; source: StudentAttendanceRecord['source'] | null; note: string | null; version: string | null }
 export type StudentAttendanceSummary = { student_id: string; admission_no: string; name_en: string; name_bn: string; present: number; absent: number; late: number; total: number }
 export type StudentAttendanceReport = { student: StudentAttendanceSummary; items: StudentAttendanceRecord[] }
-export type AbsenceEvent = { id: string; student_id: string; attendance_date: string; state: 'pending' | 'cancelled'; name_en: string; guardian_count: number }
+export type AbsenceEvent = { id: string; student_id: string; attendance_date: string; state: 'pending' | 'cancelled'; name_en: string; photo_version: string; guardian_count: number }
 // Whether a date takes attendance: weekly off days and published holidays do not.
 export type AttendanceDay = { date: string; open: boolean; reason?: 'weekly_off' | 'holiday'; weekday: number; holiday_title_en?: string; holiday_title_bn?: string; weekly_off_days: number[] }
 export const getAttendanceDay = (token: string, date: string) => bearerRequest<AttendanceDay>(`/attendance/day?date=${encodeURIComponent(date)}`, token)
@@ -585,6 +585,11 @@ export const getPublishedResults = (token:string,childId?:string) => bearerReque
 export async function bearerBlob(path: string, accessToken: string): Promise<Blob> {
   const response = await authRequest(path, { headers: { Authorization: `Bearer ${accessToken}` } })
   return response.blob()
+}
+
+export async function getOwnStaffAvatar(accessToken: string): Promise<Blob | null> {
+  const response = await authRequest('/staff/me/avatar', { headers: { Authorization: `Bearer ${accessToken}` } })
+  return response.status === 204 ? null : response.blob()
 }
 
 export async function bearerUpload<T>(path: string, accessToken: string, file: File): Promise<T> {

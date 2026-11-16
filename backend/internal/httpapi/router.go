@@ -192,6 +192,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/staff/me", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownEmployee)
 	management.GET("/staff/me/assignments", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownAssignments)
 	management.GET("/staff/me/profile", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownProfile)
+	management.GET("/staff/me/avatar", staffHandler.ownAvatar)
 	management.PATCH("/staff/me/profile", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.saveOwnProfile)
 	management.PUT("/staff/me/photo", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.savePhoto)
 	management.DELETE("/staff/me/photo", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.deletePhoto)

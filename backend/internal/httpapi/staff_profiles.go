@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -48,6 +49,37 @@ func (h *staffHandler) ownProfile(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "no-store")
 	success(c, http.StatusOK, v)
+}
+
+// The shell may show a photo for any signed-in staff account, including
+// accountants and administrators without staff-profile permissions.
+func (h *staffHandler) ownAvatar(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	viewer := staffViewer(c)
+	id, err := h.service.OwnProfileID(c.Request.Context(), viewer)
+	if errors.Is(err, staff.ErrNotFound) {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		staffError(c, err)
+		return
+	}
+	content, version, err := h.service.Photo(c.Request.Context(), viewer, id)
+	if errors.Is(err, staff.ErrNotFound) {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		staffError(c, err)
+		return
+	}
+	c.Header("ETag", `"`+version+`"`)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(http.StatusOK, "image/jpeg", content)
 }
 
 func (h *staffHandler) saveOwnProfile(c *gin.Context) {

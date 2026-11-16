@@ -104,7 +104,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
       {searchable && results.data && (items.length === 0 ? <div className="mt-3"><EmptyState icon="search" title={t('feeNoStudents')} /></div> :
         <ul id="counter-results" role="listbox" aria-label={t('c3CounterResults')} className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">{items.map((s, i) =>
           <li key={s.id} id={`counter-result-${s.id}`} role="option" aria-selected={i === active} className={`flex min-h-14 cursor-pointer items-center gap-3 px-3 py-2.5 sm:px-4 ${i === active ? 'ds-softer' : 'hover:bg-slate-50'}`} onMouseEnter={() => setActive(i)} onClick={() => pick(s)}>
-            <Avatar name={s.name_en} studentId={s.id} />
+            <Avatar name={s.name_en} studentId={s.id} photoVersion={s.photo_version} />
             <span className="min-w-0 flex-1"><strong className="block text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name(s.name_en, s.name_bn)}</strong><span className="block text-xs text-slate-600">{s.admission_no} · {s.class_name} / {s.section_name}{s.roll_no != null && ` · ${t('p2HistoryRoll', { roll: s.roll_no })}`} · {s.session_name}</span></span>
             {i === active && <kbd className="hidden rounded border border-slate-300 bg-white px-1.5 text-xs text-slate-500 sm:inline">Enter</kbd>}
           </li>)}</ul>)}
@@ -127,7 +127,7 @@ export function CounterPanel({ access, options }: { access: FeeAccess; options: 
       {!receipt && <>
         <section className={`${feeCard} print:hidden`} aria-label={t('feeSelectedStudent')}>
           <div className="flex flex-wrap items-center gap-3">
-            <Avatar name={student.name_en} studentId={student.id} />
+            <Avatar name={student.name_en} studentId={student.id} photoVersion={student.photo_version} />
             <div className="min-w-0 flex-1">
               <p className="text-lg font-bold text-slate-900" style={{ overflowWrap: 'anywhere' }}><StudentName id={student.id}>{student.name_en}</StudentName>{student.name_bn && <span lang="bn" className="ml-2 font-semibold text-slate-600">{student.name_bn}</span>}</p>
               <p className="text-sm text-slate-600">{student.admission_no} · {student.class_name} / {student.section_name}{student.roll_no != null && ` · ${t('p2HistoryRoll', { roll: student.roll_no })}`} · {student.session_name}{student.status !== 'active' && <span className="ml-2 rounded bg-slate-200 px-2 text-xs">{t(`feeStudentStatus_${student.status}`, { defaultValue: student.status })}</span>}</p>

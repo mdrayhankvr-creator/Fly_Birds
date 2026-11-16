@@ -30,16 +30,17 @@ type StudentRecord struct {
 	AdmissionNo    string `json:"admission_no"`
 }
 type StudentRosterItem struct {
-	StudentID   string  `json:"student_id"`
-	AdmissionNo string  `json:"admission_no"`
-	NameEN      string  `json:"name_en"`
-	NameBN      string  `json:"name_bn"`
-	RollNo      *int    `json:"roll_no"`
-	RecordID    *string `json:"record_id"`
-	Status      *string `json:"status"`
-	Source      *string `json:"source"`
-	Note        *string `json:"note"`
-	Version     *string `json:"version"`
+	StudentID    string  `json:"student_id"`
+	PhotoVersion string  `json:"photo_version"`
+	AdmissionNo  string  `json:"admission_no"`
+	NameEN       string  `json:"name_en"`
+	NameBN       string  `json:"name_bn"`
+	RollNo       *int    `json:"roll_no"`
+	RecordID     *string `json:"record_id"`
+	Status       *string `json:"status"`
+	Source       *string `json:"source"`
+	Note         *string `json:"note"`
+	Version      *string `json:"version"`
 }
 type StudentSummary struct {
 	StudentID   string `json:"student_id"`
@@ -61,6 +62,7 @@ type AbsenceEvent struct {
 	AttendanceDate string `json:"attendance_date"`
 	State          string `json:"state"`
 	NameEN         string `json:"name_en"`
+	PhotoVersion   string `json:"photo_version"`
 	GuardianCount  int64  `json:"guardian_count"`
 }
 type StudentQuery struct {
