@@ -131,7 +131,7 @@ asserts it: twelve availability calls in a row, no `429`.
 - `go vet ./...` clean. The new Go files are gofmt-clean (the files
   `gofmt -l` lists repo-wide are the pre-existing CRLF artifact, untouched).
 - `go test ./... -p 1 -count=1` on a fresh database (`golive` in
-  `m15-testdb`): **RESULT_GO**
+  `m15-testdb`): **31 packages ok, 11 with no test files, 0 failures**, exit 0, no out-of-memory
 - New Go tests: `internal/auth` covers the happy path (bilingual message,
   lockout cleared, sessions revoked, audit), single use, expiry to the second,
   a token never issued, a short password leaving the link usable, older links
@@ -142,12 +142,12 @@ asserts it: twelve availability calls in a row, no `429`.
   an unknown address, `429` at the limit, and the link working once.
   `internal/mailer` covers header injection, dot-stuffing and the settings
   checks; `internal/config` covers the SMTP validation.
-- Front end: `tsc --noEmit` clean, `npm run build` **RESULT_BUILD**,
+- Front end: `tsc --noEmit` clean, `npm run build` passed (it runs `tsc --noEmit` first),
   `npm run check:i18n` passed (4058 English and 4056 Bangla keys),
   `npm run test:unit` 22 of 22.
 - On `m15b1`, rebuilt from this branch and freshly seeded:
-  `suite.mjs` **RESULT_SUITE**, `phone-login.mjs` **RESULT_PHONE**,
-  `marksheet-admit.mjs` **RESULT_MS**, `password-reset.mjs` **RESULT_PR**.
+  `suite.mjs` **130 of 130**, `phone-login.mjs` **29 of 29**,
+  `marksheet-admit.mjs` **35 of 35**, `password-reset.mjs` **30 of 30**.
 - `deploy/backup-daily.sh` was run three times against `m15b1` with `KEEP=2`:
   each run made, copied and verified an archive, and the third pruned the
   oldest. The restore was then run for real into a scratch database with
