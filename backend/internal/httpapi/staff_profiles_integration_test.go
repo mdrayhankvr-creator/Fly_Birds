@@ -63,7 +63,7 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 	adminUser, head, owner, colleague, accountant, student, guardian := makeUser("admin", "admin"), makeUser("head", "head_teacher"), makeUser("owner", "teacher"), makeUser("colleague", "teacher"), makeUser("accounts", "accountant"), makeUser("student", "student"), makeUser("guardian", "guardian")
 	const nid = "1990123456789"
 	const mpo = "MPO-" + "4471"
-	var employeeID, colleagueEmployee string
+	var employeeID, colleagueEmployee, accountEmployee string
 	code := strings.ToUpper(suffix)
 	if err := db.Raw("INSERT INTO employees (employee_code,user_id,kind,name_en,name_bn,designation,phone,joined_on,email,qualifications) VALUES (?,?,'teacher','Owner Teacher','শিক্ষক','Assistant Teacher','01711-555000','2020-01-05','owner.contact@example.test','[\"MSc Mathematics\",\"B.Ed\"]') RETURNING id", "P"+code, owner.ID).Scan(&employeeID).Error; err != nil {
 		t.Fatal(err)
@@ -71,8 +71,11 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 	if err := db.Raw("INSERT INTO employees (employee_code,user_id,kind,name_en,designation,joined_on) VALUES (?,?,'teacher','Colleague','Assistant Teacher','2021-01-01') RETURNING id", "Q"+code, colleague.ID).Scan(&colleagueEmployee).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Raw("INSERT INTO employees (employee_code,user_id,kind,name_en,designation,joined_on) VALUES (?,?,'non_teaching','Accountant','Accountant','2021-01-01') RETURNING id", "A"+code, accountant.ID).Scan(&accountEmployee).Error; err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
-		_ = db.Exec("DELETE FROM employees WHERE id IN (?,?)", employeeID, colleagueEmployee).Error
+		_ = db.Exec("DELETE FROM employees WHERE id IN (?,?,?)", employeeID, colleagueEmployee, accountEmployee).Error
 		_ = db.Exec("DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE email LIKE ?)", "%-prof-"+suffix+"@example.test").Error
 		_ = db.Exec("DELETE FROM users WHERE email LIKE ?", "%-prof-"+suffix+"@example.test").Error
 	})
@@ -99,6 +102,12 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 		}
 		return r.Body.Bytes()
 	}
+	// Optional own avatars never turn missing staff records into 404s and
+	// do not broaden the regular profile permission.
+	call("admin", "GET", "/staff/me/profile", "", 404)
+	call("admin", "GET", "/staff/me/avatar", "", 204)
+	call("accountant", "GET", "/staff/me/avatar", "", 204)
+	call("owner", "GET", "/staff/me/avatar", "", 204)
 	profileOf := func(who string) map[string]any {
 		t.Helper()
 		var body struct {
@@ -156,6 +165,24 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 		if (who == "admin") != (p["can_see_salary"] == true) || (who == "admin") != (p["can_edit_official"] == true) || (who == "owner") != (p["can_edit_own"] == true) {
 			t.Errorf("%s: abilities %v %v %v", who, p["can_see_salary"], p["can_edit_official"], p["can_edit_own"])
 		}
+	}
+	if has(profileOf("owner"), "signature_version") {
+		t.Fatal("missing signature was reported in the owner's profile")
+	}
+	const signatureVersion = "abcdef123456"
+	if err := db.Exec("INSERT INTO employee_signatures (employee_id, content, version, updated_by) VALUES (?, ?, ?, ?)", employeeID, []byte{1}, signatureVersion, owner.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got := profileOf("owner")["signature_version"]; got != signatureVersion {
+		t.Fatalf("owner signature version = %v", got)
+	}
+	for _, who := range []string{"admin", "head", "colleague", "student"} {
+		if has(profileOf(who), "signature_version") {
+			t.Errorf("%s received another staff member's signature version", who)
+		}
+	}
+	if err := db.Exec("DELETE FROM employee_signatures WHERE employee_id = ?", employeeID).Error; err != nil {
+		t.Fatal(err)
 	}
 	if q := profileOf("head")["qualifications"].([]any); len(q) != 2 || q[0] != "MSc Mathematics" {
 		t.Fatalf("qualifications %v", q)
@@ -247,6 +274,13 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 	}
 	upload("colleague", "/staff/employees/"+employeeID+"/photo", 403)
 	upload("owner", "/staff/me/photo", 200)
+	if own := call("owner", "GET", "/staff/me/avatar", "", 200); len(own) == 0 {
+		t.Fatal("uploaded staff photo missing from own avatar")
+	}
+	upload("admin", "/staff/employees/"+accountEmployee+"/photo", 200)
+	if own := call("accountant", "GET", "/staff/me/avatar", "", 200); len(own) == 0 {
+		t.Fatal("accountant's uploaded photo missing from own avatar")
+	}
 	photo := call("student", "GET", "/staff/profiles/"+employeeID+"/photo", "", 200)
 	decoded, format, err := image.Decode(bytes.NewReader(photo))
 	if err != nil || format != "jpeg" || decoded.Bounds().Dx() != staff.PhotoSize || decoded.Bounds().Dy() != staff.PhotoSize || len(photo) >= img.Len() {

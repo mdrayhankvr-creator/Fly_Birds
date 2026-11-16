@@ -27,7 +27,7 @@ const pattern = path => path.split('?')[0].replace(/\/[0-9a-f]{8}-[0-9a-f-]{27,}
 const skip = path => /^\/(api|login|verify)\b|logout|\.pdf$/i.test(path)
 
 const settle = async () => {
-  await b.waitFor(`document.readyState === 'complete' && !document.querySelector('main .animate-pulse, main [aria-busy=true]')`, 12000).catch(() => null)
+  await b.waitFor(`document.readyState === 'complete' && ![...document.querySelectorAll('main .animate-pulse, main [aria-busy=true]')].some(el => !el.closest('details:not([open])') && el.getClientRects().length > 0)`, 12000).catch(() => null)
   await sleep(250)
 }
 

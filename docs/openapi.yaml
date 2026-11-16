@@ -1084,6 +1084,14 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /staff/me/avatar:
+    get:
+      operationId: getOwnStaffAvatar
+      tags: [staff]
+      summary: Read the signed-in user's staff avatar
+      description: Returns only the caller's photo. Available to any signed-in role, including an administrator or accountant with a linked employee record. A missing employee record or photo returns 204.
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: JPEG photo, content: { image/jpeg: { schema: { type: string, format: binary } } } }, '204': { description: No staff photo }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /staff/me/photo:
     put:
       operationId: saveOwnStaffPhoto

@@ -125,7 +125,7 @@ func (r *StudentGormRepository) StudentRoster(ctx context.Context, actor string,
 	if err = base.Count(&p.Total).Error; err != nil {
 		return p, err
 	}
-	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,en.roll_no,a.id AS record_id,a.status,a.source,a.note," + versionExpr + " AS version").Order("en.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
+	err = base.Select("s.id AS student_id,s.admission_no,s.name_en,s.name_bn,COALESCE((SELECT to_char(p.updated_at,'YYYYMMDDHH24MISSUS') FROM student_photos p WHERE p.student_id=s.id),'') AS photo_version,en.roll_no,a.id AS record_id,a.status,a.source,a.note," + versionExpr + " AS version").Order("en.roll_no NULLS LAST,s.name_en,s.id").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
 	return p, err
 }
 func (r *StudentGormRepository) RecordStudent(ctx context.Context, actor string, in StudentInput, source string) (StudentRecord, error) {
@@ -324,7 +324,7 @@ func (r *StudentGormRepository) AbsenceEvents(ctx context.Context, actor string,
 	if err = base.Count(&p.Total).Error; err != nil {
 		return p, err
 	}
-	err = base.Select("e.id,e.student_id,to_char(e.attendance_date,'YYYY-MM-DD') AS attendance_date,e.state,s.name_en,(SELECT count(*) FROM student_guardians sg WHERE sg.student_id=e.student_id) AS guardian_count").Order("e.attendance_date DESC,e.id DESC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
+	err = base.Select("e.id,e.student_id,to_char(e.attendance_date,'YYYY-MM-DD') AS attendance_date,e.state,s.name_en,COALESCE((SELECT to_char(p.updated_at,'YYYYMMDDHH24MISSUS') FROM student_photos p WHERE p.student_id=s.id),'') AS photo_version,(SELECT count(*) FROM student_guardians sg WHERE sg.student_id=e.student_id) AS guardian_count").Order("e.attendance_date DESC,e.id DESC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Scan(&p.Items).Error
 	return p, err
 }
 

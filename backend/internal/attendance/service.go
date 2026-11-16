@@ -55,6 +55,7 @@ type CorrectionInput struct {
 }
 type RosterItem struct {
 	EmployeeID   string  `json:"employee_id"`
+	PhotoVersion string  `json:"photo_version"`
 	EmployeeCode string  `json:"employee_code"`
 	NameEN       string  `json:"name_en"`
 	NameBN       string  `json:"name_bn"`

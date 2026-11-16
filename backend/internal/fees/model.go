@@ -225,18 +225,19 @@ type Receipt struct {
 	Replayed     bool         `json:"replayed"`
 }
 type StudentRef struct {
-	ID          string `json:"id"`
-	AdmissionNo string `json:"admission_no"`
-	NameEN      string `json:"name_en"`
-	NameBN      string `json:"name_bn"`
-	RollNo      *int   `json:"roll_no"`
-	Status      string `json:"status"`
-	SessionID   string `json:"session_id"`
-	ClassID     string `json:"class_id"`
-	SectionID   string `json:"section_id"`
-	SessionName string `json:"session_name"`
-	ClassName   string `json:"class_name"`
-	SectionName string `json:"section_name"`
+	ID           string `json:"id"`
+	PhotoVersion string `json:"photo_version"`
+	AdmissionNo  string `json:"admission_no"`
+	NameEN       string `json:"name_en"`
+	NameBN       string `json:"name_bn"`
+	RollNo       *int   `json:"roll_no"`
+	Status       string `json:"status"`
+	SessionID    string `json:"session_id"`
+	ClassID      string `json:"class_id"`
+	SectionID    string `json:"section_id"`
+	SessionName  string `json:"session_name"`
+	ClassName    string `json:"class_name"`
+	SectionName  string `json:"section_name"`
 }
 type Totals struct {
 	Charged  float64 `json:"charged"`

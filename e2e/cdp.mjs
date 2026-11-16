@@ -98,7 +98,7 @@ async function stopBrowser(state) {
 async function connect(state, base, shots, timeoutMs) {
   const ws = await openTarget(state, timeoutMs).catch(async error => { await stopBrowser(state); throw error })
   let seq = 0, closed = null
-  const pending = new Map(), errors = [], consoleErrors = []
+  const pending = new Map(), errors = [], consoleErrors = [], networkErrors = []
   // Fail outstanding and later commands instead of hanging if the browser goes away.
   const disconnect = reason => {
     if (closed) return
@@ -117,13 +117,16 @@ async function connect(state, base, shots, timeoutMs) {
     if (msg.method === 'Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text)
     if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') consoleErrors.push(msg.params.args.map(a => a.value ?? a.description).join(' '))
     if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') consoleErrors.push(msg.params.entry.text)
+    if (msg.method === 'Network.responseReceived' && msg.params.response.status >= 400) {
+      networkErrors.push({ status: msg.params.response.status, url: msg.params.response.url })
+    }
   })
   const send = (method, params = {}) => new Promise((resolve, reject) => {
     if (closed) return reject(closed)
     const id = ++seq; pending.set(id, { resolve, reject }); ws.send(JSON.stringify({ id, method, params }))
   })
   try {
-    await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable')
+    await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable'); await send('Network.enable')
   } catch (error) {
     process.removeListener('exit', killOnExit)
     ws.close()
@@ -131,7 +134,7 @@ async function connect(state, base, shots, timeoutMs) {
     throw error
   }
   const b = {
-    errors, consoleErrors, send,
+    errors, consoleErrors, networkErrors, send,
     browserPid: state.child.pid, profileDir: state.profile,
     async evaluate(expression) {
       const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })

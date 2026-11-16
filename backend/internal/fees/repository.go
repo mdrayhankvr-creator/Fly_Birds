@@ -87,7 +87,7 @@ func (r *GormRepository) Options(ctx context.Context) (Options, error) {
 	return out, err
 }
 
-const studentSelect = "s.id,s.admission_no,s.name_en,s.name_bn,s.roll_no,s.status,s.session_id,s.class_id,s.section_id,se.name AS session_name,ac.name AS class_name,sec.name AS section_name"
+const studentSelect = "s.id,s.admission_no,s.name_en,s.name_bn,COALESCE((SELECT to_char(p.updated_at,'YYYYMMDDHH24MISSUS') FROM student_photos p WHERE p.student_id=s.id),'') AS photo_version,s.roll_no,s.status,s.session_id,s.class_id,s.section_id,se.name AS session_name,ac.name AS class_name,sec.name AS section_name"
 
 func studentBase(db *gorm.DB) *gorm.DB {
 	return db.Table("students s").Joins("JOIN academic_sessions se ON se.id=s.session_id").Joins("JOIN academic_classes ac ON ac.id=s.class_id").Joins("JOIN academic_sections sec ON sec.id=s.section_id")

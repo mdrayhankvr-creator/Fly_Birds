@@ -74,8 +74,8 @@ test('a failed start is retried once', async () => {
 })
 
 test('a lost connection fails commands instead of hanging', async () => {
-  // The three startup commands are answered, then the socket drops.
-  const b = await withFake('drop:3')
+  // Startup succeeds, then the first evaluation loses its connection.
+  const b = await withFake('drop-on:Runtime.evaluate')
   await assert.rejects(b.evaluate('1 + 1'), /browser connection closed/)
   await assert.rejects(b.send('Page.enable'), /browser connection closed/)
   await b.close()
