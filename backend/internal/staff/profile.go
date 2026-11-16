@@ -82,14 +82,15 @@ type StaffAttendance struct {
 // Profile is one employee as a particular viewer may see them. A nil or
 // omitted field is one the viewer may not see.
 type Profile struct {
-	ID           string `json:"id"`
-	EmployeeCode string `json:"employee_code,omitempty"`
-	Kind         string `json:"kind"`
-	NameEN       string `json:"name_en"`
-	NameBN       string `json:"name_bn"`
-	Designation  string `json:"designation"`
-	IsActive     bool   `json:"is_active"`
-	PhotoVersion string `json:"photo_version"`
+	ID               string `json:"id"`
+	EmployeeCode     string `json:"employee_code,omitempty"`
+	Kind             string `json:"kind"`
+	NameEN           string `json:"name_en"`
+	NameBN           string `json:"name_bn"`
+	Designation      string `json:"designation"`
+	IsActive         bool   `json:"is_active"`
+	PhotoVersion     string `json:"photo_version"`
+	SignatureVersion string `json:"signature_version,omitempty"`
 	// UserID and LoginPhone let an administrator set the number this member
 	// of staff signs in with; both are left out for everyone else.
 	UserID         *string          `json:"user_id,omitempty"`
@@ -149,6 +150,7 @@ type profileRow struct {
 	MPOIndex                 string  `gorm:"column:mpo_index"`
 	NID                      string  `gorm:"column:nid"`
 	PhotoVersion             string  `gorm:"column:photo_version"`
+	SignatureVersion         string  `gorm:"column:signature_version"`
 	LoginPhone               string  `gorm:"column:login_phone"`
 }
 
@@ -223,6 +225,9 @@ func (s *Service) Profile(ctx context.Context, v Viewer, id string) (Profile, er
 	now := time.Now().In(Dhaka)
 	p := Profile{ID: row.ID, Kind: row.Kind, NameEN: row.NameEN, NameBN: row.NameBN, Designation: row.Designation, IsActive: row.IsActive, PhotoVersion: row.PhotoVersion,
 		Self: self, CanEditOwn: self, CanEditOfficial: admin, CanRevealNID: (admin || self) && row.NID != "", CanSeeSalary: admin}
+	if self {
+		p.SignatureVersion = row.SignatureVersion
+	}
 	// The sign-in number is the administrator's business only.
 	if admin {
 		p.UserID, p.LoginPhone = row.UserID, row.LoginPhone
@@ -458,8 +463,8 @@ func (r *GormRepository) ProfileRow(ctx context.Context, id string) (profileRow,
 	var row profileRow
 	err := r.db.WithContext(ctx).Raw(`SELECT e.id, e.employee_code, e.kind, e.name_en, e.name_bn, e.designation, e.phone, e.email, to_char(e.joined_on,'YYYY-MM-DD') AS joined_on, e.user_id, e.is_active,
   e.qualifications::text AS qualifications, e.phone_to_staff, e.phone_to_families, e.email_to_staff, e.email_to_families, e.qualifications_to_staff, e.qualifications_to_families,
-  COALESCE(i.mpo_index,'') AS mpo_index, COALESCE(i.nid,'') AS nid, COALESCE(p.version,'') AS photo_version, COALESCE(u.login_phone,'') AS login_phone
-FROM employees e LEFT JOIN employee_identity i ON i.employee_id = e.id LEFT JOIN employee_photos p ON p.employee_id = e.id LEFT JOIN users u ON u.id = e.user_id WHERE e.id = ?`, id).Scan(&row).Error
+  COALESCE(i.mpo_index,'') AS mpo_index, COALESCE(i.nid,'') AS nid, COALESCE(p.version,'') AS photo_version, COALESCE(sig.version,'') AS signature_version, COALESCE(u.login_phone,'') AS login_phone
+FROM employees e LEFT JOIN employee_identity i ON i.employee_id = e.id LEFT JOIN employee_photos p ON p.employee_id = e.id LEFT JOIN employee_signatures sig ON sig.employee_id = e.id LEFT JOIN users u ON u.id = e.user_id WHERE e.id = ?`, id).Scan(&row).Error
 	if err != nil {
 		return profileRow{}, err
 	}

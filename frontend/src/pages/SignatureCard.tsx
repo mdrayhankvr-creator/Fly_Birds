@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { deleteOwnSignature, getOwnSignature, saveOwnSignature } from '../api/marksheetAdmit'
+import { getStaffProfile } from '../api/staffProfile'
 import { Icon } from '../components/icons'
 import { CardTitle, Notice, ui } from './attendanceUi'
 import { usePeopleApi } from './peopleShared'
@@ -12,7 +13,9 @@ export function SignatureCard() {
   const { t } = useTranslation()
   const authorized = usePeopleApi()
   const client = useQueryClient()
-  const signature = useQuery({ queryKey: ['ms', 'signature'], queryFn: () => authorized(getOwnSignature), retry: false })
+  const profile = useQuery({ queryKey: ['staff-profile', 'me'], queryFn: () => authorized(token => getStaffProfile(token, 'me')), retry: false })
+  const version = profile.data?.signature_version
+  const signature = useQuery({ queryKey: ['ms', 'signature', version], queryFn: () => authorized(getOwnSignature), enabled: !!version, retry: false })
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
@@ -26,7 +29,7 @@ export function SignatureCard() {
     setBusy(true); setMessage(null)
     try {
       await task()
-      await client.invalidateQueries({ queryKey: ['ms', 'signature'] })
+      await client.invalidateQueries({ queryKey: ['staff-profile', 'me'] })
       setMessage({ tone: 'success', text: done })
     } catch { setMessage({ tone: 'error', text: t('msSignatureInvalid') }) } finally { setBusy(false) }
   }

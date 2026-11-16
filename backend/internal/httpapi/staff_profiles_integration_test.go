@@ -166,6 +166,24 @@ func TestPostgresStaffProfilePrivacy(t *testing.T) {
 			t.Errorf("%s: abilities %v %v %v", who, p["can_see_salary"], p["can_edit_official"], p["can_edit_own"])
 		}
 	}
+	if has(profileOf("owner"), "signature_version") {
+		t.Fatal("missing signature was reported in the owner's profile")
+	}
+	const signatureVersion = "abcdef123456"
+	if err := db.Exec("INSERT INTO employee_signatures (employee_id, content, version, updated_by) VALUES (?, ?, ?, ?)", employeeID, []byte{1}, signatureVersion, owner.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got := profileOf("owner")["signature_version"]; got != signatureVersion {
+		t.Fatalf("owner signature version = %v", got)
+	}
+	for _, who := range []string{"admin", "head", "colleague", "student"} {
+		if has(profileOf(who), "signature_version") {
+			t.Errorf("%s received another staff member's signature version", who)
+		}
+	}
+	if err := db.Exec("DELETE FROM employee_signatures WHERE employee_id = ?", employeeID).Error; err != nil {
+		t.Fatal(err)
+	}
 	if q := profileOf("head")["qualifications"].([]any); len(q) != 2 || q[0] != "MSc Mathematics" {
 		t.Fatalf("qualifications %v", q)
 	}
