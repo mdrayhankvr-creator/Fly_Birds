@@ -130,6 +130,15 @@ jobs:
         run: |
           npm ci --prefix frontend --no-audit --no-fund
           node e2e/result-publication.mjs
+      - name: Marksheet of an exam with no components (E7)
+        # An exam run the simple way, with no component breakdown and no
+        # blueprint: the published result then has no component columns, and
+        # the marksheet has to render all the same. It creates its own exam
+        # on the seeded school and leaves it locked.
+        env:
+          E2E_BASE_URL: http://localhost:8081
+          DEMO_PASSWORD: CiDemoPassword!2026
+        run: node e2e/marksheet-plain-exam.mjs
       - name: No page scrolls sideways on a 360 px phone
         # Every role's pages, tabs and the phone menu, in English and
         # Bangla. It only reads pages, so it changes nothing.

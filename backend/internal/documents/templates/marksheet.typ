@@ -111,7 +111,19 @@
   let parts = (if doc.show_ct { (L.ct,) } else { () }) + cols
   let widths = (1fr, 13mm, ..parts.map(_ => 15mm), 13mm, 14mm, 11mm, 10mm)
   let h(body) = text(size: 7.2pt, weight: "bold", body)
-  let span(body) = table.cell(rowspan: 2, h(body))
+  // An exam marked as one total per subject has no component columns at all,
+  // so there is nothing for "Obtained marks" to span and no second header
+  // row to span into: the header is then one row, and that heading is left
+  // out. A colspan of zero is not a number Typst accepts, which is what used
+  // to end the render.
+  let head-rows = if parts.len() > 0 { 2 } else { 1 }
+  let top(body) = table.cell(rowspan: head-rows, fill: tint, h(body))
+  let head = (table.cell(rowspan: head-rows, align: left + horizon, fill: tint, h(L.subject)), top(L.full_marks))
+  if parts.len() > 0 {
+    head.push(table.cell(colspan: parts.len(), fill: tint, h(L.obtained_marks)))
+  }
+  head += (top(L.total), top(L.highest), top(L.gp), top(L.lg))
+  head += parts.map(p => table.cell(fill: tint, h(p)))
   // One row per paper of a combined subject; the shared cells span them.
   let emit(r, shade) = {
     let papers = if r.papers.len() > 1 { r.papers } else { ((code: r.code, subject: r.subject, parts: r.parts),) }
@@ -141,16 +153,7 @@
     stroke: 0.5pt + rule,
     inset: (x: 1.6mm, y: 1.5mm),
     align: center + horizon,
-    table.header(
-      table.cell(rowspan: 2, align: left + horizon, fill: tint, h(L.subject)),
-      table.cell(rowspan: 2, fill: tint, h(L.full_marks)),
-      table.cell(colspan: parts.len(), fill: tint, h(L.obtained_marks)),
-      table.cell(rowspan: 2, fill: tint, h(L.total)),
-      table.cell(rowspan: 2, fill: tint, h(L.highest)),
-      table.cell(rowspan: 2, fill: tint, h(L.gp)),
-      table.cell(rowspan: 2, fill: tint, h(L.lg)),
-      ..parts.map(p => table.cell(fill: tint, h(p))),
-    ),
+    table.header(..head),
     ..st.rows.map(r => emit(r, none)).flatten(),
     // The 4th subject keeps its own lightly shaded row.
     ..st.optional.map(r => emit(r, rgb("#fdf6e3"))).flatten(),
