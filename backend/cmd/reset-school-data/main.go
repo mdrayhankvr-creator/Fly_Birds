@@ -19,18 +19,21 @@
 //	docker compose -p <school> --env-file <env> -f deploy/compose.prod.yaml \
 //	  run --rm backend /app/reset-school-data -school "Name of the School" -dry-run
 //
-//	# the real thing: it asks for each administrator's password twice
+//	# the real thing: supply a fresh archive and its creation SHA-256;
+//	# it asks for the school name and each administrator's password twice
 //	docker compose -p <school> --env-file <env> -f deploy/compose.prod.yaml \
 //	  run --rm backend /app/reset-school-data -school "Name of the School" \
 //	    -admin1 "Head Teacher:head@school.edu.bd" \
-//	    -admin2 "Office:office@school.edu.bd" -confirm
+//	    -admin2 "Office:office@school.edu.bd" \
+//	    -backup /app/backups/flybirds-backup-....tar.gz -backup-sha256 <digest> -confirm
 //
 // -school must be the school's English name as the database holds it, so the
-// command cannot be pointed at the wrong school by accident; -any-school
-// turns that guard off deliberately.
+// command cannot be pointed at the wrong school by accident. -any-school
+// turns that guard off for read-only dry runs on test databases only.
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
@@ -57,6 +60,8 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "print what would happen and write nothing")
 	confirm := flag.Bool("confirm", false, "required for the real run: confirms the deletion")
 	asJSON := flag.Bool("json", false, "print the plan as JSON (with -dry-run)")
+	backup := flag.String("backup", "", "path to a fresh, verified Fly_Birds archive (required for reset)")
+	backupSHA := flag.String("backup-sha256", "", "SHA-256 printed when that archive was created")
 	flag.Parse()
 
 	cfg, err := config.Load()
@@ -66,8 +71,11 @@ func main() {
 	if cfg.DatabaseURL == "" {
 		fail(fmt.Errorf("DATABASE_URL is not set"))
 	}
-	if *school == "" && !*anySchool {
-		fail(fmt.Errorf("pass -school with the school's English name, or -any-school to skip the check"))
+	if *school == "" && !(*dryRun && *anySchool) {
+		fail(fmt.Errorf("pass -school with the school's English name"))
+	}
+	if *anySchool && !*dryRun {
+		fail(fmt.Errorf("-any-school is allowed only for a dry run"))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
@@ -80,9 +88,8 @@ func main() {
 		fail(err)
 	}
 	defer sqlDB.Close()
-	// The schema must be current: a plan built against an older schema could
-	// miss a table that a later migration added.
-	if err := database.Migrate(ctx, db); err != nil {
+	// A dry run must not migrate the database: migrations can write data.
+	if err := database.CheckMigrationsCurrent(ctx, db); err != nil {
 		fail(err)
 	}
 
@@ -108,6 +115,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "\nRefusing to delete anything without -confirm. Use -dry-run to look first.")
 		os.Exit(2)
 	}
+	if cfg.DemoQuickLogin {
+		fail(fmt.Errorf("DEMO_QUICK_LOGIN is enabled; disable it before resetting the school"))
+	}
+	if *backup == "" || *backupSHA == "" {
+		fail(fmt.Errorf("a fresh backup path and its creation SHA-256 are required"))
+	}
+	var schemaVersion int
+	if err := db.WithContext(ctx).Raw("SELECT COALESCE(max(version), 0) FROM schema_migrations").Row().Scan(&schemaVersion); err != nil {
+		fail(err)
+	}
+	if err := admin.VerifyResetBackup(*backup, *backupSHA, plan.SchoolNameEN, schemaVersion); err != nil {
+		fail(err)
+	}
 	people := []admin.ResetAdmin{}
 	for i, raw := range []string{*admin1, *admin2} {
 		person, err := parseAdmin(raw)
@@ -120,6 +140,12 @@ func main() {
 		fail(fmt.Errorf("run in an interactive terminal so the passwords are not echoed"))
 	}
 	printPlan(plan)
+	fmt.Printf("\nVerified backup: %s\n", *backup)
+	fmt.Printf("Type the school's exact English name to confirm deletion: ")
+	typed, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil || strings.TrimSpace(typed) != plan.SchoolNameEN {
+		fail(fmt.Errorf("school name confirmation did not match; nothing was changed"))
+	}
 	fmt.Println()
 	for i := range people {
 		hash, err := readPassword(people[i].Name, people[i].Email)
@@ -129,11 +155,9 @@ func main() {
 		people[i].PasswordHash = hash
 	}
 
-	var store files.Store
-	if local, err := files.NewLocalStore(cfg.FileStorageDir); err == nil {
-		store = local
-	} else {
-		fmt.Fprintf(os.Stderr, "warning: the attachment store at %s is not usable (%v); stored files will be left behind\n", cfg.FileStorageDir, err)
+	store, err := files.NewLocalStore(cfg.FileStorageDir)
+	if err != nil {
+		fail(fmt.Errorf("attachment store is not usable: %w", err))
 	}
 	result, err := admin.Reset(ctx, db, store, plan, people)
 	if err != nil {
@@ -159,10 +183,9 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println("Every foreign key checks out: no orphan rows.")
-	if cfg.DemoQuickLogin {
-		fmt.Println("\nNote: DEMO_QUICK_LOGIN is on for this stack. Turn it off before showing the school:")
-		fmt.Println("  the one-click demo sign-in only works for seed-demo accounts, which are now gone,")
-		fmt.Println("  but the switch should be off on a school that is being set up for real.")
+	if result.FileErrors > 0 {
+		fmt.Fprintf(os.Stderr, "reset committed, but %d attachment file(s) could not be removed; inspect the backup and clean up before declaring completion\n", result.FileErrors)
+		os.Exit(1)
 	}
 }
 

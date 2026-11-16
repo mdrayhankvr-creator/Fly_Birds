@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"os"
@@ -193,7 +194,24 @@ VALUES (?, 'school.settings_updated', 'school', ?, 'success', '{}'::jsonb)`, s.a
 // of the command, on a school with people and records in it.
 func TestPostgresResetKeepsIdentityAndDeletesEverythingElse(t *testing.T) {
 	ctx, _, tx := openResetDB(t)
-	seedResetSchool(t, ctx, tx)
+	seeded := seedResetSchool(t, ctx, tx)
+	store, err := files.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileKey, err := files.NewKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileData := []byte("reset attachment fixture")
+	if err := store.Put(ctx, fileKey, fileData); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(fileData)
+	if err := tx.Exec(`INSERT INTO file_objects (storage_key, purpose, original_name, content_type, size_bytes, sha256, uploaded_by)
+VALUES (?, 'notice', 'notice.png', 'image/png', ?, ?, ?)`, fileKey, len(fileData), hex.EncodeToString(sum[:]), seeded.admin).Error; err != nil {
+		t.Fatal(err)
+	}
 
 	// 1. The name is the guard against the wrong database.
 	if _, err := PlanReset(ctx, tx, "Some Other School", false); !errors.Is(err, ErrResetSchoolMismatch) {
@@ -270,18 +288,36 @@ func TestPostgresResetKeepsIdentityAndDeletesEverythingElse(t *testing.T) {
 	if after := count(t, tx, "users"); after != usersBefore {
 		t.Fatalf("a refused reset changed the accounts: %d then %d", usersBefore, after)
 	}
-
-	// 3. The reset itself.
-	store, err := files.NewLocalStore(t.TempDir())
+	// A plan becomes invalid if a writer adds even one row after review.
+	if err := tx.Exec(`INSERT INTO audit_events (action, target_type, target_id, outcome, metadata)
+VALUES ('test.changed', 'school', ?, 'success', '{}'::jsonb)`, "changed-after-plan").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Reset(ctx, tx, nil, plan, good); err == nil || !strings.Contains(err.Error(), "changed after the dry run") {
+		t.Fatalf("stale plan was accepted: %v", err)
+	}
+	if count(t, tx, "users") != usersBefore {
+		t.Fatal("stale plan changed users")
+	}
+	plan, err = PlanReset(ctx, tx, "Jalalabad High School", false)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// 3. The reset itself.
 	result, err := Reset(ctx, tx, store, plan, good)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.Admins != 2 || result.Rows != plan.Rows || result.Emptied != len(plan.Empty) {
 		t.Fatalf("result: %+v (plan: %d rows, %d tables)", result, plan.Rows, len(plan.Empty))
+	}
+	if result.Files != 1 || result.FileErrors != 0 {
+		t.Fatalf("attachment cleanup: %+v", result)
+	}
+	if opened, err := store.Open(ctx, fileKey); err == nil {
+		opened.Close()
+		t.Fatal("deleted attachment is still on disk")
 	}
 
 	// Everything that should be gone is gone, whatever was there before.
@@ -407,6 +443,26 @@ func TestPostgresResetAnySchoolSkipsTheNameCheck(t *testing.T) {
 	}
 }
 
+func TestPostgresResetRequiresReviewedSchema(t *testing.T) {
+	ctx, _, tx := openResetDB(t)
+	if err := tx.Exec("DELETE FROM schema_migrations WHERE version = ?", resetReviewedSchemaVersion).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PlanReset(ctx, tx, "", true); !errors.Is(err, ErrResetSchemaUnreviewed) {
+		t.Fatalf("unreviewed schema was accepted: %v", err)
+	}
+}
+
+func TestPostgresResetRefusesUnexpectedTable(t *testing.T) {
+	ctx, _, tx := openResetDB(t)
+	if err := tx.Exec("CREATE TABLE reset_unreviewed_table (id integer PRIMARY KEY)").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PlanReset(ctx, tx, "", true); !errors.Is(err, ErrResetSchemaUnreviewed) {
+		t.Fatalf("unexpected table was accepted: %v", err)
+	}
+}
+
 // TestPostgresResetOrphansFindsOne proves the orphan check can fail, so a
 // clean report from it means something.
 func TestPostgresResetOrphansFindsOne(t *testing.T) {
@@ -436,6 +492,28 @@ ON CONFLICT (id) DO UPDATE SET updated_by = EXCLUDED.updated_by, version = EXCLU
 	}
 	if len(orphans) != 1 || !strings.Contains(orphans[0], "school_logo.updated_by") {
 		t.Fatalf("the orphan check missed a broken reference: %v", orphans)
+	}
+}
+
+func TestPostgresResetOrphansFindsComposite(t *testing.T) {
+	ctx, _, tx := openResetDB(t)
+	for _, statement := range []string{
+		`CREATE TABLE reset_orphan_parent (left_id integer, right_id integer, PRIMARY KEY (left_id, right_id))`,
+		`CREATE TABLE reset_orphan_child (left_id integer, right_id integer)`,
+		`INSERT INTO reset_orphan_child VALUES (10, 20)`,
+		`ALTER TABLE reset_orphan_child ADD CONSTRAINT reset_orphan_composite_fk
+FOREIGN KEY (left_id, right_id) REFERENCES reset_orphan_parent(left_id, right_id) NOT VALID`,
+	} {
+		if err := tx.Exec(statement).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	orphans, err := ResetOrphans(ctx, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(orphans) != 1 || !strings.Contains(orphans[0], "reset_orphan_child.left_id") {
+		t.Fatalf("composite orphan was missed: %v", orphans)
 	}
 }
 

@@ -1,0 +1,5 @@
+# Applied by fbshow common.ps1 after the clean-slate installer is run.
+services:
+  backend:
+    environment:
+      DEMO_QUICK_LOGIN: "false"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -41,7 +42,14 @@ var (
 	ErrResetNotNullReference = errors.New("a kept table has a NOT NULL reference to a table being emptied")
 	// ErrResetAdmins means the administrators to create are not usable.
 	ErrResetAdmins = errors.New("exactly two administrators with a name, an address and a password are required")
+	// ErrResetSchemaUnreviewed stops a future migration from silently changing
+	// which school records this command preserves or deletes.
+	ErrResetSchemaUnreviewed = errors.New("school reset policy has not been reviewed for this schema")
 )
+
+const resetReviewedSchemaVersion = 1813
+const resetReviewedMigrationCount = 57
+const resetReviewedTableCount = 114
 
 // resetKeepExtra are the school's own uploads that belong to its identity.
 // They are empty in a fresh schema, so they have to be named.
@@ -160,6 +168,14 @@ func publicTables(ctx context.Context, db *gorm.DB) ([]string, error) {
 // database.
 func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool) (ResetPlan, error) {
 	var plan ResetPlan
+	var version, migrations int
+	if err := db.WithContext(ctx).Raw("SELECT COALESCE(max(version), 0), count(*) FROM schema_migrations").Row().Scan(&version, &migrations); err != nil {
+		return plan, err
+	}
+	if version != resetReviewedSchemaVersion || migrations != resetReviewedMigrationCount {
+		return plan, fmt.Errorf("%w: reviewed %d migrations through %d; database has %d through %d", ErrResetSchemaUnreviewed,
+			resetReviewedMigrationCount, resetReviewedSchemaVersion, migrations, version)
+	}
 	row := db.WithContext(ctx).Raw("SELECT name_en, name_bn FROM school_settings ORDER BY id LIMIT 1").Row()
 	if err := row.Scan(&plan.SchoolNameEN, &plan.SchoolNameBN); err != nil {
 		return plan, fmt.Errorf("read the school's name: %w", err)
@@ -171,8 +187,14 @@ func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool
 	if err != nil {
 		return plan, err
 	}
+	if len(tables) != resetReviewedTableCount {
+		return plan, fmt.Errorf("%w: reviewed %d tables; database has %d", ErrResetSchemaUnreviewed, resetReviewedTableCount, len(tables))
+	}
 	keep := resetKeepSet()
 	for _, name := range tables {
+		if !tableName.MatchString(name) {
+			return plan, fmt.Errorf("unexpected table name %q; reset needs review", name)
+		}
 		var rows int64
 		if err := db.WithContext(ctx).Raw(`SELECT count(*) FROM "` + name + `"`).Row().Scan(&rows); err != nil {
 			return plan, fmt.Errorf("count %s: %w", name, err)
@@ -273,24 +295,46 @@ func Reset(ctx context.Context, db *gorm.DB, store files.Store, plan ResetPlan, 
 	if admins[0].Email == admins[1].Email {
 		return out, fmt.Errorf("%w: both administrators have the same address", ErrResetAdmins)
 	}
-	keys, err := storedKeys(ctx, db)
-	if err != nil {
-		return out, err
-	}
-	empty := make([]string, 0, len(plan.Empty))
-	for _, t := range plan.Empty {
-		// users is emptied last, with DELETE, so that the kept rows which
-		// point at it have their reference emptied by the schema's own
-		// ON DELETE SET NULL rather than by hand.
-		if t.Table != "users" {
-			empty = append(empty, `"`+t.Table+`"`)
-		}
-	}
-	if len(empty) == 0 {
-		return out, errors.New("nothing to empty: the plan is empty")
-	}
+	var keys []string
 	now := time.Now().UTC()
-	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock every table before checking the plan again. A stale dry run must
+		// never be applied to a database that changed while the operator read it.
+		tables, err := publicTables(ctx, tx)
+		if err != nil {
+			return err
+		}
+		locked := make([]string, 0, len(tables))
+		for _, name := range tables {
+			if !tableName.MatchString(name) {
+				return fmt.Errorf("unexpected table name %q; reset needs review", name)
+			}
+			locked = append(locked, `"`+name+`"`)
+		}
+		if err := tx.Exec("LOCK TABLE " + strings.Join(locked, ", ") + " IN ACCESS EXCLUSIVE MODE NOWAIT").Error; err != nil {
+			return fmt.Errorf("school is in use; stop writers and retry: %w", err)
+		}
+		current, err := PlanReset(ctx, tx, plan.SchoolNameEN, false)
+		if err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(current, plan) {
+			return errors.New("school data changed after the dry run; review a new plan before retrying")
+		}
+		keys, err = storedKeys(ctx, tx)
+		if err != nil {
+			return err
+		}
+		empty := make([]string, 0, len(plan.Empty))
+		for _, t := range plan.Empty {
+			// users is deleted last so kept attribution columns use ON DELETE SET NULL.
+			if t.Table != "users" {
+				empty = append(empty, `"`+t.Table+`"`)
+			}
+		}
+		if len(empty) == 0 {
+			return errors.New("nothing to empty: the plan is empty")
+		}
 		for _, n := range plan.Nulled {
 			if err := tx.Exec(fmt.Sprintf(`UPDATE "%s" SET "%s" = NULL WHERE "%s" IS NOT NULL`, n.Table, n.Column, n.Column)).Error; err != nil {
 				return fmt.Errorf("empty %s.%s: %w", n.Table, n.Column, err)
@@ -320,6 +364,7 @@ VALUES (?, ?, ?, 'admin', true, true)`, a.Email, strings.TrimSpace(a.Name), a.Pa
 		if err := tx.Raw("SELECT id FROM school_settings ORDER BY id LIMIT 1").Row().Scan(&schoolID); err != nil {
 			return fmt.Errorf("read the school: %w", err)
 		}
+		out.Emptied = len(empty) + 1
 		return audit.Record(tx, nil, "school.data_reset", "school", schoolID, map[string]any{
 			"source": "reset-school-data", "tables_emptied": len(empty) + 1,
 			"rows_deleted": plan.Rows, "admins_created": out.Admins,
@@ -329,7 +374,7 @@ VALUES (?, ?, ?, 'admin', true, true)`, a.Email, strings.TrimSpace(a.Name), a.Pa
 	if err != nil {
 		return ResetResult{}, err
 	}
-	out.Emptied, out.Rows = len(empty)+1, plan.Rows
+	out.Rows = plan.Rows
 	// The rows are gone and committed; the files they named are removed now.
 	// A file that will not go is reported, never fatal: a leftover blob that
 	// nothing points at is untidy, not dangerous.
@@ -352,39 +397,68 @@ VALUES (?, ?, ?, 'admin', true, true)`, a.Email, strings.TrimSpace(a.Name), a.Pa
 // rather than asking anyone to take it on trust.
 func ResetOrphans(ctx context.Context, db *gorm.DB) ([]string, error) {
 	var fks []struct {
-		Child  string
-		Column string
-		Parent string
-		Target string
+		ConstraintID string
+		Child        string
+		Column       string
+		Parent       string
+		Target       string
+		MatchType    string
 	}
 	err := db.WithContext(ctx).Raw(`
-SELECT c.conrelid::regclass::text AS child, a.attname AS column,
-       c.confrelid::regclass::text AS parent, f.attname AS target
+SELECT c.oid::text AS constraint_id, child.relname AS child, a.attname AS column,
+       parent.relname AS parent, f.attname AS target, c.confmatchtype::text AS match_type
 FROM pg_constraint c
+JOIN pg_class child ON child.oid = c.conrelid
+JOIN pg_class parent ON parent.oid = c.confrelid
 JOIN unnest(c.conkey) WITH ORDINALITY k(attnum, ord) ON true
 JOIN unnest(c.confkey) WITH ORDINALITY fk(attnum, ord) ON fk.ord = k.ord
 JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
 JOIN pg_attribute f ON f.attrelid = c.confrelid AND f.attnum = fk.attnum
 WHERE c.contype = 'f' AND c.connamespace = 'public'::regnamespace
-  AND array_length(c.conkey, 1) = 1`).Scan(&fks).Error
+ORDER BY c.oid, k.ord`).Scan(&fks).Error
 	if err != nil {
 		return nil, err
 	}
 	out := []string{}
-	for _, fk := range fks {
+	for i := 0; i < len(fks); {
+		j := i + 1
+		for j < len(fks) && fks[j].ConstraintID == fks[i].ConstraintID {
+			j++
+		}
+		group := fks[i:j]
+		fk := group[0]
+		columns := make([]string, 0, len(group))
+		present := make([]string, 0, len(group))
+		joins := make([]string, 0, len(group))
+		for _, part := range group {
+			columns = append(columns, part.Column)
+			present = append(present, fmt.Sprintf(`c.%s IS NOT NULL`, quoteResetIdent(part.Column)))
+			joins = append(joins, fmt.Sprintf(`p.%s = c.%s`, quoteResetIdent(part.Target), quoteResetIdent(part.Column)))
+		}
 		var n int64
-		q := fmt.Sprintf(`SELECT count(*) FROM "%s" c WHERE c."%s" IS NOT NULL
- AND NOT EXISTS (SELECT 1 FROM "%s" p WHERE p."%s" = c."%s")`, fk.Child, fk.Column, fk.Parent, fk.Target, fk.Column)
+		q := fmt.Sprintf(`SELECT count(*) FROM %s c WHERE %s
+ AND NOT EXISTS (SELECT 1 FROM %s p WHERE %s)`, quoteResetIdent(fk.Child), strings.Join(present, " AND "), quoteResetIdent(fk.Parent), strings.Join(joins, " AND "))
 		if err := db.WithContext(ctx).Raw(q).Row().Scan(&n); err != nil {
-			return nil, fmt.Errorf("check %s.%s: %w", fk.Child, fk.Column, err)
+			return nil, fmt.Errorf("check %s.%s: %w", fk.Child, strings.Join(columns, ","), err)
+		}
+		if fk.MatchType == "f" && len(group) > 1 {
+			partial := fmt.Sprintf(`SELECT count(*) FROM %s c WHERE (%s) AND NOT (%s)`, quoteResetIdent(fk.Child), strings.Join(present, " OR "), strings.Join(present, " AND "))
+			var partialCount int64
+			if err := db.WithContext(ctx).Raw(partial).Row().Scan(&partialCount); err != nil {
+				return nil, err
+			}
+			n += partialCount
 		}
 		if n > 0 {
-			out = append(out, fmt.Sprintf("%s.%s → %s: %d orphan row(s)", fk.Child, fk.Column, fk.Parent, n))
+			out = append(out, fmt.Sprintf("%s.%s → %s: %d orphan row(s)", fk.Child, strings.Join(columns, ","), fk.Parent, n))
 		}
+		i = j
 	}
 	sort.Strings(out)
 	return out, nil
 }
+
+func quoteResetIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
 
 // HashResetPassword turns a typed password into a stored hash. It is here so
 // the command does not need the auth package's rules of its own.

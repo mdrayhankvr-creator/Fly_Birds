@@ -16,6 +16,41 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
+// CheckMigrationsCurrent checks the embedded migration ledger without changing
+// the database. Commands that promise a read-only dry run must use this rather
+// than Migrate, which can create tables and apply schema changes.
+func CheckMigrationsCurrent(ctx context.Context, db *gorm.DB) error {
+	entries, err := migrationFiles.ReadDir("migrations")
+	if err != nil {
+		return err
+	}
+	want := map[int]bool{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		prefix, _, ok := strings.Cut(entry.Name(), "_")
+		version, parseErr := strconv.Atoi(prefix)
+		if !ok || parseErr != nil || version < 1 || want[version] {
+			return fmt.Errorf("invalid or duplicate migration version in %q", entry.Name())
+		}
+		want[version] = true
+	}
+	var have []int
+	if err := db.WithContext(ctx).Raw("SELECT version FROM schema_migrations ORDER BY version").Scan(&have).Error; err != nil {
+		return fmt.Errorf("read migration ledger: %w", err)
+	}
+	if len(have) != len(want) {
+		return fmt.Errorf("schema migration count differs: database has %d, this release expects %d", len(have), len(want))
+	}
+	for _, version := range have {
+		if !want[version] {
+			return fmt.Errorf("database has migration %d absent from this release", version)
+		}
+	}
+	return nil
+}
+
 // Migrate applies the versioned, forward-only PostgreSQL schema in a transaction.
 func Migrate(ctx context.Context, db *gorm.DB) error {
 	sqlDB, err := db.DB()
