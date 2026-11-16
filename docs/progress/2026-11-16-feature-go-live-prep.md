@@ -173,6 +173,11 @@ asserts it: twelve availability calls in a row, no `429`.
   after a checkout on any host.
 - `fbshow` was not touched: not restarted, not rebuilt, and its data not
   changed. Section 11 of the hosting guide is written for the owner to run.
+- This branch does not carry the marksheet fix on `fix/marksheet-pdf-2` (a
+  marksheet for an exam with no component breakdown could not be rendered).
+  The two change no code in common, but both add a row to the table in
+  `e2e/README.md` just above `narrow-phones.mjs`, so whichever merges second
+  will want that one line resolved by keeping both rows.
 
 ## 9. What is not covered
 
