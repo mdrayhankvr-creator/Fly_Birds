@@ -71,6 +71,43 @@ export async function demoLogin(role: DemoRole): Promise<AuthSession> {
   return (await response.json()).data as AuthSession
 }
 
+// "Forgot password". The server offers it only when the school has a mail
+// relay configured; otherwise the sign-in page says nothing about it and
+// keeps pointing people at the school office.
+export async function getPasswordResetAvailable(signal?: AbortSignal): Promise<boolean> {
+  try {
+    const response = await authRequest('/auth/password/forgot', { signal })
+    return ((await response.json()).data?.enabled ?? false) === true
+  } catch {
+    return false
+  }
+}
+
+// The answer is the same whether or not the address has an account, so
+// nothing here tells the page whether a message was sent.
+export async function requestPasswordReset(email: string, language: string): Promise<void> {
+  await authRequest('/auth/password/forgot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, language: language === 'bn' ? 'bn' : 'en' }),
+  })
+}
+
+// Checks an emailed link before the new password is typed, without using it up.
+export async function checkPasswordResetToken(token: string, signal?: AbortSignal): Promise<{ display_name: string }> {
+  const response = await authRequest(`/auth/password/reset?token=${encodeURIComponent(token)}`, { signal })
+  return (await response.json()).data as { display_name: string }
+}
+
+export async function completePasswordReset(token: string, newPassword: string): Promise<number> {
+  const response = await authRequest('/auth/password/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  })
+  return ((await response.json()).data?.sessions_revoked ?? 0) as number
+}
+
 let refreshInFlight: Promise<AuthSession> | null = null
 
 export function refreshSession(): Promise<AuthSession> {

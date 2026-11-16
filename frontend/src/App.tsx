@@ -11,6 +11,7 @@ import { ConfirmHost } from './components/ConfirmDialog'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { LandingPage } from './pages/LandingPage'
 import { PublicLegalPage } from './pages/PublicLegalPage'
+import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordResetPages'
 import { PublicFooter } from './components/PublicFooter'
 import { ModernPublicHeader } from './components/ModernPublicHeader'
 import { getPublicPage } from './api/publicPage'
@@ -517,6 +518,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage branding={branding.data} />} />
         <Route path="/login" element={<LandingPage branding={branding.data} />} />
+        {/* Public: someone who cannot sign in has to be able to reach these. */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/privacy-policy" element={<PublicLegalPage kind="privacy" />} />
         <Route path="/terms" element={<PublicLegalPage kind="terms" />} />
         <Route path="/verify/:token" element={<VerifyCardPage />} />

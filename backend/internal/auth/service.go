@@ -27,6 +27,8 @@ type Service struct {
 	now            func() time.Time
 	// demoQuickLogin is set only from DEMO_QUICK_LOGIN (see demo.go).
 	demoQuickLogin bool
+	// reset is set only when a mail relay is configured; see reset_email.go.
+	reset *resetMail
 }
 
 func NewService(repo Repository, signingKey []byte) (*Service, error) {

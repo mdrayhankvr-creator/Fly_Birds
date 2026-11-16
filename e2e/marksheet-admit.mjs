@@ -104,6 +104,19 @@ const draft = mine.active ? await must(admin('POST', `/exams/blueprints/${mine.b
 const d = draft.definition
 const EX = `H${stamp}`
 d.assessments = d.assessments.filter(a => a.term_id !== term.id).concat([{ key: EX, name: 'Half-yearly exam', term_id: term.id, kind: 'term_exam', visibility: 'after_term_publication' }])
+// Dropping that assessment can leave a subject's sheets pointing at a key
+// that no longer exists, which the server rightly refuses. A class with no
+// blueprint gets the starting design, and that design has one assessment per
+// term of the session — including the term created a few lines above — so on
+// a freshly seeded school the key dropped here is one every subject already
+// has a sheet for. Prune what no longer exists before adding this run's own.
+const declared = new Set(d.assessments.map(a => a.key))
+for (const s of d.subjects) {
+  s.sheets = (s.sheets ?? []).filter(x => declared.has(x.assessment))
+  s.terms = (s.terms ?? []).map(t => ({ ...t, contributions: (t.contributions ?? [])
+    .map(c => ({ ...c, from: (c.from ?? []).filter(k => declared.has(k)) })).filter(c => c.from.length) }))
+    .filter(t => t.contributions.length)
+}
 for (const id of paperIds) if (!d.subjects.some(s => s.subject_id === id)) d.subjects.push({ subject_id: id, role: 'required', sheets: [], terms: [] })
 // Subjects another run added to the class are not graded here.
 const mapping = await must(admin('GET', `/academic/classes/${cls}/subjects`), 'mapping')

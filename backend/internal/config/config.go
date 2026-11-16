@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"net/mail"
 	"net/url"
 	"os"
 	"strconv"
@@ -45,7 +46,26 @@ type Config struct {
 	// MigrationTimeout bounds applying the schema at startup
 	// (MIGRATION_TIMEOUT, default 5m).
 	MigrationTimeout time.Duration
+	// SMTP* describe the mail relay that sends the "forgot password" link
+	// (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM,
+	// SMTP_FROM_NAME, SMTP_SECURITY). An empty SMTP_HOST leaves email off:
+	// the sign-in page then hides "Forgot password" and keeps telling people
+	// to ask the school office, and an administrator resets passwords as
+	// before. A configured relay also needs PUBLIC_BASE_URL, because that is
+	// the address the emailed link points at.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+	SMTPFromName string
+	// SMTPSecurity is starttls (default, port 587), tls (port 465) or none.
+	// none is for a fake relay in a test and refuses a password.
+	SMTPSecurity string
 }
+
+// EmailEnabled reports whether a mail relay is configured.
+func (c Config) EmailEnabled() bool { return c.SMTPHost != "" }
 
 func Load() (Config, error) {
 	port := 8080
@@ -139,11 +159,54 @@ func Load() (Config, error) {
 		}
 		migrationTimeout = parsed
 	}
+	smtpHost := strings.TrimSpace(os.Getenv("SMTP_HOST"))
+	smtpPort := 587
+	smtpSecurity := strings.ToLower(strings.TrimSpace(os.Getenv("SMTP_SECURITY")))
+	smtpFrom := strings.TrimSpace(os.Getenv("SMTP_FROM"))
+	smtpUser := os.Getenv("SMTP_USERNAME")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	if smtpHost != "" {
+		if raw := os.Getenv("SMTP_PORT"); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed < 1 || parsed > 65535 {
+				return Config{}, fmt.Errorf("SMTP_PORT must be a number between 1 and 65535, such as 587")
+			}
+			smtpPort = parsed
+		}
+		if smtpSecurity == "" {
+			smtpSecurity = "starttls"
+		}
+		if smtpSecurity != "starttls" && smtpSecurity != "tls" && smtpSecurity != "none" {
+			return Config{}, fmt.Errorf("SMTP_SECURITY must be starttls, tls or none")
+		}
+		if smtpSecurity == "none" && smtpPassword != "" {
+			return Config{}, fmt.Errorf("SMTP_SECURITY=none sends in the clear, so SMTP_PASSWORD may not be set; it is only for a fake relay in a test")
+		}
+		if (smtpUser == "") != (smtpPassword == "") {
+			return Config{}, fmt.Errorf("SMTP_USERNAME and SMTP_PASSWORD must be set together")
+		}
+		parsed, err := mail.ParseAddress(smtpFrom)
+		if err != nil || parsed.Address != smtpFrom {
+			return Config{}, fmt.Errorf("SMTP_FROM must be the address the school sends from, such as noreply@example.edu.bd")
+		}
+		if publicBaseURL == "" {
+			return Config{}, fmt.Errorf("PUBLIC_BASE_URL is required when SMTP_HOST is set: it is the address the emailed reset link points at")
+		}
+	} else if os.Getenv("SMTP_PORT") != "" || smtpFrom != "" || smtpUser != "" || smtpPassword != "" || smtpSecurity != "" {
+		return Config{}, fmt.Errorf("SMTP_HOST is required to send email; remove the other SMTP_ settings or set it")
+	}
 	fontsDir := os.Getenv("DOCUMENT_FONTS_DIR")
 	if fontsDir == "" {
 		fontsDir = "/app/fonts"
 	}
 	return Config{
+		SMTPHost:         smtpHost,
+		SMTPPort:         smtpPort,
+		SMTPUsername:     smtpUser,
+		SMTPPassword:     smtpPassword,
+		SMTPFrom:         smtpFrom,
+		SMTPFromName:     strings.TrimSpace(os.Getenv("SMTP_FROM_NAME")),
+		SMTPSecurity:     smtpSecurity,
 		PublicBaseURL:    publicBaseURL,
 		MigrationTimeout: migrationTimeout,
 		TypstBin:         os.Getenv("TYPST_BIN"),

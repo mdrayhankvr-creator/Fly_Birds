@@ -28,6 +28,7 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/fees"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/files"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/httpapi"
+	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/mailer"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/notices"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/notify"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/people"
@@ -116,6 +117,30 @@ func run(logger *slog.Logger) error {
 		authorization = rbac.NewService(rbac.NewRepository(db))
 		schoolService = school.NewService(school.NewRepository(db))
 		schoolService.Logos = school.NewLogoStore(db)
+		if cfg.EmailEnabled() {
+			relay, relayErr := mailer.NewSMTP(mailer.Settings{
+				Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername, Password: cfg.SMTPPassword,
+				From: cfg.SMTPFrom, FromName: cfg.SMTPFromName, Security: mailer.Security(cfg.SMTPSecurity),
+			})
+			if relayErr != nil {
+				return relayErr
+			}
+			// The message names the school, read when it is sent, so a
+			// renamed school does not keep sending the old name.
+			names := func(ctx context.Context) (string, string) {
+				branding, err := schoolService.Branding(ctx)
+				if err != nil {
+					return "", ""
+				}
+				return branding.NameEN, branding.NameBN
+			}
+			if err := authService.EnablePasswordResetEmail(auth.NewRepository(db), relay, cfg.PublicBaseURL, names, logger); err != nil {
+				return err
+			}
+			logger.Info("password reset email is on", "relay", cfg.SMTPHost, "port", cfg.SMTPPort, "security", cfg.SMTPSecurity, "from", cfg.SMTPFrom)
+		} else {
+			logger.Info("password reset email is off: no SMTP_HOST, so the sign-in page keeps asking people to contact the school office")
+		}
 		userService = users.NewService(users.NewRepository(db))
 		auditService = audit.NewService(audit.NewRepository(db))
 		dashboardService = dashboard.NewService(dashboard.NewRepository(db))

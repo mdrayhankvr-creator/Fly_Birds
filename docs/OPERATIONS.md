@@ -121,8 +121,19 @@ In this order, because later steps depend on earlier ones:
 - A user who forgets their password, or is locked out (5 failed attempts lock
   the account for 15 minutes), contacts the school office. The login page
   says so.
-- There is **no self-service reset**. After confirming the person's identity,
-  an administrator resets the password in **Admin → Users → Reset password**.
+- **Self-service reset is off unless the installation has a mail relay.** With
+  `SMTP_HOST` set (and `PUBLIC_BASE_URL`, which is where the link points), the
+  sign-in page also offers **Forgot your password?**: the account's address
+  receives a link that works once and expires after an hour, and using it
+  clears the lockout, clears any forced change and signs the account out
+  everywhere. The page answers the same way for an address with and without an
+  account, three links an hour per address are allowed, and
+  `user.password_reset_requested` and `user.password_reset` are audited
+  without the address or the link. Students who sign in with a Student ID or a
+  phone number have no address on file, so the office still resets those.
+  Setting the relay up is section 9 of [HOSTING_FREE.md](HOSTING_FREE.md).
+- Either way, after confirming the person's identity an administrator can
+  reset the password in **Admin → Users → Reset password**.
   It prints a one-time slip with a temporary password, clears the lockout,
   signs the user out on every device and writes a `user.password_reset`
   entry to the audit log without the password. The user must choose their
