@@ -8,6 +8,7 @@
 //   crash             print an error and exit with code 3
 //   hang              never become ready
 //   drop:<n>          close the DevTools socket after answering n commands
+//   drop-on:<method>  close the DevTools socket when that command arrives
 //   fail-once:<file>  crash if <file> is missing (creating it), else start
 import { createHash } from 'node:crypto'
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs'
@@ -52,7 +53,7 @@ function start() {
         if (frame.opcode === 8) return socket.end()
         if (frame.opcode !== 1) continue
         const { id, method } = JSON.parse(frame.text)
-        if (mode === 'drop' && answered === Number(value)) return socket.destroy()
+        if ((mode === 'drop' && answered === Number(value)) || (mode === 'drop-on' && method === value)) return socket.destroy()
         const result = method === 'Runtime.evaluate' ? { result: { value: 2 } } : {}
         socket.write(textFrame(JSON.stringify({ id, result })))
         answered++
