@@ -17,7 +17,8 @@ try {
   check('dry run returns a student-only plan', first.status === 200 && first.body.data?.to_add > 0 && first.body.data?.students.length === first.body.data?.to_add)
   const plan = first.body.data
   check('plan uses 15 minus existing per active section', plan.sections.every(section => section.to_add === 15 - section.existing) && plan.sections.reduce((sum, section) => sum + section.to_add, 0) === plan.to_add)
-  check('all planned names and identifiers are explicitly synthetic', plan.students.every(student => student.test_marker === 'TEST' && student.name_en.startsWith('TEST STUDENT TEST-') && student.login_id === student.admission_no))
+  check('planned bilingual names and identifiers are explicitly synthetic', plan.students.every(student => student.test_marker === 'TEST' && student.name_en.startsWith('TEST ') && student.name_bn.startsWith('টেস্ট ') && ['male', 'female'].includes(student.gender) && student.login_id === student.admission_no))
+  check('planned names are diverse', new Set(plan.students.map(student => student.name_en)).size === plan.students.length)
   await b.go('/admin/students/setup')
   check('admin setup page opens at phone width', await b.waitFor(`!!document.querySelector('button') && document.body.innerText.includes('Synthetic student setup')`, 15000))
   check('preview page has no sideways scroll', !(await b.overflow()))
@@ -42,8 +43,52 @@ try {
   }
   check('every active section now has exactly 15 students', exact)
   check('download action is offered before dismissal', await b.evaluate(`!!document.querySelector('[data-setup-download]') && !!document.querySelector('a[aria-disabled=true]')`))
+  check('credential download requires an export passphrase', await b.evaluate(`document.querySelector('[data-setup-download]')?.disabled === true && !!document.querySelector('input[type=password]')`))
   const firstCredential = await b.evaluate(`({ id: document.querySelector('[data-login-id]')?.innerText.trim(), password: document.querySelector('[data-temporary-password]')?.innerText.trim() })`)
   check('credential slip contains a supported sign-in ID', !!firstCredential.id && !!firstCredential.password)
+  await b.evaluate(`(() => {
+    const blobs = new Map(), create = URL.createObjectURL, click = HTMLAnchorElement.prototype.click
+    window.__setupDownloads = []
+    URL.createObjectURL = function(blob) { const url = create.call(URL, blob); blobs.set(url, blob); return url }
+    HTMLAnchorElement.prototype.click = function() {
+      if (this.download?.startsWith('TEST-student-credentials')) {
+        window.__setupDownloads.push({ name: this.download, blob: blobs.get(this.href) }); return
+      }
+      return click.call(this)
+    }
+    window.__setupPassphrase = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => String.fromCharCode(65 + byte % 26)).join('')
+    const input = document.querySelector('input[type=password]')
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, window.__setupPassphrase)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })()`)
+  check('passphrase enables encrypted download', await b.waitFor(`document.querySelector('[data-setup-download]')?.disabled === false`, 5000))
+  await b.evaluate(`document.querySelector('[data-setup-download]').click()`)
+  check('one-time export is an encrypted file with no readable password', await b.waitFor(`window.__setupDownloads?.length === 1`, 15000) && await b.evaluate(`(async () => {
+    const { name, blob } = window.__setupDownloads[0], bytes = new Uint8Array(await blob.arrayBuffer())
+    return name.endsWith('.fbcred') && new TextDecoder().decode(bytes.slice(0, 24)).startsWith('FLYBIRDS-CREDENTIALS-V1') &&
+      !new TextDecoder().decode(bytes).includes(document.querySelector('[data-temporary-password]').innerText.trim())
+  })()`))
+  await b.evaluate(`(() => {
+    const saved = window.__setupDownloads[0]
+    const transfer = new DataTransfer(); transfer.items.add(new File([saved.blob], saved.name))
+    const file = document.querySelector('input[type=file]'); file.files = transfer.files; file.dispatchEvent(new Event('change', { bubbles: true }))
+    const passphrase = document.querySelectorAll('input[type=password]')[1]
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(passphrase, window.__setupPassphrase)
+    passphrase.dispatchEvent(new Event('input', { bubbles: true }))
+  })()`)
+  check('saved file can be opened locally', await b.waitFor(`[...document.querySelectorAll('button')].some(button => button.textContent.includes('Unlock and download CSV') && !button.disabled)`, 5000))
+  await b.clickText('Unlock and download CSV')
+  check('unlock restores the full credential CSV without sending it to the server', await b.waitFor(`window.__setupDownloads?.length === 2`, 15000) && await b.evaluate(`(async () => {
+    const { name, blob } = window.__setupDownloads[1], csv = await blob.text()
+    return name.endsWith('.csv') && csv.includes('Academic session') && csv.includes('Student (BN)') &&
+      csv.includes(document.querySelector('[data-temporary-password]').innerText.trim())
+  })()`))
+  const firstStudent = (await b.api(`/students?section_id=${plan.sections[0].section_id}&page=1&page_size=100`)).body.data.items.find(item => item.name_en.startsWith('TEST '))
+  check('created profile has paired name, gender and no invented contacts', !!firstStudent && firstStudent.name_bn.startsWith('টেস্ট ') && ['male', 'female'].includes(firstStudent.gender) && !firstStudent.present_address && !firstStudent.father_name_en && !firstStudent.mother_name_en)
+  await b.go(`/admin/students/${firstStudent.id}`)
+  check('student profile shows its TEST indicator', await b.waitFor(`document.body.innerText.includes('TEST record')`, 15000))
+  await b.go('/admin/students/setup')
+  check('lost export recovery UI is available', await b.waitFor(`document.body.innerText.includes('Open a saved credential file') && document.body.innerText.includes('Open user accounts')`, 15000))
   await b.login(firstCredential.id, firstCredential.password)
   await b.go('/dashboard')
   check('new student must change the temporary password at first sign-in', await b.waitFor(`!!document.querySelector('#forced-title')`, 15000))

@@ -32,11 +32,13 @@ type StudentSetupConflictError struct{ Conflicts []IdentifierConflict }
 func (e *StudentSetupConflictError) Error() string { return ErrStudentSetupConflict.Error() }
 func (e *StudentSetupConflictError) Unwrap() error { return ErrStudentSetupConflict }
 
-// PlannedStudent contains only a synthetic name and identifiers. Personal,
-// guardian, contact, group and fourth-subject fields remain incomplete.
+// PlannedStudent contains a clearly marked synthetic bilingual name, gender
+// and identifiers. Other personal, guardian and subject fields stay incomplete.
 type PlannedStudent struct {
 	StudentCandidate
 	NameEN  string `json:"name_en"`
+	NameBN  string `json:"name_bn"`
+	Gender  string `json:"gender"`
 	RollNo  int    `json:"roll_no"`
 	LoginID string `json:"login_id"`
 }
@@ -157,7 +159,7 @@ func studentPlanTx(ctx context.Context, tx *sql.Tx, expectedSession string) (Stu
 	plan := StudentPlan{
 		SessionID: report.SessionID, Session: report.Session, Existing: report.StudentExisting,
 		ToAdd: report.StudentToAdd, Sections: report.Sections, Students: make([]PlannedStudent, 0, len(candidates)),
-		Incomplete: []string{"real student names and dates of birth", "guardian and contact details", "group and optional subject choices"},
+		Incomplete: []string{"verified student names and dates of birth", "guardian and contact details", "group and optional subject choices"},
 	}
 	if plan.ToAdd > people.MaxBulkRows {
 		return StudentPlan{}, ErrStudentSetupInvalid
@@ -192,7 +194,7 @@ func studentPlanTx(ctx context.Context, tx *sql.Tx, expectedSession string) (Stu
 	for _, id := range loginIDs {
 		usedIDs[id] = true
 	}
-	for _, candidate := range candidates {
+	for index, candidate := range candidates {
 		if usedIDs[strings.ToLower(candidate.AdmissionNo)] {
 			return StudentPlan{}, &StudentSetupConflictError{Conflicts: []IdentifierConflict{{Kind: "login_id", Value: candidate.AdmissionNo, Reason: "already_exists"}}}
 		}
@@ -211,8 +213,9 @@ func studentPlanTx(ctx context.Context, tx *sql.Tx, expectedSession string) (Stu
 			return StudentPlan{}, ErrStudentSetupInvalid
 		}
 		usedRolls[candidate.SectionID][roll] = true
+		nameEN, nameBN, gender := syntheticStudentName(index)
 		plan.Students = append(plan.Students, PlannedStudent{StudentCandidate: candidate,
-			NameEN: "TEST STUDENT " + candidate.AdmissionNo, RollNo: roll, LoginID: candidate.AdmissionNo})
+			NameEN: nameEN, NameBN: nameBN, Gender: gender, RollNo: roll, LoginID: candidate.AdmissionNo})
 	}
 	// Include the student manifest's identifiers and school state, assigned
 	// rolls and login-ID namespace. Teacher setup has no bearing on this apply.
@@ -339,9 +342,9 @@ func ApplyStudents(ctx context.Context, db *sql.DB, actor string, in StudentAppl
 	for i, candidate := range current.Students {
 		one := prepared[i]
 		var studentID, userID string
-		if err := tx.QueryRowContext(ctx, `INSERT INTO students (admission_no,name_en,name_bn,status,session_id,class_id,section_id,roll_no)
-			VALUES ($1,$2,'','active',$3,$4,$5,$6) RETURNING id`, candidate.AdmissionNo, candidate.NameEN,
-			candidate.SessionID, candidate.ClassID, candidate.SectionID, candidate.RollNo).Scan(&studentID); err != nil {
+		if err := tx.QueryRowContext(ctx, `INSERT INTO students (admission_no,name_en,name_bn,gender,status,session_id,class_id,section_id,roll_no)
+			VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8) RETURNING id`, candidate.AdmissionNo, candidate.NameEN,
+			candidate.NameBN, candidate.Gender, candidate.SessionID, candidate.ClassID, candidate.SectionID, candidate.RollNo).Scan(&studentID); err != nil {
 			return StudentApplyResult{}, err
 		}
 		expires := time.Now().UTC().Add(auth.TemporaryPasswordLifetime)
@@ -362,7 +365,7 @@ func ApplyStudents(ctx context.Context, db *sql.DB, actor string, in StudentAppl
 			return StudentApplyResult{}, err
 		}
 		roll := candidate.RollNo
-		out.Logins = append(out.Logins, people.StudentLogin{StudentID: studentID, StudentName: candidate.NameEN,
+		out.Logins = append(out.Logins, people.StudentLogin{StudentID: studentID, StudentName: candidate.NameEN, NameBN: candidate.NameBN,
 			AdmissionNo: candidate.AdmissionNo, ClassName: candidate.Class, SectionName: candidate.Section,
 			RollNo: &roll, UserID: userID, LoginID: candidate.LoginID, InitialPassword: one.password, PasswordExpiresAt: expires})
 	}

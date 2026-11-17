@@ -10,31 +10,34 @@ import { newAdmissionKey } from './admissionModel'
 import { usePeopleApi } from './peopleShared'
 import { LoginSlipSheet } from './LoginSlips'
 import { Notice, PageHeader, SectionCard, ui, useNumber } from './attendanceUi'
+import { credentialCSV, decryptCredentialList, encryptCredentialList } from './studentCredentialExport'
 
-function credentialCSV(logins: StudentSetupResult['logins']) {
-  const cell = (value: string | number) => {
-    const text = String(value)
-    // A school-controlled class or section name must not become a formula
-    // when this one-time file is opened in spreadsheet software.
-    const safe = /^[=+@-]/.test(text) ? `'${text}` : text
-    return `"${safe.replaceAll('"', '""')}"`
-  }
-  const rows = [['Student', 'Class', 'Section', 'Roll', 'Admission number', 'Sign-in ID', 'Initial password', 'Expires at'],
-    ...logins.map(login => [login.student_name, login.class_name, login.section_name, login.roll_no ?? '', login.admission_no, login.login_id, login.initial_password, login.password_expires_at])]
-  return '\ufeff' + rows.map(row => row.map(cell).join(',')).join('\r\n')
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url; anchor.download = filename
+  document.body.append(anchor); anchor.click(); anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 export function StudentSetupPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const num = useNumber()
   const authorized = usePeopleApi()
   const cache = useQueryClient()
   const [sessionID, setSessionID] = useState('')
   const [plan, setPlan] = useState<StudentSetupPlan | null>(null)
   const [result, setResult] = useState<StudentSetupResult | null>(null)
+  const [resultSession, setResultSession] = useState('')
   const [key, setKey] = useState(newAdmissionKey)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [exportBusy, setExportBusy] = useState(false)
+  const [passphrase, setPassphrase] = useState('')
+  const [restorePassphrase, setRestorePassphrase] = useState('')
+  const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const [exportError, setExportError] = useState('')
+  const [restoreError, setRestoreError] = useState('')
   const [error, setError] = useState('')
   const [conflicts, setConflicts] = useState<{ kind: string; value: string; reason: string }[]>([])
   const sessions = useQuery({ queryKey: ['student-setup', 'sessions'], queryFn: () => authorized(token => getAcademicSessions(token, new URLSearchParams({ page: '1', page_size: '100' }))), retry: false })
@@ -66,7 +69,7 @@ export function StudentSetupPage() {
     setBusy(true); setError('')
     try {
       const created = await authorized(token => applyStudentSetup(token, { session_id: plan.session_id, fingerprint: plan.fingerprint, idempotency_key: key, confirm: true }))
-      setResult(created); setPlan(null)
+      setResultSession(plan.session); setResult(created); setPlan(null)
       await cache.invalidateQueries({ queryKey: ['people'] })
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === 'setup_stale') { setPlan(null); setKey(newAdmissionKey()) }
@@ -74,14 +77,26 @@ export function StudentSetupPage() {
     } finally { setBusy(false) }
   }
 
-  function download() {
-    if (!result?.logins.length) return
-    const blob = new Blob([credentialCSV(result.logins)], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url; anchor.download = `TEST-student-credentials-${sessionID}.csv`
-    document.body.append(anchor); anchor.click(); anchor.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 0)
+  async function download() {
+    if (!result?.logins.length || exportBusy) return
+    setExportBusy(true); setExportError('')
+    try {
+      const file = await encryptCredentialList(credentialCSV(result.logins, resultSession), passphrase)
+      downloadBlob(file, `TEST-student-credentials-${sessionID}.fbcred`)
+      setPassphrase('')
+    } catch { setExportError(t('setupExportFailed')) }
+    finally { setExportBusy(false) }
+  }
+
+  async function restore() {
+    if (!restoreFile || exportBusy) return
+    setExportBusy(true); setRestoreError('')
+    try {
+      const csv = await decryptCredentialList(restoreFile, restorePassphrase)
+      downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'TEST-student-credentials-unlocked.csv')
+      setRestorePassphrase('')
+    } catch { setRestoreError(t('setupUnlockFailed')) }
+    finally { setExportBusy(false) }
   }
 
   return <div className="min-w-0 space-y-6">
@@ -105,7 +120,7 @@ export function StudentSetupPage() {
         </div>)}</div>
         {plan.students.length > 0 && <details className="mt-4"><summary className="cursor-pointer font-semibold text-slate-800">{t('setupPlanHeading')} ({num(plan.students.length)})</summary>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">{plan.students.map(student => <div className="min-w-0 rounded-xl border border-slate-200 p-3 text-sm" key={student.admission_no}>
-            <p className="break-all font-semibold text-slate-900">{student.name_en}</p><p className="text-slate-600">{student.class} · {student.section} · {t('setupRoll')} {num(student.roll_no)}</p><p className="break-all font-mono text-xs text-slate-600">{student.admission_no}</p>
+            <p className="break-all font-semibold text-slate-900">{i18n.language === 'bn' ? student.name_bn : student.name_en}</p><p lang={i18n.language === 'bn' ? 'en' : 'bn'} className="text-slate-600">{i18n.language === 'bn' ? student.name_en : student.name_bn}</p><p className="text-slate-600">{student.class} · {student.section} · {t('setupRoll')} {num(student.roll_no)} · {t(`gender_${student.gender}`)}</p><p className="break-all font-mono text-xs text-slate-600">{student.admission_no}</p>
           </div>)}</div>
         </details>}
         <p className="mt-4 break-all text-xs text-slate-500">{t('setupPreviewFingerprint')}: {plan.fingerprint}</p>
@@ -118,12 +133,24 @@ export function StudentSetupPage() {
       <Notice tone={result.replayed ? 'warning' : 'success'}>{t(result.replayed ? 'setupRetry' : 'setupSuccess', { count: num(result.admitted) })}</Notice>
       {!!result.logins.length && <>
         <p className="mt-4 text-sm font-semibold text-amber-900">{t('setupOnce')}</p>
-        <button type="button" data-setup-download className={`${ui.primary} mt-3`} onClick={download}><Icon name="download" className="h-4 w-4" />{t('setupDownload')}</button>
+        <label className={`${ui.label} mt-3 block`}>{t('setupExportPassphrase')}<input type="password" autoComplete="off" minLength={16} maxLength={256} className={ui.field} value={passphrase} onChange={event => setPassphrase(event.target.value)} /></label>
+        <p className="mt-2 text-sm text-slate-600">{t('setupExportWarning')}</p>
+        {exportError && <Notice tone="error">{exportError}</Notice>}
+        <button type="button" data-setup-download className={`${ui.primary} mt-3`} disabled={exportBusy || passphrase.length < 16} onClick={() => void download()}><Icon name="download" className="h-4 w-4" />{t('setupDownloadEncrypted')}</button>
         <div className="mt-5"><LoginSlipSheet logins={result.logins} /></div>
         <label className="mt-5 flex items-center gap-3 text-sm font-semibold text-slate-800"><input type="checkbox" checked={saved} onChange={event => setSaved(event.target.checked)} />{t('setupSaved')}</label>
       </>}
-      <p className="mt-3 text-sm text-slate-600">{t('setupResetHint')}</p>
       <Link to="/admin/students" aria-disabled={!!result.logins.length && !saved} onClick={event => { if (result.logins.length && !saved) event.preventDefault() }} className={`${ui.secondary} mt-4 inline-flex ${result.logins.length && !saved ? 'pointer-events-none opacity-50' : ''}`}>{t('setupDone')}</Link>
     </SectionCard>}
+    <SectionCard title={t('setupUnlockTitle')} icon="lock">
+      <p className="text-sm text-slate-600">{t('setupUnlockIntro')}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className={ui.label}>{t('setupEncryptedFile')}<input type="file" accept=".fbcred" className={ui.field} onChange={event => setRestoreFile(event.target.files?.[0] ?? null)} /></label>
+        <label className={ui.label}>{t('setupExportPassphrase')}<input type="password" autoComplete="off" className={ui.field} value={restorePassphrase} onChange={event => setRestorePassphrase(event.target.value)} /></label>
+      </div>
+      {restoreError && <Notice tone="error">{restoreError}</Notice>}
+      <button type="button" className={`${ui.secondary} mt-3`} disabled={exportBusy || !restoreFile || !restorePassphrase} onClick={() => void restore()}>{t('setupUnlock')}</button>
+      <p className="mt-4 text-sm text-slate-600">{t('setupResetHint')} <Link className="font-semibold underline" to="/admin/users">{t('setupResetAccounts')}</Link></p>
+    </SectionCard>
   </div>
 }

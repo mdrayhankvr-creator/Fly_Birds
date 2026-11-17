@@ -112,7 +112,7 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
                 return <li key={item.id} className={`flex flex-wrap items-center gap-3 px-3 py-3 sm:flex-nowrap sm:px-4 ${editing === item.id ? 'ds-softer' : ''}`}>
                   <Avatar name={name} studentId={item.id} photoVersion={item.photo_version} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name}</p>
+                    <p className="font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name}{item.admission_no.startsWith('TEST-') && item.name_en.startsWith('TEST ') && item.name_bn.startsWith('টেস্ট ') && <span className="ms-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-900">{t('setupTestBadge')}</span>}</p>
                     <p className="text-sm text-slate-600">{item.admission_no} · {item.class_name} / {item.section_name}{item.roll_no != null && <> · {t('p2HistoryRoll', { roll: num(item.roll_no) })}</>}</p>
                   </div>
                   <StatusBadge tone={statusTone(item.status)}>{t(`${item.status}Student`)}</StatusBadge>

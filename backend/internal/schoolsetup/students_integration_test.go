@@ -93,7 +93,7 @@ func TestPostgresStudentSetup(t *testing.T) {
 		t.Fatalf("15-minus-existing or roll allocation: %+v", plan)
 	}
 	for _, student := range plan.Students {
-		if !strings.HasPrefix(student.NameEN, "TEST STUDENT TEST-") || student.LoginID != student.AdmissionNo || student.TestMarker != "TEST" {
+		if !strings.HasPrefix(student.NameEN, "TEST ") || !strings.HasPrefix(student.NameBN, "টেস্ট ") || student.Gender == "" || student.LoginID != student.AdmissionNo || student.TestMarker != "TEST" {
 			t.Fatalf("synthetic identity or login: %+v", student)
 		}
 	}
@@ -157,7 +157,7 @@ RETURN NEW; END; $$`)
 	}
 	seenPasswords := map[string]bool{}
 	for _, login := range result.Logins {
-		if seenPasswords[login.InitialPassword] || login.InitialPassword == "" || login.LoginID != login.AdmissionNo || !strings.HasPrefix(login.StudentName, "TEST STUDENT") {
+		if seenPasswords[login.InitialPassword] || login.InitialPassword == "" || login.LoginID != login.AdmissionNo || !strings.HasPrefix(login.StudentName, "TEST ") || !strings.HasPrefix(login.NameBN, "টেস্ট ") {
 			t.Fatal("duplicate or incorrect one-time credential")
 		}
 		seenPasswords[login.InitialPassword] = true
@@ -169,7 +169,7 @@ RETURN NEW; END; $$`)
 			t.Fatal("temporary credential hash or forced first change is incorrect")
 		}
 		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM student_enrolments e JOIN students s ON s.id=e.student_id
-WHERE s.id=$1 AND s.user_id=$2 AND e.session_id=$3 AND e.class_id=$4 AND e.section_id=$5 AND e.state='current' AND e.roll_no=s.roll_no`, login.StudentID, login.UserID, session, class, sectionA).Scan(&enrolments); err != nil || enrolments != 1 {
+WHERE s.id=$1 AND s.user_id=$2 AND e.session_id=$3 AND e.class_id=$4 AND e.section_id=$5 AND e.state='current' AND e.roll_no=s.roll_no AND s.name_bn=$6 AND s.gender IN ('male','female')`, login.StudentID, login.UserID, session, class, sectionA, login.NameBN).Scan(&enrolments); err != nil || enrolments != 1 {
 			t.Fatal("student login and current enrolment are inconsistent")
 		}
 		var leaked int
