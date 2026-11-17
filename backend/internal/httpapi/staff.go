@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/auth"
@@ -100,6 +103,67 @@ func (h *staffHandler) saveEmployee(c *gin.Context) {
 		status = 201
 	}
 	success(c, status, v)
+}
+
+// createWithLogin accepts one optional photo and returns the temporary
+// credential only in this no-store response after an atomic creation.
+func (h *staffHandler) createWithLogin(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	if !h.available(c) {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, staff.MaxPhotoUpload+(2<<20))
+	if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
+	profile := c.PostForm("profile")
+	if len(profile) == 0 || len(profile) > 16*1024 {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	var input staff.CreateWithLoginInput
+	decoder := json.NewDecoder(strings.NewReader(profile))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&input) != nil || decoder.Decode(new(any)) != io.EOF {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	var photo []byte
+	var photoType string
+	header, err := c.FormFile("photo")
+	if err != nil && !errors.Is(err, http.ErrMissingFile) {
+		staffError(c, staff.ErrInvalid)
+		return
+	}
+	if header != nil {
+		if header.Size > staff.MaxPhotoUpload {
+			staffError(c, staff.ErrInvalid)
+			return
+		}
+		file, err := header.Open()
+		if err != nil {
+			staffError(c, staff.ErrInvalid)
+			return
+		}
+		defer file.Close()
+		photo, err = io.ReadAll(io.LimitReader(file, staff.MaxPhotoUpload+1))
+		if err != nil || len(photo) > staff.MaxPhotoUpload {
+			staffError(c, staff.ErrInvalid)
+			return
+		}
+		photoType = header.Header.Get("Content-Type")
+	}
+	created, err := h.service.CreateWithLogin(c.Request.Context(), staffActor(c), input, photoType, photo)
+	if err != nil {
+		staffError(c, err)
+		return
+	}
+	success(c, http.StatusCreated, created)
 }
 
 // linkAccount joins an existing teacher record to an existing login. The

@@ -304,25 +304,32 @@ func (s *Service) SaveOwnProfile(ctx context.Context, v Viewer, in OwnProfileInp
 	if err != nil {
 		return Profile{}, err
 	}
-	clean := make([]string, 0, len(in.Qualifications))
-	for _, q := range in.Qualifications {
+	in.Qualifications, err = cleanQualifications(in.Qualifications)
+	if err != nil {
+		return Profile{}, err
+	}
+	if err := repo.SaveOwnProfile(ctx, v.ID, id, in); err != nil {
+		return Profile{}, err
+	}
+	return s.Profile(ctx, v, id)
+}
+
+func cleanQualifications(values []string) ([]string, error) {
+	clean := make([]string, 0, len(values))
+	for _, q := range values {
 		q = strings.Join(strings.Fields(q), " ")
 		if q == "" {
 			continue
 		}
 		if !utf8.ValidString(q) || len(q) > 160 {
-			return Profile{}, ErrInvalid
+			return nil, ErrInvalid
 		}
 		clean = append(clean, q)
 	}
 	if len(clean) > 20 {
-		return Profile{}, ErrInvalid
+		return nil, ErrInvalid
 	}
-	in.Qualifications = clean
-	if err := repo.SaveOwnProfile(ctx, v.ID, id, in); err != nil {
-		return Profile{}, err
-	}
-	return s.Profile(ctx, v, id)
+	return clean, nil
 }
 
 func (s *Service) SaveOfficial(ctx context.Context, v Viewer, id string, in OfficialInput) (Profile, error) {

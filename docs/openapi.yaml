@@ -1043,6 +1043,15 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EmployeeInput' } } } }
       responses: { '201': { description: Created employee }, '400': { $ref: '#/components/responses/InvalidRequest' }, '409': { description: Duplicate employee code or user association }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /staff/employees/with-login:
+    post:
+      operationId: createStaffWithLogin
+      tags: [staff]
+      summary: Atomically create a teacher or head teacher profile and login
+      description: 'Administrator only. Requires staff:manage, users:create, permissions:manage, and the staff and permissions modules. Multipart profile contains role teacher or head_teacher, employee_code, confirm_employee_code, email, names, designation, joined_on, optional qualifications and an optional existing class-subject assignment. Optional photo is JPEG or PNG. Returns a one-time temporary password; responses must not be cached. The account must change it on first sign-in.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [profile], properties: { profile: { type: string, description: JSON-encoded staff and login details }, photo: { type: string, format: binary } } } } } }
+      responses: { '201': { description: Created employee and one-time temporary credential }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Duplicate identity or incompatible assignment } }
   /staff/employees/{id}:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:

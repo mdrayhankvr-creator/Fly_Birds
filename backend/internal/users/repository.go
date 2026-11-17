@@ -33,26 +33,35 @@ func require(tx *gorm.DB, actor, permission string) error {
 }
 func (r *GormRepository) Create(ctx context.Context, actor string, user User, hash string) (User, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := require(tx, actor, "users:create"); err != nil {
-			return err
-		}
-		if err := require(tx, actor, "permissions:manage"); err != nil {
-			return err
-		}
-		// The administrator chose this password, so it is temporary, as at
-		// admission and after a reset: the account picks its own at the
-		// first sign-in, within the temporary password's lifetime.
-		expires := time.Now().UTC().Add(auth.TemporaryPasswordLifetime)
-		if err := tx.Table("users").Create(map[string]any{"email": user.Email, "display_name": user.DisplayName, "role": user.Role, "is_active": true, "password_hash": hash,
-			"must_change_password": true, "temporary_password_expires_at": expires}).Error; err != nil {
-			return err
-		}
-		if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("email=?", user.Email).Take(&user).Error; err != nil {
-			return err
-		}
-		return audit.Record(tx, &actor, "user.created", "user", user.ID, map[string]any{"role": user.Role})
+		var err error
+		user, _, err = CreateInTx(tx, actor, user, hash)
+		return err
 	})
 	return user, mapError(err)
+}
+
+// CreateInTx lets another administrator workflow create its related record in
+// the same transaction. Permission checks, expiry and audit remain identical
+// to the ordinary account creation path. The hash must already be one-way.
+func CreateInTx(tx *gorm.DB, actor string, user User, hash string) (User, time.Time, error) {
+	if err := require(tx, actor, "users:create"); err != nil {
+		return User{}, time.Time{}, err
+	}
+	if err := require(tx, actor, "permissions:manage"); err != nil {
+		return User{}, time.Time{}, err
+	}
+	expires := time.Now().UTC().Add(auth.TemporaryPasswordLifetime)
+	if err := tx.Table("users").Create(map[string]any{"email": user.Email, "display_name": user.DisplayName, "role": user.Role, "is_active": true, "password_hash": hash,
+		"must_change_password": true, "temporary_password_expires_at": expires}).Error; err != nil {
+		return User{}, time.Time{}, mapError(err)
+	}
+	if err := tx.Table("users").Select("id,email,display_name,role,is_active,COALESCE(login_id,'') AS login_id,COALESCE(login_phone,'') AS login_phone").Where("email=?", user.Email).Take(&user).Error; err != nil {
+		return User{}, time.Time{}, err
+	}
+	if err := audit.Record(tx, &actor, "user.created", "user", user.ID, map[string]any{"role": user.Role}); err != nil {
+		return User{}, time.Time{}, err
+	}
+	return user, expires, nil
 }
 func (r *GormRepository) List(ctx context.Context, q Query) (Page, error) {
 	base := r.db.WithContext(ctx).Table("users")
