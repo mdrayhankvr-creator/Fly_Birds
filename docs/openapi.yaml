@@ -1658,6 +1658,24 @@ paths:
       parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: idempotency_key, in: query, required: true, schema: { type: string, format: uuid } }, { name: create_logins, in: query, schema: { type: boolean } }]
       requestBody: { required: true, content: { text/csv: { schema: { type: string } }, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } } } }
       responses: { '201': { description: 'admitted, skipped and the login slips' }, '200': { description: Replayed result of an earlier request with this key }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: idempotency_key_reused }, '422': { description: rows_have_errors (with the preview) } }
+  /students/synthetic-setup/preview:
+    get:
+      operationId: previewSyntheticStudentSetup
+      tags: [students]
+      summary: Preview only the TEST student shortfall to 15 per active section
+      description: 'Administrator with students:manage and users:create. Uses the school-setup identifier manifest arithmetic and checks admission numbers, rolls, login IDs and school-state fingerprint in a read-only transaction. No personal or guardian details are fabricated.'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Section counts, synthetic candidates, missing-data warning and state fingerprint }, '400': { description: Invalid session }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Changed session or conflicting identifiers } }
+  /students/synthetic-setup:
+    post:
+      operationId: applySyntheticStudentSetup
+      tags: [students]
+      summary: Atomically create only the confirmed TEST student shortfall and linked logins
+      description: 'Administrator with students:manage and users:create. Recounts and checks the preview fingerprint and collisions under database locks before writing. All records and audit events commit together. The first response includes one-time temporary passwords; a retry with the same idempotency key returns only counts. Password hashes, not plaintext, are stored and first-login change is required. Existing students and protected Admin accounts are never changed.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [session_id, fingerprint, idempotency_key, confirm], properties: { session_id: { type: string, format: uuid }, fingerprint: { type: string }, idempotency_key: { type: string, format: uuid }, confirm: { type: boolean, enum: [true] } } } } } }
+      responses: { '201': { description: Created count and one-time login credentials }, '200': { description: Retry count with no credentials }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Stale preview, conflicting state or key reused } }
   /students/logins:
     post:
       operationId: createSectionStudentLogins

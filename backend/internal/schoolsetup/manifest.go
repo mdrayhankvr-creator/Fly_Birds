@@ -163,28 +163,9 @@ func buildManifestFromKeys(r Report, admissions, employees []string) (Manifest, 
 	}
 	hash := sha256.Sum256(data)
 	m := Manifest{SchemaVersion: ManifestSchemaVersion, SessionID: r.SessionID, Session: r.Session, SnapshotSHA256: hex.EncodeToString(hash[:]), TeacherRosterRequired: append([]string(nil), teacherRosterRequired...)}
-	usedAdmissions := make(map[string]bool, len(admissions)+r.StudentToAdd)
-	for _, value := range admissions {
-		usedAdmissions[value] = true
-	}
-	for _, section := range r.Sections {
-		for slot := 1; slot <= section.ToAdd; slot++ {
-			candidateNumber := section.Existing + slot
-			id := studentIdentifier(r.Session, section.ID, candidateNumber)
-			if !people.ValidAdmissionNumber(id) {
-				return Manifest{}, fmt.Errorf("generated admission number does not meet admission rules")
-			}
-			key := strings.ToLower(id)
-			if usedAdmissions[key] {
-				return Manifest{}, fmt.Errorf("candidate admission number %s collides with an existing or proposed student", id)
-			}
-			usedAdmissions[key] = true
-			m.StudentCandidates = append(m.StudentCandidates, StudentCandidate{
-				SessionID: r.SessionID, Session: r.Session, ClassID: section.ClassID, Class: section.Class,
-				SectionID: section.ID, Section: section.Name, AdmissionNo: id,
-				Label: fmt.Sprintf("TEST ONLY - %s %s candidate %02d", section.Class, section.Name, candidateNumber), TestMarker: "TEST",
-			})
-		}
+	m.StudentCandidates, err = buildStudentCandidates(r, admissions)
+	if err != nil {
+		return Manifest{}, err
 	}
 	usedEmployees := make(map[string]bool, len(employees))
 	for _, value := range employees {
@@ -212,6 +193,43 @@ func buildManifestFromKeys(r Report, admissions, employees []string) (Manifest, 
 		m.TeacherCandidates = append(m.TeacherCandidates, TeacherCandidate{EmployeeCode: code})
 	}
 	return m, nil
+}
+
+// buildStudentCandidates is shared with the student-only apply milestone.
+// Teacher targets and protected-account presence are separate setup concerns;
+// they must not block a safe student shortfall preview.
+func buildStudentCandidates(r Report, admissions []string) ([]StudentCandidate, error) {
+	if len(r.Sections) == 0 || len(r.IdentifierConflicts) != 0 {
+		return nil, fmt.Errorf("active sections or existing identifiers require review")
+	}
+	usedAdmissions := make(map[string]bool, len(admissions)+r.StudentToAdd)
+	for _, value := range admissions {
+		usedAdmissions[value] = true
+	}
+	candidates := make([]StudentCandidate, 0, r.StudentToAdd)
+	for _, section := range r.Sections {
+		if section.Existing > StudentsPerSection {
+			return nil, fmt.Errorf("%s %s exceeds %d students", section.Class, section.Name, StudentsPerSection)
+		}
+		for slot := 1; slot <= section.ToAdd; slot++ {
+			candidateNumber := section.Existing + slot
+			id := studentIdentifier(r.Session, section.ID, candidateNumber)
+			if !people.ValidAdmissionNumber(id) {
+				return nil, fmt.Errorf("generated admission number does not meet admission rules")
+			}
+			key := strings.ToLower(id)
+			if usedAdmissions[key] {
+				return nil, fmt.Errorf("candidate admission number %s collides with an existing or proposed student", id)
+			}
+			usedAdmissions[key] = true
+			candidates = append(candidates, StudentCandidate{
+				SessionID: r.SessionID, Session: r.Session, ClassID: section.ClassID, Class: section.Class,
+				SectionID: section.ID, Section: section.Name, AdmissionNo: id,
+				Label: fmt.Sprintf("TEST ONLY - %s %s candidate %02d", section.Class, section.Name, candidateNumber), TestMarker: "TEST",
+			})
+		}
+	}
+	return candidates, nil
 }
 
 func identifierKeys(ctx context.Context, tx *sql.Tx, query string) ([]string, error) {
