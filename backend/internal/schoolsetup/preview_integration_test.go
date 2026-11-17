@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -189,6 +190,33 @@ FROM users u WHERE lower(email) IN ('mdrayhankvr@gmail.com','2023331031@student.
 	joinedWarnings := strings.Join(r.Warnings, "\n")
 	if !strings.Contains(joinedWarnings, "TEN-10 lacks") || !strings.Contains(joinedWarnings, "TEACHER-01 has no linked account") {
 		t.Fatalf("missing setup warnings: %s", joinedWarnings)
+	}
+	generated, generatedReport, err := GenerateManifest(ctx, sqlDB, "2026")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, _, err := GenerateManifest(ctx, sqlDB, "2026")
+	if err != nil || !reflect.DeepEqual(generated, again) {
+		t.Fatalf("manifest changed on repeat: %v", err)
+	}
+	if len(generated.StudentCandidates) != 44 || len(generated.TeacherCandidates) != 14 || !generatedReport.ManifestChecked {
+		t.Fatalf("generated counts: %d students, %d teachers", len(generated.StudentCandidates), len(generated.TeacherCandidates))
+	}
+	checked, err := Preview(ctx, sqlDB, &generated)
+	if err != nil || !checked.ManifestChecked || checked.ManifestStudents != 44 || checked.ManifestTeachers != 14 || len(checked.IdentifierConflicts) != 0 {
+		t.Fatalf("generated manifest preview: %+v, %v", checked, err)
+	}
+	if _, _, err := GenerateManifest(ctx, sqlDB, "2027"); err == nil {
+		t.Fatal("wrong session accepted")
+	}
+	altered := generated
+	altered.StudentCandidates = append([]StudentCandidate(nil), generated.StudentCandidates...)
+	altered.StudentCandidates[0].AdmissionNo = "TEST-TAMPERED"
+	if _, err := Preview(ctx, sqlDB, &altered); err == nil {
+		t.Fatal("modified manifest accepted")
+	}
+	if got := fingerprint(); got != before {
+		t.Fatal("protected administrator rows changed during manifest generation or validation")
 	}
 
 	// Independently verify that PostgreSQL itself rejects a write through the
