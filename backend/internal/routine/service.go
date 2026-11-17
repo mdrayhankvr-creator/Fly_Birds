@@ -109,7 +109,8 @@ type Repository interface {
 	DeleteExamSlot(context.Context, string, string, string) error
 }
 type Service struct {
-	repo Repository
+	repo         Repository
+	ClassPlanner *ClassPlannerService
 	// Term is the term exam routine planner (E8); nil without a database.
 	Term *TermService
 	// Admit makes admit cards from published term routines; nil without a
@@ -120,6 +121,7 @@ type Service struct {
 func NewService(repo Repository) *Service {
 	s := &Service{repo: repo}
 	if g, ok := repo.(*GormRepository); ok {
+		s.ClassPlanner = NewClassPlannerService(g.db)
 		s.Term = NewTermService(NewTermRepository(g.db))
 		s.Admit = NewAdmitService(g.db)
 	}

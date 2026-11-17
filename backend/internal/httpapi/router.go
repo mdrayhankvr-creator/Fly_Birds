@@ -249,6 +249,10 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/attendance/guardians/children/:id/report", RequirePermission(service, "attendance:guardians_read_children"), moduleGuard("attendance"), studentAttendance.child)
 	management.GET("/attendance/alerts", RequirePermission(service, "attendance:alerts_read"), moduleGuard("attendance"), studentAttendance.alerts)
 	tr := &routineHandler{service: routineService}
+	management.POST("/routines/class-planner/preview", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.classPlannerPreview)
+	management.GET("/routines/class-planner/draft", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.classPlannerDraft)
+	management.PUT("/routines/class-planner/draft", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.classPlannerSave)
+	management.POST("/routines/class-planner/publish", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.classPlannerPublish)
 	management.GET("/routines/classes", RequirePermission(service, "routine:read"), moduleGuard("routine"), tr.classes)
 	management.POST("/routines/classes", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.createClass)
 	management.GET("/routines/classes/me", RequirePermission(service, "routine:read_self"), moduleGuard("routine"), tr.ownClasses)

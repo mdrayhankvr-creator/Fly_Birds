@@ -47,9 +47,11 @@ var (
 	ErrResetSchemaUnreviewed = errors.New("school reset policy has not been reviewed for this schema")
 )
 
-const resetReviewedSchemaVersion = 1813
-const resetReviewedMigrationCount = 57
-const resetReviewedTableCount = 114
+// Migration 1815 adds class_routine_plan_versions. It is empty on fresh
+// migration and is emptied with the routine data during a school reset.
+const resetReviewedSchemaVersion = 1815
+const resetReviewedMigrationCount = 58
+const resetReviewedTableCount = 115
 
 // resetKeepExtra are the school's own uploads that belong to its identity.
 // They are empty in a fresh schema, so they have to be named.

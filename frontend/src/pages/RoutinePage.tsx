@@ -6,6 +6,7 @@ import { ApiError, deleteClassRoutineSlot, deleteExamRoutine, deleteExamRoutineS
 import { useAuth } from '../auth/AuthProvider'
 import { CardTitle, ui, PageHeader, Tabs, Notice } from './attendanceUi'
 import { TermRoutinePlanner } from './routine/TermRoutinePlanner'
+import { ClassRoutinePlanner } from './routine/ClassRoutinePlanner'
 import { StudentExamRoutine, TeacherDutyList } from './routine/ExamRoutineViews'
 import { MyAdmitCards } from './routine/AdmitCards'
 
@@ -17,7 +18,7 @@ const blankExam: ExamRoutineInput = { name: '', session_id: '', class_id: '', se
 const blankSlot: ExamRoutineSlotInput = { subject_id: '', exam_date: '', start_time: '10:00', end_time: '12:00', room: '' }
 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-type RoutineTab = 'class' | 'exam' | 'planner' | 'duties'
+type RoutineTab = 'class' | 'exam' | 'planner' | 'class_planner' | 'duties'
 
 export function RoutinePage({ mode, canManage, canApprove = false }: { mode: Mode; canManage: boolean; canApprove?: boolean }) {
   const { t, i18n } = useTranslation()
@@ -25,7 +26,7 @@ export function RoutinePage({ mode, canManage, canApprove = false }: { mode: Mod
   const { accessToken, renew, expire } = useAuth()
   const client = useQueryClient()
   const [searchParams] = useSearchParams()
-  const tabs: RoutineTab[] = mode === 'admin' ? ['class', 'exam', 'planner'] : mode === 'teacher' ? ['class', 'duties'] : ['class', 'exam']
+  const tabs: RoutineTab[] = mode === 'admin' ? ['class', ...(canManage ? ['class_planner' as const] : []), 'exam', 'planner'] : mode === 'teacher' ? ['class', 'duties'] : ['class', 'exam']
   const wanted = searchParams.get('tab') as RoutineTab | null
   const [tab, setTab] = useState<RoutineTab>(wanted && tabs.includes(wanted) ? wanted : 'class')
   const [search, setSearch] = useState('')
@@ -95,16 +96,17 @@ export function RoutinePage({ mode, canManage, canApprove = false }: { mode: Mod
 
   return <div className="space-y-5">
     <PageHeader eyebrow={t('m12Group_academics')} title={t(mode === 'admin' ? 'routineHeading' : mode === 'teacher' ? 'm12Nav_myRoutine' : mode === 'student' ? 'm12Nav_classRoutine' : 'uxChildRoutine')} description={t(mode === 'admin' ? 'routineDescription' : 'uxRoutineIntroSelf')} />
-    <Tabs label={t('weeklyTimetable')} value={tab} onChange={(v: RoutineTab) => { setTab(v); setPage(1) }} items={tabs.map(value => ({ value, label: t(value === 'class' ? 'classRoutine' : value === 'exam' ? 'uxExamSchedule' : value === 'planner' ? 'e8Tab' : 'e8MyDuties') }))} />
+    <Tabs label={t('weeklyTimetable')} value={tab} onChange={(v: RoutineTab) => { setTab(v); setPage(1) }} items={tabs.map(value => ({ value, label: t(value === 'class' ? 'classRoutine' : value === 'class_planner' ? 'crpTab' : value === 'exam' ? 'uxExamSchedule' : value === 'planner' ? 'e8Tab' : 'e8MyDuties') }))} />
     {msg && <Notice tone={error ? 'error' : 'success'}>{msg}</Notice>}
     {tab === 'planner' && <TermRoutinePlanner canManage={canManage} canApprove={canApprove} />}
+    {tab === 'class_planner' && canManage && <ClassRoutinePlanner sessions={sessions.data?.items ?? []} />}
     {tab === 'duties' && <TeacherDutyList />}
     {(tab === 'class' || tab === 'exam') && (mode === 'admin' || mode === 'teacher') && <section className={`${ui.card} p-4 sm:p-6 print:hidden`}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className={ui.label}>{t('search')}<input className={field} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></label>
       {mode === 'admin' && <><label className={ui.label}>{t('academicSessions')}<select className={field} value={sessionId} onChange={e => { setSessionId(e.target.value); setClassId(''); setSectionId(''); setPage(1) }}><option value="">{t('allSessions')}</option>{sessions.data?.items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className={ui.label}>{t('classesHeading')}<select className={field} value={classId} onChange={e => { setClassId(e.target.value); setSectionId(''); setPage(1) }}><option value="">{t('allClasses')}</option>{academicClasses.data?.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className={ui.label}>{t('sectionsHeading')}<select className={field} value={sectionId} onChange={e => { setSectionId(e.target.value); setPage(1) }}><option value="">{t('allSections')}</option>{sections.data?.items.filter(s => (!sessionId || s.session_id === sessionId) && (!classId || s.class_id === classId)).map(s => <option key={s.id} value={s.id}>{s.class_name} {s.name}</option>)}</select></label></>}
       </div>
     </section>}
-    {tab === 'planner' || tab === 'duties' ? null : tab === 'class' ? <>
+    {tab === 'planner' || tab === 'class_planner' || tab === 'duties' ? null : tab === 'class' ? <>
       <section className={`${ui.card} p-4 sm:p-6`}><div className="flex flex-wrap items-center justify-between gap-3"><CardTitle icon="clock">{t('weeklyTimetable')}</CardTitle><button type="button" onClick={() => window.print()} className={`${ui.secondary} print:hidden`}>{t('printRoutine')}</button></div>
         {classes.isPending ? <p role="status" className="mt-4">{t('routineLoading')}</p> : classes.isError ? <p role="alert" className="mt-4 text-rose-700">{t('routineLoadError')}</p> : mode === 'admin' && !sectionId ? <p className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600">{t('m12ChooseSectionForRoutine')}</p> : classItems.length === 0 ? <p className="mt-4 text-slate-600">{t('routineEmpty')}</p> : <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-7">{days.map((day, index) => {
           const slots = classItems.filter(item => item.day_of_week === index)
