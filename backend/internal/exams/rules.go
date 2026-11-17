@@ -39,7 +39,8 @@ func rulesFor(tx *gorm.DB, e Exam) (examRules, error) {
 		}
 	}
 	err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN student_enrolments en ON en.student_id = c.student_id AND en.session_id = c.session_id
- WHERE c.session_id = ? AND en.session_id = ? AND en.class_id = ?)`, e.SessionID, e.SessionID, e.ClassID).Row().Scan(&r.Choices)
+ WHERE c.session_id = ? AND en.session_id = ? AND en.class_id = ?)
+ OR EXISTS (SELECT 1 FROM class_fourth_subject_policies WHERE class_id=? AND enabled)`, e.SessionID, e.SessionID, e.ClassID, e.ClassID).Row().Scan(&r.Choices)
 	return r, err
 }
 
@@ -60,7 +61,7 @@ func studentLines(tx *gorm.DB, e Exam, studentID string, rules examRules) ([]lin
 	rows := []lineRow{}
 	err := tx.Table("exam_marks m").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").
 		Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").
-		Select("m.id AS mark_id,es.subject_id,m.marks,m.status,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth").
+		Select("m.id AS mark_id,es.subject_id,m.marks,m.status,es.full_marks,es.pass_marks,student_subject_is_fourth(m.student_id, ?, ?, es.subject_id) AS is_fourth", e.SessionID, e.ClassID).
 		Where("m.exam_id=? AND m.student_id=? AND student_takes_subject(m.student_id, ?, ?, es.subject_id)", e.ID, studentID, e.SessionID, e.ClassID).
 		Order("es.subject_id").Find(&rows).Error
 	if err != nil {

@@ -331,6 +331,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.POST("/exams/blueprint-versions/:id/sample", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.sample)
 	management.GET("/exams/subject-choices", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.choices)
 	management.PUT("/exams/subject-choices", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveChoices)
+	management.PUT("/exams/fourth-subject-policy", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveFourthPolicy)
 	rh := &resultHandler{service: examService}
 	// E6 result versions: staff read with exams:read; approval needs
 	// exams:review (head teacher or administrator); publication and

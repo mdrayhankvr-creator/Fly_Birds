@@ -741,41 +741,123 @@ func (r *Repository) SetVisibility(ctx context.Context, actor, versionID, key, v
 
 // ChoiceStudent is a student of the class with their optional subject.
 type ChoiceStudent struct {
-	StudentID   string  `json:"student_id"`
-	Name        string  `json:"name"`
-	AdmissionNo string  `json:"admission_no"`
-	RollNo      *int    `json:"roll_no"`
-	SectionName string  `json:"section_name"`
-	SubjectID   *string `json:"subject_id"`
+	StudentID          string   `json:"student_id"`
+	Name               string   `json:"name"`
+	AdmissionNo        string   `json:"admission_no"`
+	RollNo             *int     `json:"roll_no"`
+	SectionName        string   `json:"section_name"`
+	SubjectID          *string  `json:"subject_id"`
+	Gender             string   `json:"gender"`
+	EffectiveSubjectID *string  `json:"effective_subject_id"`
+	ChoiceSource       string   `json:"choice_source"`
+	EligibleSubjectIDs []string `json:"eligible_subject_ids" gorm:"-"`
 }
 
 // ChoicesView lists a class's fourth subjects and its students' choices.
 type ChoicesView struct {
-	Optional []SubjectRef    `json:"optional"`
-	Students []ChoiceStudent `json:"students"`
-	InUse    bool            `json:"in_use"` // any student has a choice: choices decide
-	Counts   map[string]int  `json:"counts"`
+	Optional         []SubjectRef    `json:"optional"`
+	Students         []ChoiceStudent `json:"students"`
+	InUse            bool            `json:"in_use"` // any student has a choice: choices decide
+	Counts           map[string]int  `json:"counts"`
+	Policy           FourthPolicy    `json:"policy"`
+	Warnings         []string        `json:"warnings"`
+	Unresolved       int             `json:"unresolved"`
+	PublishedResults int             `json:"published_results"`
 }
 
 func (r *Repository) Choices(ctx context.Context, sessionID, classID string) (ChoicesView, error) {
 	tx := r.db.WithContext(ctx)
-	v := ChoicesView{Optional: []SubjectRef{}, Students: []ChoiceStudent{}, Counts: map[string]int{}}
+	v := ChoicesView{Optional: []SubjectRef{}, Students: []ChoiceStudent{}, Counts: map[string]int{}, Warnings: []string{}}
+	var err error
+	if v.Policy, err = r.fourthPolicy(tx, classID); err != nil {
+		return v, err
+	}
 	if err := tx.Raw(`SELECT s.id, s.code, s.name_en, s.name_bn, true AS fourth FROM academic_class_subjects acs JOIN academic_subjects s ON s.id = acs.subject_id
  WHERE acs.class_id = ? AND acs.is_fourth_subject ORDER BY s.code`, classID).Scan(&v.Optional).Error; err != nil {
 		return v, err
 	}
-	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en AS name, st.admission_no, r.roll_no, sec.name AS section_name, ch.subject_id
+	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en AS name, st.admission_no, r.roll_no, sec.name AS section_name, ch.subject_id,
+st.gender, student_effective_fourth_subject(st.id,r.session_id,r.class_id) AS effective_subject_id
   FROM student_rolls r JOIN students st ON st.id = r.student_id JOIN academic_sections sec ON sec.id = r.section_id
   LEFT JOIN student_subject_choices ch ON ch.student_id = r.student_id AND ch.session_id = r.session_id
  WHERE r.session_id = ? AND r.class_id = ?
  ORDER BY sec.display_order, sec.name, r.roll_no NULLS LAST, st.admission_no`, sessionID, classID).Scan(&v.Students).Error; err != nil {
 		return v, err
 	}
-	for _, s := range v.Students {
+	eligible := []struct{ StudentID, SubjectID string }{}
+	if err := tx.Raw(`SELECT r.student_id,acs.subject_id FROM student_rolls r JOIN academic_classes c ON c.id=r.class_id
+JOIN academic_class_subjects acs ON acs.class_id=r.class_id AND acs.is_fourth_subject
+WHERE r.session_id=? AND r.class_id=? AND
+(NOT c.uses_groups OR NOT EXISTS (SELECT 1 FROM class_group_subjects gs WHERE gs.class_id=r.class_id AND gs.subject_id=acs.subject_id)
+OR EXISTS (SELECT 1 FROM class_group_subjects gs JOIN student_group_choices gc ON gc.group_id=gs.group_id
+WHERE gs.class_id=r.class_id AND gs.subject_id=acs.subject_id AND gc.student_id=r.student_id AND gc.session_id=r.session_id))`, sessionID, classID).Scan(&eligible).Error; err != nil {
+		return v, err
+	}
+	byStudent := map[string][]string{}
+	for _, row := range eligible {
+		byStudent[row.StudentID] = append(byStudent[row.StudentID], row.SubjectID)
+	}
+	for i := range v.Students {
+		s := &v.Students[i]
+		s.EligibleSubjectIDs = byStudent[s.StudentID]
+		if s.EligibleSubjectIDs == nil {
+			s.EligibleSubjectIDs = []string{}
+		}
 		if s.SubjectID != nil {
 			v.InUse = true
 			v.Counts[*s.SubjectID]++
+			s.ChoiceSource = "override"
+		} else if v.Policy.Enabled {
+			if s.EffectiveSubjectID == nil {
+				s.ChoiceSource = "unresolved"
+				v.Unresolved++
+			} else {
+				s.ChoiceSource = "default"
+				v.Counts[*s.EffectiveSubjectID]++
+			}
+		} else {
+			s.ChoiceSource = "legacy"
 		}
+	}
+	var religionOptional int64
+	if err := tx.Raw(`SELECT count(*) FROM academic_class_subjects acs JOIN academic_subjects s ON s.id=acs.subject_id
+WHERE acs.class_id=? AND acs.is_fourth_subject AND (s.code='111' OR lower(s.name_en) LIKE '%religion%')`, classID).Row().Scan(&religionOptional); err != nil {
+		return v, err
+	}
+	if religionOptional != 0 {
+		v.Warnings = append(v.Warnings, "religion_is_optional")
+	}
+	var religionCourses int64
+	if err := tx.Raw(`SELECT count(*) FROM academic_class_subjects acs JOIN academic_subjects s ON s.id=acs.subject_id
+WHERE acs.class_id=? AND (s.code='111' OR lower(s.name_en) LIKE '%religion%')`, classID).Row().Scan(&religionCourses); err != nil {
+		return v, err
+	}
+	if religionCourses > 1 {
+		v.Warnings = append(v.Warnings, "multiple_religion_courses")
+	}
+	ineligibleChoices, err := r.ineligibleFourthChoices(tx, classID)
+	if err != nil {
+		return v, err
+	}
+	if ineligibleChoices > 0 {
+		v.Warnings = append(v.Warnings, "ineligible_existing_choices")
+	}
+	if len(v.Optional) == 0 {
+		v.Warnings = append(v.Warnings, "no_optional_mappings")
+	} else if len(v.Optional) < 2 {
+		v.Warnings = append(v.Warnings, "insufficient_default_options")
+	}
+	if !v.Policy.Enabled {
+		v.Warnings = append(v.Warnings, "policy_not_configured")
+	}
+	if v.Policy.Enabled && v.Unresolved > 0 {
+		v.Warnings = append(v.Warnings, "unresolved_choices")
+	}
+	if err := tx.Raw("SELECT count(*) FROM result_versions WHERE class_id=? AND session_id=? AND status='published'", classID, sessionID).Row().Scan(&v.PublishedResults); err != nil {
+		return v, err
+	}
+	if v.PublishedResults > 0 {
+		v.Warnings = append(v.Warnings, "published_results_need_review")
 	}
 	return v, nil
 }
@@ -786,8 +868,17 @@ type Choice struct {
 	SubjectID string `json:"subject_id"`
 }
 
-func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID string, choices []Choice) (ChoicesView, error) {
+func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID string, choices []Choice, reviewPublished bool) (ChoicesView, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if reviewPublished {
+			if err := tx.Exec("SELECT set_config('app.subject_choice_review','on',true)").Error; err != nil {
+				return err
+			}
+		}
+		policy, err := r.fourthPolicy(tx, classID)
+		if err != nil {
+			return err
+		}
 		changed := 0
 		var changes []map[string]string // who moved from which subject to which, for the audit
 		for _, c := range choices {
@@ -803,6 +894,13 @@ func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID 
 				return err
 			}
 			if before != c.SubjectID {
+				var published int64
+				if err := tx.Raw("SELECT count(*) FROM result_versions WHERE student_id=? AND session_id=?", c.StudentID, sessionID).Row().Scan(&published); err != nil {
+					return err
+				}
+				if published != 0 && policy.Enabled && !reviewPublished {
+					return ErrInUse
+				}
 				changes = append(changes, map[string]string{"student_id": c.StudentID, "from": before, "to": c.SubjectID})
 			}
 			if c.SubjectID == "" {
@@ -813,7 +911,11 @@ func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID 
 				changed += int(res.RowsAffected)
 				continue
 			}
-			if err := tx.Raw("SELECT count(*) FROM academic_class_subjects WHERE class_id = ? AND subject_id = ? AND is_fourth_subject", classID, c.SubjectID).Row().Scan(&ok); err != nil {
+			if err := tx.Raw(`SELECT count(*) FROM academic_class_subjects acs JOIN academic_classes cl ON cl.id=acs.class_id
+WHERE acs.class_id=? AND acs.subject_id=? AND acs.is_fourth_subject
+AND (NOT cl.uses_groups OR NOT EXISTS (SELECT 1 FROM class_group_subjects gs WHERE gs.class_id=acs.class_id AND gs.subject_id=acs.subject_id)
+OR EXISTS (SELECT 1 FROM class_group_subjects gs JOIN student_group_choices gc ON gc.group_id=gs.group_id
+WHERE gs.class_id=acs.class_id AND gs.subject_id=acs.subject_id AND gc.student_id=? AND gc.session_id=?))`, classID, c.SubjectID, c.StudentID, sessionID).Row().Scan(&ok); err != nil {
 				return err
 			}
 			if ok == 0 {
@@ -834,7 +936,11 @@ WHERE student_subject_choices.subject_id <> EXCLUDED.subject_id`, c.StudentID, s
 		if err := tx.Raw("SELECT count(*) FROM exams WHERE session_id = ? AND class_id = ? AND status = 'published'", sessionID, classID).Row().Scan(&published); err != nil {
 			return err
 		}
-		return audit.Record(tx, &actor, "exam.subject_choices_saved", "class", classID, map[string]any{"session_id": sessionID, "changed": changed, "changes": changes, "published_exams": published})
+		var versions int64
+		if err := tx.Raw("SELECT count(*) FROM result_versions WHERE class_id=? AND session_id=?", classID, sessionID).Row().Scan(&versions); err != nil {
+			return err
+		}
+		return audit.Record(tx, &actor, "exam.subject_choices_saved", "class", classID, map[string]any{"session_id": sessionID, "changed": changed, "changes": changes, "published_exams": published, "published_versions": versions, "review_acknowledged": reviewPublished})
 	})
 	if err != nil {
 		return ChoicesView{}, dbErr(err)

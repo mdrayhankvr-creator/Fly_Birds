@@ -47,9 +47,12 @@ var (
 	ErrResetSchemaUnreviewed = errors.New("school reset policy has not been reviewed for this schema")
 )
 
-const resetReviewedSchemaVersion = 1813
-const resetReviewedMigrationCount = 57
-const resetReviewedTableCount = 114
+// Migration 1814 adds class_fourth_subject_policies. It is empty after a
+// fresh migration and belongs to the academic structure, so a school reset
+// empties it with classes, mappings and student choices.
+const resetReviewedSchemaVersion = 1814
+const resetReviewedMigrationCount = 58
+const resetReviewedTableCount = 115
 
 // resetKeepExtra are the school's own uploads that belong to its identity.
 // They are empty in a fresh schema, so they have to be named.
