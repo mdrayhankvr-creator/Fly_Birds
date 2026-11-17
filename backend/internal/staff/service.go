@@ -20,6 +20,9 @@ var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-
 var code = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,31}$`)
 var phone = regexp.MustCompile(`^[+0-9() -]{0,32}$`)
 
+// ValidEmployeeCode uses the same format required by employee creation.
+func ValidEmployeeCode(value string) bool { return code.MatchString(value) }
+
 type Employee struct {
 	ID           string  `json:"id"`
 	EmployeeCode string  `json:"employee_code"`
@@ -164,7 +167,7 @@ func (s *Service) SaveEmployee(ctx context.Context, actor, id string, input Empl
 	input.NameBN = strings.TrimSpace(input.NameBN)
 	input.Designation = strings.TrimSpace(input.Designation)
 	input.Phone = strings.TrimSpace(input.Phone)
-	if !code.MatchString(input.EmployeeCode) || (input.Kind != "teacher" && input.Kind != "non_teaching") || !validText(input.NameEN, 160, true) || !validText(input.NameBN, 160, false) || !validText(input.Designation, 120, true) || !phone.MatchString(input.Phone) || !validDate(input.JoinedOn) {
+	if !ValidEmployeeCode(input.EmployeeCode) || (input.Kind != "teacher" && input.Kind != "non_teaching") || !validText(input.NameEN, 160, true) || !validText(input.NameBN, 160, false) || !validText(input.Designation, 120, true) || !phone.MatchString(input.Phone) || !validDate(input.JoinedOn) {
 		return Employee{}, ErrInvalid
 	}
 	if input.UserID != nil && !validID(*input.UserID) {

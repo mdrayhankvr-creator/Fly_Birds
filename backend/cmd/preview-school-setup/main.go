@@ -2,6 +2,7 @@
 // conflicts. It has no apply mode, never migrates, and never generates passwords.
 //
 //	DATABASE_URL=... go run ./cmd/preview-school-setup [--json] [--manifest identifiers.json]
+//	DATABASE_URL=... go run ./cmd/preview-school-setup --generate-manifest identifiers.json --session 2026
 package main
 
 import (
@@ -25,11 +26,21 @@ func run(args []string, stdout, stderr io.Writer) int {
 	f.SetOutput(stderr)
 	asJSON := f.Bool("json", false, "print JSON report")
 	manifestPath := f.String("manifest", "", "optional JSON file of proposed identifiers only")
+	generatePath := f.String("generate-manifest", "", "write a new identifier-only manifest; never overwrite")
+	expectedSession := f.String("session", "", "required active session name for manifest generation")
 	if err := f.Parse(args); err != nil {
 		return 2
 	}
 	if f.NArg() != 0 {
 		fmt.Fprintln(stderr, "unexpected positional arguments")
+		return 2
+	}
+	if *generatePath != "" && (*manifestPath != "" || *asJSON || *expectedSession == "" || *generatePath == "-") {
+		fmt.Fprintln(stderr, "--generate-manifest requires --session and a new file path; it cannot be combined with --manifest or --json")
+		return 2
+	}
+	if *generatePath == "" && *expectedSession != "" {
+		fmt.Fprintln(stderr, "--session is only used with --generate-manifest")
 		return 2
 	}
 	var manifest *schoolsetup.Manifest
@@ -59,6 +70,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer sqlDB.Close()
+	if *generatePath != "" {
+		manifest, report, err := schoolsetup.GenerateManifest(ctx, sqlDB, *expectedSession)
+		if err != nil {
+			fmt.Fprintln(stderr, "manifest generation failed:", err)
+			return 1
+		}
+		if err := writeManifestExclusive(*generatePath, manifest); err != nil {
+			fmt.Fprintln(stderr, "manifest was not saved:", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Wrote new TEST identifier manifest: %d student candidates across %d active sections, %d teacher-code candidates, session %s. No database records or credentials changed.\n", len(manifest.StudentCandidates), len(report.Sections), len(manifest.TeacherCandidates), report.Session)
+		return 0
+	}
 	report, err := schoolsetup.Preview(ctx, sqlDB, manifest)
 	if err != nil {
 		fmt.Fprintln(stderr, "school setup preview failed:", err)
@@ -99,10 +123,27 @@ func readManifest(path string) (*schoolsetup.Manifest, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return nil, fmt.Errorf("manifest must contain exactly one JSON object")
 	}
-	if len(m.StudentAdmissionNumbers)+len(m.TeacherEmployeeCodes)+len(m.AccountEmails) == 0 {
+	if len(m.StudentAdmissionNumbers)+len(m.TeacherEmployeeCodes)+len(m.AccountEmails)+len(m.StudentCandidates)+len(m.TeacherCandidates) == 0 && m.SchemaVersion != schoolsetup.ManifestSchemaVersion {
 		return nil, fmt.Errorf("manifest contains no proposed identifiers")
 	}
 	return &m, nil
+}
+
+func writeManifestExclusive(path string, manifest schoolsetup.Manifest) error {
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := f.Write(data); err != nil {
+		return err
+	}
+	return f.Sync()
 }
 
 func printReport(w io.Writer, r schoolsetup.Report) {
@@ -144,7 +185,10 @@ func printReport(w io.Writer, r schoolsetup.Report) {
 	for _, a := range r.ProtectedAdmins {
 		fmt.Fprintf(w, "  %s: present=%t role=%s active=%t excluded=%t\n", a.Email, a.Present, a.Role, a.Active, a.ExcludedFromProposedChanges)
 	}
-	fmt.Fprintf(w, "Candidate manifest checked: %t; identifier conflicts: %d\n", r.ManifestChecked, len(r.IdentifierConflicts))
+	fmt.Fprintf(w, "Candidate manifest checked: %t; student identifiers: %d; teacher identifiers: %d; identifier conflicts: %d\n", r.ManifestChecked, r.ManifestStudents, r.ManifestTeachers, len(r.IdentifierConflicts))
+	if r.ManifestTeachers > 0 {
+		fmt.Fprintln(w, "Teacher roster still needed: name, designation, joining date, subject assignments, qualifications and availability, account-link decision.")
+	}
 	for _, c := range r.IdentifierConflicts {
 		fmt.Fprintf(w, "  %s %s: %s\n", c.Kind, c.Value, c.Reason)
 	}

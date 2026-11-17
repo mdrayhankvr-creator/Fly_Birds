@@ -27,13 +27,22 @@ var protectedAdminEmails = [...]string{
 // Manifest contains identifiers to check, not records to import. Deliberately
 // no password, role, profile association, or school-setting field is accepted.
 type Manifest struct {
-	StudentAdmissionNumbers []string `json:"student_admission_numbers"`
-	TeacherEmployeeCodes    []string `json:"teacher_employee_codes"`
-	AccountEmails           []string `json:"account_emails"`
+	SchemaVersion           int                `json:"schema_version,omitempty"`
+	SessionID               string             `json:"session_id,omitempty"`
+	Session                 string             `json:"session,omitempty"`
+	SnapshotSHA256          string             `json:"snapshot_sha256,omitempty"`
+	StudentCandidates       []StudentCandidate `json:"student_candidates,omitempty"`
+	TeacherCandidates       []TeacherCandidate `json:"teacher_candidates,omitempty"`
+	TeacherRosterRequired   []string           `json:"teacher_roster_required,omitempty"`
+	StudentAdmissionNumbers []string           `json:"student_admission_numbers,omitempty"`
+	TeacherEmployeeCodes    []string           `json:"teacher_employee_codes,omitempty"`
+	AccountEmails           []string           `json:"account_emails,omitempty"`
 }
 
 type Section struct {
+	ClassID  string `json:"class_id"`
 	Class    string `json:"class"`
+	ID       string `json:"section_id"`
 	Name     string `json:"section"`
 	Target   int    `json:"target"`
 	Existing int    `json:"existing"`
@@ -83,6 +92,7 @@ type IdentifierConflict struct {
 type Report struct {
 	ReadOnly             bool                 `json:"read_only"`
 	School               string               `json:"school"`
+	SessionID            string               `json:"session_id"`
 	Session              string               `json:"session"`
 	StudentsPerSection   int                  `json:"students_per_section"`
 	StudentExisting      int                  `json:"student_existing"`
@@ -99,6 +109,8 @@ type Report struct {
 	LunchMinutes         int                  `json:"lunch_minutes"`
 	MissingRoutineInputs []string             `json:"missing_routine_inputs"`
 	ManifestChecked      bool                 `json:"manifest_checked"`
+	ManifestStudents     int                  `json:"manifest_students"`
+	ManifestTeachers     int                  `json:"manifest_teachers"`
 	IdentifierConflicts  []IdentifierConflict `json:"identifier_conflicts"`
 	ProtectedAdmins      []AdminProtection    `json:"protected_admins"`
 	CredentialsGenerated bool                 `json:"credentials_generated"`
@@ -118,6 +130,22 @@ func beginReadOnly(ctx context.Context, db *sql.DB) (*sql.Tx, error) {
 // Preview reads one consistent snapshot. There is intentionally no mutation
 // method in this package, and PostgreSQL rejects writes in its transaction.
 func Preview(ctx context.Context, db *sql.DB, manifest *Manifest) (Report, error) {
+	tx, err := beginReadOnly(ctx, db)
+	if err != nil {
+		return Report{}, err
+	}
+	defer tx.Rollback()
+	r, err := previewTx(ctx, tx, manifest)
+	if err != nil {
+		return Report{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Report{}, err
+	}
+	return r, nil
+}
+
+func previewTx(ctx context.Context, tx *sql.Tx, manifest *Manifest) (Report, error) {
 	r := Report{
 		ReadOnly: true, StudentsPerSection: StudentsPerSection, TeacherTarget: TeacherTarget,
 		LunchMinutes: LunchMinutes, Sections: []Section{}, Teachers: []Teacher{},
@@ -129,38 +157,32 @@ func Preview(ctx context.Context, db *sql.DB, manifest *Manifest) (Report, error
 			"teacher subject assignments, qualifications and availability", "room list and group split rules",
 		},
 	}
-	tx, err := beginReadOnly(ctx, db)
-	if err != nil {
-		return Report{}, err
-	}
-	defer tx.Rollback()
 	if err := tx.QueryRowContext(ctx, "SELECT name_en FROM school_settings WHERE id=1").Scan(&r.School); err != nil {
 		return Report{}, fmt.Errorf("school identity: %w", err)
 	}
-	var sessionID string
-	if err := tx.QueryRowContext(ctx, "SELECT id::text, name FROM academic_sessions WHERE is_active").Scan(&sessionID, &r.Session); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT id::text, name FROM academic_sessions WHERE is_active").Scan(&r.SessionID, &r.Session); err != nil {
 		return Report{}, fmt.Errorf("active session: %w", err)
 	}
 
 	classes := map[string]*classRow{}
-	sectionRows, err := tx.QueryContext(ctx, `SELECT sec.class_id::text,c.name,c.uses_groups,sec.name,count(st.id)
+	sectionRows, err := tx.QueryContext(ctx, `SELECT sec.class_id::text,c.name,c.uses_groups,sec.id::text,sec.name,count(st.id)
 FROM academic_sections sec JOIN academic_classes c ON c.id=sec.class_id
 LEFT JOIN students st ON st.section_id=sec.id AND st.session_id=sec.session_id
 WHERE sec.session_id=$1 AND sec.is_active AND c.is_active
-GROUP BY sec.id,c.id ORDER BY c.display_order,c.name,sec.display_order,sec.name`, sessionID)
+GROUP BY sec.id,c.id ORDER BY c.display_order,c.name,sec.display_order,sec.name`, r.SessionID)
 	if err != nil {
 		return Report{}, fmt.Errorf("sections: %w", err)
 	}
 	for sectionRows.Next() {
-		var id, className, sectionName string
+		var id, className, sectionID, sectionName string
 		var usesGroups bool
 		var existing int
-		if err := sectionRows.Scan(&id, &className, &usesGroups, &sectionName, &existing); err != nil {
+		if err := sectionRows.Scan(&id, &className, &usesGroups, &sectionID, &sectionName, &existing); err != nil {
 			sectionRows.Close()
 			return Report{}, err
 		}
 		add := max(0, StudentsPerSection-existing)
-		r.Sections = append(r.Sections, Section{Class: className, Name: sectionName, Target: StudentsPerSection, Existing: existing, ToAdd: add})
+		r.Sections = append(r.Sections, Section{ClassID: id, Class: className, ID: sectionID, Name: sectionName, Target: StudentsPerSection, Existing: existing, ToAdd: add})
 		r.StudentExisting += existing
 		r.StudentToAdd += add
 		if existing > StudentsPerSection {
@@ -184,7 +206,7 @@ GROUP BY sec.id,c.id ORDER BY c.display_order,c.name,sec.display_order,sec.name`
 coalesce(u.role,''),coalesce(u.is_active,false),p.employee_id IS NOT NULL,
 (SELECT count(*) FROM teacher_assignments a WHERE a.employee_id=e.id AND a.session_id=$1)
 FROM employees e LEFT JOIN users u ON u.id=e.user_id LEFT JOIN employee_photos p ON p.employee_id=e.id
-WHERE e.kind='teacher' ORDER BY e.employee_code,e.id`, sessionID)
+WHERE e.kind='teacher' ORDER BY e.employee_code,e.id`, r.SessionID)
 	if err != nil {
 		return Report{}, fmt.Errorf("teachers: %w", err)
 	}
@@ -244,13 +266,13 @@ JOIN academic_subjects s ON s.id=acs.subject_id WHERE acs.is_fourth_subject ORDE
 			f := FourthSubject{Class: c.name, UsesGroups: c.usesGroups, Options: append([]Subject{}, options[c.id]...), ProposedWithoutChoice: c.toAdd}
 			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM students st LEFT JOIN student_subject_choices ch
 ON ch.student_id=st.id AND ch.session_id=st.session_id AND ch.role='optional'
-WHERE st.session_id=$1 AND st.class_id=$2 AND ch.student_id IS NULL`, sessionID, c.id).Scan(&f.ExistingWithoutChoice); err != nil {
+WHERE st.session_id=$1 AND st.class_id=$2 AND ch.student_id IS NULL`, r.SessionID, c.id).Scan(&f.ExistingWithoutChoice); err != nil {
 				return Report{}, err
 			}
 			if c.usesGroups {
 				f.ProposedWithoutGroupChoice = c.toAdd
 				if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM students st LEFT JOIN student_group_choices gc
-ON gc.student_id=st.id AND gc.session_id=st.session_id WHERE st.session_id=$1 AND st.class_id=$2 AND gc.student_id IS NULL`, sessionID, c.id).Scan(&f.ExistingWithoutGroupChoice); err != nil {
+ON gc.student_id=st.id AND gc.session_id=st.session_id WHERE st.session_id=$1 AND st.class_id=$2 AND gc.student_id IS NULL`, r.SessionID, c.id).Scan(&f.ExistingWithoutGroupChoice); err != nil {
 					return Report{}, err
 				}
 			}
@@ -308,10 +330,14 @@ ON gc.student_id=st.id AND gc.session_id=st.session_id WHERE st.session_id=$1 AN
 		}
 		r.ProtectedAdmins = append(r.ProtectedAdmins, a)
 	}
-	if err := checkIdentifiers(ctx, tx, manifest, &r); err != nil {
-		return Report{}, err
+	if manifest != nil && (manifest.SchemaVersion != 0 || len(manifest.StudentCandidates) != 0 || len(manifest.TeacherCandidates) != 0 || manifest.SessionID != "" || manifest.SnapshotSHA256 != "") {
+		if err := validateGeneratedManifest(ctx, tx, manifest, r); err != nil {
+			return Report{}, err
+		}
+		r.ManifestStudents = len(manifest.StudentCandidates)
+		r.ManifestTeachers = len(manifest.TeacherCandidates)
 	}
-	if err := tx.Commit(); err != nil {
+	if err := checkIdentifiers(ctx, tx, manifest, &r); err != nil {
 		return Report{}, err
 	}
 	return r, nil
@@ -350,8 +376,8 @@ func checkIdentifiers(ctx context.Context, tx *sql.Tx, manifest *Manifest, r *Re
 		kind, query string
 		values      []string
 	}{
-		{"admission_number", "SELECT lower(admission_no) FROM students", manifest.StudentAdmissionNumbers},
-		{"employee_code", "SELECT upper(employee_code) FROM employees", manifest.TeacherEmployeeCodes},
+		{"admission_number", "SELECT lower(admission_no) FROM students", append(candidateAdmissions(manifest.StudentCandidates), manifest.StudentAdmissionNumbers...)},
+		{"employee_code", "SELECT upper(employee_code) FROM employees", append(candidateEmployeeCodes(manifest.TeacherCandidates), manifest.TeacherEmployeeCodes...)},
 		{"email", "SELECT lower(email) FROM users", manifest.AccountEmails},
 	} {
 		if len(spec.values) > 1000 {

@@ -226,7 +226,7 @@ func validStatus(s string) bool {
 }
 func normalizeStudent(v StudentInput) (StudentInput, error) {
 	v.AdmissionNo, v.NameEN, v.NameBN = strings.TrimSpace(v.AdmissionNo), strings.TrimSpace(v.NameEN), strings.TrimSpace(v.NameBN)
-	if !validText(v.AdmissionNo, 64, true) || !validText(v.NameEN, 160, true) || !validText(v.NameBN, 160, false) || !validStatus(v.Status) || !validID(v.SessionID) || !validID(v.ClassID) || !validID(v.SectionID) || (v.UserID != "" && !validID(v.UserID)) || (v.RollNo != nil && (*v.RollNo < 1 || *v.RollNo > 999999)) {
+	if !ValidAdmissionNumber(v.AdmissionNo) || !validText(v.NameEN, 160, true) || !validText(v.NameBN, 160, false) || !validStatus(v.Status) || !validID(v.SessionID) || !validID(v.ClassID) || !validID(v.SectionID) || (v.UserID != "" && !validID(v.UserID)) || (v.RollNo != nil && (*v.RollNo < 1 || *v.RollNo > 999999)) {
 		return v, ErrInvalid
 	}
 	if v.DateOfBirth != "" {
@@ -237,6 +237,9 @@ func normalizeStudent(v StudentInput) (StudentInput, error) {
 	}
 	return normalizeProfile(v)
 }
+
+// ValidAdmissionNumber uses the same shape and length rules as admission.
+func ValidAdmissionNumber(value string) bool { return validText(value, 64, true) }
 
 var bloodGroups = map[string]bool{"": true, "A+": true, "A-": true, "B+": true, "B-": true, "AB+": true, "AB-": true, "O+": true, "O-": true}
 
