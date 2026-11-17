@@ -102,6 +102,24 @@ func (h *staffHandler) saveEmployee(c *gin.Context) {
 	success(c, status, v)
 }
 
+// linkAccount joins an existing teacher record to an existing login. The
+// service verifies the account email, employee code, role and availability.
+func (h *staffHandler) linkAccount(c *gin.Context) {
+	if !h.available(c) {
+		return
+	}
+	var input staff.AccountLinkInput
+	if !decodeSchoolJSON(c, 4*1024, &input) {
+		return
+	}
+	v, err := h.service.LinkAccount(c.Request.Context(), staffActor(c), c.Param("id"), input)
+	if err != nil {
+		staffError(c, err)
+		return
+	}
+	success(c, http.StatusOK, v)
+}
+
 // ownEmployee godoc
 // @Summary Read the signed-in employee profile
 // @Tags staff

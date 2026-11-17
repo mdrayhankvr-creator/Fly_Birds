@@ -12,7 +12,7 @@ export type StaffProfile = {
   phone?: string; email?: string; qualifications?: string[]; joined_on?: string; mpo_index?: string; nid_masked?: string
   attendance?: { month: StaffCounts; session: StaffCounts }; leaves?: EmployeeLeave[]; visibility?: StaffVisibility
   // The sign-in number, for administrators only.
-  user_id?: string; login_phone?: string
+  user_id?: string; login_phone?: string; linked_account_email?: string; linked_account_role?: string
   self: boolean; can_edit_own: boolean; can_edit_official: boolean; can_reveal_nid: boolean; can_see_salary: boolean
 }
 export type OwnProfileInput = { qualifications: string[]; visibility: StaffVisibility }
@@ -20,6 +20,7 @@ export type OfficialInput = { email?: string; mpo_index?: string; nid?: string }
 
 const base = (id: string) => `/staff/profiles/${encodeURIComponent(id)}`
 export const getStaffProfile = (token: string, id: string) => bearerRequest<StaffProfile>(id === 'me' ? '/staff/me/profile' : base(id), token)
+export const linkStaffAccount = (token: string, id: string, input: { user_id: string; confirm_email: string; confirm_employee_code: string }) => bearerRequest(`/staff/employees/${encodeURIComponent(id)}/account-link`, token, json('POST', input))
 export const getStaffPhoto = (token: string, id: string, version: string) => bearerBlob(`${base(id)}/photo?v=${encodeURIComponent(version)}`, token)
 export const saveOwnStaffProfile = (token: string, input: OwnProfileInput) => bearerRequest<StaffProfile>('/staff/me/profile', token, json('PATCH', input))
 export const saveStaffOfficial = (token: string, id: string, input: OfficialInput) => bearerRequest<StaffProfile>(`/staff/employees/${encodeURIComponent(id)}/official`, token, json('PATCH', input))
