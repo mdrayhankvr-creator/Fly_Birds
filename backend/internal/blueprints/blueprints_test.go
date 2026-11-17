@@ -320,6 +320,34 @@ func TestExampleFiveOptionalSubject(t *testing.T) {
 	}
 }
 
+func TestStudentSpecificScienceMainFourthSwap(t *testing.T) {
+	d := schoolC("ENG")
+	for _, id := range []string{"BIO", "HMATH", "AGRI", "HOME"} {
+		d.Subjects = append(d.Subjects, finalOnly(id, "optional", total(100)))
+	}
+	st := student("science", sheetMarks{"TERM1": {
+		"ENG": present(75, 100), "BIO": present(10, 100), "HMATH": present(90, 100),
+		"AGRI": present(90, 100), "HOME": present(90, 100),
+	}})
+	st.Takes = func(id string) bool { return id != "AGRI" && id != "HOME" }
+	st.Fourth = func(id string) bool { return id == "BIO" }
+	r := one(t, d, st)
+	if r.Outcome != "passed" || r.GPA != "4.50" || len(r.Subjects) != 3 || !r.Subjects[1].Optional || r.Subjects[2].Optional {
+		t.Fatalf("failed optional Biology or main Higher Mathematics: %+v", r)
+	}
+	st.Fourth = func(id string) bool { return id == "HMATH" }
+	r = one(t, d, st)
+	if r.Outcome != "failed" || r.Subjects[1].Optional || !r.Subjects[2].Optional {
+		t.Fatalf("failed main Biology must fail result: %+v", r)
+	}
+	st.Marks["TERM1"]["BIO"] = present(95, 100)
+	st.Fourth = func(id string) bool { return id == "BIO" }
+	r = one(t, d, st)
+	if r.Outcome != "passed" || r.GPA != "5.00" {
+		t.Fatalf("optional bonus must cap GPA at 5: %+v", r)
+	}
+}
+
 // Example 8: CT 2 exempt leaves CT 1 (17/20 → 85 %) worth 17.00; an exempt
 // term exam shrinks the full marks and scales the pass mark; a missing mark
 // makes the result incomplete and unranked.

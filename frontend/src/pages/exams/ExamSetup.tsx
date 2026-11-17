@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
-  createBlueprint, deleteExamTerm, getClassBlueprints, getExamTerms, getSubjectChoices, newBlueprintVersion, saveExamTerm, saveSubjectChoices,
-  type AcademicSession, type ClassBlueprint, type ExamTerm, type ExamTermInput,
+  createBlueprint, deleteExamTerm, getClassBlueprints, getClassGroups, getExamTerms, getSubjectChoices, newBlueprintVersion, saveExamTerm, saveSubjectChoices, saveFourthSubjectPolicy,
+  type AcademicSession, type ClassBlueprint, type ExamTerm, type ExamTermInput, type FourthPolicy,
 } from '../../api/client'
 import { confirmAction } from '../../components/ConfirmDialog'
 import { EmptyState, Notice, PageHeader, SectionCard, Skeleton, Tabs, ui } from '../attendanceUi'
@@ -171,38 +171,99 @@ function ChoicesPanel({ sessionId, canManage }: { sessionId: string; canManage: 
   const [classId, setClassId] = useState('')
   const chosenClass = classId || classes.data?.[0]?.class_id || ''
   const choices = useQuery({ queryKey: ['e5', 'choices', sessionId, chosenClass], enabled: !!chosenClass, queryFn: () => authorized(token => getSubjectChoices(token, sessionId, chosenClass)), retry: false })
+  const groups = useQuery({ queryKey: ['e5', 'groups', chosenClass], enabled: !!chosenClass, queryFn: () => authorized(token => getClassGroups(token, chosenClass)), retry: false })
   const [edits, setEdits] = useState<Record<string, string>>({})
+  const [policyEdits, setPolicyEdits] = useState<FourthPolicy | null>(null)
   const [fill, setFill] = useState('')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const changed = Object.keys(edits).length
+  const previewPolicy = policyEdits ?? choices.data?.policy
+  const previewStudents = choices.data?.students.map(s => {
+    if (!policyEdits) return s
+    if (!policyEdits.enabled) return { ...s, effective_subject_id: s.subject_id, choice_source: 'legacy' as const }
+    if (s.subject_id) return { ...s, effective_subject_id: s.subject_id, choice_source: 'override' as const }
+    const candidate = s.gender === 'male' ? policyEdits.male_subject_id : s.gender === 'female' ? policyEdits.female_subject_id : ''
+    const applicable = candidate !== '' && s.eligible_subject_ids.includes(candidate)
+    return { ...s, effective_subject_id: applicable ? candidate : null, choice_source: applicable ? 'default' as const : 'unresolved' as const }
+  }) ?? []
+  const previewCounts = policyEdits
+    ? previewStudents.reduce<Record<string, number>>((counts, s) => {
+      const id = policyEdits.enabled ? s.effective_subject_id : s.subject_id
+      if (id) counts[id] = (counts[id] ?? 0) + 1
+      return counts
+    }, {})
+    : choices.data?.counts ?? {}
+  const previewUnresolved = previewStudents.filter(s => s.choice_source === 'unresolved').length
 
   async function save() {
+    const reviewPublished = !!choices.data?.policy.enabled
+    if (reviewPublished && !await confirmAction(t('bpPolicyReviewConfirm'))) return
     setBusy(true); setNotice(null)
     try {
-      await authorized(token => saveSubjectChoices(token, sessionId, chosenClass, Object.entries(edits).map(([student_id, subject_id]) => ({ student_id, subject_id }))))
+      await authorized(token => saveSubjectChoices(token, sessionId, chosenClass, Object.entries(edits).map(([student_id, subject_id]) => ({ student_id, subject_id })), reviewPublished))
       setEdits({}); await client.invalidateQueries({ queryKey: ['e5', 'choices'] }); setNotice({ tone: 'success', text: t('bpChoicesSaved', { count: changed }) })
     } catch (cause) { setNotice({ tone: 'error', text: explain(cause) }) }
     finally { setBusy(false) }
   }
 
+  async function savePolicy() {
+    if (!policyEdits) return
+    setBusy(true); setNotice(null)
+    try {
+      await authorized(token => saveFourthSubjectPolicy(token, chosenClass, policyEdits))
+      setPolicyEdits(null); await client.invalidateQueries({ queryKey: ['e5', 'choices', sessionId, chosenClass] })
+      setNotice({ tone: 'success', text: t('bpPolicySaved') })
+    } catch (cause) { setNotice({ tone: 'error', text: explain(cause) }) }
+    finally { setBusy(false) }
+  }
+
   return <SectionCard id="bp-choices" title={t('bpChoicesTitle')} description={t('bpChoicesIntro')}
-    actions={canManage && changed > 0 ? <button type="button" disabled={busy} className={ui.primary} onClick={() => void save()}>{t('bpSaveChoices', { count: changed })}</button> : undefined}>
+    actions={canManage && changed > 0 ? <button type="button" disabled={busy || !!policyEdits} className={ui.primary} onClick={() => void save()}>{t('bpSaveChoices', { count: changed })}</button> : undefined}>
     <label className={`${ui.label} max-w-xs`}>{t('bpClass')}
-      <select className={ui.field} value={chosenClass} onChange={e => { setClassId(e.target.value); setEdits({}); setFill('') }}>
+      <select className={ui.field} value={chosenClass} onChange={e => { setClassId(e.target.value); setEdits({}); setPolicyEdits(null); setFill('') }}>
         {classes.data?.map(c => <option key={c.class_id} value={c.class_id}>{c.class_name}</option>)}
       </select>
     </label>
     {notice && <div className="mt-4"><Notice tone={notice.tone}>{notice.text}</Notice></div>}
     <div className="mt-4">
       {choices.isPending ? <Skeleton rows={4} /> : choices.isError ? <Notice tone="error">{t('bpErrGeneric')}</Notice> : choices.data.optional.length === 0
-        ? <EmptyState icon="grade" title={t('bpNoOptional')}>{t('bpNoOptionalHint')}</EmptyState>
+        ? <><Notice tone="info">{t('bpPolicy_no_optional_mappings')}</Notice><div className="mt-3"><EmptyState icon="grade" title={t('bpNoOptional')}>{t('bpNoOptionalHint')}</EmptyState></div></>
         : <>
-          <Notice tone="info">{t(choices.data.in_use ? 'bpChoicesInUse' : 'bpChoicesNotInUse')}</Notice>
-          <p className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600">{choices.data.optional.map(s => <span key={s.id}><strong className="tabular-nums text-slate-900">{choices.data.counts[s.id] || 0}</strong> · {subjectName(s)}</span>)}</p>
+          {choices.data.warnings.map(w => <div key={w} className="mb-2"><Notice tone="info">{t(`bpPolicy_${w}`)}</Notice></div>)}
+          <Notice tone="info">{t(previewPolicy?.enabled ? 'bpPolicyActive' : choices.data.in_use ? 'bpChoicesInUse' : 'bpChoicesNotInUse')}</Notice>
+          {canManage && <div className="mt-4 rounded-xl border border-slate-200 p-4">
+            <h3 className="font-semibold text-slate-900">{t('bpPolicyTitle')}</h3>
+            <p className="mt-1 text-sm text-slate-600">{t('bpPolicyIntro')}</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {([['male_subject_id', 'bpPolicyMale'], ['female_subject_id', 'bpPolicyFemale']] as const).map(([key, label]) => <label key={key} className={ui.label}>{t(label)}
+                <select className={ui.field} value={(policyEdits ?? choices.data.policy)[key]} onChange={e => setPolicyEdits({ ...(policyEdits ?? choices.data.policy), [key]: e.target.value })}>
+                  <option value="">{t('bpNoChoice')}</option>
+                  {choices.data.optional.map(o => <option key={o.id} value={o.id}>{subjectName(o)}</option>)}
+                </select>
+              </label>)}
+              <label className={ui.label}>{t('bpPolicySwapGroup')}
+                <select className={ui.field} value={(policyEdits ?? choices.data.policy).swap_group_id} onChange={e => setPolicyEdits({ ...(policyEdits ?? choices.data.policy), swap_group_id: e.target.value, swap_subject_a_id: '', swap_subject_b_id: '' })}>
+                  <option value="">{t('bpNoChoice')}</option>
+                  {groups.data?.items.map(g => <option key={g.group_id} value={g.group_id}>{g.name_en}</option>)}
+                </select>
+              </label>
+              {(['swap_subject_a_id', 'swap_subject_b_id'] as const).map((key, i) => <label key={key} className={ui.label}>{t(i === 0 ? 'bpPolicySwapA' : 'bpPolicySwapB')}
+                <select className={ui.field} value={(policyEdits ?? choices.data.policy)[key]} disabled={!(policyEdits ?? choices.data.policy).swap_group_id} onChange={e => setPolicyEdits({ ...(policyEdits ?? choices.data.policy), [key]: e.target.value })}>
+                  <option value="">{t('bpNoChoice')}</option>
+                  {choices.data.optional.filter(o => groups.data?.items.find(g => g.group_id === (policyEdits ?? choices.data.policy).swap_group_id)?.subject_ids.includes(o.id)).map(o => <option key={o.id} value={o.id}>{subjectName(o)}</option>)}
+                </select>
+              </label>)}
+            </div>
+            <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={(policyEdits ?? choices.data.policy).enabled} onChange={e => setPolicyEdits({ ...(policyEdits ?? choices.data.policy), enabled: e.target.checked })} />{t('bpPolicyEnable')}</label>
+            {policyEdits && <button type="button" className={`${ui.secondary} mt-3`} disabled={busy} onClick={() => void savePolicy()}>{t('bpPolicySave')}</button>}
+          </div>}
+          {policyEdits && <p className="mt-3 text-sm font-medium text-amber-700">{t('bpPolicyUnsavedPreview')}</p>}
+          {previewPolicy?.enabled && <p className="mt-3 text-sm text-slate-700">{t('bpPolicyUnresolved', { count: previewUnresolved })}</p>}
+          <p className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600">{choices.data.optional.map(s => <span key={s.id}><strong className="tabular-nums text-slate-900">{previewCounts[s.id] || 0}</strong> · {subjectName(s)}</span>)}</p>
           {/* Most classes give one optional subject to nearly everyone: fill the
               students without a choice in one step, then save as usual. */}
-          {canManage && choices.data.students.some(s => !s.subject_id && edits[s.student_id] === undefined) && <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+          {canManage && !previewPolicy?.enabled && choices.data.students.some(s => !s.subject_id && edits[s.student_id] === undefined) && <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className={`${ui.label} max-w-xs`}>{t('bpFillChoices')}
               <select className={ui.field} value={fill} onChange={e => setFill(e.target.value)}>
                 <option value="">{t('bpNoChoice')}</option>
@@ -218,7 +279,7 @@ function ChoicesPanel({ sessionId, canManage }: { sessionId: string; canManage: 
           <div className="mt-3 max-h-[32rem] overflow-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 bg-slate-50"><tr><th scope="col" className={ui.th}>{t('bpRoll')}</th><th scope="col" className={ui.th}>{t('bpStudent')}</th><th scope="col" className={ui.th}>{t('bpSection')}</th><th scope="col" className={ui.th}>{t('bpOptionalSubject')}</th></tr></thead>
-              <tbody>{choices.data.students.map(s => {
+              <tbody>{previewStudents.map(s => {
                 const value = edits[s.student_id] ?? s.subject_id ?? ''
                 return <tr key={s.student_id} className={edits[s.student_id] !== undefined ? 'bg-[var(--brand-soft)]' : ''}>
                   <td className={`${ui.td} tabular-nums text-slate-600`}>{s.roll_no ?? '—'}</td>
@@ -228,8 +289,9 @@ function ChoicesPanel({ sessionId, canManage }: { sessionId: string; canManage: 
                     <select aria-label={t('bpOptionalFor', { name: s.name })} disabled={!canManage} className="min-h-10 w-full max-w-xs rounded-lg border border-slate-300 bg-white px-2 text-sm disabled:bg-slate-50" value={value}
                       onChange={e => { const next = e.target.value; setEdits(prev => { const copy = { ...prev }; if (next === (s.subject_id ?? '')) delete copy[s.student_id]; else copy[s.student_id] = next; return copy }) }}>
                       <option value="">{t('bpNoChoice')}</option>
-                      {choices.data.optional.map(o => <option key={o.id} value={o.id}>{subjectName(o)}</option>)}
+                      {choices.data.optional.filter(o => s.eligible_subject_ids.includes(o.id)).map(o => <option key={o.id} value={o.id}>{subjectName(o)}</option>)}
                     </select>
+                    <span className="block text-xs text-slate-500">{t(`bpChoiceSource_${s.choice_source}`)}{s.effective_subject_id && s.choice_source === 'default' ? `: ${subjectName(choices.data.optional.find(o => o.id === s.effective_subject_id)!)}` : ''}</span>
                   </td>
                 </tr>
               })}</tbody>

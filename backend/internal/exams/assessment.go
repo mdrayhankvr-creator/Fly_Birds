@@ -171,7 +171,8 @@ func assessmentBatch(tx *gorm.DB, e Exam, rules AssessmentRules) (batch, error) 
 	}{}
 	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en, coalesce(st.name_bn, '') AS name_bn, st.admission_no, en.roll_no,
        es.id AS sheet_id, es.subject_id, sub.code, sub.name_en AS subject_en, sub.name_bn AS subject_bn,
-       es.full_marks::text AS full, es.pass_marks::text AS pass, acs.is_fourth_subject AS fourth,
+       es.full_marks::text AS full, es.pass_marks::text AS pass,
+       student_subject_is_fourth(st.id, ?, ?, es.subject_id) AS fourth,
        m.id::text AS mark_id, m.status, m.marks::text AS marks, coalesce(m.status_reason, '') AS reason, coalesce(m.row_version, 0) AS row_version,
        student_takes_subject(st.id, ?, ?, es.subject_id) AS takes
   FROM students st JOIN student_enrolments en ON en.student_id = st.id AND en.session_id = ?
@@ -180,7 +181,7 @@ func assessmentBatch(tx *gorm.DB, e Exam, rules AssessmentRules) (batch, error) 
   JOIN academic_class_subjects acs ON acs.class_id = es.class_id AND acs.subject_id = es.subject_id
   LEFT JOIN exam_marks m ON m.exam_subject_id = es.id AND m.student_id = st.id
  WHERE es.exam_id = ? AND st.id IN ?
- ORDER BY st.id, es.subject_id`, e.SessionID, e.ClassID, e.SessionID, e.ID, students).Scan(&rows).Error; err != nil {
+	 ORDER BY st.id, es.subject_id`, e.SessionID, e.ClassID, e.SessionID, e.ClassID, e.SessionID, e.ID, students).Scan(&rows).Error; err != nil {
 		return b, err
 	}
 	comps := []struct {

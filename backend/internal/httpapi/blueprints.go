@@ -199,14 +199,30 @@ func (h *blueprintHandler) saveChoices(c *gin.Context) {
 		return
 	}
 	var in struct {
-		SessionID string              `json:"session_id"`
-		ClassID   string              `json:"class_id"`
-		Choices   []blueprints.Choice `json:"choices"`
+		SessionID       string              `json:"session_id"`
+		ClassID         string              `json:"class_id"`
+		Choices         []blueprints.Choice `json:"choices"`
+		ReviewPublished bool                `json:"review_published"`
 	}
 	if !decodeSchoolJSON(c, 128*1024, &in) {
 		return
 	}
-	v, err := h.service.SaveChoices(c.Request.Context(), examUser(c).ID, in.SessionID, in.ClassID, in.Choices)
+	v, err := h.service.SaveChoices(c.Request.Context(), examUser(c).ID, in.SessionID, in.ClassID, in.Choices, in.ReviewPublished)
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) saveFourthPolicy(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	var in struct {
+		ClassID string                  `json:"class_id"`
+		Policy  blueprints.FourthPolicy `json:"policy"`
+	}
+	if !decodeSchoolJSON(c, 8*1024, &in) {
+		return
+	}
+	v, err := h.service.SaveFourthPolicy(c.Request.Context(), examUser(c).ID, in.ClassID, in.Policy)
 	h.respond(c, 200, v, err)
 }
 

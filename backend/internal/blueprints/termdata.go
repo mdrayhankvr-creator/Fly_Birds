@@ -161,18 +161,32 @@ func (r *Repository) LoadTerm(tx *gorm.DB, termID, classID string) (TermData, er
 	for _, pr := range pairs {
 		notTaken[pr.StudentID] = append(notTaken[pr.StudentID], pr.SubjectID)
 	}
+	fourthByStudent := map[string]map[string]bool{}
+	fourthRows := []struct{ StudentID, SubjectID string }{}
+	if err := tx.Raw(`SELECT r.student_id,acs.subject_id FROM student_rolls r
+JOIN academic_class_subjects acs ON acs.class_id=r.class_id AND acs.is_fourth_subject
+WHERE r.session_id=? AND r.class_id=? AND student_subject_is_fourth(r.student_id,r.session_id,r.class_id,acs.subject_id)`, term.SessionID, classID).Scan(&fourthRows).Error; err != nil {
+		return p, err
+	}
+	for _, row := range fourthRows {
+		if fourthByStudent[row.StudentID] == nil {
+			fourthByStudent[row.StudentID] = map[string]bool{}
+		}
+		fourthByStudent[row.StudentID][row.SubjectID] = true
+	}
 	for _, st := range students {
 		skip := map[string]bool{}
 		for _, s := range notTaken[st.ID] {
 			skip[s] = true
 		}
 		nt := notTaken[st.ID]
+		fourth := fourthByStudent[st.ID]
 		if nt == nil {
 			nt = []string{}
 		}
 		p.Students = append(p.Students, TermStudent{ID: st.ID, Name: st.Name, NameBN: st.NameBN, AdmissionNo: st.AdmissionNo, RollNo: st.RollNo,
 			SectionID: st.SectionID, SectionName: st.SectionName, NotTaken: nt,
-			Input: Student{ID: st.ID, SectionID: st.SectionID, Marks: marks[st.ID], Takes: func(subject string) bool { return !skip[subject] }}})
+			Input: Student{ID: st.ID, SectionID: st.SectionID, Marks: marks[st.ID], Takes: func(subject string) bool { return !skip[subject] }, Fourth: func(subject string) bool { return fourth[subject] }}})
 	}
 
 	// Readiness: every sheet of the term approved.

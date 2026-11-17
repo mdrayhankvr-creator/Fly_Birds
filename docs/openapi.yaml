@@ -2947,7 +2947,7 @@ paths:
     get:
       operationId: listSubjectChoices
       summary: A class's fourth subjects and each student's optional subject
-      description: Requires exams:read. While no student of the class has a choice, the class's fourth subject applies to everyone, as before; once any student has one, choices decide and a student without one takes no optional subject.
+      description: Requires exams:read. Returns class policy, eligible options, explicit choices, effective defaults, unresolved students and configuration warnings. An unconfigured class keeps the legacy class-wide behavior.
       tags: [exams]
       security: [{ bearerAuth: [] }]
       parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }]
@@ -2955,11 +2955,20 @@ paths:
     put:
       operationId: saveSubjectChoices
       summary: Set or clear students' optional subjects
-      description: Requires exams:manage and an administrator. Each choice names a student of the class and session and a fourth subject of the class, or an empty subject_id to clear it; at most 500. Published results do not change. Audited as exam.subject_choices_saved.
+      description: Requires exams:manage and an administrator. Each choice names a student of the class and session and an eligible fourth subject, or an empty subject_id to clear it; at most 500. For a configured class with published versions, review_published must be true after explicit confirmation. Published snapshots never change; use result review and versioned correction. Audited as exam.subject_choices_saved.
       tags: [exams]
       security: [{ bearerAuth: [] }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [session_id, class_id, choices], properties: { session_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, choices: { type: array, maxItems: 500, items: { type: object, additionalProperties: false, properties: { student_id: { type: string, format: uuid }, subject_id: { type: string } } } } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [session_id, class_id, choices], properties: { session_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, review_published: { type: boolean }, choices: { type: array, maxItems: 500, items: { type: object, additionalProperties: false, properties: { student_id: { type: string, format: uuid }, subject_id: { type: string } } } } } } } } }
       responses: { '200': { description: Choices }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/fourth-subject-policy:
+    put:
+      operationId: saveFourthSubjectPolicy
+      summary: Configure a class's student-wise fourth-subject defaults and approved Science swap
+      description: Requires exams:manage and an administrator. Male and female defaults must be distinct fourth-mapped subjects. An optional swap pair must both belong to the selected group. Religion marked optional and multiple religion courses block activation. Existing choices are untouched; policy changes are blocked after any result version for the class. Audited as exam.fourth_policy_saved.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [class_id, policy], properties: { class_id: { type: string, format: uuid }, policy: { type: object, properties: { enabled: { type: boolean }, male_subject_id: { type: string, format: uuid }, female_subject_id: { type: string, format: uuid }, swap_group_id: { type: string, format: uuid }, swap_subject_a_id: { type: string, format: uuid }, swap_subject_b_id: { type: string, format: uuid } } } } } } } }
+      responses: { '200': { description: Saved policy }, '400': { description: Invalid mapping or input }, '409': { description: Published results prevent policy change }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /exams/my-sheets:
     get:
       operationId: getMyExamSheets
