@@ -199,6 +199,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	staffHandler := &staffHandler{service: staffService}
 	management.GET("/staff/employees", RequirePermission(service, "staff:read"), moduleGuard("staff"), staffHandler.listEmployees)
 	management.POST("/staff/employees", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.saveEmployee)
+	management.POST("/staff/employees/:id/account-link", RequirePermission(service, "staff:manage"), RequirePermission(service, "users:read"), moduleGuard("staff"), moduleGuard("permissions"), RequireAdministrator(), staffHandler.linkAccount)
 	management.GET("/staff/me", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownEmployee)
 	management.GET("/staff/me/assignments", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownAssignments)
 	management.GET("/staff/me/profile", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownProfile)

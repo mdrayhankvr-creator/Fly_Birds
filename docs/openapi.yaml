@@ -1060,6 +1060,16 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EmployeeInput' } } } }
       responses: { '200': { description: Updated employee }, '409': { description: Duplicate or incompatible record }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /staff/employees/{id}/account-link:
+    parameters: [{ $ref: '#/components/parameters/AcademicId' }]
+    post:
+      operationId: linkStaffAccount
+      tags: [staff]
+      summary: Link an existing unlinked teacher profile to an existing login account
+      description: Requires active administrator, staff:manage, users:read, and both modules. Confirms the employee code and the account's exact email; accepts only active teacher or head_teacher accounts with no other employee link. Does not create or alter accounts or passwords.
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [user_id, confirm_email, confirm_employee_code], properties: { user_id: { type: string, format: uuid }, confirm_email: { type: string, format: email }, confirm_employee_code: { type: string } } } } } }
+      responses: { '200': { description: Employee with the new user link }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Role, identity, status, or existing link conflict } }
   /staff/me:
     get:
       operationId: getOwnEmployee

@@ -10,6 +10,7 @@ import { confirmAction } from '../components/ConfirmDialog'
 import { Icon } from '../components/icons'
 import { usePeopleApi } from './peopleShared'
 import { SignatureCard } from './SignatureCard'
+import { StaffAccountLinkCard } from './StaffAccountLinkCard'
 import { CardTitle, EmptyState, Notice, Skeleton, StatusBadge, ui, useNumber } from './attendanceUi'
 import { Chip, Fact, ProfilePhoto, ProfileTabs, clock } from './profileUi'
 
@@ -105,6 +106,8 @@ export function StaffProfilePage() {
     </div>}
 
     {tab === 'overview' && <div id="staff-profile-panel-overview" role="tabpanel" aria-labelledby="staff-profile-tab-overview" className="grid min-w-0 gap-5 lg:grid-cols-2">
+
+      {p.can_edit_official && p.kind === 'teacher' && <StaffAccountLinkCard profile={p} />}
 
       {(p.phone !== undefined || p.email !== undefined || p.qualifications !== undefined) && <section className={`${ui.card} p-4 sm:p-6`} aria-labelledby="staff-contact">
         <CardTitle id="staff-contact" icon="user">{t('c4ContactAndQualifications')}</CardTitle>
