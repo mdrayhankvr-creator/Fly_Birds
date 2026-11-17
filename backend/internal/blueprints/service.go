@@ -133,7 +133,7 @@ func (s *Service) Choices(ctx context.Context, sessionID, classID string) (Choic
 	return s.repo.Choices(ctx, sessionID, classID)
 }
 
-func (s *Service) SaveChoices(ctx context.Context, actor, sessionID, classID string, choices []Choice) (ChoicesView, error) {
+func (s *Service) SaveChoices(ctx context.Context, actor, sessionID, classID string, choices []Choice, reviewPublished ...bool) (ChoicesView, error) {
 	if !isUUID(actor) || !isUUID(sessionID) || !isUUID(classID) || len(choices) == 0 || len(choices) > 500 {
 		return ChoicesView{}, ErrInvalid
 	}
@@ -144,7 +144,7 @@ func (s *Service) SaveChoices(ctx context.Context, actor, sessionID, classID str
 		}
 		seen[c.StudentID] = true
 	}
-	return s.repo.SaveChoices(ctx, actor, sessionID, classID, choices)
+	return s.repo.SaveChoices(ctx, actor, sessionID, classID, choices, len(reviewPublished) > 0 && reviewPublished[0])
 }
 
 // SampleMark is one sample mark for the worked example in the builder.

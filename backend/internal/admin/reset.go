@@ -47,11 +47,19 @@ var (
 	ErrResetSchemaUnreviewed = errors.New("school reset policy has not been reviewed for this schema")
 )
 
+// Migration 1814 adds class_fourth_subject_policies. It is empty after a
+// fresh migration and belongs to the academic structure, so a school reset
+// empties it with classes, mappings and student choices.
 // Migration 1815 adds class_routine_plan_versions. It is empty on fresh
 // migration and is emptied with the routine data during a school reset.
 const resetReviewedSchemaVersion = 1815
-const resetReviewedMigrationCount = 58
-const resetReviewedTableCount = 115
+const resetReviewedMigrationCount = 59
+const resetReviewedTableCount = 116
+
+// Student setup migration 1765 adds one unseeded retry table. A school reset
+// must empty it with students and accounts. Keep this delta separate so the
+// reviewed base can advance independently (as with migrations 1814 and 1815).
+const studentSetupReviewedDelta = 1
 
 // resetKeepExtra are the school's own uploads that belong to its identity.
 // They are empty in a fresh schema, so they have to be named.
@@ -174,9 +182,20 @@ func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool
 	if err := db.WithContext(ctx).Raw("SELECT COALESCE(max(version), 0), count(*) FROM schema_migrations").Row().Scan(&version, &migrations); err != nil {
 		return plan, err
 	}
-	if version != resetReviewedSchemaVersion || migrations != resetReviewedMigrationCount {
+	var studentSetupMigration int
+	if err := db.WithContext(ctx).Raw("SELECT count(*) FROM schema_migrations WHERE version = 1765").Row().Scan(&studentSetupMigration); err != nil {
+		return plan, err
+	}
+	var fourthSubjectMigration, routinePlannerMigration int
+	if err := db.WithContext(ctx).Raw("SELECT count(*) FROM schema_migrations WHERE version = 1814").Row().Scan(&fourthSubjectMigration); err != nil {
+		return plan, err
+	}
+	if err := db.WithContext(ctx).Raw("SELECT count(*) FROM schema_migrations WHERE version = 1815").Row().Scan(&routinePlannerMigration); err != nil {
+		return plan, err
+	}
+	if version != resetReviewedSchemaVersion || migrations != resetReviewedMigrationCount+studentSetupReviewedDelta || studentSetupMigration != 1 || fourthSubjectMigration != 1 || routinePlannerMigration != 1 {
 		return plan, fmt.Errorf("%w: reviewed %d migrations through %d; database has %d through %d", ErrResetSchemaUnreviewed,
-			resetReviewedMigrationCount, resetReviewedSchemaVersion, migrations, version)
+			resetReviewedMigrationCount+studentSetupReviewedDelta, resetReviewedSchemaVersion, migrations, version)
 	}
 	row := db.WithContext(ctx).Raw("SELECT name_en, name_bn FROM school_settings ORDER BY id LIMIT 1").Row()
 	if err := row.Scan(&plan.SchoolNameEN, &plan.SchoolNameBN); err != nil {
@@ -189,8 +208,21 @@ func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool
 	if err != nil {
 		return plan, err
 	}
-	if len(tables) != resetReviewedTableCount {
-		return plan, fmt.Errorf("%w: reviewed %d tables; database has %d", ErrResetSchemaUnreviewed, resetReviewedTableCount, len(tables))
+	studentSetupTable := false
+	fourthSubjectTable := false
+	routinePlannerTable := false
+	for _, name := range tables {
+		switch name {
+		case "student_setup_runs":
+			studentSetupTable = true
+		case "class_fourth_subject_policies":
+			fourthSubjectTable = true
+		case "class_routine_plan_versions":
+			routinePlannerTable = true
+		}
+	}
+	if len(tables) != resetReviewedTableCount+studentSetupReviewedDelta || !studentSetupTable || !fourthSubjectTable || !routinePlannerTable {
+		return plan, fmt.Errorf("%w: reviewed %d tables including student_setup_runs, class_fourth_subject_policies and class_routine_plan_versions; database has %d", ErrResetSchemaUnreviewed, resetReviewedTableCount+studentSetupReviewedDelta, len(tables))
 	}
 	keep := resetKeepSet()
 	for _, name := range tables {

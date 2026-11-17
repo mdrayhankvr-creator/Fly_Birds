@@ -68,6 +68,21 @@ func TestPostgresResetKeepsWhatTheSchemaSeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	requiredEmpty := map[string]bool{
+		"student_setup_runs":            false,
+		"class_fourth_subject_policies": false,
+		"class_routine_plan_versions":   false,
+	}
+	for _, entry := range plan.Empty {
+		if _, required := requiredEmpty[entry.Table]; required {
+			requiredEmpty[entry.Table] = true
+		}
+	}
+	for name, included := range requiredEmpty {
+		if !included {
+			t.Fatalf("%s must be emptied by school reset", name)
+		}
+	}
 	hash, err := HashResetPassword("Seeded-check-password-26!")
 	if err != nil {
 		t.Fatal(err)
@@ -444,12 +459,16 @@ func TestPostgresResetAnySchoolSkipsTheNameCheck(t *testing.T) {
 }
 
 func TestPostgresResetRequiresReviewedSchema(t *testing.T) {
-	ctx, _, tx := openResetDB(t)
-	if err := tx.Exec("DELETE FROM schema_migrations WHERE version = ?", resetReviewedSchemaVersion).Error; err != nil {
-		t.Fatal(err)
-	}
-	if _, err := PlanReset(ctx, tx, "", true); !errors.Is(err, ErrResetSchemaUnreviewed) {
-		t.Fatalf("unreviewed schema was accepted: %v", err)
+	for _, version := range []int{1765, 1814, 1815} {
+		t.Run(strconv.Itoa(version), func(t *testing.T) {
+			ctx, _, tx := openResetDB(t)
+			if err := tx.Exec("DELETE FROM schema_migrations WHERE version = ?", version).Error; err != nil {
+				t.Fatal(err)
+			}
+			if _, err := PlanReset(ctx, tx, "", true); !errors.Is(err, ErrResetSchemaUnreviewed) {
+				t.Fatalf("unreviewed schema was accepted: %v", err)
+			}
+		})
 	}
 }
 

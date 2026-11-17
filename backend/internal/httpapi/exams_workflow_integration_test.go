@@ -155,6 +155,7 @@ func TestPostgresExamWorkflowRouteProtection(t *testing.T) {
 		{"POST", "/exams/blueprint-versions/" + versionID + "/activate", ""},
 		{"PUT", "/exams/blueprint-versions/" + versionID + "/visibility", `{"key":"CT1","visibility":"hidden"}`},
 		{"PUT", "/exams/subject-choices", `{"session_id":"` + examID + `","class_id":"` + examID + `","choices":[{"student_id":"` + examID + `","subject_id":""}]}`},
+		{"PUT", "/exams/fourth-subject-policy", `{"class_id":"` + examID + `","policy":{"enabled":true}}`},
 	}
 	sample := "/exams/blueprint-versions/" + versionID + "/sample"
 	for _, path := range reads {
@@ -175,6 +176,7 @@ func TestPostgresExamWorkflowRouteProtection(t *testing.T) {
 	check("GET", reads[2], "", head, 404)
 	check("POST", sample, `{"subject_id":"x","term_id":"y","marks":{}}`, head, 404)
 	check("GET", "/exams/terms?session_id=not-a-uuid", "", admin, 400)
+	check("PUT", "/exams/fourth-subject-policy", `{"class_id":"invalid","policy":{"enabled":true}}`, admin, 400)
 	check("PUT", "/exams/terms/"+versionID, `{"name":"First Term","kind":"term"}`, admin, 404)
 	check("POST", "/exams/blueprint-versions/"+versionID+"/activate", "", admin, 404)
 	check("GET", "/exams/terms/"+versionID+"/setup", "", head, 404)

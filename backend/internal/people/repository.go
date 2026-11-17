@@ -158,13 +158,16 @@ func (r *GormRepository) OwnStudent(ctx context.Context, a Actor) (Student, erro
 
 func withSubjects(tx *gorm.DB, v *Student) error {
 	v.Subjects = []StudentSubject{}
-	return tx.Raw(`SELECT m.subject_id AS id, sub.name_en, sub.name_bn, m.is_fourth_subject
+	return tx.Raw(`SELECT m.subject_id AS id, sub.name_en, sub.name_bn,
+student_subject_is_fourth(?,?,m.class_id,m.subject_id) AS is_fourth_subject
 FROM academic_class_subjects m JOIN academic_subjects sub ON sub.id=m.subject_id
-WHERE m.class_id=? AND ((m.is_required AND (NOT EXISTS
+LEFT JOIN class_fourth_subject_policies p ON p.class_id=m.class_id
+WHERE m.class_id=? AND ((coalesce(p.enabled,false) AND student_takes_subject(?,?,m.class_id,m.subject_id)) OR
+(NOT coalesce(p.enabled,false) AND ((m.is_required AND (NOT EXISTS
   (SELECT 1 FROM class_group_subjects gs WHERE gs.class_id=m.class_id AND gs.subject_id=m.subject_id)
   OR EXISTS (SELECT 1 FROM class_group_subjects gs WHERE gs.class_id=m.class_id AND gs.subject_id=m.subject_id AND gs.group_id=?)))
-  OR (m.is_fourth_subject AND m.subject_id=?))
-ORDER BY sub.name_en,sub.id`, v.ClassID, v.GroupID, v.FourthSubjectID).Scan(&v.Subjects).Error
+  OR (m.is_fourth_subject AND m.subject_id=?))))
+ORDER BY sub.name_en,sub.id`, v.ID, v.SessionID, v.ClassID, v.ID, v.SessionID, v.GroupID, v.FourthSubjectID).Scan(&v.Subjects).Error
 }
 
 // withPrimaryGuardian attaches the student's primary guardian, if one is
@@ -238,7 +241,11 @@ ON CONFLICT (student_id,session_id) DO UPDATE SET group_id=EXCLUDED.group_id, up
 			}
 		} else {
 			var ok int64
-			if err := tx.Table("academic_class_subjects").Where("class_id=? AND subject_id=? AND is_fourth_subject", v.ClassID, *v.FourthSubjectID).Count(&ok).Error; err != nil {
+			if err := tx.Raw(`SELECT count(*) FROM academic_class_subjects acs JOIN academic_classes cl ON cl.id=acs.class_id
+WHERE acs.class_id=? AND acs.subject_id=? AND acs.is_fourth_subject
+AND (NOT cl.uses_groups OR NOT EXISTS (SELECT 1 FROM class_group_subjects gs WHERE gs.class_id=acs.class_id AND gs.subject_id=acs.subject_id)
+OR EXISTS (SELECT 1 FROM class_group_subjects gs JOIN student_group_choices gc ON gc.group_id=gs.group_id
+WHERE gs.class_id=acs.class_id AND gs.subject_id=acs.subject_id AND gc.student_id=? AND gc.session_id=?))`, v.ClassID, *v.FourthSubjectID, id, v.SessionID).Row().Scan(&ok); err != nil {
 				return err
 			}
 			if ok == 0 {
@@ -261,12 +268,22 @@ func (r *GormRepository) SaveStudent(ctx context.Context, a Actor, id string, v 
 		if err := setActor(tx, a); err != nil {
 			return err
 		}
+		var beforeFourth string
+		if id != "" {
+			if err := tx.Raw("SELECT coalesce((SELECT subject_id::text FROM student_subject_choices WHERE student_id=? AND session_id=? AND role='optional'),'')", id, v.SessionID).Row().Scan(&beforeFourth); err != nil {
+				return err
+			}
+		}
 		var err error
 		id, err = saveStudentTx(tx, id, v)
 		if err != nil {
 			return err
 		}
-		return audit.Record(tx, &a.ID, "student.saved", "student", id, map[string]any{"created": created})
+		var afterFourth string
+		if err := tx.Raw("SELECT coalesce((SELECT subject_id::text FROM student_subject_choices WHERE student_id=? AND session_id=? AND role='optional'),'')", id, v.SessionID).Row().Scan(&afterFourth); err != nil {
+			return err
+		}
+		return audit.Record(tx, &a.ID, "student.saved", "student", id, map[string]any{"created": created, "fourth_from": beforeFourth, "fourth_to": afterFourth, "fourth_changed": beforeFourth != afterFourth})
 	})
 	if err != nil {
 		return Student{}, databaseError(err)

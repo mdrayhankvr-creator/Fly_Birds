@@ -39,6 +39,9 @@ type Student struct {
 	// Takes reports whether the student takes a subject (optional subjects
 	// they did not choose are not taken).
 	Takes func(subjectID string) bool
+	// Fourth resolves the student's effective fourth-subject role. Nil keeps
+	// the definition's class-wide role for standalone calculations.
+	Fourth func(subjectID string) bool
 }
 
 // Reason is why a subject fails whatever its total: a component below its
@@ -136,6 +139,13 @@ func studentTerm(d Definition, termID string, st Student, scheme calc.Scheme) (S
 	for _, s := range d.Subjects {
 		if s.Role == "non_graded" || (st.Takes != nil && !st.Takes(s.SubjectID)) {
 			continue
+		}
+		if st.Fourth != nil && s.Role == "optional" {
+			if st.Fourth(s.SubjectID) {
+				s.Role = "optional"
+			} else {
+				s.Role = "required"
+			}
 		}
 		rule, ok := s.Term(termID)
 		if !ok {

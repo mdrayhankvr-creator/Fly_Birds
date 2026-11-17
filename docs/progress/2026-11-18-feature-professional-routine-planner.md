@@ -9,3 +9,10 @@
 - Did not access or modify fbshow, Joy's worktree or stacks, Cloudflare, protected administrator accounts, school settings or live data. No timetable was published outside the disposable test transaction.
 
 Commit hash is reported in the final task response.
+
+## PR #68 merge conflict resolution
+
+- Fetched `origin/main` at `2f9754f0`, which includes fourth-subject migration 1814 and student setup migration 1765, then merged it normally into this branch. Only `backend/internal/admin/reset.go` conflicted.
+- Combined the reset guards without removing either parent's protection: migration 1765 remains an explicit student setup delta; migrations 1814 and 1815 must both be present; all three new table names must exist and be reset with school-life data. The reviewed schema is 60 migrations through 1815 and 117 public tables. The counts were measured after migrating a fresh disposable PostgreSQL database.
+- Focused reset integration tests passed on a new disposable database. The full Go suite passed (33 packages, 12 without tests), including the merged fourth-subject, student setup, routine and HTTP API packages. Go build and vet passed. Frontend typecheck, production build, EN/BN i18n checks (4), and unit tests (23) passed. The isolated routine browser suite passed 14/14.
+- The backup-copy reset rehearsal was not run because this work did not access or restore a showcase backup. No command targeted fbshow, Joy's stack or any existing school database. No live reset, migration, deployment or timetable publication was performed.

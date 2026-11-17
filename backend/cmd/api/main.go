@@ -175,7 +175,7 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("backup storage: %w", err)
 		}
-		adminServices = &httpapi.AdminServices{Exporter: admin.NewExporter(db), Backups: backups, Overview: admin.NewOverviewReader(db, backups)}
+		adminServices = &httpapi.AdminServices{Exporter: admin.NewExporter(db), Backups: backups, Overview: admin.NewOverviewReader(db, backups), StudentSetupDB: sqlDB}
 		analyticsService = analytics.NewService(analytics.NewRepository(db))
 		promotionService = promotion.NewService(db)
 		classTeacherService = classteacher.NewService(db)

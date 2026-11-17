@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"database/sql"
 	"errors"
 	"io"
 	"mime"
@@ -15,9 +16,10 @@ import (
 
 // AdminServices groups the M10 control-center services.
 type AdminServices struct {
-	Exporter *admin.Exporter
-	Backups  *admin.Backups
-	Overview *admin.OverviewReader
+	Exporter       *admin.Exporter
+	Backups        *admin.Backups
+	Overview       *admin.OverviewReader
+	StudentSetupDB *sql.DB
 }
 
 type adminHandler struct{ svc *AdminServices }

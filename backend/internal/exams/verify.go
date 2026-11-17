@@ -137,7 +137,7 @@ func verifyIn(tx *gorm.DB, opts VerifyOptions) (VerifyReport, error) {
 	if err := session(tx.Table("exam_marks m").Joins("JOIN exams e ON e.id=m.exam_id").Joins("JOIN exam_subjects es ON es.id=m.exam_subject_id").Joins("JOIN academic_class_subjects acs ON acs.class_id=es.class_id AND acs.subject_id=es.subject_id").Joins("JOIN academic_subjects sub ON sub.id=es.subject_id").Where(published).
 		// Only subjects the student takes, as publication scores them (E5).
 		Where("student_takes_subject(m.student_id, e.session_id, e.class_id, es.subject_id)")).
-		Select("m.id AS mark_id,m.exam_id,m.student_id,es.subject_id,sub.name_en AS subject_name,m.status,m.marks,es.full_marks,es.pass_marks,acs.is_fourth_subject AS is_fourth,m.grade,m.grade_point,m.passed").
+		Select("m.id AS mark_id,m.exam_id,m.student_id,es.subject_id,sub.name_en AS subject_name,m.status,m.marks,es.full_marks,es.pass_marks,student_subject_is_fourth(m.student_id,e.session_id,e.class_id,es.subject_id) AS is_fourth,m.grade,m.grade_point,m.passed").
 		Order("m.exam_id,m.student_id,es.subject_id").Find(&marks).Error; err != nil {
 		return report, err
 	}

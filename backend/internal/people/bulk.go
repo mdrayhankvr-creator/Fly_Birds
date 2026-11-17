@@ -396,6 +396,18 @@ func checkBulkTx(tx *gorm.DB, sessionID string, rows [][]string) (BulkPreview, [
 			fourthByName[f.ClassID+"|"+strings.ToLower(f.NameBN)] = f.SubjectID
 		}
 	}
+	var fourthGroups []struct{ ClassID, SubjectID, GroupID string }
+	if err := tx.Table("class_group_subjects").Select("class_id,subject_id,group_id").Scan(&fourthGroups).Error; err != nil {
+		return preview, nil, err
+	}
+	restrictedFourth := map[string]map[string]bool{}
+	for _, row := range fourthGroups {
+		key := row.ClassID + "|" + row.SubjectID
+		if restrictedFourth[key] == nil {
+			restrictedFourth[key] = map[string]bool{}
+		}
+		restrictedFourth[key][row.GroupID] = true
+	}
 
 	var entries []bulkEntry
 	seenAdmission, seenRoll, seenEmail := map[string]bool{}, map[string]bool{}, map[string]bool{}
@@ -526,6 +538,9 @@ func checkBulkTx(tx *gorm.DB, sessionID string, rows [][]string) (BulkPreview, [
 		if fourth := cell(row, "fourth_subject"); fourth != "" && v.ClassID != "" {
 			if id, ok := fourthByName[v.ClassID+"|"+strings.ToLower(fourth)]; ok {
 				v.FourthSubjectID = &id
+				if allowed := restrictedFourth[v.ClassID+"|"+id]; groupClasses[v.ClassID] && len(allowed) > 0 && (v.GroupID == nil || !allowed[*v.GroupID]) {
+					fail("fourth_subject_group_ineligible")
+				}
 			} else {
 				fail("fourth_subject_not_found")
 			}

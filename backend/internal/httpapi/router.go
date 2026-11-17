@@ -335,6 +335,7 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.POST("/exams/blueprint-versions/:id/sample", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.sample)
 	management.GET("/exams/subject-choices", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.choices)
 	management.PUT("/exams/subject-choices", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveChoices)
+	management.PUT("/exams/fourth-subject-policy", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveFourthPolicy)
 	rh := &resultHandler{service: examService}
 	// E6 result versions: staff read with exams:read; approval needs
 	// exams:review (head teacher or administrator); publication and
@@ -507,6 +508,9 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	studentRoutes.GET("/bulk-admission/template", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.bulkTemplate)
 	studentRoutes.POST("/bulk-admission/preview", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.previewBulk)
 	studentRoutes.POST("/bulk-admission", RequirePermission(service, "students:manage"), RequireAdministrator(), peopleHandler.admitBulk)
+	setup := &studentSetupHandler{services: adminServices}
+	studentRoutes.GET("/synthetic-setup/preview", RequirePermission(service, "students:manage"), RequirePermission(service, "users:create"), RequireAdministrator(), setup.preview)
+	studentRoutes.POST("/synthetic-setup", RequirePermission(service, "students:manage"), RequirePermission(service, "users:create"), RequireAdministrator(), setup.apply)
 	studentRoutes.POST("/logins", RequirePermission(service, "students:manage"), RequirePermission(service, "users:create"), RequireAdministrator(), peopleHandler.createSectionLogins)
 	studentRoutes.GET("/me", RequirePermission(service, "students:read_self"), peopleHandler.myStudent)
 	studentRoutes.GET("/me/guardians", RequirePermission(service, "students:read_self"), peopleHandler.myGuardians)
