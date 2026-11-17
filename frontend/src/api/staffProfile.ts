@@ -1,4 +1,4 @@
-import { bearerBlob, bearerRequest, json, type EmployeeLeave } from './client'
+import { bearerBlob, bearerRequest, json, type Employee, type EmployeeLeave } from './client'
 
 // Staff profiles (checkpoint 4). The server leaves out every field the
 // viewer may not see, so an absent field means "not for you".
@@ -17,10 +17,18 @@ export type StaffProfile = {
 }
 export type OwnProfileInput = { qualifications: string[]; visibility: StaffVisibility }
 export type OfficialInput = { email?: string; mpo_index?: string; nid?: string }
+export type CreateStaffWithLoginInput = { employee_code: string; confirm_employee_code: string; role: 'teacher' | 'head_teacher'; email: string; name_en: string; name_bn: string; designation: string; joined_on: string; qualifications: string[]; assignment?: { session_id: string; class_id: string; subject_id: string } }
+export type CreatedStaffWithLogin = { employee: Employee; email: string; role: 'teacher' | 'head_teacher'; initial_password: string; expires_at: string }
 
 const base = (id: string) => `/staff/profiles/${encodeURIComponent(id)}`
 export const getStaffProfile = (token: string, id: string) => bearerRequest<StaffProfile>(id === 'me' ? '/staff/me/profile' : base(id), token)
 export const linkStaffAccount = (token: string, id: string, input: { user_id: string; confirm_email: string; confirm_employee_code: string }) => bearerRequest(`/staff/employees/${encodeURIComponent(id)}/account-link`, token, json('POST', input))
+export const createStaffWithLogin = (token: string, input: CreateStaffWithLoginInput, photo?: File) => {
+  const body = new FormData()
+  body.set('profile', JSON.stringify(input))
+  if (photo) body.set('photo', photo)
+  return bearerRequest<CreatedStaffWithLogin>('/staff/employees/with-login', token, { method: 'POST', body })
+}
 export const getStaffPhoto = (token: string, id: string, version: string) => bearerBlob(`${base(id)}/photo?v=${encodeURIComponent(version)}`, token)
 export const saveOwnStaffProfile = (token: string, input: OwnProfileInput) => bearerRequest<StaffProfile>('/staff/me/profile', token, json('PATCH', input))
 export const saveStaffOfficial = (token: string, id: string, input: OfficialInput) => bearerRequest<StaffProfile>(`/staff/employees/${encodeURIComponent(id)}/official`, token, json('PATCH', input))
