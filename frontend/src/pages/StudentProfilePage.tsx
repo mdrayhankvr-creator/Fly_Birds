@@ -130,6 +130,7 @@ export function StudentProfilePage({ mode, isAssignedTeacher = false, canManageP
   const bn = i18n.language === 'bn'
   const pick = (en: string, other: string) => bn && other ? other : en
   const name = pick(value.name_en, value.name_bn)
+  const synthetic = value.admission_no.startsWith('TEST-') && value.name_en.startsWith('TEST ') && value.name_bn.startsWith('টেস্ট ')
   const statusTone = value.status === 'active' ? 'present' : value.status === 'inactive' ? 'unmarked' : 'leave'
   const guardian = value.primary_guardian
   const restrictedTeacher = isAssignedTeacher
@@ -152,6 +153,7 @@ export function StudentProfilePage({ mode, isAssignedTeacher = false, canManageP
             {value.name_bn && !bn && <p lang="bn" className="pr-other-name">{value.name_bn}</p>}
             {bn && value.name_en !== name && <p className="pr-other-name">{value.name_en}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-2">
+              {synthetic && <Chip>{t('setupTestBadge')}</Chip>}
               <StatusBadge tone={statusTone}>{t(`${value.status}Student`)}</StatusBadge>
               <Chip>{value.class_name} · {value.section_name}</Chip>
             </div>

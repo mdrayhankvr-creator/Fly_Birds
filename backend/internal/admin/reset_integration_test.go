@@ -68,6 +68,16 @@ func TestPostgresResetKeepsWhatTheSchemaSeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	studentRunsEmptied := false
+	for _, entry := range plan.Empty {
+		if entry.Table == "student_setup_runs" {
+			studentRunsEmptied = true
+			break
+		}
+	}
+	if !studentRunsEmptied {
+		t.Fatal("synthetic student retry records must be emptied by school reset")
+	}
 	hash, err := HashResetPassword("Seeded-check-password-26!")
 	if err != nil {
 		t.Fatal(err)

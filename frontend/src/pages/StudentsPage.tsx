@@ -89,7 +89,7 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
   const set = <K extends keyof StudentForm>(key: K, value: StudentForm[K]) => setForm({ ...form, [key]: value })
   const legend = 'flex items-center gap-2 px-1 text-sm font-bold text-slate-900'
   return <div className="space-y-6">
-    <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} actions={canManage ? <><Link to="/admin/students/admit" className={ui.primary}><Icon name="plus" className="h-4 w-4" />{t('c3AdmitButton')}</Link><Link to="/admin/students/import" className={ui.secondary}><Icon name="upload" className="h-4 w-4" />{t('c5BulkTitle')}</Link><Link to="/admin/students/cards" className={ui.secondary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintBulk')}</Link>{canCreateLogins && <Link to="/admin/students/logins" className={ui.secondary}><Icon name="lock" className="h-4 w-4" />{t('c5LoginsTitle')}</Link>}</> : undefined} />
+    <PageHeader eyebrow={t('m12Group_people')} title={t('studentsHeading')} description={t('peopleDescription')} actions={canManage ? <><Link to="/admin/students/admit" className={ui.primary}><Icon name="plus" className="h-4 w-4" />{t('c3AdmitButton')}</Link><Link to="/admin/students/import" className={ui.secondary}><Icon name="upload" className="h-4 w-4" />{t('c5BulkTitle')}</Link><Link to="/admin/students/cards" className={ui.secondary}><Icon name="print" className="h-4 w-4" />{t('idCardPrintBulk')}</Link>{canCreateLogins && <><Link to="/admin/students/setup" className={ui.secondary}><Icon name="check" className="h-4 w-4" />{t('setupTitle')}</Link><Link to="/admin/students/logins" className={ui.secondary}><Icon name="lock" className="h-4 w-4" />{t('c5LoginsTitle')}</Link></>}</> : undefined} />
     {error && <Notice tone="error">{error}</Notice>}{message && <Notice tone="success">{message}</Notice>}
     <div className="grid grid-cols-1 min-w-0 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
       <section className={`${ui.card} min-w-0 p-4 sm:p-6`} aria-labelledby="students-list-title">
@@ -112,7 +112,7 @@ export function StudentsPage({ canManage, canCreateLogins = false }: { canManage
                 return <li key={item.id} className={`flex flex-wrap items-center gap-3 px-3 py-3 sm:flex-nowrap sm:px-4 ${editing === item.id ? 'ds-softer' : ''}`}>
                   <Avatar name={name} studentId={item.id} photoVersion={item.photo_version} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name}</p>
+                    <p className="font-semibold text-slate-900" style={{ overflowWrap: 'anywhere' }}>{name}{item.admission_no.startsWith('TEST-') && item.name_en.startsWith('TEST ') && item.name_bn.startsWith('টেস্ট ') && <span className="ms-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-900">{t('setupTestBadge')}</span>}</p>
                     <p className="text-sm text-slate-600">{item.admission_no} · {item.class_name} / {item.section_name}{item.roll_no != null && <> · {t('p2HistoryRoll', { roll: num(item.roll_no) })}</>}</p>
                   </div>
                   <StatusBadge tone={statusTone(item.status)}>{t(`${item.status}Student`)}</StatusBadge>
