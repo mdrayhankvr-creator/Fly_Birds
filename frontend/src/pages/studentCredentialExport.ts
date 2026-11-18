@@ -1,4 +1,5 @@
 import type { StudentSetupResult } from '../api/studentSetup'
+import type { TeacherCredential } from '../api/teacherSetup'
 
 // The export is encrypted locally. The server sends credentials only once and
 // neither the passphrase nor the plaintext is persisted by this page.
@@ -15,6 +16,12 @@ function cell(value: string | number) {
 export function credentialCSV(logins: StudentSetupResult['logins'], session: string) {
   const rows = [['Student (EN)', 'Student (BN)', 'Academic session', 'Class', 'Section', 'Roll', 'Admission number', 'Sign-in ID', 'Initial password', 'Expires at'],
     ...logins.map(login => [login.student_name, login.name_bn, session, login.class_name, login.section_name, login.roll_no ?? '', login.admission_no, login.login_id, login.initial_password, login.password_expires_at])]
+  return '\ufeff' + rows.map(row => row.map(cell).join(',')).join('\r\n')
+}
+
+export function teacherCredentialCSV(logins: TeacherCredential[]) {
+  const rows = [['Teacher (EN)', 'Teacher (BN)', 'Employee code', 'Role', 'Sign-in ID', 'Initial password', 'Expires at'],
+    ...logins.map(login => [login.name_en, login.name_bn, login.employee_code, login.role, login.login_id, login.initial_password, login.password_expires_at])]
   return '\ufeff' + rows.map(row => row.map(cell).join(',')).join('\r\n')
 }
 

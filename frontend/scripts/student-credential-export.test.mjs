@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { credentialCSV, decryptCredentialList, encryptCredentialList } from '../src/pages/studentCredentialExport.ts'
+import { credentialCSV, decryptCredentialList, encryptCredentialList, teacherCredentialCSV } from '../src/pages/studentCredentialExport.ts'
 
 test('one-time credential file is encrypted and decrypts with its passphrase', async () => {
   const csv = credentialCSV([{
@@ -18,4 +18,15 @@ test('one-time credential file is encrypted and decrypts with its passphrase', a
   await assert.rejects(decryptCredentialList(encrypted, 'an incorrect passphrase'))
   await assert.rejects(encryptCredentialList(csv, 'too short'))
   await assert.rejects(decryptCredentialList(new Blob(['invalid']), 'a long owner chosen passphrase'))
+})
+
+test('teacher export contains only the required fields and stays encrypted', async () => {
+  const csv = teacherCredentialCSV([{ name_en: 'TEST Farhana Rahman', name_bn: 'টেস্ট ফারহানা রহমান', employee_code: 'TEACHER-03', role: 'teacher', login_id: 'test.teacher-03@flybirds.test', initial_password: 'example-only-unused', password_expires_at: '2026-11-19T00:00:00Z' }])
+  assert.match(csv, /Employee code/)
+  assert.match(csv, /TEACHER-03/)
+  assert.match(csv, /example-only-unused/)
+  const encrypted = await encryptCredentialList(csv, 'a separately chosen owner passphrase')
+  assert.equal(Buffer.from(await encrypted.arrayBuffer()).includes(Buffer.from('example-only-unused')), false)
+  assert.equal(await decryptCredentialList(encrypted, 'a separately chosen owner passphrase'), csv)
+  await assert.rejects(decryptCredentialList(encrypted, 'a wrong owner passphrase'))
 })

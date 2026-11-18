@@ -41,6 +41,7 @@ import { diaryCommentTranslations } from './diaryCommentTranslations'
 import { profileRedesignTranslations } from './profileRedesignTranslations'
 import { passwordResetTranslations } from './passwordResetTranslations'
 import { studentSetupTranslations } from './studentSetupTranslations'
+import { teacherSetupTranslations } from './teacherSetupTranslations'
 
 const savedLanguage = localStorage.getItem('flybirds.language')
 const language = savedLanguage === 'bn' ? 'bn' : 'en'
@@ -238,5 +239,7 @@ i18n.addResourceBundle('en', 'translation', passwordResetTranslations.en, true, 
 i18n.addResourceBundle('bn', 'translation', passwordResetTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', studentSetupTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', studentSetupTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', teacherSetupTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', teacherSetupTranslations.bn, true, true)
 
 export default i18n

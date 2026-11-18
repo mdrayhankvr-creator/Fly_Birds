@@ -200,6 +200,9 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/staff/employees", RequirePermission(service, "staff:read"), moduleGuard("staff"), staffHandler.listEmployees)
 	management.POST("/staff/employees", RequirePermission(service, "staff:manage"), moduleGuard("staff"), RequireAdministrator(), staffHandler.saveEmployee)
 	management.POST("/staff/employees/with-login", RequirePermission(service, "staff:manage"), RequirePermission(service, "users:create"), RequirePermission(service, "permissions:manage"), moduleGuard("staff"), moduleGuard("permissions"), RequireAdministrator(), staffHandler.createWithLogin)
+	teacherSetup := &teacherSetupHandler{services: adminServices}
+	management.GET("/staff/synthetic-setup/preview", RequirePermission(service, "staff:manage"), RequirePermission(service, "users:create"), RequirePermission(service, "permissions:manage"), moduleGuard("staff"), moduleGuard("permissions"), RequireAdministrator(), teacherSetup.preview)
+	management.POST("/staff/synthetic-setup", RequirePermission(service, "staff:manage"), RequirePermission(service, "users:create"), RequirePermission(service, "permissions:manage"), moduleGuard("staff"), moduleGuard("permissions"), RequireAdministrator(), teacherSetup.apply)
 	management.POST("/staff/employees/:id/account-link", RequirePermission(service, "staff:manage"), RequirePermission(service, "users:read"), moduleGuard("staff"), moduleGuard("permissions"), RequireAdministrator(), staffHandler.linkAccount)
 	management.GET("/staff/me", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownEmployee)
 	management.GET("/staff/me/assignments", RequirePermission(service, "staff:read_self"), moduleGuard("staff"), staffHandler.ownAssignments)

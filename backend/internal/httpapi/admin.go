@@ -20,6 +20,7 @@ type AdminServices struct {
 	Backups        *admin.Backups
 	Overview       *admin.OverviewReader
 	StudentSetupDB *sql.DB
+	TeacherSetupDB *sql.DB
 }
 
 type adminHandler struct{ svc *AdminServices }

@@ -167,32 +167,50 @@ func buildManifestFromKeys(r Report, admissions, employees []string) (Manifest, 
 	if err != nil {
 		return Manifest{}, err
 	}
+	m.TeacherCandidates, err = teacherIdentifiers(r.TeacherExisting, r.Teachers, employees)
+	if err != nil {
+		return Manifest{}, err
+	}
+	return m, nil
+}
+
+// teacherIdentifiers is shared by the identifier manifest and the confirmed
+// teacher setup. Existing profiles, including inactive ones, reserve codes.
+func teacherIdentifiers(active int, teachers []Teacher, employees []string) ([]TeacherCandidate, error) {
+	if active > TeacherTarget || active < 0 {
+		return nil, fmt.Errorf("active teachers exceed target")
+	}
 	usedEmployees := make(map[string]bool, len(employees))
 	for _, value := range employees {
-		usedEmployees[value] = true
+		key := strings.ToUpper(value)
+		if usedEmployees[key] {
+			return nil, fmt.Errorf("duplicate employee code %s", key)
+		}
+		usedEmployees[key] = true
 	}
-	existingTeachers := make(map[string]bool, len(r.Teachers))
-	for _, teacher := range r.Teachers {
+	existingTeachers := make(map[string]bool, len(teachers))
+	for _, teacher := range teachers {
 		existingTeachers[strings.ToUpper(teacher.EmployeeCode)] = true
 	}
-	for slot := 1; len(m.TeacherCandidates) < r.TeacherToAdd; slot++ {
+	candidates := make([]TeacherCandidate, 0, TeacherTarget-active)
+	for slot := 1; len(candidates) < TeacherTarget-active; slot++ {
 		if slot > TeacherTarget {
-			return Manifest{}, fmt.Errorf("teacher identifier range cannot meet target without collision")
+			return nil, fmt.Errorf("teacher identifier range cannot meet target without collision")
 		}
 		code := fmt.Sprintf("TEACHER-%02d", slot)
 		if !staff.ValidEmployeeCode(code) {
-			return Manifest{}, fmt.Errorf("generated employee code does not meet staff rules")
+			return nil, fmt.Errorf("generated employee code does not meet staff rules")
 		}
 		if existingTeachers[code] {
 			continue
-		} // preserve existing teacher profile
+		}
 		if usedEmployees[code] {
-			return Manifest{}, fmt.Errorf("candidate employee code %s collides with an existing employee", code)
+			return nil, fmt.Errorf("candidate employee code %s collides with an existing employee", code)
 		}
 		usedEmployees[code] = true
-		m.TeacherCandidates = append(m.TeacherCandidates, TeacherCandidate{EmployeeCode: code})
+		candidates = append(candidates, TeacherCandidate{EmployeeCode: code})
 	}
-	return m, nil
+	return candidates, nil
 }
 
 // buildStudentCandidates is shared with the student-only apply milestone.
