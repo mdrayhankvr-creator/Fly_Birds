@@ -84,6 +84,12 @@ func TestPostgresRoutineRouteProtection(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("GET", "/routines/classes?page=1&page_size=5", "", admin, 200)
+	check("POST", "/routines/class-planner/preview", `{}`, nil, 401)
+	check("POST", "/routines/class-planner/preview", `{}`, teacher, 403)
+	check("PUT", "/routines/class-planner/draft", `{}`, teacher, 403)
+	check("POST", "/routines/class-planner/publish", `{}`, teacher, 403)
+	check("GET", "/routines/class-planner/draft?session_id=invalid", "", teacher, 403)
+	check("POST", "/routines/class-planner/preview", `{}`, admin, 400)
 	check("GET", "/routines/exams?page=1&page_size=5", "", admin, 200)
 	check("GET", "/routines/classes", "", teacher, 403)
 	check("POST", "/routines/classes", `{"day_of_week":0}`, teacher, 403)

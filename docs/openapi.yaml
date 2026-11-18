@@ -2125,6 +2125,37 @@ paths:
       description: Administrator only; requires attendance:alerts_read and enabled Attendance module. Events are triggers for later delivery.
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Paginated pending absence events }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/class-planner/preview:
+    post:
+      operationId: previewClassRoutinePlan
+      summary: Read-only preview of school periods, lunch, assignments, free slots and conflicts
+      description: Administrator with routine:manage. Reads current academic structure and weekly off days. Never saves a plan.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Preview with digest and publication readiness }, '400': { description: Invalid planner input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/class-planner/draft:
+    get:
+      operationId: getClassRoutinePlanDraft
+      summary: Get the current class routine draft for a session
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Draft }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { description: No draft } }
+    put:
+      operationId: saveClassRoutinePlanDraft
+      summary: Save a previewed class routine draft
+      description: Requires administrator and routine:manage. The preview digest must match fresh school data. Current class routines are unchanged.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Saved draft }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Stale preview } }
+  /routines/class-planner/publish:
+    post:
+      operationId: publishClassRoutinePlan
+      summary: Publish a validated class routine version after explicit confirmation
+      description: Requires administrator and routine:manage. Rechecks all inputs and preview digest, saves a legacy snapshot when needed, and atomically replaces the current class timetable. Published versions are immutable.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Published version }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Stale or invalid plan } }
   /routines/classes:
     get:
       operationId: listClassRoutines
