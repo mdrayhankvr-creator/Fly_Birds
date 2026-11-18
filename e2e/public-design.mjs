@@ -119,6 +119,7 @@ try {
   const page = { ...editable(originalPage), features: edited.features, pass_rate: 92,
     activities_en: 'Classroom learning\nCreative activities', activities_bn: 'শ্রেণিকক্ষে পাঠ\nসৃজনশীল কার্যক্রম',
     footer_description_en: 'A place to learn and grow together.', footer_description_bn: 'একসঙ্গে শেখা ও বেড়ে ওঠার স্থান।',
+    contact_phone: '+880 1711-000000',
     social_facebook: 'https://facebook.com/flybirds.demo', privacy_policy_en: 'We use school information only for education.', privacy_policy_bn: 'বিদ্যালয়ের তথ্য শুধু শিক্ষার কাজে ব্যবহার করা হয়।',
     terms_en: 'Use this public page with care.', terms_bn: 'এই পাবলিক পাতাটি দায়িত্বের সঙ্গে ব্যবহার করুন.' }
   for (const style of styles) {
@@ -137,18 +138,20 @@ try {
         await b.shot(name, true)
         headings.push(`- [${labels[style]} · ${width}px · ${lang.toUpperCase()} · ${theme}](${name}.png)`)
         check(`${name}: no sideways scroll`, !(await b.overflow()))
+        check(`${name}: footer stays navy with readable links and current credit`, await b.evaluate(`(() => { const f = document.querySelector('[data-public-footer]'); const css = getComputedStyle(f); const expected = ${JSON.stringify(lang === 'bn' ? 'ফ্লাই বার্ডস-এর নির্মাণে · প্রকৌশল ও উন্নয়নে রায়হান ও জয়' : 'Developed by Fly Birds · Engineered by Rayhan & Joy')}; return css.backgroundColor === 'rgb(20, 34, 56)' && f.textContent.includes(expected) && f.querySelectorAll('nav').length === 2 && !!f.querySelector('a[href="/login"]') })()`))
         const violations = await axe()
         check(`${name}: axe WCAG A/AA`, violations.length === 0, violations.join(', '))
       }
     }
-    for (const width of [320, 360, 375]) {
+    for (const width of [320, 360, 375, 768]) {
       await b.viewport(width, 812, true); await b.go('/'); await b.waitFor(`!!document.querySelector('[data-public-page]')`, 15000)
       check(`${labels[style]} at ${width}px does not scroll sideways`, !(await b.overflow()))
     }
     const publicData = await b.evaluate(`fetch('/api/school/public-page').then(r => r.json()).then(x => x.data)`)
     const serialized = JSON.stringify(publicData).toLowerCase()
-    check(`${labels[style]} public API excludes private fields`, !/("[^\"]*(?:phone|nid|guardian|marks)[^\"]*"\s*:)/i.test(serialized))
-    check(`${labels[style]} page excludes phone and private records`, await b.evaluate(`!document.querySelector('[data-public-page] a[href^="tel:"], [data-public-footer] a[href^="tel:"]') && !/\\+880\\s*1[3-9]\\d/.test(document.body.innerText)`))
+    check(`${labels[style]} public API exposes only school contact phone`, publicData.contact?.phone === '+880 1711-000000' && !/("[^\"]*(?:contact_phone|nid|guardian|marks)[^\"]*"\s*:)/i.test(serialized))
+    check(`${labels[style]} footer links to configured school phone`, await b.evaluate(`document.querySelector('[data-public-footer] a[href="tel:+8801711000000"]')?.textContent === '+880 1711-000000'`))
+    check(`${labels[style]} footer section links resolve on the public page`, await b.evaluate(`[...document.querySelectorAll('.school-footer a[href^="/#"]')].every(a => !!document.getElementById(a.hash.slice(1)))`))
     if (style === 'modern_bold') {
       await b.evaluate(`localStorage.setItem('flybirds.language', 'en')`)
       await b.go('/')
@@ -162,8 +165,9 @@ try {
       check('Escape closes sign-in', await b.waitFor(`!document.querySelector('[data-sign-in-overlay]') && location.pathname === '/'`))
       check('Modern Bold has sticky navigation and four feature cards', await b.evaluate(`(() => { const h = document.querySelector('[data-public-header]'); return h && getComputedStyle(h).position === 'sticky' && document.querySelectorAll('.pd-feature-card').length === 4 && !!document.querySelector('#public-results') })()`))
       check('About uses two uploaded gallery photos and editable activities', await b.evaluate(`document.querySelectorAll('.pd-about-photos img').length === 2 && document.querySelectorAll('.pd-activities li').length === 2`))
-      check('four-column footer uses only the filled social link and hides phone and payment methods', await b.evaluate(`document.querySelectorAll('.pd-modern-footer > div:first-child > section, .pd-modern-footer > div:first-child > nav').length === 4 && document.querySelectorAll('.pd-social').length === 1 && !document.querySelector('.pd-modern-footer a[href^="tel:"], [data-payment-methods]')`))
-      check('privacy and terms links appear only when their pages have content', await b.evaluate(`document.querySelectorAll('.pd-modern-footer a[href="/privacy-policy"], .pd-modern-footer a[href="/terms"]').length === 2`))
+      check('four-column footer uses configured contacts and social link without payment methods', await b.evaluate(`document.querySelectorAll('.school-footer-main > section, .school-footer-main > nav').length === 4 && document.querySelectorAll('.school-footer-socials a').length === 1 && !!document.querySelector('.school-footer a[href="tel:+8801711000000"]') && !document.querySelector('[data-payment-methods]')`))
+      check('footer uses configured description and map without placeholder routes', await b.evaluate(`(() => { const f = document.querySelector('.school-footer'); const map = ${JSON.stringify(page.map_url)}; return f.textContent.includes('A place to learn and grow together.') && (map ? !![...f.querySelectorAll('a')].find(a => a.href === map) : !f.querySelector('a[href*="maps."]')) && !f.querySelector('a[href="#"], a[href="/notices"], a[href="/academic-calendar"], a[href="/admissions"]') })()`))
+      check('privacy and terms links appear only when their pages have content', await b.evaluate(`document.querySelectorAll('.school-footer a[href="/privacy-policy"], .school-footer a[href="/terms"]').length === 2`))
       await b.evaluate(`document.querySelector('#public-gallery .pd-pill')?.click()`)
       check('gallery See all reveals full grid', await b.waitFor(`document.querySelectorAll('#public-gallery .pd-gallery-grid li').length >= 5`, 5000))
       await b.evaluate(`document.querySelector('#public-gallery .pd-gallery-grid button')?.click()`)
@@ -196,6 +200,11 @@ try {
     }
     await admin()
   }
+  const emptyFooter = { ...page, design_style: 'modern_bold', contact_address_en: '', contact_address_bn: '', contact_email: '', contact_phone: '', map_url: '', privacy_policy_en: '', privacy_policy_bn: '', terms_en: '', terms_bn: '' }
+  check('school can clear optional footer details', (await b.api('/school/public-page', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(emptyFooter) })).status === 200)
+  await logout(); await b.go('/')
+  await b.waitFor(`!!document.querySelector('[data-public-footer] .school-footer-heading')`, 15000)
+  check('empty contacts and legal pages leave no dead footer blocks or links', await b.evaluate(`!document.querySelector('.school-footer-contact, .school-footer a[href^="tel:"], .school-footer a[href^="mailto:"], .school-footer a[href="/privacy-policy"], .school-footer a[href="/terms"]')`))
 } catch (error) { check('script', false, error.stack) } finally {
   try {
     if (originalPage) {

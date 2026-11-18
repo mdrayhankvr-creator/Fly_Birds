@@ -34,6 +34,7 @@ import { routinePlannerTranslations } from './routinePlannerTranslations'
 import { classRoutinePlannerTranslations } from './classRoutinePlannerTranslations'
 import { marksheetAdmitTranslations } from './marksheetAdmitTranslations'
 import { publicPolishTranslations } from './publicPolishTranslations'
+import { publicFooterTranslations } from './publicFooterTranslations'
 import { uxRound2Translations } from './uxRound2Translations'
 import { publicDesignTranslations } from './publicDesignTranslations'
 import { diaryCommentTranslations } from './diaryCommentTranslations'
@@ -223,6 +224,8 @@ i18n.addResourceBundle('en', 'translation', marksheetAdmitTranslations.en, true,
 i18n.addResourceBundle('bn', 'translation', marksheetAdmitTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', publicPolishTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', publicPolishTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', publicFooterTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', publicFooterTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', uxRound2Translations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', uxRound2Translations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', publicDesignTranslations.en, true, true)
