@@ -40,13 +40,13 @@ export const tones: Record<Tone, { solid: string; soft: string; dot: string; tex
 // PageHeader opens every module screen: a panel tinted with the module's
 // colour, its icon, the title and the page's main actions. The module and icon
 // come from the navigation entry for the current address unless given.
-export function PageHeader({ eyebrow, title, description, actions, icon, module, children }: { eyebrow?: string; title: ReactNode; description?: ReactNode; actions?: ReactNode; icon?: IconName; module?: Module; children?: ReactNode }) {
+export function PageHeader({ eyebrow, title, description, actions, icon, module, children, stackActions = false }: { eyebrow?: string; title: ReactNode; description?: ReactNode; actions?: ReactNode; icon?: IconName; module?: Module; children?: ReactNode; stackActions?: boolean }) {
   const groups = useNavGroups()
   const { pathname } = useLocation()
   const item = activeItem(groups, pathname)
   const mod = module ?? (item ? navModule(item.key) : 'home')
   return <header className="ds-page-head ds-rise p-4 sm:p-5 print:hidden" style={tone(mod)}>
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className={stackActions ? 'flex min-w-0 flex-col gap-3' : 'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}>
       <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
         <span aria-hidden="true" className="ds-fill grid h-11 w-11 shrink-0 place-items-center rounded-2xl sm:h-12 sm:w-12"><Icon name={icon ?? item?.icon ?? 'layers'} className="h-[22px] w-[22px]" /></span>
         <div className="min-w-0">
@@ -55,7 +55,7 @@ export function PageHeader({ eyebrow, title, description, actions, icon, module,
           {description && <p className="mt-1 max-w-3xl text-sm leading-snug text-slate-600">{description}</p>}
         </div>
       </div>
-      {actions && <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">{actions}</div>}
+      {actions && <div className={stackActions ? 'flex min-w-0 flex-wrap gap-2' : 'flex flex-wrap gap-2 sm:shrink-0 sm:justify-end'}>{actions}</div>}
     </div>
     {children && <div className="mt-4">{children}</div>}
   </header>
