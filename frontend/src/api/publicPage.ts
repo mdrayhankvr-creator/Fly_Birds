@@ -22,7 +22,7 @@ export type PublicView = {
   head: { name_en: string; name_bn: string; message_en: string; message_bn: string; photo_version?: string } | null
   gallery: GalleryPhoto[]
   notices: PublicNotice[]
-  contact: { address_en: string; address_bn: string; email: string; map_url: string } | null
+  contact: { address_en: string; address_bn: string; phone: string; email: string; map_url: string } | null
 }
 export type PublicDesignStyle = 'modern_bold' | 'classic' | 'minimal'
 export type PublicPage = PublicExtras & {

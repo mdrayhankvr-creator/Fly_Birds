@@ -689,27 +689,27 @@ label:has(> input[name="public-design-style"]:focus-visible) { outline: 3px soli
 [data-theme="dark"] .pd-pill, [data-theme="dark"] .pd-notice-card time { color: var(--public-light); }
 [data-theme="dark"] .pd-gallery-grid span { color: #b7c6d8; }
 [data-theme="dark"] .pd-about-photos img { border-color: #142238; }
-.pd-modern-footer { border-top: 1px solid #e7edf4; background: #fff; color: #526277; }
-.pd-modern-footer h2 { color: #17243a; font-size: 1.02rem; line-height: 1.35; font-weight: 800; }
-.pd-modern-footer nav ul, .pd-modern-footer section > ul { display: grid; gap: .8rem; margin-top: 1rem; }
-.pd-modern-footer .pd-social-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.25rem; }
-.pd-modern-footer nav a { color: #526277; font-size: .9rem; font-weight: 600; }
-.pd-modern-footer nav a:hover, .pd-modern-footer section a:hover { color: var(--public-primary); text-decoration: underline; }
-.pd-modern-footer section > ul li { display: flex; min-width: 0; align-items: start; gap: .65rem; line-height: 1.5; overflow-wrap: anywhere; }
-.pd-modern-footer section > ul li svg { flex: none; color: var(--public-primary); }
-.pd-modern-footer section > ul li a { min-width: 0; overflow-wrap: anywhere; }
-.pd-modern-footer .pd-social { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid #d3deea; border-radius: 50%; color: var(--public-primary); font-size: .95rem; font-weight: 800; text-decoration: none; }
-.pd-modern-footer .pd-social:hover { background: #edf4fb; text-decoration: none; }
-.pd-footer-bottom { border-top: 1px solid #e7edf4; color: #64748b; }
+.public-footer.school-footer { border-top: 3px solid #c69b5c; background: #142238; color: #dbe5f2; }
+.school-footer-name { color: #fff; overflow-wrap: anywhere; }
+.school-footer-tagline { color: #f4cb88; }
+.school-footer-description { color: #bdcadb; overflow-wrap: anywhere; }
+.school-footer-heading { color: #fff; font-size: 1rem; font-weight: 800; line-height: 1.4; }
+.school-footer-links { display: grid; gap: .8rem; margin-top: 1.25rem; }
+.school-footer a { color: #e4ecf6; text-decoration: none; }
+.school-footer a:hover { color: #f4cb88; text-decoration: underline; text-underline-offset: .2em; }
+.school-footer a:focus-visible { border-radius: .2rem; outline: 2px solid #f4cb88; outline-offset: 4px; }
+.school-footer-contact { display: grid; gap: .95rem; margin-top: 1.25rem; }
+.school-footer-contact li { display: flex; min-width: 0; align-items: flex-start; gap: .65rem; line-height: 1.6; overflow-wrap: anywhere; }
+.school-footer-contact li svg { width: 1.15rem; height: 1.15rem; flex: none; margin-top: .12rem; color: #f4cb88; }
+.school-footer-contact li a { min-width: 0; overflow-wrap: anywhere; }
+.school-footer-socials a { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid #8092ab; border-radius: 50%; font-weight: 800; }
+.school-footer-socials a:hover { background: #243955; text-decoration: none; }
+.school-footer-bottom { border-top: 1px solid #3c4d64; background: #101b2d; color: #c5d2e2; }
+.school-footer-bottom p { overflow-wrap: anywhere; }
 .pd-legal { color: #526277; font-family: "Plus Jakarta Sans", "Noto Sans Bengali", sans-serif; }
 .pd-legal p { line-height: 1.8; overflow-wrap: anywhere; }
 :root:lang(bn) .pd-legal { font-family: "Anek Bangla", "Plus Jakarta Sans", sans-serif; }
-[data-theme="dark"] .pd-modern-footer { background: #111d2f; border-color: #293b53; color: #b7c6d8; }
-[data-theme="dark"] .pd-modern-footer h2, [data-theme="dark"] .pd-legal h1 { color: #f2f7ff; }
-[data-theme="dark"] .pd-modern-footer nav a { color: #b7c6d8; }
-[data-theme="dark"] .pd-modern-footer .pd-social { border-color: #3a4e67; color: var(--public-light); }
-[data-theme="dark"] .pd-modern-footer .pd-social:hover { background: #223955; }
-[data-theme="dark"] .pd-footer-bottom { border-color: #293b53; color: #aebed1; }
+[data-theme="dark"] .pd-legal h1 { color: #f2f7ff; }
 [data-theme="dark"] .pd-legal { color: #b7c6d8; }
 @media (prefers-reduced-motion: reduce) { .pd-header *, .pd-modern * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 /* Student and staff profile surfaces */

@@ -179,11 +179,11 @@ func TestPostgresPublicSchoolPage(t *testing.T) {
 	call(http.MethodPut, "/school/public-page", page, adminH, http.StatusOK)
 
 	v, publicJSON := publicView()
-	if strings.Contains(publicJSON, "contact_phone") || strings.Contains(publicJSON, "+880 1711-000000") || v.Data.DesignStyle != "modern_bold" {
-		t.Fatalf("public page leaks phone or did not restore default style: %s", publicJSON)
+	if strings.Contains(publicJSON, "contact_phone") || strings.Contains(publicJSON, "guardian_phone") || v.Data.DesignStyle != "modern_bold" {
+		t.Fatalf("public page exposes a private field or did not restore default style: %s", publicJSON)
 	}
 	a, h, c := v.Data.About, v.Data.Head, v.Data.Contact
-	if a == nil || h == nil || c == nil || a.EIIN != "123456" || a.FoundedYear == nil || *a.FoundedYear != 1972 || a.Students == nil || a.Teachers == nil || h.NameBN != "আয়েশা রহমান" || c.Email != "office@school.example" || c.MapURL == "" {
+	if a == nil || h == nil || c == nil || a.EIIN != "123456" || a.FoundedYear == nil || *a.FoundedYear != 1972 || a.Students == nil || a.Teachers == nil || h.NameBN != "আয়েশা রহমান" || c.Email != "office@school.example" || c.Phone != "+880 1711-000000" || c.MapURL == "" {
 		t.Fatalf("public page %+v %+v %+v", a, h, c)
 	}
 

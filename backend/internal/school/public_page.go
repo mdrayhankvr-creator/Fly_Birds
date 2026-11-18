@@ -184,6 +184,7 @@ type PublicHead struct {
 type PublicContact struct {
 	AddressEN string `json:"address_en"`
 	AddressBN string `json:"address_bn"`
+	Phone     string `json:"phone"`
 	Email     string `json:"email"`
 	MapURL    string `json:"map_url"`
 }
@@ -235,8 +236,8 @@ func (s *Service) PublicView(ctx context.Context) (PublicView, error) {
 	if p.HeadMessageEN != "" || p.HeadMessageBN != "" {
 		out.Head = &PublicHead{NameEN: p.HeadNameEN, NameBN: p.HeadNameBN, MessageEN: p.HeadMessageEN, MessageBN: p.HeadMessageBN, PhotoVersion: p.HeadPhotoVersion}
 	}
-	if p.ContactAddressEN != "" || p.ContactAddressBN != "" || p.ContactEmail != "" || p.MapURL != "" {
-		out.Contact = &PublicContact{AddressEN: p.ContactAddressEN, AddressBN: p.ContactAddressBN, Email: p.ContactEmail, MapURL: p.MapURL}
+	if p.ContactAddressEN != "" || p.ContactAddressBN != "" || p.ContactPhone != "" || p.ContactEmail != "" || p.MapURL != "" {
+		out.Contact = &PublicContact{AddressEN: p.ContactAddressEN, AddressBN: p.ContactAddressBN, Phone: p.ContactPhone, Email: p.ContactEmail, MapURL: p.MapURL}
 	}
 	if out.Gallery, err = repo.Gallery(ctx); err != nil {
 		return PublicView{}, err
