@@ -10,6 +10,7 @@
 //   drop:<n>          close the DevTools socket after answering n commands
 //   drop-on:<method>  close the DevTools socket when that command arrives
 //   fail-once:<file>  crash if <file> is missing (creating it), else start
+//   login-context     the first two app-origin probes see a transient document
 import { createHash } from 'node:crypto'
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -46,15 +47,32 @@ function start() {
     socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`)
     let buffer = Buffer.alloc(0)
     let answered = 0
+    let loginProbes = 0
     socket.on('data', chunk => {
       buffer = Buffer.concat([buffer, chunk])
       for (let frame = readFrame(buffer); frame; frame = readFrame(buffer)) {
         buffer = buffer.subarray(frame.size)
         if (frame.opcode === 8) return socket.end()
         if (frame.opcode !== 1) continue
-        const { id, method } = JSON.parse(frame.text)
+        const { id, method, params } = JSON.parse(frame.text)
         if ((mode === 'drop' && answered === Number(value)) || (mode === 'drop-on' && method === value)) return socket.destroy()
-        const result = method === 'Runtime.evaluate' ? { result: { value: 2 } } : {}
+        let result = method === 'Runtime.evaluate' ? { result: { value: 2 } } : {}
+        if (mode === 'login-context' && method === 'Runtime.evaluate') {
+          const expression = params.expression
+          if (expression.includes('location.origin') && expression.includes('localStorage')) {
+            loginProbes++
+            result = loginProbes === 1
+              ? { result: { value: null }, exceptionDetails: { text: 'Execution context was destroyed' } }
+              : { result: { value: loginProbes >= 3 } }
+            if (process.env.FAKE_BROWSER_EVENTFILE) appendFileSync(process.env.FAKE_BROWSER_EVENTFILE, 'probe\n')
+          } else if (expression.includes('localStorage.setItem')) {
+            if (process.env.FAKE_BROWSER_EVENTFILE) appendFileSync(process.env.FAKE_BROWSER_EVENTFILE, 'write\n')
+            result = loginProbes < 3 ? { result: { value: null }, exceptionDetails: { text: 'SecurityError: localStorage denied for this document' } } : { result: { value: true } }
+          } else if (expression.includes('/api/auth/login')) {
+            if (process.env.FAKE_BROWSER_EVENTFILE) appendFileSync(process.env.FAKE_BROWSER_EVENTFILE, 'login\n')
+            result = { result: { value: { status: 200, after: 0, code: '' } } }
+          } else if (expression.includes('document.readyState')) result = { result: { value: true } }
+        }
         socket.write(textFrame(JSON.stringify({ id, result })))
         answered++
       }

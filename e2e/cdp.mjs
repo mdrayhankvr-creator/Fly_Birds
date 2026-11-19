@@ -161,7 +161,29 @@ async function connect(state, base, shots, timeoutMs) {
     // bad or locked account with 401, so nothing real is waited out.
     async login(email, password, lang = 'en', attempts = 6) {
       await b.go('/login')
-      await b.evaluate(`(async () => { localStorage.setItem('flybirds.language', '${lang}'); const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1] || ''); if (csrf) await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } }).catch(() => null); return true })()`)
+      // Page.navigate can leave the target on about:blank or an HTTPS error
+      // document while the app is loading. Both can be "complete" but have an
+      // opaque origin where localStorage raises SecurityError. Probe only the
+      // document, without writing or logging out, until the app origin and
+      // storage are ready. A failed state-changing call is never retried.
+      const origin = new URL(base).origin
+      const deadline = Date.now() + 15000
+      let ready = false
+      while (Date.now() < deadline) {
+        try {
+          ready = await b.evaluate(`(() => {
+            if (location.origin !== ${JSON.stringify(origin)} || document.readyState !== 'complete' || !document.documentElement) return false
+            localStorage.getItem('flybirds.language')
+            return true
+          })()`)
+        } catch (error) {
+          if (closed || !/SecurityError|Execution context was destroyed|Cannot find (?:execution )?context with specified id|Inspected target navigated or closed/.test(error.message)) throw error
+        }
+        if (ready) break
+        await sleep(100)
+      }
+      if (!ready) throw new Error(`login document at ${origin} did not become ready within 15000 ms`)
+      await b.evaluate(`(async () => { localStorage.setItem('flybirds.language', ${JSON.stringify(lang)}); const csrf = decodeURIComponent((document.cookie.match(/flybirds_csrf=([^;]+)/)||[])[1] || ''); if (csrf) await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } }).catch(() => null); return true })()`)
       for (let attempt = 1, wait = 4000; ; attempt++, wait = Math.min(wait * 2, 30000)) {
         const res = await b.evaluate(`(async () => {
           const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: ${JSON.stringify(email)}, password: ${JSON.stringify(password)} }) })

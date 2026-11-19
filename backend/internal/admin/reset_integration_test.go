@@ -72,6 +72,7 @@ func TestPostgresResetKeepsWhatTheSchemaSeeds(t *testing.T) {
 		"student_setup_runs":            false,
 		"class_fourth_subject_policies": false,
 		"class_routine_plan_versions":   false,
+		"synthetic_teacher_setup_runs":  false,
 	}
 	for _, entry := range plan.Empty {
 		if _, required := requiredEmpty[entry.Table]; required {
@@ -459,7 +460,7 @@ func TestPostgresResetAnySchoolSkipsTheNameCheck(t *testing.T) {
 }
 
 func TestPostgresResetRequiresReviewedSchema(t *testing.T) {
-	for _, version := range []int{1765, 1814, 1815} {
+	for _, version := range []int{1765, 1814, 1815, 1816} {
 		t.Run(strconv.Itoa(version), func(t *testing.T) {
 			ctx, _, tx := openResetDB(t)
 			if err := tx.Exec("DELETE FROM schema_migrations WHERE version = ?", version).Error; err != nil {

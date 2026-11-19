@@ -1052,6 +1052,23 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [profile], properties: { profile: { type: string, description: JSON-encoded staff and login details }, photo: { type: string, format: binary } } } } } }
       responses: { '201': { description: Created employee and one-time temporary credential }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Duplicate identity or incompatible assignment } }
+  /staff/synthetic-setup/preview:
+    get:
+      operationId: previewSyntheticTeacherSetup
+      tags: [staff]
+      summary: Read-only preview of the TEST teacher shortfall to 15 active profiles
+      description: 'Administrator with staff:manage, users:create and permissions:manage, with staff and permissions modules enabled. Counts current staff, shows existing account links, and checks protected Admins and candidate employee codes and login emails. Returns a state fingerprint. No accounts or passwords are created.'
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Existing teachers, candidates, missing details and fingerprint }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Protected account or identifier conflict } }
+  /staff/synthetic-setup:
+    post:
+      operationId: applySyntheticTeacherSetup
+      tags: [staff]
+      summary: Atomically create only the confirmed TEST teacher shortfall and linked accounts
+      description: 'Same Admin grants as preview. Recounts and checks the fingerprint and identifiers under database locks. An explicit confirmation and idempotency key are required. The first response contains distinct one-time temporary passwords; retries return counts without credentials. The Admin UI encrypts the credential export locally with a separate passphrase. Existing teachers and protected Admin accounts are never modified.'
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [fingerprint, idempotency_key, confirm], properties: { fingerprint: { type: string }, idempotency_key: { type: string, format: uuid }, confirm: { type: boolean, enum: [true] } } } } } }
+      responses: { '201': { description: Created count and one-time login credentials }, '200': { description: Retry count with no credentials }, '400': { $ref: '#/components/responses/InvalidRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Stale preview, conflicting state or key reused } }
   /staff/employees/{id}:
     parameters: [{ $ref: '#/components/parameters/AcademicId' }]
     get:

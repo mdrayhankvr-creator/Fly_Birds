@@ -27,6 +27,7 @@ const AcademicPage = lazy(() => import('./pages/AcademicPage').then(m => ({ defa
 const GroupsShiftsPage = lazy(() => import('./pages/AcademicPage').then(m => ({ default: m.GroupsShiftsPage })))
 const AcademicSessionsPage = lazy(() => import('./pages/AcademicSessionsPage').then(m => ({ default: m.AcademicSessionsPage })))
 const StaffPage = lazy(() => import('./pages/StaffPage').then(m => ({ default: m.StaffPage })))
+const TeacherBulkSetupPage = lazy(() => import('./pages/TeacherBulkSetupPage').then(m => ({ default: m.TeacherBulkSetupPage })))
 const TeacherAttendancePage = lazy(() => import('./pages/TeacherAttendancePage').then(m => ({ default: m.TeacherAttendancePage })))
 const StudentAttendancePage = lazy(() => import('./pages/StudentAttendancePage').then(m => ({ default: m.StudentAttendancePage })))
 const QuickAttendancePage = lazy(() => import('./pages/QuickAttendancePage').then(m => ({ default: m.QuickAttendancePage })))
@@ -153,6 +154,15 @@ function StaffGate({ permissions, own, profile, enabled, loading, error }: { per
   if (!enabled && !profile) return <StateScreen kind="disabled" message={t('staffModuleDisabled')} />
   if (profile) return <StaffProfilePage />
   return <StaffPage permissions={permissions} own={own} />
+}
+
+function TeacherSetupGate({ permissions, role, enabled, loading, error }: { permissions: string[] | undefined; role: string | undefined; enabled: boolean; loading: boolean; error: boolean }) {
+  const { t } = useTranslation()
+  if (loading) return <StateScreen kind="loading" message={t('loadingPermissions')} />
+  if (error) return <StateScreen kind="error" message={t('loadPermissionsError')} />
+  if (role !== 'admin' || !['staff:manage', 'users:create', 'permissions:manage'].every(permission => permissions?.includes(permission))) return <StateScreen kind="denied" message={t('permissionDenied')} />
+  if (!enabled) return <StateScreen kind="disabled" message={t('staffModuleDisabled')} />
+  return <TeacherBulkSetupPage />
 }
 
 function AttendanceGate({ permissions, own, enabled, loading, error }: { permissions: string[] | undefined; own: boolean; enabled: boolean; loading: boolean; error: boolean }) {
@@ -548,6 +558,7 @@ export default function App() {
         <Route path="/admin/academic/sections" element={<ProtectedRoute><AcademicGate kind="sections" permissions={myPermissions.data} role={user?.role} enabled={academicEnabled} loading={academicLoading} error={academicError} /></ProtectedRoute>} />
         <Route path="/admin/academic/sessions" element={<ProtectedRoute><AcademicSessionsGate permissions={myPermissions.data} loading={myPermissions.isPending} error={myPermissions.isError} /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own={false} enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
+        <Route path="/admin/staff/synthetic-setup" element={<ProtectedRoute><TeacherSetupGate permissions={myPermissions.data} role={user?.role} enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
         <Route path="/staff/profiles/:id" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own={false} profile enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
         <Route path="/staff/me" element={<ProtectedRoute><StaffGate permissions={myPermissions.data} own enabled={staffEnabled} loading={staffLoading} error={staffError} /></ProtectedRoute>} />
         <Route path="/admin/attendance/students" element={<ProtectedRoute><StudentAttendanceGate kind="manage" permissions={myPermissions.data} enabled={attendanceEnabled} loading={attendanceLoading} error={attendanceError} /></ProtectedRoute>} />

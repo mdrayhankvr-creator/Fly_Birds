@@ -82,6 +82,23 @@ test('a lost connection fails commands instead of hanging', async () => {
   await assertCleanedUp()
 })
 
+test('login waits for the app origin before touching storage or signing in', async () => {
+  const events = join(work, 'login-context-events')
+  rmSync(events, { force: true })
+  process.env.FAKE_BROWSER_EVENTFILE = events
+  let b
+  try {
+    b = await withFake('login-context', { base: 'https://localhost' })
+    await b.login('disposable@example.test', 'fixture-password')
+    const calls = readFileSync(events, 'utf8').trim().split('\n')
+    assert.deepEqual(calls, ['probe', 'probe', 'probe', 'write', 'login'])
+  } finally {
+    if (b) await b.close()
+    delete process.env.FAKE_BROWSER_EVENTFILE
+    await assertCleanedUp()
+  }
+})
+
 test('a connection lost during startup stops the run', async () => {
   await assert.rejects(withFake('drop:1', { attempts: 1 }), /browser connection closed/)
   await assertCleanedUp()
@@ -112,5 +129,28 @@ test('the real browser starts repeatedly even when the legacy port is taken', { 
     }
   } finally {
     squatter.close()
+  }
+})
+
+test('login succeeds after a delayed app navigation in a real browser', { skip: !installed && 'no Chromium-based browser installed' }, async () => {
+  const server = createServer((req, res) => {
+    if (req.url === '/login') {
+      setTimeout(() => { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><title>Disposable login</title>') }, 1200)
+    } else if (req.url === '/api/auth/login' && req.method === 'POST') {
+      res.setHeader('Content-Type', 'application/json'); res.end('{}')
+    } else { res.statusCode = 404; res.end() }
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const base = `http://127.0.0.1:${server.address().port}`
+  let b
+  try {
+    b = await launch({ base, shots })
+    await b.login('disposable@example.test', 'fixture-password', 'bn')
+    assert.equal(await b.evaluate('location.origin'), base)
+    assert.equal(await b.evaluate("localStorage.getItem('flybirds.language')"), 'bn')
+  } finally {
+    if (b) await b.close()
+    await new Promise(resolve => server.close(resolve))
+    await assertCleanedUp()
   }
 })

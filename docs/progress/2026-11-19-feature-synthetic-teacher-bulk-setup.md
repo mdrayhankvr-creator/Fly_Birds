@@ -1,0 +1,17 @@
+# 2026-11-19 — Synthetic teacher bulk setup
+
+- Created isolated worktree `Fly_Birds_teacher_bulk` on `feature/synthetic-teacher-bulk-setup` from origin/main `963ac215974f837588eed69472f872029c124dba`. Root worktree and live stacks remain unchanged.
+- Reused the school setup teacher identifier arithmetic, staff code validation, temporary password hashing and forced-change policy, RBAC grants, audit format and local encrypted credential file format.
+- Added migration 1816 for an explicit synthetic staff marker, a nullable joining date only for synthetic active teachers, and a retry ledger without credentials. Reviewed clean-slate schema/table guards and empty-table behavior.
+- Added read-only Admin preview and an explicitly confirmed, fingerprint-checked atomic apply to reach 15 active teachers total. Existing teachers, account links, student records, school settings and protected Administrator accounts are untouched.
+- Added bilingual responsive Staff entry point and setup page, local encrypted one-time credential export, OpenAPI routes and a setup guide.
+- Verification: teacher PostgreSQL integration tests passed on fresh `teacher_setup_test_*` databases, including guard, rollback, collision, protected Admin and retry cases. Reset PostgreSQL tests passed on a separate disposable database; the final 1816 schema guard passed. The isolated browser test passed 17/17 checks, including a forced first-login password change. Frontend typecheck/build passed, i18n passed (4 tests and key check), and frontend unit tests passed 24/24. The first full Go suite exposed missing OpenAPI route documentation; after adding it, the focused OpenAPI test and the final full Go suite passed. Go build and vet passed.
+- No fbshow update, import, migration, account change, push, merge or deployment was performed.
+
+## PR #71 release-stack login readiness fix
+
+- The release-stack push run reported `SecurityError` at `e2e/cdp.mjs` during the first `whitelabel.mjs` login. The shared `go()` helper accepted any completed document; an opaque `about:blank` or browser error document can be complete while denying `localStorage`. The exact document in CI was not captured, so this is an inference from the error and helper code.
+- `login()` now waits up to 15 seconds for the requested app origin, a completed document and a read-only successful storage probe. It retries only this probe during a transient execution-context loss. Language storage write, logout and sign-in still execute once; login responses and test assertions are unchanged.
+- A deterministic fake-browser test reproduced the same `SecurityError` before the fix and passed afterward. Full CDP harness: 10/10 passed, including real browser startup and a delayed-navigation login.
+- On separate newly seeded disposable local databases, `whitelabel.mjs` passed 23/23 twice. `suite.mjs` completed 128/130 once: the Teacher `/analytics` denial and Guardian notice assertions failed; a repeat passed the Teacher denial but stalled before the Student role and was stopped after several minutes. Its isolated API/Vite processes and browser were confirmed stopped. The earlier GitHub release-stack push evidence showed `suite.mjs` at 130/130. These local suite results need CI confirmation; no assertion was weakened.
+- Frontend i18n (4/4 and key check), unit tests (24/24), and TypeScript/production build passed. No backend production code changed, so backend tests were not rerun for this harness-only fix. No live stack or data was touched.
