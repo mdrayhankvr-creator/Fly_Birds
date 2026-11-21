@@ -2173,6 +2173,43 @@ paths:
       tags: [routine]
       security: [{ bearerAuth: [] }]
       responses: { '200': { description: Published version }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Stale or invalid plan } }
+  /routines/cohorts:
+    get:
+      operationId: listAdminCohortLessons
+      summary: List current combined lessons for a session
+      description: Administrator with routine:manage only. Does not expose the student roster.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Current cohort summaries }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/cohorts/me:
+    get:
+      operationId: listOwnCohortLessons
+      summary: List current lessons assigned to a teacher or joined by a student
+      description: Requires routine:read_self and the teacher or student role. Without a session_id, uses the active session.
+      tags: [routine]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: false, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Own cohort summaries }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/cohorts/{id}/roster:
+    get:
+      operationId: getAssignedCohortRoster
+      summary: Get a lesson's exact roster with original sections and subject attendance
+      description: Administrator or assigned teacher only. Requires routine and attendance modules plus attendance:students_read.
+      tags: [routine, attendance]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: date, in: query, required: true, schema: { type: string, format: date } }]
+      responses: { '200': { description: Assigned lesson roster }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /routines/cohorts/{id}/attendance:
+    put:
+      operationId: saveAssignedCohortAttendance
+      summary: Record subject attendance for every member of a current cohort lesson
+      description: Administrator or assigned teacher only. Requires attendance:students_manage. Entries must exactly match the published roster; ordinary daily attendance is unchanged.
+      tags: [routine, attendance]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [date, entries], properties: { date: { type: string, format: date }, entries: { type: array, items: { type: object, required: [student_id, status], properties: { student_id: { type: string, format: uuid }, status: { type: string, enum: [present, absent, late] } } } } } } } } }
+      responses: { '200': { description: Saved subject attendance }, '400': { description: Invalid or incomplete roster }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Lesson was replaced } }
   /routines/classes:
     get:
       operationId: listClassRoutines
@@ -3035,6 +3072,67 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [session_id, class_id, choices], properties: { session_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, review_published: { type: boolean }, choices: { type: array, maxItems: 500, items: { type: object, additionalProperties: false, properties: { student_id: { type: string, format: uuid }, subject_id: { type: string } } } } } } } } }
       responses: { '200': { description: Choices }, '400': { description: Invalid input }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /exams/religion-choices:
+    get:
+      operationId: getReligionEducationChoices
+      summary: Preview approved Religion Education options and individual student choices
+      description: Administrator with exams:manage only. Returns an academic course roster and digest; it does not store or infer religious affiliation.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: session_id, in: query, required: true, schema: { type: string, format: uuid } }, { name: class_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Options and explicit choices }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    put:
+      operationId: saveReligionEducationChoices
+      summary: Save explicitly reviewed academic course choices
+      description: Administrator with exams:manage. Requires fresh preview digest and confirmation. Published result versions prevent changes; no student is assigned by inference.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [session_id, class_id, choices, preview_digest, confirmed], properties: { session_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, preview_digest: { type: string }, confirmed: { type: boolean }, choices: { type: array, items: { type: object, properties: { student_id: { type: string, format: uuid }, subject_id: { type: string } } } } } } } } }
+      responses: { '200': { description: Saved choices }, '400': { description: Invalid choice }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Stale preview or published result } }
+  /exams/religion-options:
+    put:
+      operationId: saveReligionEducationOptions
+      summary: Approve required class mappings as Religion Education course options
+      description: Administrator with exams:manage. Requires fresh preview digest and confirmation. Existing student choices and published results are protected.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [session_id, class_id, subject_ids, preview_digest, confirmed], properties: { session_id: { type: string, format: uuid }, class_id: { type: string, format: uuid }, subject_ids: { type: array, items: { type: string, format: uuid } }, preview_digest: { type: string }, confirmed: { type: boolean } } } } } }
+      responses: { '200': { description: Approved options }, '400': { description: Invalid class mapping }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Stale preview or published result } }
+  /exams/religion-choice-options/{studentId}:
+    get:
+      operationId: getFamilyReligionEducationOptions
+      summary: Read a student's eligible academic courses for a correction request
+      description: Student self or linked guardian only. Does not reveal another student's course.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: studentId, in: path, required: true, schema: { type: string, format: uuid } }, { name: session_id, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Eligible course options }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { description: Student not linked } }
+  /exams/religion-choice-requests:
+    get:
+      operationId: listReligionEducationCorrectionRequests
+      summary: List pending academic course correction requests
+      description: Administrator with exams:manage only.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Pending requests }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      operationId: requestReligionEducationCorrection
+      summary: Request an approved course correction without changing the current choice
+      description: Student self or linked guardian only. The request stores no religious affiliation or free text.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [student_id, session_id, subject_id], properties: { student_id: { type: string, format: uuid }, session_id: { type: string, format: uuid }, subject_id: { type: string, format: uuid } } } } } }
+      responses: { '201': { description: Request created }, '400': { description: Ineligible course }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { description: Student not linked }, '409': { description: Pending request exists } }
+  /exams/religion-choice-requests/{id}/resolve:
+    post:
+      operationId: resolveReligionEducationCorrection
+      summary: Close a course correction request after Admin review
+      description: Administrator with exams:manage. Resolved requires the requested choice to already be saved through the confirmed choice workflow; rejected changes no choice.
+      tags: [exams]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [decision], properties: { decision: { type: string, enum: [resolved, rejected] } } } } } }
+      responses: { '200': { description: Request reviewed }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Requested choice has not been saved } }
   /exams/fourth-subject-policy:
     put:
       operationId: saveFourthSubjectPolicy

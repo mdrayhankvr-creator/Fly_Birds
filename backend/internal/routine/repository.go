@@ -58,6 +58,25 @@ func (r *GormRepository) SaveClass(ctx context.Context, actor, id string, in Cla
 		if overlap > 0 {
 			return ErrConflict
 		}
+		// A manually saved section lesson must also respect current combined
+		// lessons, including lessons published for an overlapping session.
+		err = tx.Raw(`SELECT count(*) FROM class_cohort_lessons l
+JOIN academic_sessions existing_session ON existing_session.id=l.session_id
+JOIN academic_sessions selected_session ON selected_session.id=?
+WHERE l.is_current AND existing_session.start_date<=selected_session.end_date
+  AND existing_session.end_date>=selected_session.start_date
+  AND l.day_of_week=? AND l.start_minute<? AND l.end_minute>?
+  AND (l.teacher_id=? OR lower(l.room)=lower(?) OR EXISTS (
+    SELECT 1 FROM class_cohort_members m JOIN student_enrolments en
+      ON en.student_id=m.student_id AND en.session_id=?
+    WHERE m.lesson_id=l.id AND en.section_id=? AND en.state='current'))`,
+			in.SessionID, in.DayOfWeek, end, start, in.TeacherID, in.Room, in.SessionID, in.SectionID).Row().Scan(&overlap)
+		if err != nil {
+			return err
+		}
+		if overlap > 0 {
+			return ErrConflict
+		}
 		if id == "" {
 			err = tx.Raw("INSERT INTO class_routines(session_id,class_id,section_id,subject_id,teacher_id,day_of_week,start_minute,end_minute,room,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING id", in.SessionID, in.ClassID, in.SectionID, in.SubjectID, in.TeacherID, in.DayOfWeek, start, end, in.Room, actor, actor).Scan(&id).Error
 		} else {

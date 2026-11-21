@@ -211,6 +211,98 @@ func (h *blueprintHandler) saveChoices(c *gin.Context) {
 	h.respond(c, 200, v, err)
 }
 
+func (h *blueprintHandler) religionChoices(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	v, err := h.service.ReligionChoices(c.Request.Context(), c.Query("session_id"), c.Query("class_id"))
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) saveReligionOptions(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	var in struct {
+		SessionID     string   `json:"session_id"`
+		ClassID       string   `json:"class_id"`
+		SubjectIDs    []string `json:"subject_ids"`
+		PreviewDigest string   `json:"preview_digest"`
+		Confirmed     bool     `json:"confirmed"`
+	}
+	if !decodeSchoolJSON(c, 16*1024, &in) {
+		return
+	}
+	v, err := h.service.SaveReligionOptions(c.Request.Context(), examUser(c).ID, in.SessionID, in.ClassID, in.SubjectIDs, in.PreviewDigest, in.Confirmed)
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) saveReligionChoices(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	var in struct {
+		SessionID     string                      `json:"session_id"`
+		ClassID       string                      `json:"class_id"`
+		Choices       []blueprints.ReligionChoice `json:"choices"`
+		PreviewDigest string                      `json:"preview_digest"`
+		Confirmed     bool                        `json:"confirmed"`
+	}
+	if !decodeSchoolJSON(c, 128*1024, &in) {
+		return
+	}
+	v, err := h.service.SaveReligionChoices(c.Request.Context(), examUser(c).ID, in.SessionID, in.ClassID, in.Choices, in.PreviewDigest, in.Confirmed)
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) requestReligionCorrection(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	var in struct {
+		StudentID string `json:"student_id"`
+		SessionID string `json:"session_id"`
+		SubjectID string `json:"subject_id"`
+	}
+	if !decodeSchoolJSON(c, 4*1024, &in) {
+		return
+	}
+	u := examUser(c)
+	v, err := h.service.RequestReligionCorrection(c.Request.Context(), u.ID, u.Role, in.StudentID, in.SessionID, in.SubjectID)
+	h.respond(c, 201, v, err)
+}
+
+func (h *blueprintHandler) religionCorrectionOptions(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	u := examUser(c)
+	v, err := h.service.ReligionCorrectionOptions(c.Request.Context(), u.ID, u.Role, c.Param("studentId"), c.Query("session_id"))
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) religionCorrectionRequests(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	v, err := h.service.ReligionCorrectionRequests(c.Request.Context(), examUser(c).ID)
+	h.respond(c, 200, v, err)
+}
+
+func (h *blueprintHandler) resolveReligionCorrection(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	var in struct {
+		Decision string `json:"decision"`
+	}
+	if !decodeSchoolJSON(c, 4*1024, &in) {
+		return
+	}
+	err := h.service.ResolveReligionCorrection(c.Request.Context(), examUser(c).ID, c.Param("id"), in.Decision)
+	h.respond(c, 200, gin.H{"status": in.Decision}, err)
+}
+
 func (h *blueprintHandler) saveFourthPolicy(c *gin.Context) {
 	if !h.ready(c) {
 		return

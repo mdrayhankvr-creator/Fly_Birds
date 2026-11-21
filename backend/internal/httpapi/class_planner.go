@@ -79,3 +79,49 @@ func (h *routineHandler) classPlannerPublish(c *gin.Context) {
 	}
 	success(c, 200, v)
 }
+
+func (h *routineHandler) cohortLessons(c *gin.Context) {
+	if !h.plannerReady(c) {
+		return
+	}
+	u := routineUser(c)
+	v, err := h.service.ClassPlanner.CohortLessons(c.Request.Context(), u.ID, u.Role, c.Query("session_id"))
+	if err != nil {
+		routineError(c, err)
+		return
+	}
+	success(c, 200, v)
+}
+
+func (h *routineHandler) cohortRoster(c *gin.Context) {
+	if !h.plannerReady(c) {
+		return
+	}
+	u := routineUser(c)
+	v, err := h.service.ClassPlanner.CohortRoster(c.Request.Context(), u.ID, u.Role, c.Param("id"), c.Query("date"))
+	if err != nil {
+		routineError(c, err)
+		return
+	}
+	success(c, 200, v)
+}
+
+func (h *routineHandler) cohortAttendance(c *gin.Context) {
+	if !h.plannerReady(c) {
+		return
+	}
+	var in struct {
+		Date    string                          `json:"date"`
+		Entries []routine.CohortAttendanceEntry `json:"entries"`
+	}
+	if !decodeSchoolJSON(c, 128*1024, &in) {
+		return
+	}
+	u := routineUser(c)
+	v, err := h.service.ClassPlanner.SaveCohortAttendance(c.Request.Context(), u.ID, u.Role, c.Param("id"), in.Date, in.Entries)
+	if err != nil {
+		routineError(c, err)
+		return
+	}
+	success(c, 200, v)
+}

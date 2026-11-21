@@ -113,7 +113,29 @@ func TestPostgresCheckpointFourLifecycle(t *testing.T) {
 	check("GET", "/users?role=unknown", "", authorization, 400)
 	check("PATCH", "/users/"+user.ID, `{"email":"cp4-teacher-`+suffix+`@example.test","display_name":"Updated Teacher"}`, authorization, 200)
 	check("PUT", "/users/"+user.ID+"/roles", `{"ids":["guardian"]}`, authorization, 200)
-	check("PATCH", "/users/"+admin.ID+"/status", `{"is_active":false}`, authorization, 409)
+	// Keep the last-Admin assertion even when earlier integration packages
+	// left Admin fixtures in the shared disposable database. The transaction
+	// exposes exactly one active Admin to this router and always rolls back.
+	isolation := db.Begin()
+	if isolation.Error != nil {
+		t.Fatal(isolation.Error)
+	}
+	defer isolation.Rollback()
+	if err := isolation.Exec("UPDATE users SET is_active=false WHERE role='admin' AND is_active AND id<>?", admin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	isolatedAuth, err := auth.NewService(auth.NewRepository(isolation), bytes.Repeat([]byte{0x55}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	isolatedRouter := NewRouterWithAll(isolatedAuth, true, rbac.NewService(rbac.NewRepository(isolation)), school.NewService(school.NewRepository(isolation)), users.NewService(users.NewRepository(isolation)), audit.NewService(audit.NewRepository(isolation)), dashboard.NewService(dashboard.NewRepository(isolation)))
+	lastAdminResponse := perform(isolatedRouter, "PATCH", "/users/"+admin.ID+"/status", `{"is_active":false}`, nil, authorization)
+	if lastAdminResponse.Code != 409 {
+		t.Fatalf("last Admin status: got %d want 409: %s", lastAdminResponse.Code, lastAdminResponse.Body.String())
+	}
+	if err := isolation.Rollback().Error; err != nil {
+		t.Fatal(err)
+	}
 	teacherCredentials, err := authService.Login(ctx, user.Email, password)
 	if err != nil {
 		t.Fatal(err)

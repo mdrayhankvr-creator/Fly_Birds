@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, deleteGuardian, getGuardian, getGuardians, getMyStudent, getMyStudentGuardians, getStudent, getStudentCard, getStudentGuardians, linkStudentGuardian, saveGuardian, saveStudentPhoto, unlinkStudentGuardian, type GuardianInput, type Student, type StudentGuardian } from '../api/client'
+import { ApiError, deleteGuardian, getGuardian, getGuardians, getMyStudent, getMyStudentGuardians, getStudent, getStudentCard, getStudentGuardians, getReligionCorrectionOptions, requestReligionCorrection, linkStudentGuardian, saveGuardian, saveStudentPhoto, unlinkStudentGuardian, type GuardianInput, type Student, type StudentGuardian } from '../api/client'
 import { usePersonPhoto } from '../components/PersonAvatar'
 import { confirmAction } from '../components/ConfirmDialog'
 import { usePeopleApi } from './peopleShared'
@@ -32,6 +32,34 @@ function formatDate(value: string, lang: string) {
 // already on record, or editing a linked guardian's details.
 type Editor = { kind: 'closed' } | { kind: 'new' } | { kind: 'existing' } | { kind: 'edit'; guardianId: string; loaded: boolean }
 const blankGuardian: GuardianInput = { name_en: '', name_bn: '', phone: '', email: '', address: '', user_id: '' }
+
+function ReligionCorrectionCard({ student }: { student: Student }) {
+  const { t, i18n } = useTranslation()
+  const authorized = usePeopleApi()
+  const [subject, setSubject] = useState('')
+  const [state, setState] = useState<'idle'|'busy'|'sent'|'error'>('idle')
+  const options = useQuery({ queryKey: ['religion', 'family-options', student.id, student.session_id], queryFn: () => authorized(token => getReligionCorrectionOptions(token, student.id, student.session_id)), retry: false })
+  if (options.isPending) return <Skeleton rows={1} />
+  if (options.isError) return <Banner tone="error">{t('religionLoadError')}</Banner>
+  if (!options.data?.options.length) return null
+  async function send() {
+    if (!subject || !await confirmAction(t('religionRequestConfirm'))) return
+    setState('busy')
+    try { await authorized(token => requestReligionCorrection(token, student.id, student.session_id, subject)); setState('sent') }
+    catch { setState('error') }
+  }
+  return <SectionCard title={t('religionRequestTitle')} id="religion-correction-request" icon="book">
+    <p className="text-sm text-slate-600">{t('religionRequestIntro')}</p>
+    <label className={`${ui.label} mt-3 block max-w-md`}>{t('religionCourse')}
+      <select className={ui.field} value={subject} disabled={state === 'busy' || state === 'sent'} onChange={e => setSubject(e.target.value)}>
+        <option value="">{t('religionUnselected')}</option>
+        {options.data.options.filter(o => o.id !== options.data.current_subject_id).map(o => <option key={o.id} value={o.id}>{i18n.language === 'bn' ? o.name_bn : o.name_en}</option>)}
+      </select>
+    </label>
+    {state === 'sent' ? <p role="status" className="mt-3 text-sm text-emerald-700">{t('religionRequestSent')}</p> : <button type="button" className={`${ui.secondary} mt-3`} disabled={!subject || state === 'busy'} onClick={() => void send()}>{t('religionRequestButton')}</button>}
+    {state === 'error' && <p role="alert" className="mt-2 text-sm text-rose-700">{t('religionRequestError')}</p>}
+  </SectionCard>
+}
 
 // A label/value row that shows a quiet placeholder for details not yet recorded.
 function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
@@ -265,6 +293,7 @@ export function StudentProfilePage({ mode, isAssignedTeacher = false, canManageP
         {mode === 'staff' && canManageLinks && value.user_id && <div className="mt-4 border-t border-slate-100 pt-4"><LoginPhoneCard userId={value.user_id} current={value.login_phone ?? ''} kind="student" /></div>}
       </SectionCard>
       <SectionCard title={t('prCurrentSubjects')} icon="book">{value.subjects?.length ? <ul className="grid gap-2 sm:grid-cols-2">{value.subjects.map(subject => <li key={subject.id} className="pr-subject"><span>{pick(subject.name_en, subject.name_bn)}</span>{subject.is_fourth_subject && <Chip>{t('profileFourthSubject')}</Chip>}</li>)}</ul> : <EmptyState icon="book" title={t('prNoSubjects')} />}</SectionCard>
+    {(mode === 'self' || mode === 'child') && <ReligionCorrectionCard student={value} />}
     {canReadHistory && <AcademicHistory studentId={value.id} />}
     {insights?.analytics && <StudentInsights studentId={value.id} access={insights} section="results" />}
     {mode === 'self' && <PublishedResults />}

@@ -196,7 +196,7 @@ func (r *GormRepository) SaveSubject(ctx context.Context, actor, examID string, 
 			}
 			// Several fourth subjects are fine once students choose theirs (E5).
 			var choices bool
-			if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN student_enrolments en ON en.student_id = c.student_id AND en.session_id = c.session_id WHERE c.session_id = ? AND en.session_id = ? AND en.class_id = ?)", e.SessionID, e.SessionID, e.ClassID).Row().Scan(&choices); err != nil {
+			if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN student_enrolments en ON en.student_id = c.student_id AND en.session_id = c.session_id WHERE c.session_id = ? AND c.role='optional' AND en.session_id = ? AND en.class_id = ?)", e.SessionID, e.SessionID, e.ClassID).Row().Scan(&choices); err != nil {
 				return err
 			}
 			if count > 0 && !choices {

@@ -31,6 +31,7 @@ import { premiumUi5Translations } from './premiumUi5Translations'
 import { e7Translations } from './e7Translations'
 import { auditFixesTranslations } from './auditFixesTranslations'
 import { routinePlannerTranslations } from './routinePlannerTranslations'
+import { religionCohortTranslations } from './religionCohortTranslations'
 import { classRoutinePlannerTranslations } from './classRoutinePlannerTranslations'
 import { marksheetAdmitTranslations } from './marksheetAdmitTranslations'
 import { publicPolishTranslations } from './publicPolishTranslations'
@@ -219,6 +220,8 @@ i18n.addResourceBundle('en', 'translation', auditFixesTranslations.en, true, tru
 i18n.addResourceBundle('bn', 'translation', auditFixesTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', routinePlannerTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', routinePlannerTranslations.bn, true, true)
+i18n.addResourceBundle('en', 'translation', religionCohortTranslations.en, true, true)
+i18n.addResourceBundle('bn', 'translation', religionCohortTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', classRoutinePlannerTranslations.en, true, true)
 i18n.addResourceBundle('bn', 'translation', classRoutinePlannerTranslations.bn, true, true)
 i18n.addResourceBundle('en', 'translation', marksheetAdmitTranslations.en, true, true)

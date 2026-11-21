@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { CardTitle, ui, PageHeader, Tabs, Notice } from './attendanceUi'
 import { TermRoutinePlanner } from './routine/TermRoutinePlanner'
 import { ClassRoutinePlanner } from './routine/ClassRoutinePlanner'
+import { CohortLessonsCard } from './routine/CohortLessonsCard'
 import { StudentExamRoutine, TeacherDutyList } from './routine/ExamRoutineViews'
 import { MyAdmitCards } from './routine/AdmitCards'
 
@@ -122,6 +123,7 @@ export function RoutinePage({ mode, canManage, canApprove = false }: { mode: Mod
           </div>
         })}</div>}
       </section>
+      {(mode === 'teacher' || mode === 'student') && <CohortLessonsCard mode={mode} />}
       {canManage && <section className={`${ui.card} p-4 sm:p-6 print:hidden`}><CardTitle icon="grade">{t(classEdit ? 'editClassPeriod' : 'addClassPeriod')}</CardTitle><form className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={saveClass}>
         <label className={ui.label}>{t('academicSessions')}<select className={field} required value={classForm.session_id} onChange={e => setClassForm({ ...classForm, session_id: e.target.value, section_id: '' })}><option value="">{t('selectOption')}</option>{sessions.data?.items.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
         <label className={ui.label}>{t('classesHeading')}<select className={field} required value={classForm.class_id} onChange={e => setClassForm({ ...classForm, class_id: e.target.value, section_id: '' })}><option value="">{t('selectOption')}</option>{academicClasses.data?.items.filter(v => v.is_active).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>

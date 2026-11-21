@@ -53,9 +53,11 @@ var (
 // Migration 1815 adds class_routine_plan_versions. Migration 1816 adds a
 // synthetic teacher retry table, which is emptied with staff and accounts.
 // Its nullable joining date and TEST marker do not seed or keep staff rows.
-const resetReviewedSchemaVersion = 1816
-const resetReviewedMigrationCount = 60
-const resetReviewedTableCount = 117
+// Migration 1817 adds Religion Education options and versioned cohort lesson,
+// roster and attendance tables. They are unseeded school-life data to empty.
+const resetReviewedSchemaVersion = 1817
+const resetReviewedMigrationCount = 61
+const resetReviewedTableCount = 122
 
 // Student setup migration 1765 adds one unseeded retry table. A school reset
 // must empty it with students and accounts. Keep this delta separate so the
@@ -187,7 +189,7 @@ func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool
 	if err := db.WithContext(ctx).Raw("SELECT count(*) FROM schema_migrations WHERE version = 1765").Row().Scan(&studentSetupMigration); err != nil {
 		return plan, err
 	}
-	var fourthSubjectMigration, routinePlannerMigration, teacherSetupMigration int
+	var fourthSubjectMigration, routinePlannerMigration, teacherSetupMigration, religionChoiceMigration int
 	if err := db.WithContext(ctx).Raw("SELECT count(*) FROM schema_migrations WHERE version = 1814").Row().Scan(&fourthSubjectMigration); err != nil {
 		return plan, err
 	}
@@ -197,7 +199,10 @@ func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool
 	if err := db.WithContext(ctx).Raw("SELECT count(*) FROM schema_migrations WHERE version = 1816").Row().Scan(&teacherSetupMigration); err != nil {
 		return plan, err
 	}
-	if version != resetReviewedSchemaVersion || migrations != resetReviewedMigrationCount+studentSetupReviewedDelta || studentSetupMigration != 1 || fourthSubjectMigration != 1 || routinePlannerMigration != 1 || teacherSetupMigration != 1 {
+	if err := db.WithContext(ctx).Raw("SELECT count(*) FROM schema_migrations WHERE version = 1817").Row().Scan(&religionChoiceMigration); err != nil {
+		return plan, err
+	}
+	if version != resetReviewedSchemaVersion || migrations != resetReviewedMigrationCount+studentSetupReviewedDelta || studentSetupMigration != 1 || fourthSubjectMigration != 1 || routinePlannerMigration != 1 || teacherSetupMigration != 1 || religionChoiceMigration != 1 {
 		return plan, fmt.Errorf("%w: reviewed %d migrations through %d; database has %d through %d", ErrResetSchemaUnreviewed,
 			resetReviewedMigrationCount+studentSetupReviewedDelta, resetReviewedSchemaVersion, migrations, version)
 	}
@@ -216,6 +221,11 @@ func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool
 	fourthSubjectTable := false
 	routinePlannerTable := false
 	teacherSetupTable := false
+	religionChoiceTable := false
+	cohortLessonTable := false
+	cohortMemberTable := false
+	cohortAttendanceTable := false
+	religionRequestTable := false
 	for _, name := range tables {
 		switch name {
 		case "student_setup_runs":
@@ -226,10 +236,20 @@ func PlanReset(ctx context.Context, db *gorm.DB, schoolEN string, anySchool bool
 			routinePlannerTable = true
 		case "synthetic_teacher_setup_runs":
 			teacherSetupTable = true
+		case "class_religion_subjects":
+			religionChoiceTable = true
+		case "class_cohort_lessons":
+			cohortLessonTable = true
+		case "class_cohort_members":
+			cohortMemberTable = true
+		case "class_cohort_attendance":
+			cohortAttendanceTable = true
+		case "student_religion_choice_requests":
+			religionRequestTable = true
 		}
 	}
-	if len(tables) != resetReviewedTableCount+studentSetupReviewedDelta || !studentSetupTable || !fourthSubjectTable || !routinePlannerTable || !teacherSetupTable {
-		return plan, fmt.Errorf("%w: reviewed %d tables including both setup retry tables and the fourth-subject and routine planner tables; database has %d", ErrResetSchemaUnreviewed, resetReviewedTableCount+studentSetupReviewedDelta, len(tables))
+	if len(tables) != resetReviewedTableCount+studentSetupReviewedDelta || !studentSetupTable || !fourthSubjectTable || !routinePlannerTable || !teacherSetupTable || !religionChoiceTable || !cohortLessonTable || !cohortMemberTable || !cohortAttendanceTable || !religionRequestTable {
+		return plan, fmt.Errorf("%w: reviewed %d tables including Religion Education and cohort lesson tables; database has %d", ErrResetSchemaUnreviewed, resetReviewedTableCount+studentSetupReviewedDelta, len(tables))
 	}
 	keep := resetKeepSet()
 	for _, name := range tables {
