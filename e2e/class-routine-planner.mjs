@@ -54,6 +54,7 @@ try {
   check('saved draft loads', await b.waitFor(`document.body.innerText.includes('Draft version 1')`))
   await b.clickText('Preview without saving')
   check('browser shows valid preview and 45-minute lunch', await b.waitFor(`document.body.innerText.includes('Ready to publish') && document.body.innerText.includes('45 minutes')`))
+  check('combined and parallel roster editor is available', await b.waitFor(`document.body.innerText.includes('Combined and parallel lessons') && document.body.innerText.includes('Explicit student roster')`))
   const setSelect = async (index, value) => {
     const ok = await b.evaluate(`(() => {
       const section = [...document.querySelectorAll('section')].find(node => node.querySelector('h3')?.textContent === 'Place lessons')
@@ -89,8 +90,14 @@ try {
   check('confirmed publication completes in disposable school', await b.waitFor(`document.body.innerText.includes('Version 1 published.')`))
   const current = await api('GET', `/routines/classes?session_id=${session.id}&page=1&page_size=100`)
   check('published rows match manual plan', current.total === plan.slots.length)
+  await b.go('/admin/exams/setup')
+  check('Religion Education setup tab is available', await b.waitFor(`document.body.innerText.includes('Religion Education')`))
+  await b.clickText('Religion Education')
+  check('Admin course roster opens with privacy guidance', await b.waitFor(`document.body.innerText.includes('Student Religion Education courses') && document.body.innerText.includes('does not record religious affiliation')`))
   await b.viewport(375, 812, true)
-  check('planner fits a 375px screen', !(await b.overflow()))
+  check('course setup fits a 375px screen', !(await b.overflow()))
+  await b.go('/admin/routines?tab=class_planner')
+  check('planner fits a 375px screen', await b.waitFor(`document.body.innerText.includes('Class routine planner')`) && !(await b.overflow()))
   await b.evaluate(`localStorage.setItem('flybirds.language', 'bn')`)
   await b.go('/admin/routines?tab=class_planner')
   check('Bangla planner opens on a phone', await b.waitFor(`document.body.innerText.includes('শ্রেণি রুটিন পরিকল্পনাকারী')`) && !(await b.overflow()))

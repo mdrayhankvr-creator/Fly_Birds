@@ -39,7 +39,7 @@ func rulesFor(tx *gorm.DB, e Exam) (examRules, error) {
 		}
 	}
 	err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM student_subject_choices c JOIN student_enrolments en ON en.student_id = c.student_id AND en.session_id = c.session_id
- WHERE c.session_id = ? AND en.session_id = ? AND en.class_id = ?)
+ WHERE c.session_id = ? AND c.role='optional' AND en.session_id = ? AND en.class_id = ?)
  OR EXISTS (SELECT 1 FROM class_fourth_subject_policies WHERE class_id=? AND enabled)`, e.SessionID, e.SessionID, e.ClassID, e.ClassID).Row().Scan(&r.Choices)
 	return r, err
 }

@@ -5,9 +5,10 @@ import { ApiError, getClassPlanDraft, previewClassPlan, publishClassPlan, saveCl
 import { confirmAction } from '../../components/ConfirmDialog'
 import { usePeopleApi } from '../peopleShared'
 import { Notice, ui } from '../attendanceUi'
+import { CombinedLessonsPanel } from './CombinedLessonsPanel'
 
 type Session = { id: string; name: string; is_active: boolean }
-const empty = (sessionId: string): ClassPlan => ({ session_id: sessionId, config: { start_time: '', end_time: '', lunch_start: '', lunch_minutes: 45, period_minutes: 0, transition_minutes: 0, days: [], availability_confirmed: false, frequencies: [], unavailable: [] }, slots: [] })
+const empty = (sessionId: string): ClassPlan => ({ session_id: sessionId, config: { start_time: '', end_time: '', lunch_start: '', lunch_minutes: 45, period_minutes: 0, transition_minutes: 0, days: [], availability_confirmed: false, frequencies: [], unavailable: [] }, slots: [], combined_slots: [] })
 const blankSlot = (sessionId: string): ClassRoutineInput => ({ session_id: sessionId, class_id: '', section_id: '', subject_id: '', teacher_id: '', day_of_week: 0, start_time: '', end_time: '', room: '' })
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const periodKey = (p: ClassPlanPeriod) => `${p.day_of_week}|${p.start_time}|${p.end_time}`
@@ -108,6 +109,7 @@ export function ClassRoutinePlanner({ sessions }: { sessions: Session[] }) {
         return <div key={periodKey(period)} className={`rounded-lg border p-3 text-sm ${period.kind === 'lunch' ? 'border-amber-300 bg-amber-50' : lesson ? 'border-blue-200 bg-blue-50' : 'border-slate-200'}`}><strong>{t(`routineDay${period.day_of_week}`)} · {period.start_time}–{period.end_time}</strong><span className="block">{period.kind === 'lunch' ? t('crpLunch') : lesson ? `${catalogue?.subjects.find(subject => subject.id === lesson.subject_id)?.name ?? ''} · ${teachers.find(([id]) => id === lesson.teacher_id)?.[1] ?? ''} · ${lesson.room}` : t('crpFree')}</span></div>
       })}</div></div>}
     </section>}
+    {!!sessionId && <CombinedLessonsPanel sessionId={sessionId} plan={plan} catalogue={catalogue} periods={grid} viewDay={viewDay} viewTeacher={viewTeacher} viewSection={viewSection} onChange={change} />}
     {!!sessionId && <section className={`${ui.card} space-y-4 p-4 sm:p-6`}>
       <div className="flex flex-wrap gap-2"><button type="button" className={ui.secondary} disabled={busy} onClick={() => void run(async () => { const result = await authorized(token => previewClassPlan(token, plan)); setPreview(result); setCatalogue(result.catalogue); setGrid(result.periods); setMessage(t('crpPreviewReady')) })}>{t('crpPreview')}</button><button type="button" className={ui.secondary} disabled={busy || !preview} onClick={() => void run(async () => { const value = await authorized(token => saveClassPlanDraft(token, plan, preview!.digest)); setDraft(value); setDraftSaved(true); setMessage(t('crpDraftSaved')) })}>{t('crpSaveDraft')}</button><button type="button" className={ui.primary} disabled={busy || !preview?.can_publish || !draft || !draftSaved} onClick={() => void run(async () => { if (!await confirmAction(t('crpPublishConfirm', { n: preview?.existing.length ?? 0, version: draft?.version ?? 0 }))) return; const result = await authorized(token => publishClassPlan(token, sessionId, draft!.id, preview!.digest)); setDraft(null); setDraftSaved(false); setPreview(null); await client.invalidateQueries({ queryKey: ['routine'] }); setMessage(t('crpPublished', { version: result.version })) })}>{t('crpPublish')}</button></div>
       {draft && <p className="text-sm text-slate-600">{t('crpDraftVersion', { version: draft.version })}</p>}

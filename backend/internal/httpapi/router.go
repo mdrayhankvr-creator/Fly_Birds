@@ -256,6 +256,10 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/routines/class-planner/draft", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.classPlannerDraft)
 	management.PUT("/routines/class-planner/draft", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.classPlannerSave)
 	management.POST("/routines/class-planner/publish", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.classPlannerPublish)
+	management.GET("/routines/cohorts", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.cohortLessons)
+	management.GET("/routines/cohorts/me", RequirePermission(service, "routine:read_self"), moduleGuard("routine"), RequireAnyRole("teacher", "student"), tr.cohortLessons)
+	management.GET("/routines/cohorts/:id/roster", RequirePermission(service, "attendance:students_read"), moduleGuard("routine"), moduleGuard("attendance"), RequireAnyRole("admin", "teacher"), tr.cohortRoster)
+	management.PUT("/routines/cohorts/:id/attendance", RequirePermission(service, "attendance:students_manage"), moduleGuard("routine"), moduleGuard("attendance"), RequireAnyRole("admin", "teacher"), tr.cohortAttendance)
 	management.GET("/routines/classes", RequirePermission(service, "routine:read"), moduleGuard("routine"), tr.classes)
 	management.POST("/routines/classes", RequirePermission(service, "routine:manage"), moduleGuard("routine"), RequireAdministrator(), tr.createClass)
 	management.GET("/routines/classes/me", RequirePermission(service, "routine:read_self"), moduleGuard("routine"), tr.ownClasses)
@@ -339,6 +343,15 @@ func NewRouterWithDocuments(service *auth.Service, secureCookies bool, grants *r
 	management.GET("/exams/subject-choices", RequirePermission(service, "exams:read"), moduleGuard("examinations"), bh.choices)
 	management.PUT("/exams/subject-choices", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveChoices)
 	management.PUT("/exams/fourth-subject-policy", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveFourthPolicy)
+	// Religion Education choices are academic course decisions. Keep the
+	// complete roster and choice data in Admin-only endpoints.
+	management.GET("/exams/religion-choices", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.religionChoices)
+	management.PUT("/exams/religion-options", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveReligionOptions)
+	management.PUT("/exams/religion-choices", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.saveReligionChoices)
+	management.POST("/exams/religion-choice-requests", RequireAnyPermission(service, "students:read_self", "guardians:read_children"), moduleGuard("examinations"), RequireAnyRole("student", "guardian"), bh.requestReligionCorrection)
+	management.GET("/exams/religion-choice-options/:studentId", RequireAnyPermission(service, "students:read_self", "guardians:read_children"), moduleGuard("examinations"), RequireAnyRole("student", "guardian"), bh.religionCorrectionOptions)
+	management.GET("/exams/religion-choice-requests", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.religionCorrectionRequests)
+	management.POST("/exams/religion-choice-requests/:id/resolve", RequirePermission(service, "exams:manage"), moduleGuard("examinations"), RequireAdministrator(), bh.resolveReligionCorrection)
 	rh := &resultHandler{service: examService}
 	// E6 result versions: staff read with exams:read; approval needs
 	// exams:review (head teacher or administrator); publication and

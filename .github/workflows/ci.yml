@@ -34,13 +34,14 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-      - name: Create isolated school setup preview test database
+      - name: Create isolated integration test databases
         env:
           PREVIEW_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           python3 - <<'PY'
           import os
           import re
+          import secrets
           import subprocess
           from urllib.parse import urlsplit, urlunsplit
 
@@ -58,9 +59,13 @@ jobs:
           name = f"school_setup_preview_test_{run_id}_{attempt}"
           subprocess.run(["docker", "exec", container, "createdb", "-U", "flybirds_ci", name], check=True)
           dedicated = urlunsplit(source._replace(path="/" + name))
+          cohort_name = f"flybirds_cohort_test_{secrets.token_hex(6)}"
+          subprocess.run(["docker", "exec", container, "createdb", "-U", "flybirds_ci", cohort_name], check=True)
+          cohort_dedicated = urlunsplit(source._replace(path="/" + cohort_name))
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               env_file.write(f"SCHOOL_SETUP_PREVIEW_TEST_DATABASE_URL={dedicated}\n")
-          print(f"Created disposable preview test database {name}")
+              env_file.write(f"CLASS_COHORT_TEST_DATABASE_URL={cohort_dedicated}\n")
+          print(f"Created disposable integration test databases {name} and {cohort_name}")
           PY
       - name: Format
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }

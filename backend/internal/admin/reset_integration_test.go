@@ -69,10 +69,15 @@ func TestPostgresResetKeepsWhatTheSchemaSeeds(t *testing.T) {
 		t.Fatal(err)
 	}
 	requiredEmpty := map[string]bool{
-		"student_setup_runs":            false,
-		"class_fourth_subject_policies": false,
-		"class_routine_plan_versions":   false,
-		"synthetic_teacher_setup_runs":  false,
+		"student_setup_runs":               false,
+		"class_fourth_subject_policies":    false,
+		"class_routine_plan_versions":      false,
+		"synthetic_teacher_setup_runs":     false,
+		"class_religion_subjects":          false,
+		"class_cohort_lessons":             false,
+		"class_cohort_members":             false,
+		"class_cohort_attendance":          false,
+		"student_religion_choice_requests": false,
 	}
 	for _, entry := range plan.Empty {
 		if _, required := requiredEmpty[entry.Table]; required {

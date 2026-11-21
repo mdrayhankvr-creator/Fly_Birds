@@ -45,9 +45,23 @@ type ClassPlanConfig struct {
 	Unavailable           []TeacherUnavailable `json:"unavailable"`
 }
 type ClassPlan struct {
-	SessionID string          `json:"session_id"`
-	Config    ClassPlanConfig `json:"config"`
-	Slots     []ClassInput    `json:"slots"`
+	SessionID     string          `json:"session_id"`
+	Config        ClassPlanConfig `json:"config"`
+	Slots         []ClassInput    `json:"slots"`
+	CombinedSlots []CombinedInput `json:"combined_slots,omitempty"`
+}
+
+// CombinedInput is one lesson with an explicit roster. The same lesson may
+// include students from several sections without duplicating the teacher.
+type CombinedInput struct {
+	ClassID    string   `json:"class_id"`
+	SubjectID  string   `json:"subject_id"`
+	TeacherID  string   `json:"teacher_id"`
+	DayOfWeek  int      `json:"day_of_week"`
+	StartTime  string   `json:"start_time"`
+	EndTime    string   `json:"end_time"`
+	Room       string   `json:"room"`
+	StudentIDs []string `json:"student_ids"`
 }
 type PlanPeriod struct {
 	DayOfWeek int    `json:"day_of_week"`
@@ -88,15 +102,16 @@ type PlanCatalogue struct {
 	OffDays     []int                 `json:"off_days"`
 }
 type ClassPlanPreview struct {
-	Plan             ClassPlan     `json:"plan"`
-	Catalogue        PlanCatalogue `json:"catalogue"`
-	Periods          []PlanPeriod  `json:"periods"`
-	Free             []PlanPeriod  `json:"free"`
-	Issues           []PlanIssue   `json:"issues"`
-	Existing         []ClassInput  `json:"existing"`
-	PublishedVersion int           `json:"published_version"`
-	CanPublish       bool          `json:"can_publish"`
-	Digest           string        `json:"digest"`
+	Plan             ClassPlan       `json:"plan"`
+	Catalogue        PlanCatalogue   `json:"catalogue"`
+	Periods          []PlanPeriod    `json:"periods"`
+	Free             []PlanPeriod    `json:"free"`
+	Issues           []PlanIssue     `json:"issues"`
+	Existing         []ClassInput    `json:"existing"`
+	ExistingCombined []CombinedInput `json:"existing_combined"`
+	PublishedVersion int             `json:"published_version"`
+	CanPublish       bool            `json:"can_publish"`
+	Digest           string          `json:"digest"`
 }
 type ClassPlanVersion struct {
 	ID        string    `json:"id"`
@@ -203,8 +218,8 @@ WHERE r.session_id<>? AND a.start_date<=selected.end_date AND a.end_date>=select
 }
 
 func (s *ClassPlannerService) preview(tx *gorm.DB, in ClassPlan) (ClassPlanPreview, error) {
-	p := ClassPlanPreview{Plan: in, Periods: []PlanPeriod{}, Free: []PlanPeriod{}, Issues: []PlanIssue{}, Existing: []ClassInput{}}
-	if !uuid.MatchString(in.SessionID) || len(in.Slots) > 3000 || len(in.Config.Frequencies) > 500 || len(in.Config.Unavailable) > 500 {
+	p := ClassPlanPreview{Plan: in, Periods: []PlanPeriod{}, Free: []PlanPeriod{}, Issues: []PlanIssue{}, Existing: []ClassInput{}, ExistingCombined: []CombinedInput{}}
+	if !uuid.MatchString(in.SessionID) || len(in.Slots) > 3000 || len(in.CombinedSlots) > 1000 || len(in.Config.Frequencies) > 500 || len(in.Config.Unavailable) > 500 {
 		return p, ErrInvalid
 	}
 	var exists int64
@@ -219,6 +234,9 @@ func (s *ClassPlannerService) preview(tx *gorm.DB, in ClassPlan) (ClassPlanPrevi
 		return p, err
 	}
 	p.Catalogue, p.Existing, p.PublishedVersion = c, current, published
+	if p.ExistingCombined, err = s.currentCombined(tx, in.SessionID); err != nil {
+		return p, err
+	}
 	off := map[int]bool{}
 	for _, d := range c.OffDays {
 		off[d] = true
@@ -339,8 +357,54 @@ func (s *ClassPlannerService) preview(tx *gorm.DB, in ClassPlan) (ClassPlanPrevi
 				p.Issues = append(p.Issues, PlanIssue{Code: "overlap_existing_session", Message: "Teacher or room overlaps a concurrent academic session", Slot: i + 1})
 			}
 		}
+		var cohortOverlap int64
+		if err := tx.Raw(`SELECT count(*) FROM class_cohort_lessons l
+JOIN academic_sessions prior ON prior.id=l.session_id
+JOIN academic_sessions selected ON selected.id=?
+WHERE l.is_current AND l.session_id<>? AND prior.start_date<=selected.end_date
+AND prior.end_date>=selected.start_date AND l.day_of_week=?
+AND l.start_minute<? AND l.end_minute>?
+AND (l.teacher_id=? OR lower(l.room)=lower(?) OR EXISTS (
+ SELECT 1 FROM class_cohort_members m JOIN student_enrolments en
+ ON en.student_id=m.student_id AND en.session_id=?
+ WHERE m.lesson_id=l.id AND en.section_id=? AND en.state='current'))`,
+			in.SessionID, in.SessionID, v.DayOfWeek, b, a, v.TeacherID, v.Room, in.SessionID, v.SectionID).Row().Scan(&cohortOverlap); err != nil {
+			return p, err
+		}
+		if cohortOverlap > 0 {
+			p.Issues = append(p.Issues, PlanIssue{Code: "overlap_existing_cohort", Message: "Section lesson overlaps an active cohort in another academic session", Slot: i + 1})
+		}
 		counts[v.SectionID+"|"+v.SubjectID]++
 		used[fmt.Sprintf("%s|%d|%s|%s", v.SectionID, v.DayOfWeek, v.StartTime, v.EndTime)] = true
+	}
+	if err := s.validateCombined(tx, &p, in, c, sections, subjects, assignments, rooms, unavailable, allowed, counts, used, other); err != nil {
+		return p, err
+	}
+	// Religion Education and fourth-subject lessons are student-specific.
+	// Their class-wide frequency applies to a section only when at least one
+	// current student there actually takes that subject.
+	specialRows := []struct{ ClassID, SubjectID string }{}
+	if err := tx.Raw(`SELECT acs.class_id,acs.subject_id FROM academic_class_subjects acs
+LEFT JOIN class_religion_subjects cr ON cr.class_id=acs.class_id AND cr.subject_id=acs.subject_id
+WHERE acs.is_fourth_subject OR cr.subject_id IS NOT NULL`).Scan(&specialRows).Error; err != nil {
+		return p, err
+	}
+	special := map[string]bool{}
+	for _, row := range specialRows {
+		special[row.ClassID+"|"+row.SubjectID] = true
+	}
+	applicableRows := []struct{ SectionID, SubjectID string }{}
+	if err := tx.Raw(`SELECT DISTINCT en.section_id,acs.subject_id FROM student_enrolments en
+JOIN academic_class_subjects acs ON acs.class_id=en.class_id
+LEFT JOIN class_religion_subjects cr ON cr.class_id=acs.class_id AND cr.subject_id=acs.subject_id
+WHERE en.session_id=? AND en.state='current' AND en.student_status='active'
+AND (acs.is_fourth_subject OR cr.subject_id IS NOT NULL)
+AND student_takes_subject(en.student_id,en.session_id,en.class_id,acs.subject_id)`, in.SessionID).Scan(&applicableRows).Error; err != nil {
+		return p, err
+	}
+	applicable := map[string]bool{}
+	for _, row := range applicableRows {
+		applicable[row.SectionID+"|"+row.SubjectID] = true
 	}
 	for _, sec := range c.Sections {
 		for _, sub := range c.Subjects {
@@ -348,6 +412,9 @@ func (s *ClassPlannerService) preview(tx *gorm.DB, in ClassPlan) (ClassPlanPrevi
 				continue
 			}
 			want, ok := frequencies[sec.ClassID+"|"+sub.ID]
+			if special[sec.ClassID+"|"+sub.ID] && !applicable[sec.ID+"|"+sub.ID] {
+				want = 0
+			}
 			if ok && counts[sec.ID+"|"+sub.ID] != want {
 				p.Issues = append(p.Issues, PlanIssue{Code: "frequency_mismatch", Message: fmt.Sprintf("%s %s needs %d periods; proposed %d", sec.ClassName+" "+sec.Name, sub.Name, want, counts[sec.ID+"|"+sub.ID]), SectionID: sec.ID, SubjectID: sub.ID})
 			}
@@ -360,7 +427,7 @@ func (s *ClassPlannerService) preview(tx *gorm.DB, in ClassPlan) (ClassPlanPrevi
 			}
 		}
 	}
-	if len(in.Slots) == 0 {
+	if len(in.Slots) == 0 && len(in.CombinedSlots) == 0 {
 		p.Issues = append(p.Issues, issue("empty_plan", "Add lessons manually before publishing"))
 	}
 	p.CanPublish = len(p.Issues) == 0
@@ -459,6 +526,15 @@ func (s *ClassPlannerService) Publish(ctx context.Context, actor, session, draft
 		if err := json.Unmarshal(row.PlanJSON, &plan); err != nil {
 			return err
 		}
+		// Hold the rows that determine cohort eligibility and conflicts while
+		// rechecking the preview and publishing. A competing writer makes the
+		// publication fail rather than racing a stale roster.
+		if err := tx.Exec(`LOCK TABLE student_enrolments, student_subject_choices, class_religion_subjects,
+class_group_subjects, class_routines, class_cohort_lessons, class_cohort_members,
+academic_class_subjects, teacher_assignments, exam_rooms, school_weekly_off_days
+IN SHARE ROW EXCLUSIVE MODE NOWAIT`).Error; err != nil {
+			return err
+		}
 		preview, err := s.preview(tx, plan)
 		if err != nil {
 			return err
@@ -490,10 +566,31 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?)`, session, slot.ClassID, slot.SectionID, slot.Sub
 				return err
 			}
 		}
+		if err := tx.Exec("UPDATE class_cohort_lessons SET is_current=false WHERE session_id=? AND is_current", session).Error; err != nil {
+			return err
+		}
+		for _, slot := range plan.CombinedSlots {
+			a, _ := minute(slot.StartTime)
+			b, _ := minute(slot.EndTime)
+			var lessonID string
+			if err := tx.Raw(`INSERT INTO class_cohort_lessons(plan_version_id,session_id,class_id,subject_id,teacher_id,day_of_week,start_minute,end_minute,room)
+VALUES (?,?,?,?,?,?,?,?,?) RETURNING id`, draftID, session, slot.ClassID, slot.SubjectID, slot.TeacherID, slot.DayOfWeek, a, b, strings.TrimSpace(slot.Room)).Row().Scan(&lessonID); err != nil {
+				return err
+			}
+			for _, studentID := range slot.StudentIDs {
+				var sectionID string
+				if err := tx.Raw(`SELECT section_id FROM student_enrolments WHERE student_id=? AND session_id=? AND class_id=? AND state='current' AND student_status='active'`, studentID, session, slot.ClassID).Row().Scan(&sectionID); err != nil {
+					return err
+				}
+				if err := tx.Exec(`INSERT INTO class_cohort_members(lesson_id,student_id,session_id,class_id,section_id) VALUES (?,?,?,?,?)`, lessonID, studentID, session, slot.ClassID, sectionID).Error; err != nil {
+					return err
+				}
+			}
+		}
 		if err := tx.Exec("UPDATE class_routine_plan_versions SET state='published',published_by=?,published_at=now(),updated_at=now() WHERE id=?", actor, draftID).Error; err != nil {
 			return err
 		}
-		if err := audit.Record(tx, &actor, "routine.class_plan_published", "class_routine_plan", draftID, map[string]any{"session_id": session, "version": row.Version, "slots": len(plan.Slots)}); err != nil {
+		if err := audit.Record(tx, &actor, "routine.class_plan_published", "class_routine_plan", draftID, map[string]any{"session_id": session, "version": row.Version, "slots": len(plan.Slots), "combined_slots": len(plan.CombinedSlots)}); err != nil {
 			return err
 		}
 		out = ClassPlanVersion{ID: draftID, SessionID: session, Version: row.Version, State: "published", Plan: plan}

@@ -170,6 +170,30 @@ func TestPostgresExamWorkflowRouteProtection(t *testing.T) {
 			check(w.method, w.path, w.body, who, 403)
 		}
 	}
+	// Religion Education choices reveal an academic course that can be
+	// sensitive. Unlike general blueprint reads, their roster is Admin-only.
+	religionPath := "/exams/religion-choices" + session + "&class_id=" + examID
+	check("GET", religionPath, "", nil, 401)
+	for _, who := range []map[string]string{student, guardian, teacher, head} {
+		check("GET", religionPath, "", who, 403)
+	}
+	for _, path := range []string{"/exams/religion-options", "/exams/religion-choices"} {
+		check("PUT", path, `{}`, nil, 401)
+		for _, who := range []map[string]string{student, guardian, teacher, head} {
+			check("PUT", path, `{}`, who, 403)
+		}
+		check("PUT", path, `{}`, admin, 400)
+	}
+	requestPath := "/exams/religion-choice-requests"
+	check("GET", requestPath, "", nil, 401)
+	for _, who := range []map[string]string{student, guardian, teacher, head} {
+		check("GET", requestPath, "", who, 403)
+	}
+	check("POST", requestPath, `{}`, nil, 401)
+	for _, who := range []map[string]string{teacher, head, admin} {
+		check("POST", requestPath, `{}`, who, 403)
+	}
+	check("POST", requestPath+"/"+examID+"/resolve", `{}`, student, 403)
 	check("POST", sample, `{}`, teacher, 403)
 	check("GET", reads[0], "", head, 200)
 	check("GET", reads[1], "", head, 200)

@@ -779,7 +779,7 @@ func (r *Repository) Choices(ctx context.Context, sessionID, classID string) (Ch
 	if err := tx.Raw(`SELECT st.id AS student_id, st.name_en AS name, st.admission_no, r.roll_no, sec.name AS section_name, ch.subject_id,
 st.gender, student_effective_fourth_subject(st.id,r.session_id,r.class_id) AS effective_subject_id
   FROM student_rolls r JOIN students st ON st.id = r.student_id JOIN academic_sections sec ON sec.id = r.section_id
-  LEFT JOIN student_subject_choices ch ON ch.student_id = r.student_id AND ch.session_id = r.session_id
+  LEFT JOIN student_subject_choices ch ON ch.student_id = r.student_id AND ch.session_id = r.session_id AND ch.role='optional'
  WHERE r.session_id = ? AND r.class_id = ?
  ORDER BY sec.display_order, sec.name, r.roll_no NULLS LAST, st.admission_no`, sessionID, classID).Scan(&v.Students).Error; err != nil {
 		return v, err
@@ -904,7 +904,7 @@ func (r *Repository) SaveChoices(ctx context.Context, actor, sessionID, classID 
 				changes = append(changes, map[string]string{"student_id": c.StudentID, "from": before, "to": c.SubjectID})
 			}
 			if c.SubjectID == "" {
-				res := tx.Exec("DELETE FROM student_subject_choices WHERE student_id = ? AND session_id = ?", c.StudentID, sessionID)
+				res := tx.Exec("DELETE FROM student_subject_choices WHERE student_id = ? AND session_id = ? AND role='optional'", c.StudentID, sessionID)
 				if res.Error != nil {
 					return res.Error
 				}

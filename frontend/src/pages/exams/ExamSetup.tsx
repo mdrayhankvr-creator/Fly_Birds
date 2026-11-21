@@ -10,8 +10,9 @@ import { confirmAction } from '../../components/ConfirmDialog'
 import { EmptyState, Notice, PageHeader, SectionCard, Skeleton, Tabs, ui } from '../attendanceUi'
 import { usePeopleApi } from '../peopleShared'
 import { SessionPicker, TermChip, VersionChip, useExplain, useSessionChoice, useSubjectName } from './setupShared'
+import { ReligionChoices } from './ReligionChoices'
 
-type Tab = 'terms' | 'blueprints' | 'choices'
+type Tab = 'terms' | 'blueprints' | 'choices' | 'religion'
 
 // ExamSetup is where a school's examinations are designed before marks are
 // entered: the session's terms, each class's assessment blueprint and the
@@ -37,11 +38,13 @@ export function ExamSetup({ canManage }: { canManage: boolean }) {
           <SessionPicker items={items} value={chosen} onChange={choose} />
           <Tabs label={t('bpSetupTitle')} value={tab} onChange={setTab} items={[
             { value: 'terms', label: t('bpTabTerms') }, { value: 'blueprints', label: t('bpTabBlueprints') }, { value: 'choices', label: t('bpTabChoices') },
+            ...(canManage ? [{ value: 'religion' as const, label: t('religionTab') }] : []),
           ]} />
         </div>
         {tab === 'terms' && <TermsPanel sessionId={chosen} canManage={canManage} />}
         {tab === 'blueprints' && <BlueprintsPanel sessionId={chosen} previous={previous} canManage={canManage} />}
         {tab === 'choices' && <ChoicesPanel sessionId={chosen} canManage={canManage} />}
+        {tab === 'religion' && canManage && <ReligionChoices sessionId={chosen} />}
       </>}
   </div>
 }
