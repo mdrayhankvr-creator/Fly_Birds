@@ -2,10 +2,12 @@ package routine
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,13 +15,71 @@ import (
 	"github.com/mdrayhankvr-creator/Fly_Birds/backend/internal/database"
 )
 
-func TestPostgresCombinedCohortPlanning(t *testing.T) {
-	dsn := os.Getenv("AUTH_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("AUTH_TEST_DATABASE_URL is unset")
-	}
+var cohortDisposableName = regexp.MustCompile(`^flybirds_cohort_test_[0-9a-f]{12}$`)
+
+func validCohortTestDSN(dsn string) bool {
 	u, err := url.Parse(dsn)
-	if err != nil || u.Hostname() != "127.0.0.1" || u.Port() != "55415" || !strings.HasPrefix(strings.TrimPrefix(u.Path, "/"), "flybirds_religion_test_") {
+	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || !cohortDisposableName.MatchString(strings.TrimPrefix(u.Path, "/")) {
+		return false
+	}
+	return (u.Hostname() == "127.0.0.1" && u.Port() == "55415") ||
+		(u.Hostname() == "localhost" && u.Port() == "5432" && os.Getenv("GITHUB_ACTIONS") == "true")
+}
+
+func TestCohortTestDatabaseGuard(t *testing.T) {
+	for _, tc := range []struct {
+		dsn  string
+		want bool
+	}{
+		{"postgres://test@127.0.0.1:55415/flybirds_cohort_test_abcdef123456", true},
+		{"postgres://test@127.0.0.1:55415/fbshow", false},
+		{"postgres://test@127.0.0.1:55415/fbqa_cp1b", false},
+		{"postgres://test@127.0.0.1:55415/flybirds_ci", false},
+		{"postgres://test@school.example:55415/flybirds_cohort_test_abcdef123456", false},
+		{"postgres://test@127.0.0.1:5432/flybirds_cohort_test_abcdef123456", false},
+	} {
+		if got := validCohortTestDSN(tc.dsn); got != tc.want {
+			t.Fatalf("cohort test guard accepted=%t, want %t", got, tc.want)
+		}
+	}
+	t.Setenv("GITHUB_ACTIONS", "true")
+	if !validCohortTestDSN("postgres://test@localhost:5432/flybirds_cohort_test_abcdef123456") {
+		t.Fatal("CI service rejected for dedicated disposable cohort database")
+	}
+	if validCohortTestDSN("postgres://test@localhost:5432/flybirds_ci") {
+		t.Fatal("CI shared database accepted as a cohort fixture")
+	}
+}
+
+const cohortNonSystemObjects = `SELECT
+ (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%'
+    AND c.relkind IN ('r','p','f','v','m','S'))
+ +(SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%')
+ +(SELECT count(*) FROM pg_namespace
+  WHERE nspname NOT IN ('pg_catalog','information_schema','public') AND nspname NOT LIKE 'pg_toast%')`
+
+func requireEmptyCohortTestDatabase(ctx context.Context, db *sql.DB) error {
+	var objects int
+	if err := db.QueryRowContext(ctx, cohortNonSystemObjects).Scan(&objects); err != nil {
+		return err
+	}
+	if objects != 0 {
+		return errors.New("refusing migrations: disposable cohort test database is not empty")
+	}
+	return nil
+}
+
+func TestPostgresCombinedCohortPlanning(t *testing.T) {
+	dsn := os.Getenv("CLASS_COHORT_TEST_DATABASE_URL")
+	if dsn == "" {
+		if os.Getenv("AUTH_TEST_DATABASE_URL") != "" {
+			t.Fatal("CLASS_COHORT_TEST_DATABASE_URL is required; shared AUTH_TEST_DATABASE_URL is unsafe for this fixture")
+		}
+		t.Skip("CLASS_COHORT_TEST_DATABASE_URL is unset")
+	}
+	if !validCohortTestDSN(dsn) {
 		t.Fatal("refusing non-disposable cohort test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -30,8 +90,14 @@ func TestPostgresCombinedCohortPlanning(t *testing.T) {
 	}
 	sqlDB, _ := db.DB()
 	defer sqlDB.Close()
+	if err := requireEmptyCohortTestDatabase(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
 	if err := database.Migrate(ctx, db); err != nil {
 		t.Fatal(err)
+	}
+	if err := requireEmptyCohortTestDatabase(ctx, sqlDB); err == nil {
+		t.Fatal("nonempty cohort test database accepted after migrations")
 	}
 	tx := db.Begin()
 	defer tx.Rollback()
